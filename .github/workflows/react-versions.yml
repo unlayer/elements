@@ -1,15 +1,15 @@
 # React versions
 #
-# Elements renders templates with its own renderer (src/engine), which must
-# render as each React it supports does: the react package's suite on each
-# one (its react and react-dom swapped in), in React's development build
-# (the full suite) and its production build (the engine's, the renderers'
-# and the regression tests: React's act(), which the component tests need,
-# is in its development build only). It holds the walker against
-# react-dom/server on hand-written and random trees, useId()s included
-# (src/engine/differential.test.tsx), React's react-server build with a
-# hook it lacks (src/regression/react-server-build.test.ts, React 19), and
-# a hook the dispatcher doesn't know (src/engine/dispatcher.test.tsx).
+# Elements renders templates with react-dom/server (src/engine), which must
+# give the same templates the same output with each React it supports: the
+# react package's suite on each one (its react and react-dom swapped in), in
+# React's development build (the full suite) and its production build (the
+# engine's, the renderers' and the regression tests: React's act(), which
+# the component tests need, is in its development build only). It holds the
+# collecting render against react-dom/server's own markup on hand-written
+# and random trees, useId()s included (src/engine/differential.test.tsx),
+# and React's react-server build, which react-dom can't render with, to the
+# named error (src/regression/react-server-build.test.ts, React 19).
 #
 # A workflow of its own, called by test.yml (pushes and pull requests) and by
 # publish.yml, whose publish job waits for it: a release ships only a commit

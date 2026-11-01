@@ -3,8 +3,8 @@
 import React, { useMemo } from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
-import { rendering } from "../engine/dispatcher";
 import { layerConfig } from "./layer-config";
+import { aroundCapture } from "../engine/root-capture";
 
 // React Server Components' React (its react-server build: Next.js's Server Components and route handlers) has no
 // createContext or useContext. They're read off React, not imported by name: webpack (Next.js 15's default bundler)
@@ -57,9 +57,10 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
     [parent, config]
   );
 
+  // (Where a lazy template's root is found in what it renders, the root's found in this config: see aroundCapture.)
   return (
     <Context.Provider value={merged}>
-      {children}
+      {aroundCapture(UnlayerProvider, { config, children }, children)}
     </Context.Provider>
   );
 };
@@ -80,7 +81,14 @@ export function useUnlayerConfig(): UnlayerConfig {
  */
 export function useProvidedConfig(): Partial<UnlayerConfig> | undefined {
   const Context = getUnlayerContext();
-  if (!Context || !useContext || !rendering()) return undefined;
-  const { [PROVIDER_ACTIVE_KEY]: active, ...config } = useContext(Context) as UnlayerConfig & Record<string, unknown>;
+  if (!Context || !useContext) return undefined;
+  // (Probe) Whether a render is running can't be asked of React's public API: outside one, useContext throws.
+  let read: UnlayerConfig & Record<string, unknown>;
+  try {
+    read = useContext(Context) as UnlayerConfig & Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const { [PROVIDER_ACTIVE_KEY]: active, ...config } = read;
   return active ? (config as Partial<UnlayerConfig>) : undefined;
 }

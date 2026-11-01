@@ -7,6 +7,7 @@
  */
 
 import React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import { RECORDS } from "./collect";
 import type { ExporterName } from "@unlayer/types";
 
@@ -18,6 +19,9 @@ import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
 import { guest, remember, textRegion } from "./render-scope";
 import { cssUrlValue } from "./css-url";
+import { keepTags } from "./inline-html";
+import { ownValues } from "./own-values";
+import { own } from "./own-type";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -48,6 +52,13 @@ export const OWN = Symbol("@unlayer/react-elements/own");
  * Elements' own components (roots, Rows, Columns, blocks, kept markup), which call no hooks: the engine renders
  * Elements' markup calling them as they are (see the engine's renderStatic).
  */
+/**
+ * On Elements' components of other entries (Markdown, CodeBlock: by Symbol.for, for every copy) that call no hooks:
+ * a render the user's code they call starts (Markdown's `url`) is safe inside their call, as one inside a root's is.
+ */
+export const NO_HOOKS = Symbol.for("@unlayer/react-elements/no-hooks");
+export const callsNoHooks = (type: unknown): boolean => isOwn(type) || !!(type as Record<symbol, unknown> | null)?.[NO_HOOKS];
+
 export const isOwn = (type: unknown): boolean => {
   const t = type as Record<PropertyKey, unknown> | null;
   return !!t && !!(t[OWN] || t[UNLAYER_RENDER_KEY] || t[RECORDS]);
@@ -109,6 +120,12 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
    *  Keys are display modes ('web', 'email', 'document'), values are exporter functions. */
   exporters: ItemExporters;
 
+  /**
+   * The `style` properties its props take, which are those props where none is given (see styleAsProps): the editor's
+   * export writes props where a `style` on its element can't reach (a Button's color in Outlook's VML, its padding).
+   */
+  styleProps?: readonly string[];
+
   /** Design-JSON content type override (defaults to the lowercased name).
    *  Custom tools use "custom". */
   contentType?: string;
@@ -157,6 +174,27 @@ const attr = (tag: string, name: string, value: string, edit: (own: string) => s
  * sets the same property: props win. Inline, as email clients need; a value that could end the rule is left out, and
  * a `"` (a font stack's, `url("…")`) is written as `&quot;`, which the browser reads as one and can't end the attribute.
  */
+/**
+ * `props` with the `style` properties a component's props take (`names`) as those props, where none is given, and
+ * `style` without them: the editor's export writes the props, where the same property in `style`, on the element it
+ * renders, painted over its own (a Button's color: not Outlook's, which draws the button in VML; its padding, the
+ * export's inside it), and the design keeps them. A value that could end its attribute or rule stays in `style`, which
+ * leaves it out (see hatch): props are written as given.
+ */
+export function styleAsProps(names: readonly string[] | undefined, props: Record<string, any>, style: unknown): { props: Record<string, any>; style: unknown } {
+  if (!names || !style || typeof style !== "object") return { props, style };
+  let moved: Record<string, any> | undefined;
+  let rest: Record<PropertyKey, unknown> | undefined;
+  for (const name of names) {
+    const value = (style as Record<string, unknown>)[name];
+    const safe = typeof value === "number" ? Number.isFinite(value) : typeof value === "string" && value.trim() !== "" && !/["'<>\\;{}]/.test(value) && cssValueSafe(`${name.replace(/[A-Z]/g, "-$&").toLowerCase()}:${value}`);
+    if (props[name] !== undefined || !safe) continue;
+    (moved ??= { ...props })[name] = value;
+    delete (rest ??= { ...(style as Record<PropertyKey, unknown>) })[name];
+  }
+  return moved ? { props: moved, style: rest } : { props, style };
+}
+
 export function hatch(html: string, at: RegExp, style: unknown, className: unknown, given: Record<string, unknown>): string {
   const css = Object.entries(style ?? {})
     .filter(([key, value]) => value != null && value !== "" && given[key] === undefined)
@@ -269,7 +307,9 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
   // A string, with its `style` and `className` on the tag that renders it (a table its repeat rule's rows are in,
   // marked for the plain text: see textRegion).
-  const written = hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {});
+  // (An Image's src keeps an email service's `<% … %>` tag as written, as its link does: see keepTags.)
+  const hatched = hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {});
+  const written = config.type === "Image" ? hatched.replace(/\ssrc="[^"]*"/g, keepTags) : hatched;
   return <div dangerouslySetInnerHTML={{ __html: config.type === "Table" && cfg.mergeTagState ? textRegion(written) : written }} />;
 }
 
@@ -302,8 +342,10 @@ export function createItemComponent<
     props: ItemComponentProps<TSemanticProps>
   ): React.ReactElement | null {
     // Base props, then internal props (from the Column), children, and the semantic props.
-    const { mode: modeProp, className, style, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...restProps } =
+    const { mode: modeProp, className, style: styleGiven, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...propsGiven } =
       props as ItemComponentProps<TSemanticProps> & { _record?: unknown };
+    // (Its `style`'s properties its props take, as those props: see styleAsProps.)
+    const { props: restProps, style } = styleAsProps(config.styleProps, propsGiven, styleGiven) as { props: typeof propsGiven; style: typeof styleGiven };
 
     // Resolve mode: explicit prop > _config > default
     const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
@@ -315,7 +357,8 @@ export function createItemComponent<
     rtlAlign(mappedValues, config.defaultValues, _config?.textDirection ?? bodyValues.textDirection);
 
     // 2. Merge with defaults (a built-in block's, which the head reuses: see remember)
-    const finalValues = mergeValues(config.defaultValues, mappedValues);
+    // (A custom tool's, the render's own: see own-values.ts.)
+    const finalValues = config.contentType ? ownValues(config.defaultValues, mappedValues) : mergeValues(config.defaultValues, mappedValues);
     if (!config.contentType) remember(_r as object | undefined, finalValues);
 
     // 3. Ensure _meta is present. The Column-allocated id wins so every
@@ -371,8 +414,12 @@ export function createItemComponent<
   }
 
   // Outer React component — hook-free, works in both Server and Client Components. A collecting walk records it (see
-  // record.tsx); rendered, it's its exporter's HTML.
-  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => renderFn(props);
+  // record.tsx); rendered, it's its exporter's HTML. (Rendered by react-dom in what a lazy component renders, in a
+  // collecting render: what that collects it as.)
+  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => {
+    const collected = collectedHere(ItemComponent, props, (props as { _config?: unknown })._config !== undefined);
+    return collected === NOT_COLLECTED ? renderFn(props) : <>{collected}</>;
+  };
 
   // Set display name for React DevTools
   ItemComponent.displayName = config.displayName || config.name;
@@ -380,12 +427,14 @@ export function createItemComponent<
   // Expose hook-free render for Column to call directly
   (ItemComponent as any)[UNLAYER_RENDER_KEY] = renderFn;
   (ItemComponent as any)[RECORDS] = true;
+  own(ItemComponent);
 
   // Expose config for renderToJson to extract values without HTML rendering
   (ItemComponent as any)[UNLAYER_CONFIG_KEY] = {
     name: config.name,
     defaultValues: config.defaultValues,
     propMapper: config.propMapper,
+    styleProps: config.styleProps,
     contentType: config.contentType,
     slug: config.slug,
     metaName: config.metaName,

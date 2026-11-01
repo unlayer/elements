@@ -1,4 +1,5 @@
 import React from "react";
+import { aroundCapture, collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 
 /** A Tailwind config, as React Email's `<Tailwind config>` takes it: `{ theme: { extend: { colors: { brand: "#007291" } } } }`. */
 export type TailwindConfig = { theme?: Record<string, unknown>; presets?: TailwindConfig[]; plugins?: unknown[]; [key: string]: unknown };
@@ -118,7 +119,10 @@ function placed({ children, ...props }: TailwindProps): React.ReactNode {
  * ```
  */
 export function Tailwind(props: TailwindProps): React.ReactElement {
-  return <>{placed(props)}</>;
+  // (Rendered by react-dom in what a lazy component renders, in a collecting render: what that collects it as.)
+  const collected = collectedHere(Tailwind, props);
+  // (Where a lazy template's root is found in what it renders, the root's found in this scope: see aroundCapture.)
+  return <>{collected === NOT_COLLECTED ? aroundCapture(Tailwind, props, placed(props)) : collected}</>;
 }
 
 Tailwind.displayName = "Tailwind";

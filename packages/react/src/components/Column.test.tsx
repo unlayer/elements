@@ -176,14 +176,16 @@ describe("Column Component", () => {
         const email = column(
           <a key="a" href="https://example.com" title="Home">Home</a>,
           <hr key="hr" />,
-          <span key="s">loose</span>
+          <span key="s">loose</span>,
+          // (A <Link> in it: left out without a word.)
+          <p key="p">Questions? <Link href="https://example.com/help">Contact support</Link>.</p>
         );
         const html = renderToHtml(email);
         expect(html).toContain('<a href="https://example.com" title="Home">Home</a>');
         expect(html).toContain("u_content_divider");
         expect(html).not.toContain("loose");
         expect(contents(email).map((c) => c.type)).toEqual(["text", "divider"]);
-        expect([...new Set(warn.mock.calls.map((call) => String(call[0])))]).toEqual(["[Unlayer] Column: <span> isn't a block, so it's left out. Put HTML in an <Html> block."]);
+        expect([...new Set(warn.mock.calls.map((call) => String(call[0])))]).toEqual(["[Unlayer] Column: <span> isn't a block, so it's left out. Put HTML in an <Html> block.", "[Unlayer] Column: <p> isn't a block, so it's left out. Put HTML in an <Html> block."]);
       } finally {
         warn.mockRestore();
       }

@@ -45,11 +45,21 @@ describe.each([
     const quiet = [vi.spyOn(console, "warn").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {})];
     try {
       const digests: Record<string, string> = {};
+      const nested: string[] = [];
       for (const { name, element, options } of corpus()) {
-        const html = renderToHtml(linked(as(element, Root)), options as never);
+        let html: string;
+        try {
+          html = renderToHtml(linked(as(element, Root)), options as never);
+        } catch (error) {
+          // (A story whose component renders the template while it's called, a live preview's `renderToHtmlParts` in a
+          // `useMemo`, renders it as a render of its own: src/utils/nested-renders.test.tsx.)
+          if (/can't start while a component of a template that Elements is rendering synchronously is called/.test(String((error as Error)?.message))) nested.push(name);
+          throw error;
+        }
         if (BLOCKS.test(html) || /^components\/(Divider|Html|Menu|Social): /.test(name)) digests[name] = digest(html);
       }
       expect(Object.keys(digests).length).toBeGreaterThan(150);
+      expect(nested).toEqual([]);
       for (const [name, [react18, blocked]] of Object.entries(BLOCKED[Root.displayName])) {
         expect(digests[name], name).toBe(blocked);
         digests[name] = react18;

@@ -7,6 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+import { createPortal } from "react-dom";
 import { ColumnExporters, RowExporters } from "@unlayer/exporters";
 import { Column, ColumnLayouts, Email, Paragraph, RenderError, Row, UnlayerProvider, registerElementsTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText, type OnError } from "../index";
 import * as asyncRenderers from "../async";
@@ -97,6 +98,60 @@ describe("a part of a template that fails", () => {
     expect(JSON.stringify(renderToJson(email, { onError: "omit" }))).toContain("counted_tool");
     expect(calls).toBe(1);
     expect(JSON.stringify(renderToJson(template(), { onError: "omit" }))).not.toContain("failing_tool");
+  });
+
+  it("leaves out a component whose data is missing however its property is named (`settings.theme.useDarkLogo`), and a hook after an await, as any part that fails", async () => {
+    // A TypeError naming a property `use…` was taken for another copy of React's hooks, and failed the render whatever
+    // onError said.
+    const Logo = ({ settings }: { settings: { theme?: { useDarkLogo?: boolean } } }) => <Paragraph>{settings.theme!.useDarkLogo ? "dark" : "light"}</Paragraph>;
+    const Locale = React.createContext("en");
+    const Greeting = async () => {
+      const user = await new Promise<{ name: string }>((done) => setTimeout(() => done({ name: "Ada" }), 1));
+      return <Paragraph>{`${React.useContext(Locale)}: hi ${user.name}`}</Paragraph>;
+    };
+    const email = (part: React.ReactNode) => <Email><Row><Column>{part}<Paragraph>Your receipt: $42.00</Paragraph></Column></Row></Email>;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const told: RenderError[] = [];
+      expect(renderToPlainText(email(<Logo settings={{}} />), { onError: "omit" })).toContain("Your receipt");
+      expect(renderToPlainText(email(<Logo settings={{}} />), { onError: (e) => void told.push(e) })).toContain("Your receipt");
+      expect(told.map((e) => e.component)).toEqual(["Logo"]);
+      expect(() => renderToHtml(email(<Logo settings={{}} />))).toThrow(/useDarkLogo/);
+      expect(() => renderToHtml(email(<Logo settings={{}} />))).not.toThrow(/another copy of React/);
+      expect(await asyncRenderers.renderToPlainText(email(<Greeting />), { onError: "omit" })).toContain("Your receipt");
+      await expect(asyncRenderers.renderToHtml(email(<Greeting />))).rejects.toMatchObject({ component: "Greeting" });
+      await expect(asyncRenderers.renderToHtml(email(<Greeting />))).rejects.not.toThrow(/another copy of React/);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("renders a class component above markup React warns about, whatever React's development build constructs to name it", async () => {
+    // React 18's development build names where it warns (an attribute written as HTML writes it, `rowspan`) by
+    // constructing each class component around it with props it can't set: Elements' subclass took that for the
+    // component's own error, and an async render failed with an empty RenderError naming the class.
+    class Provider extends React.PureComponent<{ children: React.ReactNode }> {
+      render() {
+        return this.props.children;
+      }
+    }
+    const Later = async () => (await new Promise((done) => setTimeout(done, 2)), <table><tbody><tr>{React.createElement("td", { rowspan: "2" }, "Thanks!")}</tr></tbody></table>);
+    const email = <Email><Provider><Row><Column><Paragraph>Bonjour</Paragraph><Later /></Column></Row></Provider></Email>;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 2; i++) expect(await asyncRenderers.renderToPlainText(email)).toContain("Bonjour");
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  it("fails the render on a portal, onError or not (as ARCHITECTURE.md says: React's server renderer has none)", () => {
+    const Portal = () => createPortal(<b>portal</b>, document.createElement("div"));
+    for (const onError of [undefined, "omit" as const]) {
+      expect(() => renderToHtml(<Email><Row><Column><Paragraph>Kept</Paragraph><Portal /></Column></Row></Email>, { onError })).toThrow(/Portals aren't supported/);
+    }
   });
 
   it("lists nothing when nothing failed", () => {
@@ -202,6 +257,106 @@ describe("a Row or Column whose exporter fails", () => {
     expect(given.map((e) => e.position)).toEqual(["Row 2", "Row 3 › Column 2"]);
   });
 
+  it("with onError: \"omit\", leaves out what's in the <Suspense> nearest the part that failed, as React's nearest <Suspense> takes it", async () => {
+    // A layout's <Suspense> around its sections, and one around an optional section: the outer one was left out whole
+    // (a blank email, only the section listed), as was a Column's around the blocks next to the inner one.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const Recommendations = () => {
+      throw new Error("recommendations API down");
+    };
+    const Layout = ({ children }: { children: React.ReactNode }) => <Email previewText="Your order"><React.Suspense fallback={null}>{children}</React.Suspense></Email>;
+    const Section = ({ children }: { children: React.ReactNode }) => <React.Suspense fallback={null}>{children}</React.Suspense>;
+    const sections = (
+      <Layout>
+        <Row><Column><Paragraph>Your order has shipped.</Paragraph></Column></Row>
+        <Section><Recommendations /></Section>
+        <Row><Column><Paragraph>Track your package.</Paragraph></Column></Row>
+      </Layout>
+    );
+    const blocks = (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>a</Paragraph>
+            <React.Suspense fallback={null}><Paragraph>b</Paragraph><Section><Recommendations /></Section><Paragraph>c</Paragraph></React.Suspense>
+            <Paragraph>d</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    for (const r of [{ renderToHtml, renderToJson, renderToPlainText }, asyncRenderers]) {
+      const omitted: string[] = [];
+      const text = await r.renderToPlainText(sections, { onError: (error) => void omitted.push(error.message) });
+      expect(text.replace(/\s+/g, " ").trim()).toBe("Your order has shipped. Track your package.");
+      expect(omitted).toEqual([expect.stringMatching(/recommendations API down/)]);
+      expect((await r.renderToJson(sections, { onError: "omit" })).body.rows).toHaveLength(2);
+      expect((await r.renderToPlainText(blocks, { onError: "omit" })).replace(/\s+/g, " ").trim()).toBe("a b c d");
+    }
+  });
+
+  it("with onError: \"omit\", leaves out only the section that failed where a provider or <StrictMode> is around the rows or the root", async () => {
+    // A provider around the rows (or the root) was one part: one section failing left out every row, a blank email
+    // and design, where a digest's optional sections are the README's own use of "omit". A provider written as a
+    // component of yours (a class, memo'd, forwardRef'd, in another), or a layout, was one part with the rows it
+    // renders the same way.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const User = React.createContext({ name: "?" });
+    const Header = () => <Row><Column><Paragraph>{`Hi ${React.useContext(User).name}`}</Paragraph></Column></Row>;
+    const Recommendations = ({ items }: { items?: string[] }) => <Row><Column>{items!.map((item) => <Paragraph key={item}>{item}</Paragraph>)}</Column></Row>;
+    const Footer = () => <Row><Column><Paragraph>Unsubscribe</Paragraph></Column></Row>;
+    const sections = [<Header key="h" />, <Recommendations key="r" />, <Footer key="f" />];
+    type Given = { children?: React.ReactNode };
+    const ada = { name: "Ada" };
+    const UserProvider = ({ user, children }: Given & { user: { name: string } }) => <User.Provider value={user}>{children}</User.Provider>;
+    class IntlProvider extends React.Component<Given> {
+      render() {
+        return <User.Provider value={ada}>{this.props.children}</User.Provider>;
+      }
+    }
+    const MemoProvider = React.memo(UserProvider);
+    const RefProvider = React.forwardRef<unknown, Given>(function RefProvider({ children }, _ref) {
+      return <User.Provider value={ada}>{children}</User.Provider>;
+    });
+    const AppProviders = ({ children }: Given) => <IntlProvider><UserProvider user={ada}>{children}</UserProvider></IntlProvider>;
+    const Layout = ({ children }: Given) => <>{children}</>;
+    // (A layout given its sections as props: one failing left out every row, 0.2 too.)
+    const Slots = ({ header, footer, children }: Given & { header: React.ReactNode; footer: React.ReactNode }) => <>{header}{children}{footer}</>;
+    // (One that reads what it's given, and clones it: as it would, it's given the sections as written.)
+    const Numbered = ({ children }: Given) => <>{React.Children.map(children, (child, i) => (React.isValidElement(child) ? React.cloneElement(child, { "data-n": i } as object) : child))}</>;
+    const templates = {
+      "around the rows": <Email><User.Provider value={ada}>{sections}</User.Provider></Email>,
+      "around the root": <User.Provider value={ada}><Email>{sections}</Email></User.Provider>,
+      "<StrictMode> around them": <Email><React.StrictMode><User.Provider value={ada}>{sections}</User.Provider></React.StrictMode></Email>,
+      "a provider written as a component": <Email><UserProvider user={ada}>{sections}</UserProvider></Email>,
+      "a class provider (react-intl's IntlProvider)": <Email><IntlProvider>{sections}</IntlProvider></Email>,
+      "a memo'd provider": <Email><MemoProvider user={ada}>{sections}</MemoProvider></Email>,
+      "a forwardRef'd provider": <Email><RefProvider>{sections}</RefProvider></Email>,
+      "providers in a component of providers": <Email><AppProviders>{sections}</AppProviders></Email>,
+      "a provider component around the root": <UserProvider user={ada}><Email>{sections}</Email></UserProvider>,
+      "a layout in a provider": <Email><User.Provider value={ada}><Layout>{sections}</Layout></User.Provider></Email>,
+      "a component that clones what it's given": <Email><User.Provider value={ada}><Numbered>{sections}</Numbered></User.Provider></Email>,
+      "a layout given its sections as props": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Footer />}><Recommendations /></Slots></User.Provider></Email>,
+      "a layout given the section that fails as a prop": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Recommendations />}><Footer /></Slots></User.Provider></Email>,
+      // (A layout around a provider of the sections, as a digest's: every row it renders was left out, a blank email.)
+      "a layout around a provider of the sections": <Email><Layout><User.Provider value={ada}>{sections}</User.Provider></Layout></Email>,
+      "a layout around <StrictMode> and a provider": <Email><Layout><React.StrictMode><User.Provider value={ada}>{sections}</User.Provider></React.StrictMode></Layout></Email>,
+    };
+    for (const [where, template] of Object.entries(templates)) {
+      const parts = renderToHtmlParts(template, { onError: "omit" });
+      expect(parts.omitted.map((e) => e.component), where).toEqual(["Recommendations"]);
+      expect(renderToPlainText(template, { onError: "omit" }).replace(/\s+/g, " ").trim(), where).toBe("Hi Ada Unsubscribe");
+      expect(renderToJson(template, { onError: "omit" }).body.rows, where).toHaveLength(2);
+      expect((await asyncRenderers.renderToPlainText(template, { onError: "omit" })).replace(/\s+/g, " ").trim(), where).toBe("Hi Ada Unsubscribe");
+    }
+    // (A section given that fails in what it renders of its own is left out with all of it, its heading too: what a
+    // component renders of its own is one part with it.)
+    const Listing = () => <><Row><Column><Paragraph>Recommended for you</Paragraph></Column></Row><Recommendations /></>;
+    const listing = <Email><UserProvider user={ada}>{[<Header key="h" />, <Listing key="l" />, <Footer key="f" />]}</UserProvider></Email>;
+    expect(renderToPlainText(listing, { onError: "omit" }).replace(/\s+/g, " ").trim()).toBe("Hi Ada Unsubscribe");
+    expect(renderToHtmlParts(listing, { onError: "omit" }).omitted.map((e) => e.component)).toEqual(["Recommendations"]);
+  });
+
   it("gives errors that keep nothing of the render: which Row or Column failed is the render's (its scope's)", async () => {
     // A module's map from the errors to their records kept a Row's record, and its props, for as long as an error
     // from `omitted` was kept.
@@ -227,6 +382,26 @@ describe("a Row or Column whose exporter fails", () => {
       </Row>
     );
     expect(renders(rows(null, laidOut(true)), { onError: "omit" })).toEqual(renders(rows(null, laidOut(false))));
+  });
+
+  it("leaves the template's only Row out of the design too, where a component in it failed and it no longer fits its layout", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // (Its design had the Row as written, as the template has it: an Email with nothing left gave its own children.)
+    const Picks = ({ items }: { items?: { id: number; title: string }[] }) => items!.map((item) => <Column key={item.id}><Paragraph>{item.title}</Paragraph></Column>);
+    const email = (
+      <Email>
+        <Row layout={ColumnLayouts.ThreeEqual}>
+          <Column><Paragraph>Featured</Paragraph></Column>
+          <Picks />
+        </Row>
+      </Email>
+    );
+    for (const r of [{ renderToHtml, renderToJson, renderToPlainText }, asyncRenderers]) {
+      expect(await r.renderToHtml(email, { onError: "omit" })).not.toContain("Featured");
+      expect((await r.renderToPlainText(email, { onError: "omit" })).trim()).toBe("");
+      expect((await r.renderToJson(email, { onError: "omit" })).body.rows).toEqual([]);
+    }
   });
 });
 
@@ -260,6 +435,32 @@ describe("a part that suspends in a <Suspense>", () => {
       </React.Suspense>
     </Email>
   );
+  it("but a part that fails beside one that suspends, in the same <Suspense>: the synchronous renderers fail with its error, or leave it out and say so", () => {
+    // React renders the fallback for what suspended, and leaves out the part that failed there with it: the render
+    // said nothing of it, whichever came first.
+    const PriceTable = () => {
+      throw new Error("price service down");
+    };
+    const Recommendations = async () => <Paragraph>{await later("Recommendations")}</Paragraph>;
+    // ("Left out", said.)
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const parts of [[<PriceTable key="p" />, <Recommendations key="r" />], [<Recommendations key="r" />, <PriceTable key="p" />]]) {
+      const made = (config?: { onError?: OnError }) => (
+        <Email config={config}>
+          <Row><Column><Paragraph>Hi Ana</Paragraph></Column></Row>
+          <React.Suspense fallback={null}>
+            <Row><Column>{parts}</Column></Row>
+          </React.Suspense>
+        </Email>
+      );
+      expect(() => renderToHtml(made())).toThrow("[Unlayer] price service down (in <PriceTable> at Row 2 › Column 1 › PriceTable)");
+      const omitted: RenderError[] = [];
+      expect(renderToHtml(made({ onError: (failure) => void omitted.push(failure) }))).toContain("Hi Ana");
+      expect(omitted.map((failure) => failure.message)).toEqual(["[Unlayer] price service down (in <PriceTable> at Row 2 › Column 1 › PriceTable)"]);
+      expect(JSON.stringify(renderToJson(made({ onError: "omit" })))).toContain("Hi Ana");
+    }
+  });
+
   const shown = (text: string) => text.match(/First|Loading|Price/g) ?? [];
   const given: RenderError[] = [];
   const POLICIES: Array<[string, { onError?: OnError } | undefined]> = [
@@ -290,5 +491,198 @@ describe("a part that suspends in a <Suspense>", () => {
       expect(error).not.toHaveBeenCalled();
       expect(given).toEqual([]);
     });
+  });
+});
+
+describe("what fails where React handles it itself (a lazy component, a promise as a child, a class's lifecycle)", () => {
+  // React renders a <Suspense>'s fallback for what fails in it that Elements doesn't call (a lazy component, what it
+  // renders, a promise given as a child, a class's getDerivedStateFromProps or componentWillMount, a render given as a
+  // class field), saying nothing: the fallback ("Loading…") was sent, no error, no onError. Outside every <Suspense>,
+  // the render failed at the root, with no position.
+  const loaded = <P,>(component: React.ComponentType<P>) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType<P> }) => void) => resolve({ default: component }) }) as Promise<{ default: React.ComponentType<P> }>);
+  const ShippingLine = ({ order }: { order: { shipping?: { city: string } } }) => <Paragraph>{`Ships to ${order.shipping!.city}`}</Paragraph>;
+  const Summary = loaded(({ order }: { order: { shipping?: { city: string } } }) => <ShippingLine order={order} />);
+  class Derived extends React.Component<{ n: number }, { n: number }> {
+    state = { n: 0 };
+    static getDerivedStateFromProps(): null {
+      throw new Error("derived failed");
+    }
+    render() {
+      return <Paragraph>derived</Paragraph>;
+    }
+  }
+  class WillMount extends React.Component {
+    UNSAFE_componentWillMount() {
+      throw new Error("will mount failed");
+    }
+    render() {
+      return <Paragraph>will mount</Paragraph>;
+    }
+  }
+  class Field extends React.Component {
+    render = (): React.ReactNode => {
+      throw new Error("field render failed");
+    };
+  }
+  const email = (part: React.ReactNode, suspense: boolean) => (
+    <Email>
+      <Row>
+        <Column>
+          <Paragraph>Order #42 confirmed.</Paragraph>
+          {suspense ? <React.Suspense fallback={<Paragraph>Loading…</Paragraph>}>{part}</React.Suspense> : part}
+          <Paragraph>Thanks for shopping!</Paragraph>
+        </Column>
+      </Row>
+    </Email>
+  );
+  const CASES: Array<[string, React.ReactNode, RegExp, string[]]> = [
+    ["a lazy component's own component that throws", <Summary order={{}} />, /Cannot read properties of undefined|undefined is not an object/, ["ShippingLine", "lazy"]],
+    ["a class's getDerivedStateFromProps", <Derived n={1} />, /derived failed/, ["Derived"]],
+    ["a class's UNSAFE_componentWillMount", <WillMount />, /will mount failed/, ["WillMount"]],
+    ["a class's render given as a class field", <Field />, /field render failed/, ["Field"]],
+  ];
+
+  it.each(CASES)("%s, in a <Suspense>: the async renderers fail with its error, where it is, or leave it out and say so", async (_, part, said, names) => {
+    for (const suspense of [true, false]) {
+      let thrown: unknown;
+      try {
+        await asyncRenderers.renderToHtml(email(part, suspense));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, `in a <Suspense>: ${suspense}`).toBeInstanceOf(RenderError);
+      expect((thrown as Error).message).toMatch(said);
+      expect(names).toContain((thrown as RenderError).component);
+      expect((thrown as RenderError).position).toMatch(/^Row 1 › Column 1 › /);
+      const omitted: RenderError[] = [];
+      const html = await asyncRenderers.renderToHtml(email(part, suspense), { onError: (error) => void omitted.push(error) });
+      expect(html).toContain("Thanks for shopping!");
+      expect(html).not.toContain("Loading…");
+      expect(omitted).toHaveLength(1);
+    }
+  });
+
+  it.each(CASES)("%s, in a <Suspense>: the synchronous renderers fail, saying where and what to do (or what failed), or leave it out and say so", (_, part, said, names) => {
+    for (const suspense of [true, false]) {
+      let thrown: unknown;
+      try {
+        renderToHtml(email(part, suspense));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, `in a <Suspense>: ${suspense}`).toBeInstanceOf(RenderError);
+      // (A lazy one's, which React's static render keeps no error of in a <Suspense>: where it is, and what to do.)
+      if (!names.includes("lazy") || !suspense) expect((thrown as Error).message).toMatch(said);
+      else expect((thrown as Error).message).toMatch(/inside a <Suspense>, whose fallback React rendered instead/);
+      expect([...names, "lazy"]).toContain((thrown as RenderError).component);
+      expect((thrown as RenderError).position).toMatch(/^Row 1 › Column 1 › /);
+      const omitted: RenderError[] = [];
+      const html = renderToHtml(email(part, suspense), { onError: (error) => void omitted.push(error) });
+      expect(html).toContain("Thanks for shopping!");
+      expect(html).not.toContain("Loading…");
+      expect(omitted).toHaveLength(1);
+    }
+  });
+
+  const use = (React as unknown as { use?: unknown }).use;
+  it.runIf(use)("a promise given as a child that rejects, in a <Suspense> or not: fails with what it rejected with, where it is (React 19)", async () => {
+    const Recommendations = ({ items }: { items: PromiseLike<string> }) => <div>{items as unknown as React.ReactNode}</div>;
+    const rejected = () => {
+      const promise = Promise.reject(new Error("recommendations API is down"));
+      promise.catch(() => {});
+      return promise;
+    };
+    for (const suspense of [true, false]) {
+      await new Promise((done) => setTimeout(done, 1));
+      const items = rejected();
+      await new Promise((done) => setTimeout(done, 1));
+      await expect(asyncRenderers.renderToHtml(email(<Recommendations items={items} />, suspense))).rejects.toMatchObject({ name: "RenderError", component: "Recommendations", message: expect.stringMatching(/recommendations API is down/) });
+    }
+  });
+
+  it("keeps a <Suspense>'s fallback in a synchronous render where what's in it suspends (the negative control)", () => {
+    const never = new Promise(() => {});
+    const Waits = () => {
+      throw never;
+    };
+    const html = renderToHtml(email(<Waits />, true));
+    expect(html).toContain("Loading…");
+    const Later = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    expect(renderToHtml(email(<Later />, true))).toContain("Loading…");
+  });
+});
+
+describe("where a part React rendered itself failed (a lazy component's place)", () => {
+  // Where a synchronous render failed inside a lazy component was kept in one place for the module, and read by the
+  // next render that failed where React renders itself, whoever's it was: an async render with a lazy component that
+  // throws said it was at another tenant's component and place (`Row 1 › Column 2 › AcmeHero › lazy`).
+  const loaded = <P,>(component: React.ComponentType<P>) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType<P> }) => void) => resolve({ default: component }) }) as Promise<{ default: React.ComponentType<P> }>);
+  const failsAsync = async (element: React.ReactElement) => {
+    try {
+      await asyncRenderers.renderToHtml(element);
+    } catch (error) {
+      return error as RenderError;
+    }
+    throw new Error("rendered");
+  };
+  const fails = (render: () => unknown) => {
+    try {
+      render();
+    } catch (error) {
+      return error as RenderError;
+    }
+    throw new Error("rendered");
+  };
+  const Missing = () => {
+    throw new Error("tenant B data missing");
+  };
+  const tenantB = () => <Email><Row><Column><Paragraph>B</Paragraph>{React.createElement(loaded(Missing))}</Column></Row></Email>;
+  // Tenant A's: a lazy component that never loads (async in a synchronous render), and one that throws, deep in its layout.
+  const Never = React.lazy(() => new Promise<never>(() => {}));
+  const Throws = loaded(() => {
+    throw new Error("tenant A failed");
+  });
+  const tenantA = (Part: React.ComponentType) => {
+    const AcmeHero = () => <Part />;
+    return <Email><Row><Column><Paragraph>x</Paragraph></Column></Row><Row><Column /><Column><AcmeHero /></Column></Row></Email>;
+  };
+  const said = (error: RenderError) => [error.message, error.component, error.position];
+
+  it("is named after the lazy component, never one of Elements' own React's stack names around it (React 19's)", async () => {
+    // (A component with no name of its own: the stack's next name was Elements' own Stamp.)
+    const error = await failsAsync(<Email><Row><Column>{React.createElement(loaded(() => { throw new Error("no name"); }))}</Column></Row></Email>);
+    expect([error.component, error.position]).toEqual(["lazy", "Row 1 › Column 1 › lazy"]);
+  });
+
+  it("says nothing of the <template> react-dom's stream writes where it failed (onError: \"omit\")", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const FailsToLoad = React.lazy(() => Promise.reject(new Error("chunk failed")));
+      const parts = await asyncRenderers.renderToHtmlParts(<Email><Row><Column><Paragraph>Kept</Paragraph><FailsToLoad /></Column></Row></Email>, { onError: "omit" });
+      expect(parts.body).toContain("Kept");
+      expect(parts.omitted.map((e) => e.position)).toEqual(["Row 1 › Column 1 › lazy"]);
+      expect(warn.mock.calls.flat().join("\n")).not.toMatch(/template/);
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  it("is the render's own, whatever another render failed at before it or at once", async () => {
+    const alone = said(await failsAsync(tenantB()));
+    const syncAlone = said(fails(() => renderToHtml(tenantB())));
+    for (const Part of [Never, Throws]) {
+      const a = fails(() => renderToHtml(tenantA(Part)));
+      expect(a.position).toMatch(/AcmeHero/);
+      expect(said(await failsAsync(tenantB()))).toEqual(alone);
+      fails(() => renderToHtml(tenantA(Part)));
+      expect(said(fails(() => renderToHtml(tenantB())))).toEqual(syncAlone);
+      // (At once: tenant A's synchronous render while tenant B's async one is under way.)
+      const b = failsAsync(tenantB());
+      fails(() => renderToHtml(tenantA(Part)));
+      expect(said(await b)).toEqual(alone);
+    }
+    expect(alone.join(" ")).not.toMatch(/Acme/);
   });
 });

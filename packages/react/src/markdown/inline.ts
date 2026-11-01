@@ -10,7 +10,7 @@
  */
 import { Lexer, type Links, type Token, type Tokens, type TokensList } from "marked";
 import { Limited, QUOTE_BASE, QUOTE_WORK } from "./limits";
-import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach, urlReach } from "./reach";
+import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach } from "./reach";
 
 /** The steps a Markdown's inline syntax can take for each of its characters, and BASE more (see the comment above). */
 export const WORK = 32;
@@ -80,8 +80,7 @@ class Inline extends Limited {
     if (this.deep || this.spent) return undefined;
     // What marked reads from each `<` in its text is counted too (see Looks).
     const looks = { steps: 0 };
-    const reach = linkReach(src, looks);
-    return this.spend(looks.steps) ? this.within(src, reach, (part) => super.link(part)) : undefined;
+    return tagged(src, (text) => linkReach(text, looks), (text, reach) => (this.spend(looks.steps) ? this.within(text, reach, (part) => super.link(part)) : undefined), lineEnd, (steps) => this.spend(steps));
   }
 
   reflink(src: string, links: Links): Tokens.Link | Tokens.Image | Tokens.Text | undefined {
@@ -94,10 +93,29 @@ class Inline extends Limited {
 
   emStrong(src: string, maskedSrc: string, prevChar?: string): Tokens.Em | Tokens.Strong | undefined {
     if (src[0] !== "*" && src[0] !== "_") return super.emStrong(src, maskedSrc, prevChar);
+    // (A Mailchimp tag's stars open no emphasis: see MERGE_TAG.)
+    if (mergeTagAt(src)) return undefined;
     // Its delimiters, then what closes them (counted as marked looks for it: see count()).
     if (this.deep || this.spent || !this.spend(runEnd(src, 0, src[0] === "*" ? STARS : UNDERSCORES))) return undefined;
-    return super.emStrong(src, maskedSrc, prevChar);
+    return super.emStrong(src, this.unstarred(maskedSrc), prevChar);
   }
+
+  /**
+   * The text marked looks for emphasis's delimiters in, a Mailchimp tag's stars in it read as a word's letters, as the
+   * name it's filled with reads (`**Welcome, *|FNAME|*!**` bold around it, not shown as `**`). Once per text: marked
+   * reads what each emphasis holds as a text of its own, then goes on with the text it's in, so each is kept (a text
+   * read again only where it's nested, which is 32 deep at most: see `deep`).
+   */
+  private unstarred(masked: string): string {
+    let out = this.masked.get(masked);
+    if (out === undefined) {
+      out = masked.includes("*|") ? masked.replace(MERGE_TAGS, (tag) => "a".repeat(tag.length)) : masked;
+      this.masked.set(masked, out);
+    }
+    return out;
+  }
+
+  private masked = new Map<string, string>();
 
   codespan(src: string): Tokens.Codespan | undefined {
     return src[0] === "`" ? this.within(src, codeReach(src), (part) => super.codespan(part)) : super.codespan(src);
@@ -113,18 +131,163 @@ class Inline extends Limited {
   }
 
   autolink(src: string): Tokens.Link | undefined {
-    return src[0] === "<" ? this.within(src, autolinkReach(src), (part) => super.autolink(part)) : super.autolink(src);
+    return src[0] === "<" ? tagged(src, autolinkReach, (text, reach) => this.within(text, reach, (part) => super.autolink(part)), (text) => AUTOLINK_END(text.slice(1)) + 2, (steps) => this.spend(steps)) : super.autolink(src);
   }
 
   url(src: string): Tokens.Link | undefined {
-    return URL_START.test(src[0] ?? "") ? this.within(src, urlReach(src), (part) => super.url(part)) : super.url(src);
+    if (!URL_START.test(src[0] ?? "")) return super.url(src);
+    // (Read to where it ends: a tag after it that ends a condition around it is the text's, see urlEnd. Finding that is
+    // the render's work, as what marked reads is, and nothing is looked for past it: its whitespace either.)
+    const end = URL_END(src);
+    if (!this.spend(end)) return undefined;
+    return tagged(src, (text) => upTo(text, end), (text, reach) => this.within(text, reach, (part) => super.url(part)), () => end, (steps) => this.spend(steps));
+  }
+
+  def(src: string): Tokens.Def | undefined {
+    // (Its label, its URL and its title: three lines at most.)
+    return tagged(src, defReach, (text) => super.def(text), (_text, reach) => reach, () => true);
   }
 
   inlineText(src: string): Tokens.Text | undefined {
     if (this.spent) return super.inlineText(src);
+    const tag = mergeTagAt(src);
+    // (Where reading it is what spends the work that's left, it's text as marked reads text, as anything after it is.)
+    if (tag) return this.within(src, tag.length, () => ({ type: "text", raw: tag, text: tag })) ?? super.inlineText(src);
     return this.within(src, textReach(src, this.breaks), (part) => super.inlineText(part)) ?? super.inlineText(src);
   }
 }
+
+/**
+ * An email service's tag, on one line (`{{ … }}`, `{% … %}`, `<% … %>`, `%% … %%`, `${…}`, Mailchimp's `*|…|*`): in a
+ * link's URL (`[text](url)`, `![alt](src)`, a URL Markdown links by itself, `<url>`, a link's definition) one piece of
+ * it, so the URL doesn't end inside it, at a space or at what else ends one (see HIDE). Elsewhere, Markdown as
+ * CommonMark reads it, but for a Mailchimp tag in text (see MERGE_TAG). A Liquid tag can hold `${…}`, as Braze's
+ * attributes are (`{{${email_address} | url_param_escape}}`). (Its length kept to a tag's: each is read once from where
+ * it starts.)
+ */
+const TAG = /\{\{(?:[^\n{}$]|\$(?!\{)|\$\{[^\n{}]{0,64}\}){0,256}\}\}|\{%(?:[^\n{}$]|\$(?!\{)|\$\{[^\n{}]{0,64}\}){0,256}%\}|<%[^\n<>]{0,256}%>|%%[^\n%]{0,256}%%|\$\{[^\n{}]{0,256}\}|\*\|[^\s|*]{0,256}\|\*/g;
+const OPENER = /\{\{|\{%|<%|%%|\$\{|\*\|/;
+/** What in a tag could end a URL or a link's parts, while marked reads it: one character of Unicode's private use for each. */
+const HIDE: Record<string, string> = { " ": "\uE000", "\t": "\uE001", "<": "\uE002", ">": "\uE003", "*": "\uE004", "|": "\uE005", "(": "\uE006", ")": "\uE007", '"': "\uE008", "'": "\uE009" };
+const SHOW: Record<string, string> = Object.fromEntries(Object.entries(HIDE).map(([shown, hidden]) => [hidden, shown]));
+const ENDS = /[ \t<>*|()"']/g;
+const PRIVATE = /[\uE000-\uE009]/;
+const HIDDEN = /[\uE000-\uE009]/g;
+
+/**
+ * What a rule reads of `src` to `end` (and a tag's length past it), with the tags that start before `end` hidden (see
+ * HIDE): each character where it was. Only that much: the rest of the text, copied for each link, took time growing
+ * with its size squared. `src` itself where there's no tag there.
+ */
+function hideTags(src: string, end: number): string {
+  const head = src.slice(0, end + 270);
+  let out = "";
+  let at = 0;
+  TAG.lastIndex = 0;
+  for (let tag; (tag = TAG.exec(head)) && tag.index < end; ) {
+    out += head.slice(at, tag.index) + tag[0].replace(ENDS, (ch) => HIDE[ch]);
+    at = TAG.lastIndex;
+  }
+  return at ? out + head.slice(at) : src;
+}
+
+/** A token read with tags hidden, shown again (its URL, its text, what's in it). */
+function shown<T>(value: T): T {
+  if (typeof value === "string") return value.replace(HIDDEN, (ch) => SHOW[ch]) as T;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) value[i] = shown(value[i]);
+  } else if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) (value as Record<string, unknown>)[key] = shown((value as Record<string, unknown>)[key]);
+  }
+  return value;
+}
+
+/**
+ * What `read` makes of `src` (as far as `reachOf` says it looks) with the tags hidden in what it could look at
+ * (`extent`: once, as far as it ends, which `spend` is charged for), read as far as that reaches with them hidden.
+ * Text with Unicode's private use characters in it is read as it is.
+ */
+function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: string, reach: number) => T | undefined, extent: (src: string, reach: number) => number, spend: (steps: number) => boolean): T | undefined {
+  const reach = reachOf(src);
+  if (!OPENER.test(src.slice(0, reach + 2)) || PRIVATE.test(src.slice(0, reach + 270))) return read(src, reach);
+  const end = extent(src, reach);
+  if (!spend(end)) return undefined;
+  const hidden = hideTags(src, end);
+  if (hidden === src) return read(src, reach);
+  const token = read(hidden, reachOf(hidden));
+  return token && shown(token);
+}
+
+/**
+ * Mailchimp's tag (`*|FNAME|*`, `*|IF:FNAME|*`) in text, which is its own: its stars read as emphasis (`Hi *|FNAME|*,`
+ * was `Hi <em>|FNAME|</em>,`, the tag never filled in). It's read whole as text, and its first star opens no emphasis.
+ * (Nor does its last close one opened before it: its first, read as an opener while marked looks for that one's end,
+ * takes it.)
+ */
+const MERGE_TAG = /\*\|[^\s|*]{0,256}\|\*/y;
+const MERGE_TAGS = new RegExp(MERGE_TAG.source, "g");
+const mergeTagAt = (src: string): string | undefined => {
+  if (src[0] !== "*" || src[1] !== "|") return undefined;
+  MERGE_TAG.lastIndex = 0;
+  return MERGE_TAG.exec(src)?.[0];
+};
+
+const STICKY_TAG = new RegExp(TAG.source, "y");
+/** A tag that opens what's around it (`{% if vip %}`, `{{#vip}}`, `*|IF:VIP|*`, `%%[ IF … ]%%`), and one that closes it. */
+const OPENS = /^(?:\{%-?\s*(?:if|unless|for|case|capture|tablerow|raw|comment)\b|\{\{[#^]|\*\|(?:IF|INTERESTED):|%%\[\s*(?:IF|FOR)\b)/i;
+const CLOSES = /^(?:\{%-?\s*end\w*|\{\{\/|\*\|END:|%%\[\s*(?:ENDIF|NEXT)\b)/i;
+/**
+ * Where a URL Markdown links by itself (or one in `<…>`) ends: the first of `stops` (whitespace, `<`, and `>` in `<…>`)
+ * that isn't in a tag (each tag read once from where it starts, as long as one can be). A tag that opens or closes what's
+ * around the URL, and that the URL ends with (`…/vip{% endif %}`), is the text's, not the URL's (the condition around a
+ * sentence that ends in a URL, which the email service couldn't parse with its end in the link), but one that closes
+ * one the URL opened (`…{% if vip %}/vip{% endif %}`). (In `<…>`, where the URL ends is written: `conditions` false.)
+ */
+const urlEnd = (stops: RegExp, conditions = true) => (src: string): number => {
+  let open = 0;
+  for (let at = 0; at < src.length; ) {
+    STICKY_TAG.lastIndex = at;
+    const tag = "{<%$*".includes(src[at]) ? STICKY_TAG.exec(src) : null;
+    if (!tag) {
+      if (stops.test(src[at])) return at;
+      at++;
+      continue;
+    }
+    const after = at + tag[0].length;
+    const ends = conditions && (after >= src.length || stops.test(src[after]));
+    if (OPENS.test(tag[0])) {
+      if (ends) return at;
+      open++;
+    } else if (CLOSES.test(tag[0])) {
+      if (open > 0) open--;
+      else if (ends) return at;
+    }
+    at = after;
+  }
+  return src.length;
+};
+const URL_END = urlEnd(/[\s<]/);
+/** As far as a URL reads (see urlReach: to its first whitespace), no further than `end`. */
+const upTo = (src: string, end: number): number => {
+  const space = src.slice(0, end).search(/\s/);
+  return space < 0 ? end : space + 1;
+};
+const AUTOLINK_END = urlEnd(/[\s<>]/, false);
+/** A link's URL ends on the line it's on (a tag is on one line): to the end of the line `reach` is on. */
+const lineEnd = (src: string, reach: number): number => {
+  const end = src.indexOf("\n", Math.min(reach, src.length));
+  return end < 0 ? src.length : end;
+};
+
+/** A link's definition: its label, its URL and its title, three lines at most. */
+const defReach = (src: string): number => {
+  let at = 0;
+  for (let lines = 0; lines < 3 && at < src.length; lines++) {
+    const end = src.indexOf("\n", at);
+    at = end < 0 ? src.length : end + 1;
+  }
+  return at;
+};
 
 const STARS = /\**/y;
 const UNDERSCORES = /_*/y;

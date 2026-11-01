@@ -68,18 +68,21 @@ if (asyncRoutes) {
   same("async route handler", JSON.parse(await get("/async")));
   await counts("/async-page", "async Server Component", same);
 }
-// An App Router edge route: React there is React Server Components', which react-dom can't render with; Elements
-// renders the email without it.
+// An App Router edge route: React there is React Server Components', which react-dom can't render with. Elements
+// renders templates with react-dom/server, as React Email does: the render fails with a RenderError that says so and
+// where to render instead, never with react-dom's own error.
 const edge = edgeRoute ? JSON.parse(await get("/edge")) : undefined;
 if (!edge);
-else if (edge.error === undefined) check("edge route", edge);
-else fail(`edge route: ${edge.error}`);
+else if (edge.error === undefined) fail("edge route: rendered, where react-dom can't render with React Server Components' React");
+else if (!/^\[Unlayer\] Elements renders templates with react-dom\/server, as React Email does, and react-dom can't render with React Server Components' React/.test(edge.error) || /reading 'H'/.test(edge.error)) fail(`edge route: ${edge.error}`);
+else console.log("✓ edge route: says react-dom can't render there");
 // A Pages Router API route in the Node.js runtime.
 if (pagesApi) check("Pages Router API route", JSON.parse(await get("/api/email")));
 // A Pages Router API route on the edge runtime: React there is the full one, so the email renders.
 if (edgeRoute) {
   const pages = JSON.parse(await get("/api/edge-email"));
   if (pages.error !== undefined) fail(`Pages Router edge API route: ${pages.error}`);
+  if (pages.async !== true) fail("Pages Router edge API route: the async renderer didn't render the email");
   check("Pages Router edge API route", pages);
 }
 server.kill();

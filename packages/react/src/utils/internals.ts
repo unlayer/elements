@@ -15,7 +15,7 @@ import { newScope, part, renderDone, setRenderConfig, sharedByRender, withScope,
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { htmlDocument, htmlParts, plainText } from "./render-to-html";
 import { designJson } from "./render-to-json";
-import { errorPart, flatten, PENDING, renderShared, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
+import { collectAsync as collectStreamed, handleGiven, renderShared, renderStatic, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
@@ -27,7 +27,7 @@ export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
  */
 async function unwrapAsync(element: React.ReactElement, scope: Scope, take: (steps: Steps) => Promise<Unwrapped>, idPrefix?: string, api?: string): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const found = (scope.unwrapped = await take(unwrapSteps(element, withScope(scope, sharedByRender), idPrefix)));
+  const found = (scope.unwrapped = await take(unwrapSteps(element, withScope(scope, sharedByRender), idPrefix, {}, true)));
   if (isRoot(found.root.type)) return found.root;
   if (api) withScope(scope, () => sayUnread(found, element, api));
   return found.rendered ?? element;
@@ -53,8 +53,11 @@ async function collectAsync(root: React.ReactElement, scope: Scope, options: Par
   return done;
 }
 
-/** What the async entry's walk uses of the engine (see src/async/collect.ts). */
-const engine = { walk: walkAsync, flatten, PENDING, errorPart, track };
+/**
+ * What the async entry uses of the engine: a template's content collected by react-dom's streaming render, and the
+ * promises its elements are given handled as the render starts (see handleGiven).
+ */
+const engine = { collect: collectStreamed, given: handleGiven };
 export type Engine = typeof engine;
 
 /** The synchronous renders, run in the scope the async renderers collected the template in. */

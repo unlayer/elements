@@ -27,6 +27,8 @@ export interface Scope {
   failed: WeakSet<object>;
   /** Whether its root reads right to left (see setRenderConfig): Tailwind's logical sides follow it. */
   rtl?: boolean;
+  /** Its root's config, the render's options in it (see setRenderConfig): a root in its content's too (see renderConfig). */
+  config?: Record<string, unknown>;
   /** What its template unwrapped to: its root, the providers' config, where its content starts (see unwrap-root.ts). */
   unwrapped?: Unwrapped;
   /** What an async render compiled for its <Tailwind config>s (the async entry's lookup: see utils/tailwind.ts). */
@@ -80,11 +82,22 @@ export const sayOnce = (message: string, key?: string): void => sayer()(message,
  */
 export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown; textDirection?: unknown }): void {
   if (!scoped) return;
+  scoped.config ??= config as Record<string, unknown>;
   if (config.onError !== undefined) scoped.onError ??= config.onError;
   if (typeof config.idPrefix === "string") scoped.idPrefix ??= config.idPrefix;
   // (As Body reads it for the body's `dir`: see textDirectionOf.)
   const dir = config.textDirection;
   scoped.rtl ??= typeof dir == "string" && dir.trim().toLowerCase() == "rtl";
+}
+
+/**
+ * The config of the render's outermost root, the render's options in it, but its mode: a root in its content (a whole
+ * template reused as a section of another) has it under its own (see Body), its sanitizer (`toSafeHtml`) too.
+ */
+export function renderConfig(): Record<string, unknown> | undefined {
+  if (!scoped?.config) return undefined;
+  const { mode: _mode, __ids: _ids, ...config } = scoped.config;
+  return config;
 }
 
 /** Marks the render's display conditions and repeated tables for its plain text's links (see textRegion). */
@@ -189,8 +202,8 @@ function sharedOf(scope: Scope): Shared {
 /**
  * `child` as a part of the template that's left out alone when it fails (`onError: "omit"`), as each component in a
  * Column is: what a component renders isn't (it fails with the component), but for this (Markdown's table that's too
- * large). A node of the walker's own: the render's (under PART, in what it shares) is the one its walker reads, where
- * the Markdown entry is another copy's (a package's CommonJS build, rendered by its ESM one).
+ * large). A boundary of the collecting render's own: the render's (under PART, in what it shares) is the one its
+ * collector reads, where the Markdown entry is another copy's (a package's CommonJS build, rendered by its ESM one).
  */
 export const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
 const PART = Symbol.for("@unlayer/react-elements/part");

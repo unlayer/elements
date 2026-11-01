@@ -210,3 +210,38 @@ describe("registerElementsTool: validation", () => {
     );
   });
 });
+
+describe("registerElementsTool: each render's values are its own", () => {
+  // A custom tool's design and exporter values shared their nested objects with its definition (its `values`, an
+  // option's `defaultValue`): a render's design changed in place, or an exporter that set `v.theme.color`, changed
+  // every later render's, another tenant's too.
+  const make = (exporter: (values: any) => string) =>
+    registerElementsTool({
+      name: `shared_values_${Math.abs(exporter.toString().length)}_${Object.keys(made).length}`,
+      values: { brand: "", theme: { color: "#000000" }, list: ["x"] },
+      options: { colors: { options: { accent: { defaultValue: { hex: "#111111" } } } } },
+      renderer: { exporters: { email: exporter, web: exporter, document: exporter } },
+    } as any) as unknown as React.ComponentType<{ brand?: string }>;
+  const made: Record<string, unknown> = {};
+  const email = (Tool: React.ComponentType<{ brand?: string }>, brand?: string) => <Email><Row><Column><Tool {...(brand ? { brand } : {})} /></Column></Row></Email>;
+
+  it("keeps an exporter's change to a nested value to its own render", () => {
+    const Tool = make((v) => ((v.theme.color = v.brand || v.theme.color), (v.accent.hex = v.brand || v.accent.hex), v.list.push(v.brand), `<div>${v.theme.color} ${v.accent.hex} ${v.list.length}</div>`));
+    made.a = Tool;
+    const before = renderToHtml(email(Tool));
+    renderToHtml(email(Tool, "SECRET_A"));
+    expect(renderToHtml(email(Tool))).toBe(before);
+  });
+
+  it("keeps a change made to one render's design to that design", () => {
+    const Tool = make(() => "<div>tool</div>");
+    made.b = Tool;
+    const design = renderToJson(email(Tool)) as any;
+    const tool = design.body.rows[0].columns[0].contents[0].values;
+    tool.theme.color = "SECRET_B";
+    tool.accent.hex = "SECRET_B";
+    tool.list.push("SECRET_B");
+    expect(JSON.stringify(renderToJson(email(Tool)))).not.toContain("SECRET_B");
+    expect(renderToHtml(email(Tool))).not.toContain("SECRET_B");
+  });
+});

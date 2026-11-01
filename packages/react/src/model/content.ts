@@ -4,6 +4,7 @@
  */
 import { htmlOf, type Item, type Markup, type RecordItem } from "../engine";
 import type { Recorded } from "../utils/collect";
+import { inlineHtml } from "../utils/inline-html";
 
 export { htmlOf };
 
@@ -15,8 +16,8 @@ export const textOf = (html: string): string => html.replace(/&amp;|&lt;|&gt;|&q
 /** An item's record, typed. */
 export const recordOf = (item: RecordItem) => item.record as Recorded & Record<string, any>;
 
-/** What's in a scope or a component of the template's own: their content is where they are. */
-export const transparent = (item: Item): item is RecordItem => typeof item !== "string" && item.kind === "record" && (recordOf(item).kind === "boundary" || recordOf(item).kind === "tailwind");
+/** What's in a scope, a component of the template's own or a <Link> in its markup: their content is where they are. */
+export const transparent = (item: Item): item is RecordItem => typeof item !== "string" && item.kind === "record" && /^(boundary|tailwind|link)$/.test(recordOf(item).kind);
 
 /** An element of markup at the top of some content: its tag, its HTML, and what's between its tags. */
 export interface Part {
@@ -42,6 +43,22 @@ export function partsOf(items: readonly Item[], out: Array<string | Part> = []):
 export const markupOnly = (items: readonly Item[]): string | undefined => (items.every(onlyMarkup) ? htmlOf(items) : undefined);
 
 const onlyMarkup = (item: Item): boolean => typeof item === "string" || item.kind === "markup" || ((item.kind === "cut" || transparent(item)) && item.items.every(onlyMarkup));
+
+/**
+ * A component's markup (markup only: see markupOnly) as HTML: as it's written, but a <Link>'s in it (its record: see
+ * the engine's collector), cleaned as a Link alone is (see src/model/elements.ts's linkBlock). Cleaned on its own, a
+ * Link's HTML can't end the markup around it (`</a></p>` in it ends nothing but itself).
+ */
+export function keptHtml(items: readonly Item[]): string {
+  let html = "";
+  for (const item of items) {
+    if (typeof item === "string") html += item;
+    else if (item.kind === "markup") html += item.html;
+    else if (item.kind === "cut") html += item.open + keptHtml(item.items) + item.close;
+    else html += recordOf(item).kind === "link" ? inlineHtml(htmlOf(item.items), true) : keptHtml(item.items);
+  }
+  return html;
+}
 
 /** Whether content has markup in it, at its top. */
 export const hasMarkup = (items: readonly Item[]): boolean => items.some((item) => typeof item !== "string" && item.kind !== "record");

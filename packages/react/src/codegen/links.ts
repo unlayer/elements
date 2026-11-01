@@ -32,6 +32,21 @@ const text = (value: unknown): string => (typeof value === "number" ? `${value}`
 /** Each character but `{` and `}` (a merge tag's) percent-encoded, as the editor encodes a query's values. */
 const encode = (value: string) => Array.from(value, (c) => (c === "{" || c === "}" ? c : encodeURIComponent(c))).join("");
 
+/** Sums by place (a Fenwick tree): `add` to one, the sum of those `before` one, each in time logarithmic in their number. */
+function sums(size: number): { add(at: number, delta: number): void; before(at: number): number } {
+  const tree = new Array<number>(size + 1).fill(0);
+  return {
+    add(at, delta) {
+      for (let i = at + 1; i <= size; i += i & -i) tree[i] += delta;
+    },
+    before(at) {
+      let sum = 0;
+      for (let i = at; i > 0; i -= i & -i) sum += tree[i];
+      return sum;
+    },
+  };
+}
+
 /** The editor's built-in placeholders: one left unfilled is no link. */
 const PLACEHOLDERS = ["{{href}}", "{{url}}", "{{custom}}"];
 
@@ -53,31 +68,28 @@ function fill(key: string, attrs: Plain | undefined, values: Plain): string | un
   // filled in so far, against where those are in the template, as the editor's exporters place it.
   const query = template.indexOf("?");
   const amp = template.match(/&(?!amp;)/)?.index ?? Infinity;
-  // The URL in pieces: the template's own, and the values filled in, whose placeholders aren't filled again (the
-  // exporters fill a value's `{{…}}` as the template's: a design under 1 KB, its values nesting them, gave 10 MB).
-  let pieces: Array<{ text: string; filled: boolean }> = [{ text: template, filled: false }];
-  for (const [name, value] of Object.entries(values)) {
-    const list = Array.isArray(value) ? value.map(text).map(encode).join(key === "class" ? " " : ",") : undefined;
-    const placeholder = `{{${name}}}`;
-    const next: typeof pieces = [];
-    // (Where it is in the URL filled in so far, as the exporters read it.)
-    let offset = 0;
-    for (const piece of pieces) {
-      let from = 0;
-      if (!piece.filled) {
-        for (let at = piece.text.indexOf(placeholder); at >= 0; at = piece.text.indexOf(placeholder, from)) {
-          if (at > from) next.push({ text: piece.text.slice(from, at), filled: false });
-          const where = offset + at;
-          next.push({ text: list ?? ((query >= 0 && where > query) || where > amp ? encode(text(value)) : text(value)), filled: true });
-          from = at + placeholder.length;
-        }
-      }
-      if (from < piece.text.length) next.push({ text: piece.text.slice(from), filled: piece.filled });
-      offset += piece.text.length;
-    }
-    pieces = next;
+  // The values fill the template's placeholders in the order the values are in (the exporters' order), a value's own
+  // `{{…}}` not filled again (a design under 1 KB, its values nesting them, gave 10 MB): each placeholder, read once
+  // from the template, is filled where it is, with where it is in the URL filled in so far when its value comes (the
+  // values before it in that order, filled before it in the URL, moved it: summed as they're met). Reading what was
+  // filled in so far again for each value took time growing with their number squared (32,000 fields: 19 s).
+  const order = new Map<string, number>();
+  for (const name of Object.keys(values)) order.set(name, order.size);
+  const moved = sums(order.size);
+  let result = "";
+  let last = 0;
+  for (const placeholder of template.matchAll(/\{\{([^{}]*)\}\}/g)) {
+    const name = placeholder[1];
+    const at = order.get(name);
+    if (at === undefined) continue;
+    const value = values[name];
+    const where = placeholder.index + moved.before(at);
+    const filled = Array.isArray(value) ? value.map(text).map(encode).join(key === "class" ? " " : ",") : (query >= 0 && where > query) || where > amp ? encode(text(value)) : text(value);
+    result += template.slice(last, placeholder.index) + filled;
+    last = placeholder.index + placeholder[0].length;
+    moved.add(at, filled.length - placeholder[0].length);
   }
-  let result = pieces.map((piece) => piece.text).join("");
+  result += template.slice(last);
   if (key !== "href") return result;
   // Email clients (Outlook) break on a `mailto:` with an empty field, and a URL doesn't end in `?` or `&`.
   // (A field's name is read from where its letters start: from inside them, a long run with no `=` was read again from
@@ -122,7 +134,9 @@ export function editorLink(link: unknown): EditorLink | undefined {
   ];
   if (lost.length) return { lost };
   return {
-    url: fill("href", attrs, values) ?? "",
+    // (One without templates whose values hold its URL, as Elements' renderToJson writes a link, is that URL, as the
+    // exporters render it: `{ name: "email", values: { href: "mailto:…" } }` isn't filled in from empty fields.)
+    url: (!own && typeof given.href === "string" && given.href) || (fill("href", attrs, values) ?? ""),
     target: fill("target", attrs, values) || "_blank",
     // (A web link is one whatever its templates.)
     kept: link.name === "web" || (READ_BACK.has(link.name) && (!own || deepEqual(own, action.attrs))),

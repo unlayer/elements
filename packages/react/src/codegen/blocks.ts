@@ -10,10 +10,14 @@ import type { JsxChild } from "./print";
 import { withoutRestoredUrl } from "./fonts";
 import { blockHtml, plainText } from "./text";
 import { contentSlotWidth, pinImageSrc, toPx, type SlotContext } from "../utils/image-sizing";
+import { parseVideoUrl } from "../utils/video-url";
 import { deepEqual, isPlainObject, omit, type Plain } from "./values";
 import type { ModuleState } from "./state";
 import { dropFixedFlags, warnLost, warnMergeTagRule } from "./warnings";
 import { editorLink, READ_BACK } from "./links";
+
+/** The blocks whose `textJson` the exporters render over their `text` (where it's a string). */
+const LEXICAL_FIRST = new Set(["heading", "button", "paragraph"]);
 
 export interface BlockContext {
   /** "Row 2, column 1, block 3": where the block is, for warnings. */
@@ -74,11 +78,11 @@ export function convertBlock(content: Plain, ctx: BlockContext): JsxChild {
   warnMergeTagRule(rest, ctx.where, ctx.state, type === "table");
   rest = base(rest, props, ctx);
 
-  // The editor's Lexical text (a "paragraph" block, or a text block with only its Lexical JSON): Elements writes a
-  // `text` block holding its HTML.
-  if ((type === "paragraph" || type === "text") && typeof rest.text !== "string" && typeof rest.textJson === "string") rest.text = generateHtmlFromTextJson(rest.textJson);
+  // The editor's Lexical text (`textJson`), as its HTML: what the exporters render for a heading, a button and a
+  // "paragraph" block (which Elements writes as a `text` block) wherever they have it, and for a text block that has
+  // no `text` (theirs is its `text`, where it has both).
+  if (typeof rest.textJson === "string" && (LEXICAL_FIRST.has(type) || (type === "text" && typeof rest.text !== "string"))) rest.text = generateHtmlFromTextJson(rest.textJson);
   if (type === "paragraph") ctx.state.warn(`${ctx.where}: a "paragraph" block (the editor's Lexical text) becomes a Paragraph, a "text" block with the same HTML.`);
-  // `text` is what the builder shows and exports where a block has both.
   if (typeof rest.text === "string") delete rest.textJson;
   // A web font's URL, where its <Font> gives it back (see fonts.ts).
   if (rest.fontFamily !== undefined) rest.fontFamily = withoutRestoredUrl(rest.fontFamily, ctx.state);
@@ -348,13 +352,15 @@ function tableShorthand(table: unknown, columns: unknown, rows: unknown, enableH
   return { attrs: [["data", cells], ...(columns !== BLOCK_DEFAULTS.Table.columns ? ([["columns", columns]] as Array<[string, unknown]>) : [])], enableHeader };
 }
 
-/** A video's URL, where `videoUrl` gives exactly its values (Elements' own designs; the editor's keep the URL too). */
+/**
+ * A video's URL, where `videoUrl` gives exactly its values (Elements' own designs; the editor's keep other values too):
+ * its own, which the values hold. (A design made before Elements kept it, which has none, keeps its values as they are.)
+ */
 function videoUrl(video: Plain): string | undefined {
-  const { type, videoId, thumbnail, loading = false, ...others } = video;
-  if (Object.keys(others).length || loading !== false || typeof videoId !== "string" || !videoId) return undefined;
-  if (type === "youtube" && thumbnail === `https://img.youtube.com/vi/${videoId}/0.jpg` && /^[\w-]{11}$/.test(videoId)) return `https://www.youtube.com/watch?v=${videoId}`;
-  if (type === "vimeo" && thumbnail === "" && /^\d+$/.test(videoId)) return `https://vimeo.com/${videoId}`;
-  return undefined;
+  const { loading = false, ...given } = video;
+  if (loading !== false || typeof given.url !== "string") return undefined;
+  const parsed = parseVideoUrl(given.url);
+  return parsed && deepEqual(given, parsed) ? given.url : undefined;
 }
 
 /** A block Elements has no component for: an Html block of its exported HTML, or a TODO comment. */
@@ -374,7 +380,9 @@ function withoutComponent(content: Plain, type: string, ctx: BlockContext): JsxC
   const defaults: Plain = { ...BLOCK_BASE, ...BLOCK_DEFAULTS.Html };
   if (values.containerPadding !== undefined && values.containerPadding !== defaults.containerPadding) props.add("containerPadding", values.containerPadding);
   placeDevice(values._override, props, defaults, "block");
-  // The builder's settings no prop sets, as every block keeps them (a display condition: written around it).
+  // The builder's settings no prop sets, as every block keeps them (a display condition: written around it), and its
+  // merge tag rule, which the code and the design keep as the warning says (see warnMergeTagRule).
   for (const [key, value] of Object.entries(BUILDER_ONLY)) if (key in values && !deepEqual(values[key], value)) props.values[key] = values[key];
+  if (values.mergeTagGroup && values.mergeTagRule) Object.assign(props.values, { mergeTagGroup: values.mergeTagGroup, mergeTagRule: values.mergeTagRule });
   return { tag: "Html", attrs: attributes(props, ctx.state.types), children: [] };
 }

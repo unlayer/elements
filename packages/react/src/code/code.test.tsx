@@ -5,6 +5,7 @@ import * as asyncRenderers from "../async";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
 import { escapeHtml, HIGHLIGHT_LIMIT } from "./highlight";
 import { growth, inTime, within } from "../test-timing";
+import { Markdown } from "../markdown";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -58,6 +59,14 @@ describe("CodeBlock", () => {
     const html = highlightCode("const a = 1", { language: "js", theme, lineHeight: "18px", padding: 8, wrap: false });
     expect(html).toContain('<span style="color: #ff0000; font-weight: bold">const</span>');
     expect(html).toMatch(/background-color: #000000.*padding: 8px.*line-height: 18px.*white-space: pre; overflow-x: auto/s);
+  });
+
+  it("breaks a token longer than its line where it wraps (a key, a URL), and only there: a page's table doesn't grow to fit it", () => {
+    // Only `word-wrap: break-word`: in a web page's or a document's table, the code box grew to the token's width (the
+    // page scrolled sideways; a printed document shrank to two thirds and still cut the key off). An email's cell broke it.
+    const key = `export ACME_API_KEY=sk_live_${"51HxQ8aKl2Zb".repeat(10)}`;
+    expect(highlightCode(key, { language: "bash" })).toMatch(/<pre style="[^"]*white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word/);
+    expect(highlightCode(key, { language: "bash", wrap: false })).not.toMatch(/overflow-wrap: anywhere|word-break/);
   });
 
   it("takes highlight.js's themes by name: their colors, a scope's own style over its parent's", () => {
@@ -240,7 +249,9 @@ describe("highlightCode() in a render", () => {
     expect(budget()).toHaveLength(2);
   });
 
-  it("gives a render started inside a component's call its own work, its wrappers' calls included", () => {
+  // (A render started in a component's call fails: react-dom can't start one inside its own, see
+  // src/utils/nested-renders.test.tsx. A custom tool's exporter, which runs while the render runs, starts them here.)
+  it("gives a render started while another runs its own work, its wrappers' calls included", () => {
     function Snippet() {
       return (
         <Email>
@@ -254,10 +265,7 @@ describe("highlightCode() in a render", () => {
     }
     const alone = renderToHtml(<Snippet />);
     let inner = "";
-    function Preview() {
-      inner = renderToHtml(<Snippet />);
-      return <Paragraph>preview</Paragraph>;
-    }
+    const Preview = registerTool({ name: "work-preview", renderer: { exporters: { email: () => ((inner = renderToHtml(<Snippet />)), "<p>preview</p>") } } });
     // The outer render's first block takes all of its work: the inner render has its own.
     renderToHtml(
       <Email>
@@ -282,10 +290,7 @@ describe("highlightCode() in a render", () => {
         </Email>
       );
     }
-    function First() {
-      renderToHtml(<Big />);
-      return null;
-    }
+    const First = registerTool({ name: "work-first", renderer: { exporters: { email: () => (renderToHtml(<Big />), "<p>first</p>") } } });
     const small = (
       <Row>
         <Column>
@@ -307,7 +312,7 @@ describe("highlightCode() in a render", () => {
     ).toContain(renderToHtml(<Email>{small}</Email>).match(/<pre[\s\S]*<\/pre>/)![0]);
   });
 
-  it("charges the user's code a render runs outside its components' calls to that render: a Consumer's render prop, a custom tool's exporter", () => {
+  it("charges the user's code a render runs to that render: a Consumer's render prop, a custom tool's exporter", () => {
     // They ran with the work of whatever render was running: none at the top (12 of 8 KB all highlighted), the outer
     // render's in one a component starts (the outer render's own block lost its colors).
     const Theme = React.createContext("light");
@@ -323,14 +328,11 @@ describe("highlightCode() in a render", () => {
     const each = (html: string) => html.split('<pre style="').slice(1).map((b) => colored(b) > 0);
     expect(each(renderToHtml(blocks((i) => <React.Fragment key={i}>{consumed()}</React.Fragment>)))).toEqual([true, false, false]);
     expect(each(renderToHtml(blocks((i) => <Snip key={i} code={code(8000)} />)))).toEqual([true, false, false]);
-    // In a render a component starts: its own, and none of the outer one's.
+    // In a render the user's code starts while another runs: its own, and none of the outer one's.
     const inner = () => blocks((i) => <React.Fragment key={i}>{i === 0 ? consumed() : null}</React.Fragment>);
     const alone = renderToHtml(inner());
     let nested = "";
-    function Embed() {
-      nested = renderToHtml(inner());
-      return <Paragraph>embedded</Paragraph>;
-    }
+    const Embed = registerTool({ name: "work-embed", renderer: { exporters: { email: () => ((nested = renderToHtml(inner())), "<p>embedded</p>") } } });
     const outer = renderToHtml(
       <Email>
         <Row>
@@ -342,6 +344,35 @@ describe("highlightCode() in a render", () => {
       </Email>
     );
     expect([nested === alone, each(outer)]).toEqual([true, [true]]);
+  });
+
+  it("charges CodeBlocks and Markdown to the render wherever React renders them: in a lazy component, a class, a Consumer, in either renderer", async () => {
+    // React renders what a lazy component returns itself, outside the calls Elements makes: there, in an async render,
+    // each CodeBlock and Markdown had a budget of its own (12 of 8 KB of Java took seconds, all highlighted).
+    const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+    const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+    const blocks = () => [0, 1, 2].map((i) => <CodeBlock key={i} language="java" code={code(8000)} />);
+    const markdown = () => [0, 1, 2].map((i) => <Markdown key={i}>{"```java\n" + code(8000) + "\n```"}</Markdown>);
+    class Section extends React.Component<{ make: () => React.ReactNode }> {
+      render() {
+        return <>{this.props.make()}</>;
+      }
+    }
+    const Theme = React.createContext("light");
+    const places: Record<string, (make: () => React.ReactNode) => React.ReactNode> = {
+      "a lazy component": (make) => React.createElement(later(() => <>{make()}</>)),
+      "a lazy component, loaded": (make) => React.createElement(loaded(() => <>{make()}</>)),
+      "a class": (make) => <Section make={make} />,
+      "a Consumer": (make) => <Theme.Consumer>{() => make()}</Theme.Consumer>,
+    };
+    const each = (html: string) => html.split('<pre style="').slice(1).map((b) => colored(b) > 0);
+    for (const [place, at] of Object.entries(places)) {
+      for (const make of [blocks, markdown]) {
+        const email = <Email><Row><Column>{at(make)}</Column></Row></Email>;
+        expect(each(await asyncRenderers.renderToHtml(email)), `${place}, async`).toEqual([true, false, false]);
+        if (!place.startsWith("a lazy component") || place.endsWith("loaded")) expect(each(renderToHtml(email)), `${place}, sync`).toEqual([true, false, false]);
+      }
+    }
   });
 
   it("is a call of its own after an `await` in an async component (there, no render's work is known: CodeBlock's is)", async () => {

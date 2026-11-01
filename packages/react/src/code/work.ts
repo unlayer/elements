@@ -28,8 +28,8 @@ function shared(): Shared | undefined {
 }
 
 /**
- * How the copy of Elements that's rendering makes a part of the template left out alone when it fails (a node of its
- * walker's own: see the main entry's render-scope.ts), or undefined outside a render.
+ * How the copy of Elements that's rendering makes a part of the template left out alone when it fails (a boundary of
+ * its collecting render's own: see the main entry's render-scope.ts), or undefined outside a render.
  */
 export const renderPart = (): ((child: React.ReactElement) => React.ReactElement) | undefined => shared()?.[Symbol.for("@unlayer/react-elements/part")] as ((child: React.ReactElement) => React.ReactElement) | undefined;
 

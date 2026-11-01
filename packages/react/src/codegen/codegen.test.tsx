@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as prettier from "prettier";
 import { DESIGNS, design } from "./__fixtures__/designs";
 import { designToElements } from "./design-to-elements";
-import { inTime, within } from "../test-timing";
+import { growth, inTime, within } from "../test-timing";
 import { formatElements } from "./format";
 import { BLOCK_DEFAULTS } from "./defaults";
 import React from "react";
@@ -159,9 +159,26 @@ describe("designToElements", () => {
     const { code, warnings } = designToElements(design([{ type: "timer", values }]), { html });
     expect(warnings).toEqual([expect.stringMatching(/block 1: its merge tag rule `products\.repeat` isn't applied/), expect.stringMatching(/block 1: a "timer" block has no Elements component, so it's kept as an <Html> block/)]);
     expect(code).toContain('anchor: "sale"');
+    // (The code and the design keep its rule, as the warning says.)
+    expect(Elements.renderToJson(React.createElement(evaluate(code))).body.rows[0].columns[0].contents[0].values).toMatchObject({ mergeTagGroup: "products", mergeTagRule: "repeat" });
     const rendered = Elements.renderToHtml(React.createElement(evaluate(code)));
     expect(rendered.indexOf("{% if customer.vip %}")).toBeGreaterThan(-1);
     expect(rendered.indexOf("VIP SALE")).toBeGreaterThan(rendered.indexOf("{% if customer.vip %}"));
+  });
+
+  it("reads a block's HTML in the `html` option as a browser does: a tag in a comment, a script or an attribute's value is text", () => {
+    // An end tag there ended the block's HTML (`<!-- </div> -->` kept `<!--` alone), and an id there was taken for the
+    // block's, while the warning said its HTML was kept.
+    const html =
+      '<!-- <div id="u_content_timer_1">an old copy</div> --><p title=\' id="u_content_timer_1"\'>a title</p>' +
+      '<table id="u_content_timer_1"><tbody><tr><td><div class="v-container-padding-padding">' +
+      '<!-- </div> --><div title="</div>">SALE</div><script>document.write("</div>")</script><p>ENDS FRIDAY</p>' +
+      "</div></td></tr></tbody></table>";
+    const { code } = designToElements(design([{ type: "timer", values: { _meta: { htmlID: "u_content_timer_1" } } }]), { html });
+    const rendered = Elements.renderToHtml(React.createElement(evaluate(code)));
+    expect(rendered).toContain('<!-- </div> --><div title="</div>">SALE</div><script>document.write("</div>")</script><p>ENDS FRIDAY</p>');
+    expect(rendered).not.toContain("an old copy");
+    expect(rendered).not.toContain("a title");
   });
 
   it("says where a row's or block's merge tag rule isn't applied in Elements' HTML", () => {
@@ -178,7 +195,7 @@ describe("designToElements", () => {
     const modules = import.meta.glob<string>(["./*.ts", "!./*.test.ts", "!./test-harness.ts"], { query: "?raw", import: "default", eager: true });
     expect(Object.keys(modules)).toContain("./design-to-elements.ts");
     for (const [file, source] of Object.entries(modules)) {
-      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing)$|\.\.\/utils\/font-design$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
+      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing|html-tags|video-url)$|\.\.\/utils\/font-design$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
     }
   });
 
@@ -220,6 +237,44 @@ describe("designToElements", () => {
     // Up to it, written out.
     expect(quiet(() => designToElements(nested(14))).code).not.toContain("JSON.parse");
   });
+
+  it("fills a link's template and finds each block's HTML in the `html` option in time linear in their size", async () => {
+    // A link's template was filled in by reading what it had filled in so far again for each value (a `mailto:` of
+    // 32,000 fields took 19 s), and each custom block's HTML was looked for from the document's start, its element's end
+    // read to the document's end where it has none (16,000 blocks: 10 s).
+    const mailto = (n: number) =>
+      design([{ type: "button", values: { text: "Write us", href: { name: "email", attrs: { href: "mailto:{{email}}?" + Array.from({ length: n }, (_, i) => `f${i}={{f${i}}}`).join("&") }, values: { email: "a@b.co", ...Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}`, "v"])) } } } }]);
+    const custom = (n: number) => design(Array.from({ length: n }, (_, i) => ({ type: "custom", slug: "timer", values: { _meta: { htmlID: `b${i}` } } })));
+    const closed = (n: number) => Array.from({ length: n }, (_, i) => `<div id="b${i}"><div class="v-container-padding-padding"><p>timer ${i}</p></div></div>`).join("");
+    const unclosed = (n: number) => Array.from({ length: n }, (_, i) => `<div id="b${i}"><div>`).join("");
+    const time = (run: () => unknown) => {
+      const start = performance.now();
+      quiet(run);
+      return performance.now() - start;
+    };
+    // (A document of its own each time: the last one read is kept, so the same one again would take no time.)
+    let calls = 0;
+    const fresh = (html: string) => `${html}<!--${calls++}-->`;
+    const shapes: Record<string, (n: number) => number> = {
+      "a mailto: link's fields": (n) => time(() => designToElements(mailto(n))),
+      "custom blocks' HTML": (n) => time(() => designToElements(custom(n), { html: fresh(closed(n)) })),
+      "custom blocks' HTML that never ends": (n) => time(() => designToElements(custom(n), { html: fresh(unclosed(n)) })),
+      // (And an id or a padding class with no `<` before it: each was read back to the document's start for its tag's;
+      // 1 MB took 23 s.)
+      "ids no tag holds": (n) => time(() => designToElements(custom(1), { html: fresh(' id="x"'.repeat(n * 8)) })),
+      "padding classes no tag holds": (n) => time(() => designToElements(custom(1), { html: fresh(' class="v-container-padding-padding"'.repeat(n * 4)) })),
+      // (And a warning for each: said once each, looked up in a set.)
+      "custom blocks that each warn": (n) => time(() => designToElements(design(Array.from({ length: n * 4 }, (_, i) => ({ type: "custom", slug: `tool${i}`, values: {} }))))),
+    };
+    for (const [shape, run] of Object.entries(shapes)) {
+      const { small, large, grows } = await growth(run, [400, 4000], { ratio: 20, floor: 200 });
+      expect(grows, `${shape}: ${small.toFixed(1)} ms for 400, ${large.toFixed(1)} ms for 4,000`).toBe(false);
+    }
+    // (What it fills in and finds, as before: the fields encoded in order, each block's HTML inside its padding.)
+    const code = quiet(() => designToElements(mailto(3))).code;
+    expect(code).toContain("mailto:a@b.co?f0=v&f1=v&f2=v");
+    expect(quiet(() => designToElements(custom(2), { html: closed(2) })).code).toContain("timer 1");
+  }, 120_000);
 
   it("formats with prettier, and the formatted code renders the same design", async () => {
     const source = design([{ type: "text", values: { text: "A long paragraph of plain words that a narrower print width wraps onto more lines than one" } }]);
@@ -299,6 +354,39 @@ describe("Elements templates come back as they render", () => {
   });
 });
 
+describe("the editor's Lexical text (textJson)", () => {
+  const lexical = (text: string) => JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text }] }] } });
+  const plain = (code: string) => Elements.renderToPlainText(React.createElement(evaluate(code))).replace(/\s+/g, " ").trim();
+
+  it("is a heading's, a button's and a paragraph's text, as the exporters render it, over `text`; a text block's `text` is", () => {
+    // `text` was taken over `textJson` for every block: where both were saved (and Elements' design writes a Heading's
+    // or a Button's default `text` beside its textJson), the code showed the old text, with no warning and the
+    // comparison seeing no difference. The exporters render textJson first for these three, `text` for a text block.
+    const both = design([
+      { type: "heading", values: { text: "OLD heading", textJson: lexical("NEW heading") } },
+      { type: "button", values: { text: "OLD button", textJson: lexical("NEW button"), href: { name: "web", values: { href: "https://acme.test/shop" } } } },
+      { type: "paragraph", values: { text: "OLD paragraph", textJson: lexical("NEW paragraph") } },
+      { type: "text", values: { text: "OLD text", textJson: lexical("NEW text") } },
+    ]);
+    const text = plain(designToElements(both).code);
+    for (const kept of ["NEW HEADING", "NEW button", "NEW paragraph", "OLD text"]) expect(text).toContain(kept);
+    for (const gone of ["OLD HEADING", "OLD button", "OLD paragraph", "NEW text"]) expect(text).not.toContain(gone);
+  });
+
+  it("comes back through Elements' own design, again and again: a textJson-only heading and button keep their text", () => {
+    const saved = design([
+      { type: "heading", values: { headingType: "h1", textJson: lexical("Welcome back, {{first_name}}") } },
+      { type: "button", values: { textJson: lexical("Shop the sale"), href: { name: "web", values: { href: "https://acme.test/shop", target: "_blank" } } } },
+    ]);
+    let code = designToElements(saved).code;
+    for (let pass = 1; pass <= 3; pass++) {
+      expect(plain(code), `pass ${pass}`).toContain("WELCOME BACK, {{first_name}}");
+      expect(plain(code), `pass ${pass}`).toContain("Shop the sale");
+      code = designToElements(Elements.renderToJson(React.createElement(evaluate(code))) as unknown as Plain).code;
+    }
+  });
+});
+
 describe("links: the URL the editor exports for each", () => {
   const EMAIL = "mailto:{{email}}?subject={{subject}}&body={{body}}";
   const WEB = { href: "{{href}}", target: "{{target}}" };
@@ -344,6 +432,30 @@ describe("links: the URL the editor exports for each", () => {
     expect(editorLink({ name: "phone", values: { phone: "+15550100" } })).toEqual({ url: "tel:+15550100", target: "_blank", kept: true });
     expect(editorLink({ name: "web", values: { href: "https://example.com" } })).toEqual({ url: "https://example.com", target: "_blank", kept: true });
     expect(editorLink("https://example.com")).toEqual({ url: "https://example.com", target: "_blank", kept: true });
+  });
+
+  it("reads a link without its templates whose values hold its URL (Elements' own, as renderToJson writes it) as that URL, as the exporters do", () => {
+    // `{ name: "email", values: { href: "mailto:…" } }` (Button's stories show it) was filled in from the email action's
+    // empty fields: the code linked to `mailto:`, with no warning.
+    expect(editorLink({ name: "email", values: { href: "mailto:hello@example.com", target: "_blank" } })).toEqual({ url: "mailto:hello@example.com", target: "_blank", kept: true });
+    expect(editorLink({ name: "phone", values: { href: "tel:+1234567890" } })).toEqual({ url: "tel:+1234567890", target: "_blank", kept: true });
+    expect(editorLink({ name: "sms", values: { href: "sms:+1234567890" } })).toEqual({ url: "sms:+1234567890", target: "_blank", kept: true });
+    const email = (
+      <Elements.Email>
+        <Elements.Row>
+          <Elements.Column>
+            <Elements.Button href={{ name: "email", values: { href: "mailto:hello@example.com" } }}>Send Email</Elements.Button>
+            <Elements.Menu values={{ menu: { items: [{ key: "1", text: "Call us", link: { name: "phone", values: { href: "tel:+1234567890" } } }] } }} />
+          </Elements.Column>
+        </Elements.Row>
+      </Elements.Email>
+    );
+    const { code, warnings, differences } = roundTrip(Elements.renderToJson(email) as unknown as Plain);
+    expect(warnings).toEqual([]);
+    expect(differences).toEqual([]);
+    const html = Elements.renderToHtml(React.createElement(evaluate(code)));
+    expect(html).toContain('href="mailto:hello@example.com"');
+    expect(html).toContain('href="tel:+1234567890"');
   });
 
   it("says what a URL can't hold, and which actions the builder doesn't read back from their URL", () => {
