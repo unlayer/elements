@@ -149,7 +149,8 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   // a lazy component renders, which React renders unprepared, its fallback rendered instead. It failed, as any part
   // that fails does, at the lazy component's place: the render fails, or (`onError`) it's left out as every part is,
   // listed in `omitted` and said, the fallback standing for it.
-  const told = c.reactErrors.splice(0).map((t) => new RenderError(threw(t.error), t.name ?? "lazy", positionOf(c.lazies[0]?.frame ?? frame), t.error));
+  // (On React 18, an async component in what a lazy component renders, in a <Suspense> there: said, as one it loads is.)
+  const told = c.reactErrors.splice(0).map((t) => (lazyAsyncIn18(t.error) ? new RenderError(LAZY_ASYNC_18, "lazy", positionOf(c.lazies[0]?.frame ?? frame), t.error) : new RenderError(threw(t.error), t.name ?? "lazy", positionOf(c.lazies[0]?.frame ?? frame), t.error)));
   if (!c.omit) for (const error of told) parts.push({ t: "error", error, fatal: false });
   const flat = flatten(parts, c.omit) as Flat;
   if (c.omit) flat.omitted.push(...told);

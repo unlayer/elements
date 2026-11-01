@@ -350,6 +350,14 @@ describe("the async renderers", () => {
     const rendered = renderToHtml(<Lazy orderId="A-1001" />);
     if (Number.parseInt(React.version) >= 19) expect(await rendered).toContain("Order A-1001");
     else await expect(rendered).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    // An async component in what a lazy section renders, in a <Suspense> there, the same (React handles that one, and
+    // its own error was given).
+    const Price = async () => (await later(null), <Paragraph>$10</Paragraph>);
+    const Section = () => <React.Suspense fallback={null}><Price /></React.Suspense>;
+    const LazySection = React.lazy(async () => (await later(null), { default: Section }));
+    const section = renderToHtml(<Email><Row><Column><LazySection /></Column></Row></Email>);
+    if (Number.parseInt(React.version) >= 19) expect(await section).toContain("$10");
+    else await expect(section).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
   });
 
   it("resolve a lazy template (`React.lazy`) as an async one, its root's settings read; the synchronous renderers say it's async", async () => {
