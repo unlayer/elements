@@ -481,9 +481,9 @@ Each step ends with its tests in CI.
 | 4. Lists and tables, in every output | done |
 | 5. React Email parity: web fonts, superscript and subscript, `title`/`aria-label`, `dir` per block, `pretty` | done |
 | 6. Support data for every output, and the styling vocabulary | done |
-| 7. Today's components on the new engine (`Menu`, `Social`, `Video`, `PageBreak`, `Document`), `/legacy`, the codemod | next |
-| 8. `Grid`, `Layer` and responsive page layouts | |
-| 9. `Document.Page`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | |
+| 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy`, the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
+| 8. `Grid`, `Layer` and responsive page layouts | next |
+| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | |
 | 11. Builder adapter | last |
 
