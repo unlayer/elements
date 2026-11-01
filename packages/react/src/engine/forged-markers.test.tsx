@@ -420,6 +420,21 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     }
   });
 
+  it("ends an element a browser reads as text (a <textarea>, a <title>) only at its own end tag, where its HTML holds another's", async () => {
+    // (Its `</div>` ended the <div> around it, and its own end tag then ended nothing among the blocks, left out: the
+    // browser's <textarea> took the rest of the email, which the plain text still had.)
+    for (const tag of ["textarea", "title", "xmp", "iframe", "noembed", "noframes"]) {
+      const Snippet = () => <div className="box"><span dangerouslySetInnerHTML={{ __html: `<${tag}></div></${tag}>` }} /></div>;
+      const email = (Content: React.ComponentType) => <Email><Row><Column><Content /><Paragraph>After</Paragraph></Column></Row></Email>;
+      for (const mode of ["sync", "async"] as const) {
+        const r = renderers(mode);
+        // (Its Html block named as a lazy component's is, not after the component it loads: React's public API doesn't say.)
+        const named = (out: string) => out.replace(/u_content_snippet/g, "u_content_component");
+        for (const api of ["html", "text", "json"] as const) expect(await r[api](email(loaded(Snippet))), `${mode} ${api} ${tag}`).toBe(named(await r[api](email(Snippet))));
+      }
+    }
+  });
+
   it("fails the render, by name, where it ends one of the render's markers (`</unlayer-mark>`), whatever is after it", async () => {
     const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
     for (const mode of ["sync", "async"] as const) {

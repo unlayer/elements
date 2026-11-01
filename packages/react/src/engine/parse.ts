@@ -240,6 +240,15 @@ export function parse(html: string, c: Collection): Part[] {
         at = gt < 0 ? html.length : gt + 1;
         continue;
       }
+      // (In an element a browser reads as text, what a lazy component renders, an end tag but its own, where the browser
+      // ends it, is its text: it ends nothing outside it, as `<textarea></div></textarea>` given whole doesn't.)
+      let inText = stack.length - 1;
+      while (inText > 0 && stack[inText].textEnd === undefined && !stack[inText].mark) inText--;
+      if (inText > 0 && stack[inText].textEnd !== undefined && stack[inText].textEnd !== lt) {
+        text(html.slice(lt, gt + 1));
+        at = gt < 0 ? html.length : gt + 1;
+        continue;
+      }
       // An end tag of what's open, in a marker only of what's open in it, and inside a <style>'s or <script>'s content
       // only of what's open there. A stray one (in HTML given whole in what a lazy component renders, or React's own
       // after that HTML ended what React opened) is written as it is in an element's content, as the same HTML not
