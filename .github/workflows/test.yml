@@ -58,8 +58,13 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 281.5KB.
-      # Current size: about 280.5KB (0.1.22: about 76KB). Raised from 280.5KB
+      # Fail if the react-elements ESM bundle exceeds 284.5KB.
+      # Current size: about 283.7KB (0.1.22: about 76KB). Raised from 281.5KB
+      # (about 2.5KB): a copy of the render's markers failing the render, an
+      # error React handled in a lazy section failing an async render early, a
+      # Button's style its props take given as those props, a lazy <textarea>
+      # ended only at its own end tag, and a failed component called once.
+      # Raised from 280.5KB
       # (about 0.9KB): a lazy component's <style> and <script> read to where a
       # browser ends them, a template's only Row left out of the design too, and
       # an async render failing at an error found before React renders.
@@ -310,7 +315,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=281500
+          MAX_SIZE=284500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
