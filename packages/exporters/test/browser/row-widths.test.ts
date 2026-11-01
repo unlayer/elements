@@ -115,3 +115,42 @@ describe("Row widths in Chromium", () => {
     });
   }
 });
+
+describe("children of their own size in Chromium", () => {
+  // Links whose width only the client knows, packed at the Row's start, center or end: where the Page's flexbox puts
+  // each one, the Email's table puts it too.
+  const WORDS = ["Docs", "Blog", "Careers"];
+  for (const justifyContent of ["start", "center", "end"]) {
+    it(`packs them at the ${justifyContent}, as the page does`, async () => {
+      const ids = WORDS.map((_, index) => `l${index}`);
+      const template = (root: "Page" | "Email") =>
+        resolveDocument(
+          parseDocument({
+            root: {
+              type: root,
+              props: { width: 600 },
+              children: [
+                {
+                  type: "Row",
+                  props: { stackOnMobile: false },
+                  style: { gap: 30, justifyContent },
+                  children: WORDS.map((word, index) => ({ type: "Link", id: ids[index], props: { href: "#" }, style: { flex: "none" }, children: [word] })),
+                },
+              ],
+            },
+          })
+        );
+      const boxes = async (html: string, style = true) => {
+        const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
+        await page.setContent(html);
+        if (!style) await page.evaluate(() => document.querySelectorAll("style").forEach((element) => element.remove()));
+        const found = await page.evaluate((ids) => ids.map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ x, width }) => [Math.round(x), Math.round(width)]), ids);
+        await page.close();
+        return found;
+      };
+      const expected = await boxes(renderPage(template("Page")).html);
+      expect(await boxes(renderEmail(template("Email")).html)).toEqual(expected);
+      expect(await boxes(renderEmail(template("Email")).html, false)).toEqual(expected);
+    });
+  }
+});

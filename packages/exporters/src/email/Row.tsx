@@ -108,30 +108,35 @@ function sideBySide(props: Props): Html {
   // Room the children leave: an empty cell takes it (where the Row's justify puts it), else a table spreads it over them.
   const placed = node.children.filter(isNode).filter((child) => shown(child) && !child.hidden?.desktop);
   const used = placed.reduce((sum, child) => sum + (child.width ?? 0), 0) + gap * Math.max(0, placed.length - 1);
-  const left = node.contentWidth !== null && placed.every((child) => child.width !== null) && used < node.contentWidth - 0.5;
+  const left = node.contentWidth !== null && used < node.contentWidth - 0.5;
   const justify = node.style.justifyContent as string | undefined;
-  const filler = <td />;
+  // A child of its own size whose size only the client knows (a Link, a Button) takes no room above. Where there's
+  // one, the empty cells take all the room (half each, around centered children) and the gaps can't give theirs
+  // up, so the table packs the children where flexbox does.
+  const packed = left && placed.some((child) => child.width === null);
+  const filler = <td width={packed ? (justify === "center" ? "50%" : "100%") : undefined} />;
   const children = node.children.filter(isNode).filter(shown);
   const gaps = gapsBefore(children);
+  const cells = children.map((child, index) => {
+    const width = child.width ?? undefined;
+    const hidden = hiding(child, "table-cell");
+    const cell = (
+      <td class={hidden.class} width={width} valign={valign} style={[{ width }, hidden.style]}>
+        {render(child, { fill: width !== undefined })}
+      </td>
+    );
+    return (
+      <>
+        {gapCell(gapShown(gaps[index], gap, phoneGap), gap, phoneGap, packed)}
+        {child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell}
+      </>
+    );
+  });
   return (
     <Table width="100%">
       <tr>
         {left && (justify === "end" || justify === "center") && filler}
-        {children.map((child, index) => {
-          const width = child.width ?? undefined;
-          const hidden = hiding(child, "table-cell");
-          const cell = (
-            <td class={hidden.class} width={width} valign={valign} style={[{ width }, hidden.style]}>
-              {render(child, { fill: width !== undefined })}
-            </td>
-          );
-          return (
-            <>
-              {gapCell(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
-              {child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell}
-            </>
-          );
-        })}
+        {cells}
         {left && justify !== "end" && filler}
       </tr>
     </Table>
@@ -159,10 +164,19 @@ function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
   );
 }
 
-/** The gap before a side-by-side Row's child, where there is one, as a cell: the phone gap's width on phones, and kept from Outlook where there's none on desktop. */
-function gapCell(at: GapAt, gap: number, phoneGap: number): Html | null {
+/**
+ * The gap before a side-by-side Row's child, where there is one, as a cell: the phone gap's width on phones, and kept
+ * from Outlook where there's none on desktop. Beside cells that take all the room (`solid`), an empty cell would give
+ * its width up: a div as wide as the gap holds it.
+ */
+function gapCell(at: GapAt, gap: number, phoneGap: number, solid = false): Html | null {
   if (!at.desktop && !at.phone) return null;
   const hidden = hiding({ hidden: gapHidden(at) }, "table-cell");
-  const cell = <td class={hidden.class} width={gap || undefined} phone={at.phone && phoneGap !== gap ? { width: phoneGap } : undefined} style={[{ width: gap || undefined }, hidden.style]} />;
+  const phone = at.phone && phoneGap !== gap ? { width: phoneGap } : undefined;
+  const cell = (
+    <td class={hidden.class} width={gap || undefined} phone={phone} style={[{ width: gap || undefined }, hidden.style]}>
+      {solid && <div phone={phone} style={{ width: gap || undefined }} />}
+    </td>
+  );
   return at.desktop ? cell : <NotOutlook>{cell}</NotOutlook>;
 }
