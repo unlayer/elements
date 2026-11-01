@@ -1,6 +1,6 @@
 import { checkDocument, ElementsError, parseDocument } from "../src";
 
-const doc = (root: unknown) => ({ version: 1, root });
+const doc = (root: unknown) => ({ root });
 const codes = (input: unknown) => checkDocument(input).diagnostics.map((d) => d.code);
 
 describe("checkDocument", () => {
@@ -20,7 +20,6 @@ describe("checkDocument", () => {
     );
     expect(diagnostics).toEqual([]);
     expect(document).toEqual({
-      version: 1,
       root: {
         type: "Email",
         props: { width: 640, previewText: "Hi" },
@@ -53,10 +52,10 @@ describe("checkDocument", () => {
     ]);
   });
 
-  it("checks the version and the root", () => {
-    expect(codes({ root: { type: "Email" } })).toEqual(["document/version"]);
+  it("checks the root", () => {
     expect(codes(doc({ type: "Row" }))).toEqual(["root/invalid"]);
-    expect(codes({ version: 1 })).toEqual(["document/root"]);
+    expect(codes({})).toEqual(["document/root"]);
+    expect(codes({ root: { type: "Email" }, version: 1 })).toEqual(["document/unknown-key"]);
     expect(checkDocument("x").document).toBeNull();
   });
 
@@ -95,7 +94,7 @@ describe("checkDocument", () => {
       ["prop/required", "root.children[1].props.src"],
       ["prop/invalid", "root.children[2].props.level"],
     ]);
-    expect(() => parseDocument({ version: 1, root: { type: "Email", children: [{ type: "Image" }] } })).toThrow(ElementsError);
+    expect(() => parseDocument({ root: { type: "Email", children: [{ type: "Image" }] } })).toThrow(ElementsError);
   });
 
   it("checks styles, and says what to use instead of CSS it doesn't take", () => {
@@ -132,7 +131,6 @@ describe("checkDocument", () => {
 
   it("keeps list items in Lists and table rows and cells in Tables", () => {
     const { diagnostics } = checkDocument({
-      version: 1,
       root: { type: "Email", children: [{ type: "ListItem", children: ["x"] }, { type: "Table", children: [{ type: "TableCell" }] }, { type: "List", children: [{ type: "Text" }] }] },
     });
     expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
@@ -144,7 +142,6 @@ describe("checkDocument", () => {
 
   it("points the names Elements used before CSS's to the new ones", () => {
     const messages = checkDocument({
-      version: 1,
       root: {
         type: "Email",
         children: [

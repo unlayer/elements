@@ -52,7 +52,7 @@ describe("render()", () => {
   });
 
   it("takes JSX only", async () => {
-    await expect(render({ version: 1, root: { type: "Page" } } as never)).rejects.toThrow(TypeError);
+    await expect(render({ root: { type: "Page" } } as never)).rejects.toThrow(TypeError);
   });
 
   it("renders an <Email> to email HTML: tables, widths in px, Outlook's markup in conditional comments", async () => {

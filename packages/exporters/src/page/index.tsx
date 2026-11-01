@@ -1,5 +1,5 @@
 /**
- * Page HTML (`<Page>`) from a resolved document: one element per node, its
+ * Page HTML (`<Page>`) from a laid-out template: one element per node, its
  * styles inline, flexbox for the root, Rows and Columns. The only stylesheet
  * is what inline styles can't do: phone overrides, hiding, hover, and fonts.
  *

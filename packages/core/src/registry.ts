@@ -31,7 +31,7 @@ export interface ExpandContext {
 export interface CustomDefinition<P extends PropSpecs = PropSpecs> extends ComponentDefinition<P, typeof placementStyle> {
   custom: true;
   /**
-   * The component as primitives: one node in the document's JSON form
+   * The component as primitives: one node of the template tree
    * (`{ type, props, style, children }`). Pure: the same props give the same node.
    */
   expand(props: ExpandProps<P>, context: ExpandContext): unknown;

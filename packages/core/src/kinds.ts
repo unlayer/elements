@@ -1,7 +1,8 @@
 /**
  * Value kinds: what a prop or style property accepts, what it's normalized to,
- * the editor that edits it, and its JSON Schema. Component definitions are
- * made of these, so types, validation, schemas and editors come from one place.
+ * the editor that edits it, and a JSON Schema of its values (for property
+ * discovery). Component definitions are made of these, so types, validation
+ * and editors come from one place.
  */
 import type { Json } from "./model";
 

@@ -1,8 +1,8 @@
 /**
- * Email HTML from a resolved document. Email clients are the hard target:
+ * Email HTML from a laid-out template. Email clients are the hard target:
  * classic Outlook lays out with Word (no flexbox, no sizes on divs, no
  * padding on inline elements), and Gmail drops `<style>` for some accounts.
- * So (docs/rfcs/0001-primitives-and-exporters.md, Email):
+ * So (docs/rfcs/0001-primitives-and-exporters.md, "Email"):
  *
  * 1. Right without `<style>`: layout at desktop width, colors, fonts, sizes
  *    and spacing are inline. The stylesheet only adds phone overrides,
@@ -18,8 +18,7 @@
  * `markup.tsx`, `layout.tsx` and `styles.tsx` are what they share. What email
  * can't do as asked is found in one pass (support.ts).
  *
- * Choices measured against classic Outlook (unlayer/email-renderer,
- * oracle/CALIBRATION.md): a 100% table with a px `max-width` is that width in
+ * Choices measured against captures of real classic Outlook: a 100% table with a px `max-width` is that width in
  * Word, so a box with its own width is `width="100%" style="max-width:…"`,
  * fluid elsewhere; a cell's width includes its padding; line heights are px
  * with `mso-line-height-rule: exactly` (Word drops unitless ones). Buttons
@@ -166,7 +165,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
     '<meta name="supported-color-schemes" content="light">',
     "<!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->",
     title !== undefined ? `<title>${escapeText(title)}</title>` : "",
-    // Web fonts where classic Outlook doesn't read them: it draws the next font in each stack (unlayer/email-renderer's captures), where a face it can't load could leave it a default.
+    // Web fonts where classic Outlook doesn't read them: it then draws the next font in each stack (seen in captures of it), where a face it can't load could leave it a default.
     fonts.length ? `<!--[if !mso]><!--><style>${fonts.join("")}</style><!--<![endif]-->` : "",
     `<style>${stylesheet}</style>`,
   ].join("");

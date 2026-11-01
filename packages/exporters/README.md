@@ -10,7 +10,9 @@ src/
                    output's checks and layout; validateTemplate() stops there, renderTemplate() writes
   jsx.ts           the JSX the components are written in: it writes HTML strings (no React)
   plain-text.ts    the plain-text version (the same for every output)
-  shared/          escaping and CSS values (css.ts), the stylesheet's short class names (classes.ts), fonts
+  shared/          what every HTML output shares: escaping and CSS values (css.ts), the stylesheet's
+                   short class names (classes.ts), @font-face rules (fonts.ts), link attributes
+                   (link.ts), the support pass (support.ts), indented HTML for `pretty` (pretty.ts)
   email/           <Email>: tables, px widths, Outlook's markup in conditional comments
   page/            <Page>: one element per node, flexbox
 ```

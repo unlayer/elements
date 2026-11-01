@@ -5,8 +5,8 @@
  * On hover the cell changes its background and the link its text's color,
  * each where it's set (the link's own inline color would win over the
  * cell's).
- * Not VML: Word draws a VML button's label in its own font, wrapped inside the
- * shape's fixed size (unlayer/email-renderer's captures). Square corners in
+ * Not VML: in captures of classic Outlook, Word draws a VML button's label in
+ * its own font, wrapped inside the shape's fixed size. Square corners in
  * classic Outlook.
  */
 import { h } from "../jsx";

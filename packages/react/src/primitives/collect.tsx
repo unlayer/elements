@@ -9,7 +9,7 @@
  * Server Components have no context.
  */
 import React from "react";
-import { checkDocument, DOCUMENT_VERSION, Registry, type CheckResult, type CustomDefinition, type Diagnostic } from "@unlayer-internal/elements-core";
+import { checkDocument, Registry, type CheckResult, type CustomDefinition, type Diagnostic } from "@unlayer-internal/elements-core";
 import { renderToStaticMarkup } from "../utils/server-renderer";
 import { withRenderScope } from "../utils/render-scope";
 import { nonce } from "../utils/normalize";
@@ -142,6 +142,6 @@ export function collectTemplate(element: React.ReactElement): CollectedTemplate 
     });
     return { document: null, diagnostics, components };
   }
-  const result = checkDocument({ version: DOCUMENT_VERSION, root: top[0] }, new Registry(components));
+  const result = checkDocument({ root: top[0] }, new Registry(components));
   return { document: result.document, diagnostics: [...diagnostics, ...result.diagnostics], components };
 }

@@ -5,7 +5,7 @@ import { Button, Column, component, ElementsError, Email, Heading, Image, Page, 
 import { describeComponent, type ExpandProps } from "@unlayer-internal/elements-core";
 import { collectTemplate } from "./collect";
 
-const toDocument = (element: React.ReactElement) => collectTemplate(element).document!;
+const treeOf = (element: React.ReactElement) => collectTemplate(element).document!;
 
 const ProductCard = component({
   type: "acme.ProductCard",
@@ -52,7 +52,7 @@ const shop = (
 
 describe("component()", () => {
   it("is one node in the template, with its props normalized", () => {
-    const document = toDocument(shop);
+    const document = treeOf(shop);
     expect(document.root.children![0]).toEqual({ type: "acme.Hero", props: { title: "New arrivals" } });
     expect((document.root.children![1] as { children: unknown[] }).children).toEqual([
       { type: "acme.ProductCard", props: { name: "Sneaker", photo: "https://example.com/a.png", href: "https://example.com/a" } },
@@ -85,7 +85,7 @@ describe("component()", () => {
       const symbol = useContext(Currency);
       return <ProductCard name={`Sale ${symbol}${amount}`} photo="https://example.com/c.png" href="https://example.com/c" />;
     };
-    const document = toDocument(
+    const document = treeOf(
       <Currency.Provider value="€">
         <Page>
           <Price amount={5} />

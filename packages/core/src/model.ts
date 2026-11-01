@@ -1,15 +1,12 @@
 /**
- * The Elements document: what JSX and JSON both become, and what every
- * exporter and converter reads. Plain JSON: no functions, no React elements.
+ * The template tree: what a template's JSX is collected into inside one
+ * render, and what layout and every writer read. Internal, never public; plain
+ * data (no functions, no React elements).
  */
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
-/** The version of the document format this code reads and writes. */
-export const DOCUMENT_VERSION = 1;
-
 export interface ElementsDocument {
-  version: typeof DOCUMENT_VERSION;
   root: Node;
 }
 

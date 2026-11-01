@@ -45,7 +45,7 @@ describe("Row widths in Chromium", () => {
     it(`gives each child the resolver's width: ${name}`, async () => {
       const ids = children.map((_, index) => `c${index}`);
       const template = (root: "Page" | "Email") =>
-        resolveDocument(parseDocument({ version: 1, root: { type: root, props: { width: 600 }, children: [{ type: "Row", style, props, children: children.map((child, index) => ({ ...(child as object), id: ids[index] })) }] } }));
+        resolveDocument(parseDocument({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", style, props, children: children.map((child, index) => ({ ...(child as object), id: ids[index] })) }] } }));
       const expected = (template("Email").root.children[0] as ResolvedNode).children.map((child) => (child as ResolvedNode).width);
       expect(await measure(renderPage(template("Page")).html, ids)).toEqual(expected);
       expect(await measure(renderEmail(template("Email")).html, ids)).toEqual(expected);

@@ -16,7 +16,6 @@ afterAll(async () => browser?.close());
 const template = (root: "Page" | "Email") =>
   resolveDocument(
     parseDocument({
-      version: 1,
       root: {
         type: root,
         props: { width: 600 },

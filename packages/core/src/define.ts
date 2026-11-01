@@ -1,7 +1,7 @@
 /**
  * Component definitions: one per component, the source of its props, styles,
- * children, targets and editors. Types, validation, the JSON Schema and
- * property discovery are all read from these.
+ * children, targets, support in each output and editors. Types, validation,
+ * the support pass and property discovery are all read from these.
  */
 import type { EditorKind, InputOf, Kind, OutputOf } from "./kinds";
 import type { Json, Node } from "./model";
@@ -32,11 +32,11 @@ export type SupportByTarget = Partial<Record<Target, Support | readonly Support[
 
 /**
  * Where what an output shows of a style or prop is known from: captures of
- * classic Outlook (unlayer/email-renderer, oracle/CALIBRATION.md); caniemail's
- * client tables; the output's writer itself, which turns it into markup the
- * output shows (checked in Chromium, for email with and without <style> and in
- * the Outlook-like renderer); CSS written as is, which browsers show as asked;
- * or assumed, not yet checked.
+ * real classic Outlook for Windows; caniemail's client tables
+ * (caniemail.com); the output's writer itself, which turns it into markup the
+ * output shows (checked in Chromium, for email with and without <style>, and
+ * against a model of Outlook's layout built from those captures); CSS written
+ * as is, which browsers show as asked; or assumed, not yet checked.
  */
 export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "css" | "assumed";
 
@@ -159,7 +159,7 @@ export type StyleInput<S extends StyleSpecs> = { [K in keyof S]?: InputOf<S[K]["
 /** Its style once normalized (in a document). */
 export type StyleOutput<S extends StyleSpecs> = { [K in keyof S]?: OutputOf<S[K]["kind"]> };
 
-/** A node of this component as authors write it in JSON (before ids and normalization). */
+/** A node of this component in the template tree, before normalization. */
 export type NodeInput<D extends ComponentDefinition<any, any>> = D extends ComponentDefinition<infer P, infer S>
   ? {
       type: D["type"];

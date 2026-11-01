@@ -2,7 +2,7 @@ import { JSDOM } from "jsdom";
 import { ElementsError } from "@unlayer-internal/elements-core";
 import { renderTemplate } from "../src";
 
-const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ version: 1, root: { type: "Page", props: { width: 600 }, children, ...extra } });
+const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Page", props: { width: 600 }, children, ...extra } });
 const web = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
 
 describe("web HTML", () => {

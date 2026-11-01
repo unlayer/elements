@@ -19,7 +19,6 @@ function withIds(
 
 export const template = (root: "Page" | "Email") =>
   parseDocument({
-    version: 1,
     root: withIds({
       type: root,
       props: { width: 640 },

@@ -13,7 +13,6 @@ beforeAll(async () => {
 afterAll(async () => browser?.close());
 
 const template = (root: "Page" | "Email") => ({
-  version: 1,
   root: {
     type: root,
     props: { width: 600 },

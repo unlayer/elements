@@ -1,6 +1,6 @@
 import { checkTarget, parseDocument, resolveDocument, type ResolvedNode } from "../src";
 
-const resolve = (root: unknown) => resolveDocument(parseDocument({ version: 1, root }));
+const resolve = (root: unknown) => resolveDocument(parseDocument({ root }));
 const child = (node: ResolvedNode, ...path: number[]): ResolvedNode => path.reduce((n, i) => n.children[i] as ResolvedNode, node);
 
 describe("widths", () => {
@@ -130,7 +130,7 @@ describe("text styles", () => {
 
 describe("checkTarget", () => {
   it("reports components a target doesn't render", () => {
-    const document = parseDocument({ version: 1, root: { type: "Email", children: [{ type: "Text", children: ["x"] }] } });
+    const document = parseDocument({ root: { type: "Email", children: [{ type: "Text", children: ["x"] }] } });
     expect(checkTarget(document, "email")).toEqual([]);
     expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root", "root.children[0]"]);
   });

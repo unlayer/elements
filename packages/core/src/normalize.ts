@@ -1,11 +1,11 @@
 /**
- * Reading a document: validated against the component definitions and
- * normalized (values in their canonical form, ids assigned), the same for JSON
- * and for what JSX became.
+ * Reading the tree a template's JSX was collected into: validated against the
+ * component definitions and normalized (values in their canonical form, ids
+ * checked).
  */
 import type { ComponentDefinition, StyleSpecs } from "./define";
 import { Diagnostics, ElementsError, type Diagnostic } from "./diagnostics";
-import { DOCUMENT_VERSION, type Child, type ElementsDocument, type Json, type Node } from "./model";
+import { type Child, type ElementsDocument, type Json, type Node } from "./model";
 import { CUSTOM_TYPE, registryOf, type ComponentsOption, type Registry } from "./registry";
 
 export interface CheckResult {
@@ -39,22 +39,17 @@ export function checkDocument(input: unknown, options?: ComponentsOption | Regis
   const registry = registryOf(options);
   const d = new Diagnostics();
   if (!isObject(input)) {
-    d.error("document/invalid", "A document is an object: { version: 1, root: { type: \"Email\", … } }", "");
+    d.error("document/invalid", "A document is an object: { root: { type: \"Email\", … } }", "");
     return { document: null, diagnostics: d.list };
   }
-  if (input.version === undefined) {
-    d.error("document/version", `A document says which version of the format it's in: add "version": ${DOCUMENT_VERSION}`, "version");
-  } else if (input.version !== DOCUMENT_VERSION) {
-    d.error("document/version", `This version of Elements reads documents of version ${DOCUMENT_VERSION}, not ${JSON.stringify(input.version)}`, "version");
-  }
-  const extra = Object.keys(input).filter((key) => key !== "version" && key !== "root");
-  for (const key of extra) d.error("document/unknown-key", `"${key}" isn't part of a document (version, root)`, key);
+  const extra = Object.keys(input).filter((key) => key !== "root");
+  for (const key of extra) d.error("document/unknown-key", `"${key}" isn't part of a document (root)`, key);
 
   const rootDefinition = isObject(input.root) && typeof input.root.type === "string" ? registry.get(input.root.type) : undefined;
   const context: Context = { d, registry, used: new Set(), responsive: !!rootDefinition?.responsive };
   const root = input.root === undefined ? null : readNode(input.root, "root", null, context);
   if (input.root === undefined) d.error("document/root", 'A document has a root: { type: "Email" }, "Page", …', "root");
-  return { document: root ? { version: DOCUMENT_VERSION, root } : null, diagnostics: d.list };
+  return { document: root ? { root } : null, diagnostics: d.list };
 }
 
 /** Validates and normalizes a document, throwing an `ElementsError` if it has errors. */

@@ -1,13 +1,9 @@
-import Ajv2020 from "ajv/dist/2020";
 import {
-  applyPatch,
   buttonColors,
   checkDocument,
   COMPONENTS,
   describeComponent,
   describeComponents,
-  documentJsonSchema,
-  findNode,
   parseDocument,
   type AssetInput,
   type ComponentDefinition,
@@ -17,50 +13,6 @@ import {
   type StyleInput,
 } from "../src";
 import type { Button, Heading, Image } from "../src/components";
-
-describe("JSON Schema", () => {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  const validate = ajv.compile(documentJsonSchema());
-
-  const valid = {
-    version: 1,
-    root: {
-      type: "Email",
-      props: { width: 600 },
-      style: { backgroundColor: "#f4f4f4" },
-      children: [
-        { type: "Section", style: { backgroundColor: "#111", padding: 24 }, children: [{ type: "Image", props: { src: "https://example.com/logo.png", alt: "Logo" } }] },
-        { type: "Row", style: { gap: 16 }, children: [{ type: "Column", children: [{ type: "Text", children: ["a"] }] }, { type: "Column" }] },
-        { type: "Button", props: { href: "https://example.com" }, hover: { backgroundColor: "#000" }, children: ["Go"] },
-      ],
-    },
-  };
-
-  it("accepts what checkDocument accepts", () => {
-    expect(checkDocument(valid).diagnostics).toEqual([]);
-    expect(validate(valid)).toBe(true);
-  });
-
-  it("rejects wrong nesting, unknown props and missing required props, as checkDocument does", () => {
-    const wrong = [
-      { version: 1, root: { type: "Email", children: [{ type: "Column", children: [{ type: "Section" }] }] } },
-      { version: 1, root: { type: "Email", children: [{ type: "Button", props: { href: "#", rel: "x" } }] } },
-      { version: 1, root: { type: "Email", children: [{ type: "Image" }] } },
-      { version: 1, root: { type: "Email", children: [{ type: "Row", children: ["text"] }] } },
-      { version: 1, root: { type: "Text" } },
-      { version: 1, root: { type: "Email", children: [{ type: "Text", style: { margin: 4 } }] } },
-    ];
-    for (const document of wrong) {
-      expect(validate(document)).toBe(false);
-      expect(checkDocument(document).diagnostics.some((d) => d.severity === "error")).toBe(true);
-    }
-  });
-
-  it("is plain JSON", () => {
-    const schema = documentJsonSchema();
-    expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
-  });
-});
 
 describe("property discovery", () => {
   it("describes a component's props, styles, editors and children", () => {
@@ -93,29 +45,12 @@ describe("property discovery", () => {
   });
 });
 
-describe("editing", () => {
-  const document = parseDocument({
-    version: 1,
-    root: { type: "Email", children: [{ type: "Button", id: "cta", props: { href: "https://example.com" }, style: { color: "#fff" }, children: ["Go"] }] },
-  });
-
-  it("writes a composite editor's value to every prop it covers", () => {
+describe("composite editors", () => {
+  it("write one value to every prop they cover, and read it back", () => {
     const patch = buttonColors.write({ color: "#111111", backgroundColor: "#FFCC00", hoverColor: "#000", hoverBackgroundColor: "#ffaa00" });
-    const { document: edited, diagnostics } = applyPatch(document, "cta", patch);
-    expect(diagnostics).toEqual([]);
-    const node = findNode(edited, "cta")!;
-    expect(node.style).toEqual({ color: "#111111", backgroundColor: "#ffcc00" });
-    expect(node.hover).toEqual({ color: "#000000", backgroundColor: "#ffaa00" });
-    expect(buttonColors.read(node)).toEqual({ color: "#111111", backgroundColor: "#ffcc00", hoverColor: "#000000", hoverBackgroundColor: "#ffaa00" });
-    expect(findNode(document, "cta")!.style).toEqual({ color: "#ffffff" });
-  });
-
-  it("removes values set to undefined, and refuses invalid values and removing required props", () => {
-    const { document: edited, diagnostics } = applyPatch(document, "cta", { style: { color: undefined, padding: "1em" }, props: { href: undefined } });
-    expect(findNode(edited, "cta")!.style).toBeUndefined();
-    expect(findNode(edited, "cta")!.props).toEqual({ href: "https://example.com" });
-    expect(diagnostics.map((d) => d.code)).toEqual(["patch/required", "patch/invalid"]);
-    expect(applyPatch(document, "nope", {}).diagnostics.map((d) => d.code)).toEqual(["patch/no-node"]);
+    expect(patch).toEqual({ style: { color: "#111111", backgroundColor: "#FFCC00" }, hover: { color: "#000", backgroundColor: "#ffaa00" } });
+    const node = parseDocument({ root: { type: "Email", children: [{ type: "Button", props: { href: "https://example.com" }, ...patch, children: ["Go"] }] } }).root.children![0];
+    expect(buttonColors.read(node as never)).toEqual({ color: "#111111", backgroundColor: "#ffcc00", hoverColor: "#000000", hoverBackgroundColor: "#ffaa00" });
   });
 });
 

@@ -4,7 +4,6 @@ import {
   color,
   defineCustomComponent,
   describeComponent,
-  documentJsonSchema,
   expandDocument,
   link,
   parseDocument,
@@ -35,7 +34,7 @@ const Card = defineCustomComponent({
   }),
 });
 
-const cards = (...nodes: unknown[]) => ({ version: 1, root: { type: "Email", children: [{ type: "Row", children: nodes }] } });
+const cards = (...nodes: unknown[]) => ({ root: { type: "Email", children: [{ type: "Row", children: nodes }] } });
 const card = (props: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   type: "acme.Card",
   props: { name: "Sneaker", photo: "https://example.com/a.png", href: "https://example.com", ...props },
@@ -91,7 +90,7 @@ describe("custom components", () => {
     const Many = defineCustomComponent({ type: "acme.Many", label: "Many", props: {}, expand: () => [{ type: "Text" }, { type: "Text" }] });
     const Bad = defineCustomComponent({ type: "acme.Bad", label: "Bad", props: {}, expand: () => ({ type: "Text", style: { margin: 4 } }) });
     const components = [Nested, Broken, Many, Bad];
-    const document = parseDocument({ version: 1, root: { type: "Email", children: components.map((c) => ({ type: c.type })) } }, { components });
+    const document = parseDocument({ root: { type: "Email", children: components.map((c) => ({ type: c.type })) } }, { components });
     const { diagnostics } = expandDocument(document, { components });
     expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
       ["children/not-allowed", "root.children[0](acme.Nested)"],
@@ -113,13 +112,13 @@ describe("custom components", () => {
         return { type: "Column", children: [{ type: "acme.Inner" }] };
       },
     });
-    const document = parseDocument({ version: 1, root: { type: "Email", children: [{ type: "acme.Outer" }] } }, { components: [Outer] });
+    const document = parseDocument({ root: { type: "Email", children: [{ type: "acme.Outer" }] } }, { components: [Outer] });
     const { document: expanded, diagnostics } = expandDocument(document, { components: [Outer] });
     expect(diagnostics).toEqual([]);
     expect(JSON.stringify(expanded.root)).toBe('{"type":"Email","children":[{"type":"Column","children":[{"type":"Text","children":["inner"]}]}]}');
 
     const Loop = defineCustomComponent({ type: "acme.Loop", label: "Loop", props: {}, expand: () => ({ type: "acme.Loop" }) });
-    const looping = parseDocument({ version: 1, root: { type: "Email", children: [{ type: "acme.Loop" }] } }, { components: [Loop] });
+    const looping = parseDocument({ root: { type: "Email", children: [{ type: "acme.Loop" }] } }, { components: [Loop] });
     expect(expandDocument(looping, { components: [Loop] }).diagnostics.map((d) => d.code)).toEqual(["custom/depth"]);
   });
 
@@ -129,9 +128,7 @@ describe("custom components", () => {
     expect(() => new Registry([Card, Other])).toThrow(/Two custom components/);
   });
 
-  it("are in the JSON Schema and described like built-in components", () => {
-    const schema = documentJsonSchema({ components: [Card] }) as { $defs: Record<string, { required: string[] }> };
-    expect(schema.$defs["acme.Card"].required).toEqual(["type", "props"]);
+  it("are described like built-in components", () => {
     expect(describeComponent("acme.Card")).toBeUndefined();
     const described = describeComponent("acme.Card", { components: [Card] })!;
     expect(described.properties.find((p) => p.path === "props.accent")).toMatchObject({ editor: "color", default: "#0879a1" });

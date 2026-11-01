@@ -1,7 +1,7 @@
 import { JSDOM } from "jsdom";
 import { renderTemplate } from "../src";
 
-const email = (children: unknown[], extra: Record<string, unknown> = {}) => ({ version: 1, root: { type: "Email", props: { width: 600 }, children, ...extra } });
+const email = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Email", props: { width: 600 }, children, ...extra } });
 const render = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
 
 /** What's inside Outlook's conditional comments, and the HTML everyone else reads. */

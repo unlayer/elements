@@ -58,7 +58,7 @@ const text = (words = "words") => ({ type: "Text", children: [words] });
 
 /** A small template with the component in it, `node` its node: in a Row beside a Column for `flex`, else where it goes. */
 function host(root: string, type: string, node: Record<string, unknown>, key: string): Record<string, unknown> {
-  const doc = (children: unknown[], extra: Record<string, unknown> = {}) => ({ version: 1, root: { type: root, props: { width: 600 }, ...extra, children } });
+  const doc = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: root, props: { width: 600 }, ...extra, children } });
   if (type === root) {
     const children = [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }, { type: "Row", children: [{ type: "Column", children: [text("b")] }, { type: "Column", children: [text("c")] }] }];
     return doc(children, { style: node.style, props: { width: 600, ...(node.props as object) } });
