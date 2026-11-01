@@ -168,9 +168,8 @@ describe("web HTML", () => {
     expect(rules[0]).toMatch(/^@font-face/);
   });
 
-  it("throws on errors, and for outputs whose writer isn't built yet", () => {
+  it("throws on errors", () => {
     expect(() => web(page([{ type: "Text", style: { margin: 1 } }]))).toThrow(ElementsError);
-    expect(() => web({ version: 1, root: { type: "Email" } })).toThrow(/email writer/);
   });
 
   it("writes the plain-text version from the template", () => {

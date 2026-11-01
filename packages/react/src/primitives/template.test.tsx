@@ -51,9 +51,28 @@ describe("render()", () => {
     await expect(render(<Page><Row>loose</Row></Page>)).rejects.toThrow(/Text can't go straight in a Row/);
   });
 
-  it("takes JSX only, and says which outputs aren't built yet", async () => {
+  it("takes JSX only", async () => {
     await expect(render({ version: 1, root: { type: "Page" } } as never)).rejects.toThrow(TypeError);
-    await expect(render(<Email><Text>x</Text></Email>)).rejects.toThrow(/email writer/);
+  });
+
+  it("renders an <Email> to email HTML: tables, widths in px, Outlook's markup in conditional comments", async () => {
+    const { html, text, diagnostics } = await render(
+      <Email previewText="Your order" style={{ gap: 16 }}>
+        <Heading>Thanks</Heading>
+        <Row style={{ gap: 20 }}>
+          <Column><Text>Left</Text></Column>
+          <Column><Text>Right</Text></Column>
+        </Row>
+        <Button href="https://example.com">Track it</Button>
+      </Email>
+    );
+    expect(html).toContain("<o:PixelsPerInch>96</o:PixelsPerInch>");
+    expect(html).toContain("Your order");
+    expect(html).toContain('<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="290" valign="top" style="width:290px"><![endif]-->');
+    expect(html).toContain("mso-padding-alt:10px 20px");
+    expect(html).not.toMatch(/display:flex/);
+    expect(text).toBe("THANKS\n\nLeft\n\nRight\n\nTrack it (https://example.com)");
+    expect(diagnostics).toEqual([]);
   });
 
   it("is the same every time for the same template", async () => {

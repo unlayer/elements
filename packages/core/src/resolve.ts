@@ -249,14 +249,17 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
 /**
  * A Row: children with a width take it; the rest share what's left by their
  * flex (1 by default), after the gaps. Widths are whole px that add up to the
- * Row's width.
+ * Row's width. Children hidden on desktop aren't in it.
  */
 function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: ResolvedNode; at: string }>, available: number | null, path: string, context: Context): void {
   if (available === null) return;
+  // A child shown only on phones takes no room on desktop; on phones, where it shows, the Row's children stack: it's as wide as the Row.
+  const desktop = nodes.filter(({ resolved }) => !resolved.hidden?.desktop);
+  for (const { resolved } of nodes) if (resolved.hidden?.desktop) setWidth(resolved, available);
   const gap = toPx(row.style.gap, null) ?? 0;
-  let free = available - gap * Math.max(0, nodes.length - 1);
+  let free = available - gap * Math.max(0, desktop.length - 1);
   const shares: Array<{ resolved: ResolvedNode; share: number }> = [];
-  for (const { resolved } of nodes) {
+  for (const { resolved } of desktop) {
     const set = toPx(resolved.style.width, available);
     if (set !== null) {
       setWidth(resolved, clamp(set, resolved.style, available));

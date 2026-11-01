@@ -11,9 +11,9 @@ function template(element: unknown, call: string) {
 }
 
 /**
- * A template rendered to the output its root says: `<Page>` to web HTML
- * (`<Email>` to email HTML, `<Document>` to print HTML or PDF and `<Canvas>`
- * to an image come with their writers). Resolves to `{ html, text, … }`;
+ * A template rendered to the output its root says: `<Email>` to email HTML,
+ * `<Page>` to web HTML (`<Document>` to print HTML or PDF and `<Canvas>` to an
+ * image come with their writers). Resolves to `{ html, text, … }`;
  * rejects with an `ElementsError` listing the problems if the
  * template has errors (see `validate()`).
  */

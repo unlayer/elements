@@ -16,6 +16,14 @@ describe("widths", () => {
     expect(child(root, 1).width).toBe(600);
   });
 
+  it("leaves a Row's children shown only on phones out of its desktop widths, and as wide as the Row", () => {
+    const { root } = resolve({
+      type: "Email",
+      children: [{ type: "Row", style: { gap: 20 }, children: [{ type: "Column" }, { type: "Column", hidden: { desktop: true } }, { type: "Column" }] }],
+    });
+    expect([0, 1, 2].map((i) => child(root, 0, i).width)).toEqual([290, 600, 290]);
+  });
+
   it("shares a Row's width after its gaps and fixed children, in whole px that add up", () => {
     const { root } = resolve({
       type: "Email",

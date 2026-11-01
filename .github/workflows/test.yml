@@ -132,7 +132,7 @@ jobs:
 
       # Elements primitives: what Chromium lays out matches the widths the resolver works out,
       # on desktop and on phones (packages/exporters/test/browser).
-      - name: Primitives web layout gate
+      - name: Primitives layout gate (web and email)
         run: pnpm --filter @unlayer-internal/elements-exporters test:browser
 
       # ── Migration fidelity smoke test ───────────────────────────

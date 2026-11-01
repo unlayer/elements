@@ -1,6 +1,6 @@
 # RFC 0001: Elements primitives, a document model, and exporters Elements owns
 
-Status: draft, for review. Steps 1 and 2 and the API polish (see Amendments: JSX only, async `render()`, `validate()`, short rule-named classes, ids only from authors) are implemented in `packages/core`, `packages/exporters` and `@unlayer/react-elements/primitives`.
+Status: draft, for review. Steps 1, 2 and 3 and the API polish (see Amendments: JSX only, async `render()`, `validate()`, short rule-named classes, ids only from authors) are implemented in `packages/core`, `packages/exporters` and `@unlayer/react-elements/primitives`.
 
 ## Summary
 
@@ -446,9 +446,9 @@ A `Section` on the web is one element, its content kept to the content width by 
 
 | Primitive | Email markup |
 |---|---|
-| `Email` | the shell: doctype, `OfficeDocumentSettings` (`PixelsPerInch` 96), `x-apple-disable-message-reformatting`, `color-scheme`, the preheader; one centered table of the content width, one table row per child, `gap` as the cells' bottom padding |
+| `Email` | the shell: doctype, `OfficeDocumentSettings` (`PixelsPerInch` 96), `x-apple-disable-message-reformatting`, `color-scheme`, the preheader; one centered table of the content width (`width="100%"` with a px `max-width`, which Word takes as the width), one table row per child, `gap` as the cells' bottom padding; the language, direction and background also on a `role="article"` wrapper, as Gmail drops `<html>` and `<body>` |
 | `Section` | a full-width table with the background, holding a centered table of the content width (an MSO ghost table for Outlook's width) |
-| `Row` | "fluid hybrid": an MSO ghost table (`<table><tr><td width=…>`) for Outlook, and `display:inline-block` columns with `max-width` = their desktop width and `width:100%`, so they stack where the row is narrower, even without media queries; `gap` as padding inside the cells; `wrap: "none"` keeps a table row |
+| `Row` | "fluid hybrid": an MSO ghost table (`<table><tr><td width=…>`) for Outlook, and `display:inline-block` columns with `max-width` = their desktop width and `width:100%`, so they stack where the row is narrower, even without media queries; `gap` as spacers (a cell for Outlook, an inline-block for the rest, as tall as the gap on phones); `wrap: "none"` keeps a table row. A child hidden on desktop takes no desktop width (the resolver leaves it out) and isn't in Outlook's table |
 | `Column` | a single-cell table per child, `gap` as padding between |
 | `Grid` | lowered to Rows of `columns` children |
 | `Layer` | not supported (diagnostic), except an image under content: CSS `background-image` with a VML `v:rect` fill for Outlook |
@@ -473,12 +473,28 @@ Each is a small module with its own tests and Outlook captures.
 | Element | Recipe |
 |---|---|
 | Text, Heading, Paragraph | the semantic tag with `margin:0` inline; line height in px with `mso-line-height-rule:exactly` (Word drops the unitless line heights written today) |
-| Button | an `<a>` with padding and `mso-padding-alt`, `display:inline-block`; with `borderRadius`, a VML `v:roundrect` for Outlook sized from the resolved width (today's VML button is always 120px wide) |
+| Button | a one-cell table: background, border and corners on the cell; the padding on the `<a>` (`display:inline-block`, all of it clickable) and as the cell's `mso-padding-alt` for Outlook, which has no padding on links. Not VML: the Outlook captures show Word drawing a VML button's label in its own font (Aptos), wrapped inside the shape's fixed size; a table keeps the template's font and sizes to its label. Square corners in classic Outlook |
 | Image | `<img>` with `width` attribute and style, `display:block`, `height:auto`, `border:0`, alt text styled |
 | Divider | a table cell with `border-top`, not `<hr>` |
 | List | `ul`/`ol` with Outlook margin fixes; table bullets when `style` needs what Outlook won't do |
 | Link | `<a>` with color and decoration inline |
 | Svg, shapes | not supported (diagnostic); an author may rasterize explicitly with `@unlayer/elements-image` and use an Image |
+
+### How the email writer is checked
+
+- **Unit tests** (`packages/exporters/test/email.test.ts`): the markup of each recipe, phone styles,
+  hiding, diagnostics, and hostile input parsed back with nothing added, inside Outlook's
+  conditional comments included.
+- **Chromium** (`test/browser/email-layout.test.ts`, in CI): every box as wide as the resolver says
+  on desktop, with the stylesheet and with it removed; Rows stacked on phones, by the stylesheet
+  and, without it, by the fluid-hybrid columns alone.
+- **The Outlook-like renderer** (unlayer/email-renderer, run locally, 2026-11-01): two templates
+  (a realistic welcome email, and one with nested Rows, `wrap: "none"`, hidden columns,
+  percentages and boxes with a maximum width) give every box the resolver's width and the same
+  words as Chrome, at 96 and 192 DPI. It found the desktop width taken by phone-only columns
+  (fixed in the resolver). The renderer has no rule for `mso-padding-alt` yet, so the button
+  padding in Outlook is the documented behaviour, not a measured one: the next capture run
+  should include buttons.
 
 ### Email support as data
 
