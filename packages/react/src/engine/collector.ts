@@ -101,7 +101,7 @@ export interface Collection {
    * The lazy components it renders (see prepLazy): where each is, said where one suspends in a synchronous render;
    * `done`, what it renders rendered with no error (it suspended, or rendered: see LazyDone).
    */
-  lazies: Array<{ frame: Frame; boundary: number; suspenseAt?: number; done?: boolean }>;
+  lazies: Array<{ frame: Frame; boundary: number; suspenseAt?: number; done?: boolean; order?: Order }>;
   /** In an async render, what React handled itself (in a <Suspense>, that it rendered the fallback of), in order. */
   reactErrors: Array<{ error: unknown; name?: string }>;
   /** An async component's promise, by its props (React calls Call again once it settles). */
@@ -817,9 +817,10 @@ export function suspendedError(c: Collection): RenderError | undefined {
 function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return element;
   const frame = placeFrame(ctx.frame, "lazy");
-  const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
+  const order = nextOrder(c, ctx);
+  const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt, order };
   c.lazies.push(lazy);
-  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, order: nextOrder(c, ctx) }, lazy });
+  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, order }, lazy });
   return marker(c, { k: "l", scope: ctx.scope }, rendered, element.key);
 }
 

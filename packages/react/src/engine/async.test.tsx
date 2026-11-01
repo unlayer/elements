@@ -141,6 +141,14 @@ describe("the async collecting render", () => {
     });
     const LazyFails = React.lazy(() => failsLater<{ default: React.ComponentType }>());
     await expect(renderToHtml(<Email><Row><Column><LazyFails /><FailsAfter /></Column></Row></Email>)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
+    // One React handled itself in what a lazy component renders (in a <Suspense> there: what it loads failed), with a
+    // <Suspense> after it that never settles: it fails the render, which waited for that one.
+    const ChunkFails = React.lazy(() => failsLater<{ default: React.ComponentType }>());
+    const Never2 = () => {
+      throw new Promise(() => {});
+    };
+    const handled = <Email><Row><Column><React.Suspense fallback={null}><ChunkFails /></React.Suspense><React.Suspense fallback={null}><Never2 /></React.Suspense></Column></Row></Email>;
+    await expect(renderToHtml(handled)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
     if ((React as unknown as { use?: unknown }).use) {
       const header = failsLater<string>();
       header.catch(() => {});

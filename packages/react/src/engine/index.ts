@@ -134,7 +134,16 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   let html: string;
   try {
     // (What React handles itself, in order: a <Suspense>'s fallback rendered for it, see parse.ts's fallbackFailed.)
-    const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => void c.reactErrors.push({ error, name: failedIn(info) }), control);
+    const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => {
+      c.reactErrors.push({ error, name: failedIn(info) });
+      // (It failed at the lazy component's place, where it's said: see `told` below. So the render fails without
+      // waiting for what's after it.)
+      const at = c.lazies[0]?.order;
+      if (at && c.changed) {
+        c.errors.push({ at, error });
+        c.changed();
+      }
+    }, control);
     streamed.catch(() => {});
     html = await Promise.race([streamed, failed]);
   } catch (error) {
