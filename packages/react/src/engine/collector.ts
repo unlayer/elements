@@ -824,6 +824,10 @@ function LazyDone({ lazy }: { lazy?: Collection["lazies"][number] }): null {
 function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; c: Collection; ctx: Ctx; lazy: Collection["lazies"][number] }): React.ReactNode {
   // (React's development build calls a component again, with no props, to say where a warning came from.)
   if (!c) return null;
+  // In an async render, what's before it in tree order has rendered, or waits: a part that failed before it (one found
+  // before React rendered, an <img> with children) fails the render now, not after what it loads, which may never load;
+  // one that fails after it waits for it, as it may fail first.
+  if (c.async) waits(c, ctx.order ?? TOP);
   if (!c.async) enterFrame(ctx.frame);
   const unkeyed = React.cloneElement(element, { key: c.async ? null : "lazy" } as object);
   const context = COLLECTING.context();
@@ -836,6 +840,9 @@ function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; 
 /** A promise as a child (React 19): what it resolves to, prepared, as `use()` of it gives it. */
 function Awaited({ thenable, c, ctx, at }: { thenable: PromiseLike<unknown>; c: Collection; ctx: Ctx; at: Order }): React.ReactNode {
   const use = (React as unknown as { use: (usable: unknown) => unknown }).use;
+  // (It waits where it suspends, as a component does, so a render doesn't fail with an error after it while it may
+  // still fail first: see Call.)
+  if (c.async) c.waiting.delete(at);
   let value: unknown;
   try {
     value = use(thenable);
@@ -843,6 +850,7 @@ function Awaited({ thenable, c, ctx, at }: { thenable: PromiseLike<unknown>; c: 
     // (Said where it is, as a component that suspends: see suspendedError.)
     if (suspended(c, thrown)) {
       c.suspended.push({ name: ctx.frame.name, frame: ctx.frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
+      waits(c, at);
       throw thrown;
     }
     // (What it rejected with: where it is, as a component's error. React would render a <Suspense>'s fallback for it.)

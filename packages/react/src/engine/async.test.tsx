@@ -126,6 +126,27 @@ describe("the async collecting render", () => {
     // And markup React can't write (an <img> with children), the same.
     const email = <Email><Row><Column>{React.createElement("img", { src: "https://example.com/a.png" }, "a child")}</Column></Row><Row><Column><Never /></Column></Row></Email>;
     await expect(renderToHtml(email)).rejects.toMatchObject({ name: "RenderError", component: "img", position: "Row 1 › Column 1 › img" });
+    // With a lazy component after it that never loads, the same: Elements finds that one before React renders, and it
+    // waited for what React rendered after it.
+    const NeverLoads = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    const beforeLazy = <Email><Row><Column>{React.createElement("img", { src: "https://example.com/a.png" }, "a child")}<NeverLoads /></Column></Row></Email>;
+    await expect(renderToHtml(beforeLazy)).rejects.toMatchObject({ name: "RenderError", component: "img", position: "Row 1 › Column 1 › img" });
+    // A lazy component and a promise given as a child (React 19) that fail after what's after them has failed: theirs,
+    // as they're before it in the tree (the render failed with what's after them, without waiting for them).
+    const FailsAfter = () => {
+      throw new Error("after");
+    };
+    const failsLater = <T,>() => sleep(20).then((): T => {
+      throw new Error("before");
+    });
+    const LazyFails = React.lazy(() => failsLater<{ default: React.ComponentType }>());
+    await expect(renderToHtml(<Email><Row><Column><LazyFails /><FailsAfter /></Column></Row></Email>)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
+    if ((React as unknown as { use?: unknown }).use) {
+      const header = failsLater<string>();
+      header.catch(() => {});
+      const promised = <Email><Row><Column><div>{header as unknown as React.ReactNode}</div><FailsAfter /></Column></Row></Email>;
+      await expect(renderToHtml(promised)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
+    }
     // What an async component renders is before what's after it in the tree, though React calls it once that's settled,
     // after what's after it: a component it returns, and markup in it (the negative control: what's after it alone).
     const Inside = () => {
