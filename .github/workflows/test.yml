@@ -52,7 +52,7 @@ jobs:
       # The build only type-checks the index import graph, so this catches a
       # relaxed input type being reverted (e.g. the Column `border` regression).
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck && pnpm --filter @unlayer/elements-pdf typecheck
+        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck && pnpm --filter @unlayer/elements-pdf typecheck && pnpm --filter @unlayer/elements-image typecheck
 
       - name: Converter typechecks
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
@@ -162,6 +162,11 @@ jobs:
       # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/pdf/test/browser).
       - name: PDF laid out as its print HTML
         run: pnpm --filter @unlayer/elements-pdf test:browser
+
+      # A Canvas's image (written by Satori and resvg, without a browser) drawn as Chromium draws the Canvas's HTML,
+      # with the same font file: pixel by pixel, the edges of shapes and letters aside (packages/image/test/browser).
+      - name: Image drawn as its Canvas's HTML
+        run: pnpm --filter @unlayer/elements-image test:browser
 
       # ── Migration fidelity smoke test ───────────────────────────
       # Converts the committed fixture templates both ways (codemod and
