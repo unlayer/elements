@@ -554,6 +554,13 @@ describe("email HTML", () => {
     ]);
   });
 
+  it("asks no width of a Link or a line of Text, as wide as its text (a Menu's), and still of a Button", () => {
+    const menu = { type: "Menu", props: { items: [{ text: "A", href: "https://a.com" }, { text: "B", href: "https://b.com" }], separator: "|" } };
+    expect(render(email([menu])).diagnostics.filter((d) => d.code === "email/width")).toEqual([]);
+    const button = { type: "Row", children: [{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["x"] }] };
+    expect(render(email([button])).diagnostics.filter((d) => d.code === "email/width")).toHaveLength(1);
+  });
+
   it("warns before Gmail clips a message", () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
     expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");
