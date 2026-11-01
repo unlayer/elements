@@ -104,6 +104,16 @@ const html = conversion.html();
 const tsx = await conversion.tsx();
 ```
 
+## From today's Elements components (preview)
+
+`--from elements` rewrites templates written with `@unlayer/react-elements`'s components with the new ones (`@unlayer/react-elements/primitives`, the main import from the next major version). Props, loops and helpers stay; the defaults today's components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
+
+```bash
+npx @unlayer/migrate src/emails --from elements --write
+```
+
+From code: `migrateElements(source)` from `@unlayer/migrate/elements` returns `{ code, report }`. The [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) lists what changes.
+
 ## What changes
 
 The report lists every difference for each template. The common ones:

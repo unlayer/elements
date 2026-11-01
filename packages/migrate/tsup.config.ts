@@ -6,8 +6,8 @@ const cli = defineConfig({
   target: "node20",
   platform: "node",
   splitting: false,
-  // The library entry builds in parallel: keep its output when cleaning the CLI.
-  clean: ["!react-email.*"],
+  // The library entries build in parallel: keep their output when cleaning the CLI.
+  clean: ["!react-email.*", "!elements.*"],
   // The converter is bundled; React, React Email, Elements, TypeScript,
   // Prettier and tsx stay external (resolved from the project first, see hooks.ts).
   noExternal: ["entities", "parse5", "@unlayer/from-react-email", "@unlayer/convert-core"],
@@ -20,7 +20,7 @@ const cli = defineConfig({
 });
 
 const reactEmail = defineConfig({
-  entry: ["src/react-email.ts"],
+  entry: ["src/react-email.ts", "src/elements.ts"],
   format: ["esm", "cjs"],
   target: "node20",
   platform: "node",

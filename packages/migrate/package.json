@@ -54,12 +54,23 @@
       "import": "./dist/react-email.js",
       "require": "./dist/react-email.cjs"
     },
+    "./elements": {
+      "types": {
+        "import": "./dist/elements.d.ts",
+        "require": "./dist/elements.d.cts"
+      },
+      "import": "./dist/elements.js",
+      "require": "./dist/elements.cjs"
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
       "react-email": [
         "./dist/react-email.d.ts"
+      ],
+      "elements": [
+        "./dist/elements.d.ts"
       ]
     }
   },

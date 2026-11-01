@@ -63,7 +63,15 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    commit, not committed, or not in a repository) with
                    --write, or with --overwrite. Without it, they're
                    refused, so git can always undo a migration.
-  --from <source>  What to migrate from (default and only: react-email).
+  --from <source>  What to migrate from: react-email (the default), or
+                   elements, templates written with @unlayer/react-elements's
+                   components, rewritten with the new ones (/primitives):
+                   their props, loops and helpers stay. One template is
+                   printed; with --write, templates are replaced (only ones
+                   git can restore, unless --allow-dirty). What may draw a
+                   little differently is listed (--report writes it).
+                   A preview: the new components are at /primitives until
+                   the next major version makes them the main import.
   -h, --help       Show this help.
   -v, --version    Show the version.
 
@@ -214,9 +222,13 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (args.positional[0] === "compare") return compare(args.positional.slice(1), args, io, library);
   const from = args.option("from") ?? "react-email";
-  if (from !== "react-email") {
-    io.stderr(`Unknown --from "${from}". Supported: react-email.\n`);
+  if (from !== "react-email" && from !== "elements") {
+    io.stderr(`Unknown --from "${from}". Supported: react-email, elements.\n`);
     return 1;
+  }
+  if (from === "elements" && args.positional.length) {
+    const { migrateLegacy } = await import("./legacy/command");
+    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable });
   }
   if (!args.positional.length) {
     // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
