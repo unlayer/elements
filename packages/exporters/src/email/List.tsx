@@ -4,8 +4,8 @@
  * differently from version to version; a table lays out the same in every
  * client. `role="list"` and `"listitem"` keep it a list for screen readers.
  */
-import { toPx } from "@unlayer-internal/elements-core";
-import { h, NotOutlook } from "../jsx";
+import { toPx, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { Fragment, h, NotOutlook, type Html } from "../jsx";
 import { isNode, shown, type Component } from "./context";
 import { Box, gapBelow } from "./layout";
 import { gapsAfter } from "../shared/gaps";
@@ -19,7 +19,8 @@ export const List: Component = ({ node, style, fill, render }) => {
   const items = node.children.filter(isNode).filter(shown);
   const indent = toPx(style.indent, null) ?? 0;
   const gaps = gapsAfter(items);
-  const marker = (index: number) => (node.props.type === "number" ? `${Number(node.props.start) + index}.` : "•");
+  const numbers = numbersOf(items, Number(node.props.start));
+  const marker = (index: number) => (node.props.type === "number" ? numberOf(items[index], numbers[index]) : "•");
   return (
     <Box node={node} fill={fill}>
       <Table role="list" width="100%">
@@ -42,3 +43,31 @@ export const List: Component = ({ node, style, fill, render }) => {
     </Box>
   );
 };
+
+/** Each item's number on desktop and on phones: the start, and one more for each item shown before it there. */
+function numbersOf(items: readonly ResolvedNode[], start: number): Array<{ desktop: number; phone: number }> {
+  let [desktop, phone] = [start, start];
+  return items.map((item) => {
+    const at = { desktop, phone };
+    if (!item.hidden?.desktop) desktop += 1;
+    if (!item.hidden?.mobile) phone += 1;
+    return at;
+  });
+}
+
+/** An item's number, or where desktop and phones count it differently, each one where it shows (desktop's in Outlook). */
+function numberOf(item: ResolvedNode, at: { desktop: number; phone: number }): Html | string {
+  if (item.hidden?.desktop) return `${at.phone}.`;
+  if (item.hidden?.mobile || at.desktop === at.phone) return `${at.desktop}.`;
+  const [desktop, phone] = [hiding({ hidden: { mobile: true } }, "inline"), hiding({ hidden: { desktop: true } }, "inline")];
+  return (
+    <>
+      <span class={desktop.class}>{at.desktop}.</span>
+      <NotOutlook>
+        <span class={phone.class} style={phone.style}>
+          {at.phone}.
+        </span>
+      </NotOutlook>
+    </>
+  );
+}

@@ -452,6 +452,57 @@ describe("email HTML", () => {
     expect(text).toBe("3. One bold\n4. Two\n  - Nested");
   });
 
+  it("numbers a list by the items shown, on desktop and on phones apart, hides a nested List where it's hidden, and keeps an empty item's id", () => {
+    const { head, body } = render(
+      email([
+        {
+          type: "List",
+          props: { type: "number" },
+          children: [
+            { type: "ListItem", hidden: { desktop: true }, children: ["a"] },
+            { type: "ListItem", children: ["b"] },
+            { type: "ListItem", hidden: { mobile: true }, children: ["c"] },
+            { type: "ListItem", children: ["d"] },
+          ],
+        },
+        { type: "List", children: [{ type: "ListItem", children: ["outer", { type: "List", hidden: { mobile: true }, children: [{ type: "ListItem", children: ["inner"] }] }] }, { type: "ListItem", id: "empty", children: [] }] },
+      ])
+    );
+    const cells = [...body.matchAll(/<td aria-hidden="true"[^>]*>(.*?)<\/td>/g)].map((m) => m[1]);
+    const markers = cells.map((cell) => cell.replace(/<!--\[if !mso\]><!-->|<!--<!\[endif\]-->/g, ""));
+    // Classic Outlook reads desktop's number alone.
+    expect(cells[1].replace(/<!--\[if !mso\]>[\s\S]*?<!\[endif\]-->/g, "")).toMatch(/^<span class="e[0-9a-z]{5}">1\.<\/span>$/);
+    // Phones show a, b, d; desktop b, c, d. b is the first on desktop and the second on phones.
+    const [, desktopOnly, phoneOnly] = /^<span class="(e[0-9a-z]{5})">1\.<\/span><span class="(e[0-9a-z]{5})" style="display:none">2\.<\/span>$/.exec(markers[1])!;
+    expect(head).toContain(`.${desktopOnly}{display:none!important}`);
+    expect(head).toContain(`.${phoneOnly}{display:inline!important}`);
+    expect([markers[0], markers[2], markers[3]]).toEqual(["1.", "2.", "3."]);
+    // An item only phones show, after one only desktop shows: its number is phones' (b 1., a 2.), not desktop's (3.).
+    const reordered = render(
+      email([
+        {
+          type: "List",
+          props: { type: "number" },
+          children: [
+            { type: "ListItem", children: ["b"] },
+            { type: "ListItem", hidden: { mobile: true }, children: ["c"] },
+            { type: "ListItem", hidden: { desktop: true }, children: ["a"] },
+            { type: "ListItem", children: ["d"] },
+          ],
+        },
+      ])
+    ).body;
+    expect([...reordered.matchAll(/<td aria-hidden="true"[^>]*>(\d+\.)<\/td>/g)].map((m) => m[1])).toEqual(["1.", "2.", "2.", "3."]);
+    // The nested List hidden on phones, and the empty item's id.
+    const nested = /<div class="(e[0-9a-z]{5})"><table role="list"/.exec(body)![1];
+    expect(head).toContain(`.${nested}{display:none!important}`);
+    expect(body).toContain('<div id="empty"></div>');
+    // One hidden on desktop is out of Outlook's view too, and shown on phones.
+    const desktopHidden = render(email([{ type: "List", children: [{ type: "ListItem", children: ["outer", { type: "List", hidden: { desktop: true }, children: [{ type: "ListItem", children: ["inner"] }] }] }] }]));
+    const shows = /<!--\[if !mso\]><!--><div class="(e[0-9a-z]{5})" style="display:none"><table role="list"/.exec(desktopHidden.body)![1];
+    expect(desktopHidden.head).toContain(`.${shows}{display:block!important}`);
+  });
+
   it("keeps an item's id and its nested List's apart when the item starts with the List", () => {
     const { body } = render(email([{ type: "List", children: [{ type: "ListItem", id: "item", children: [{ type: "List", id: "inner", children: [{ type: "ListItem", children: ["x"] }] }] }] }]));
     const dom = new JSDOM(body).window.document;
