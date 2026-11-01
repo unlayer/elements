@@ -148,6 +148,18 @@ describe("email HTML", () => {
     );
   });
 
+  it("writes an author's id once, on the outermost element, and no rules nothing uses", () => {
+    const { body, head } = render(
+      email([
+        { type: "Divider", id: "line", mobile: { padding: 4 } },
+        { type: "Row", style: { gap: 20 }, children: [{ type: "Column", children: [] }] },
+      ])
+    );
+    expect(body.match(/id="line"/g)).toHaveLength(1);
+    // A Row with one child has no spacer, so no spacer's phone height.
+    expect(head).not.toContain("height:20px");
+  });
+
   it("writes phone styles to the text they reach, as px line heights, and hides on phones or desktop", () => {
     const { head, body } = render(
       email([

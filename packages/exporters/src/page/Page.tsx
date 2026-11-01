@@ -4,34 +4,31 @@
  * between them is kept to the content width.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { h, type Html, type Style } from "../jsx";
+import { h, type Style } from "../jsx";
 import { textDeclarations } from "../shared/css";
-import { isNode, type Context } from "./context";
+import { isNode, type Component } from "./context";
 import { alignSelf } from "./layout";
 
-export function writePage(root: ResolvedNode, context: Context): Html {
+export const Page: Component = ({ node: root, style, render }) => {
   const width = root.width ?? 0;
-  const stack: Style = { display: "flex", flexDirection: "column", gap: root.style.gap };
-  const text = textDeclarations(root.text, undefined);
+  const stack: Style = { display: "flex", flexDirection: "column", gap: style.gap };
+  const content = (children: ResolvedNode[]) => children.map((child) => render(child, alignSelf(child, root)));
   const nodes = root.children.filter(isNode);
-  const content = (children: ResolvedNode[]) => children.map((child) => context.render(child, root, alignSelf(child, root)));
-
   if (!nodes.some((node) => node.type === "Section")) {
-    return <main style={[{ maxWidth: width, margin: "0 auto" }, stack, text]}>{content(nodes)}</main>;
+    return <main style={[{ maxWidth: width, margin: "0 auto" }, stack, textDeclarations(root.text, undefined)]}>{content(nodes)}</main>;
   }
+
   // Sections span the window: the other children are kept to the content width, in runs between them.
-  const parts: Html[] = [];
-  let run: ResolvedNode[] = [];
-  const flush = () => {
-    if (run.length) parts.push(<div style={[{ width: "100%", maxWidth: width, margin: "0 auto" }, stack]}>{content(run)}</div>);
-    run = [];
-  };
+  const parts: Array<ResolvedNode | ResolvedNode[]> = [];
   for (const node of nodes) {
-    if (node.type === "Section") {
-      flush();
-      parts.push(context.render(node, root, []));
-    } else run.push(node);
+    const last = parts[parts.length - 1];
+    if (node.type === "Section") parts.push(node);
+    else if (Array.isArray(last)) last.push(node);
+    else parts.push([node]);
   }
-  flush();
-  return <main style={[stack, text]}>{parts}</main>;
-}
+  return (
+    <main style={[stack, textDeclarations(root.text, undefined)]}>
+      {parts.map((part) => (Array.isArray(part) ? <div style={[{ width: "100%", maxWidth: width, margin: "0 auto" }, stack]}>{content(part)}</div> : render(part, [])))}
+    </main>
+  );
+};

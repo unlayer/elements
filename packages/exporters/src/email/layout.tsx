@@ -1,20 +1,20 @@
 /**
  * Email layout: widths from the resolver as Word reads them (table and cell
- * attributes, px maximums), where a child sits in its cell, a box as a table
- * around its content, and a stack of children as table rows.
+ * attributes, px maximums), where a child sits in its cell, `<Box>` (a node's
+ * box as a table around its content) and `<Stack>` (children as table rows).
  */
 import type { Json, ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, NotOutlook, type Html, type Style } from "../jsx";
+import { h, NotOutlook, rule, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
-import { isNode, shown, type Context, type MobileText } from "./context";
+import { isNode, shown, type Props } from "./context";
 import { bgcolor, Table } from "./markup";
-import { hiding, phoneBox, phoneClass } from "./styles";
+import { hiding } from "./styles";
 
 export const VALIGN: Record<string, string> = { start: "top", center: "middle", end: "bottom", stretch: "top" };
 const ALIGN: Record<string, string | undefined> = { start: undefined, center: "center", end: "right", stretch: undefined };
 export const TEXT_ALIGN: Record<string, string | undefined> = { left: "left", justify: "left", center: "center", right: "right" };
 
-export const sized = (node: ResolvedNode) => node.style.width !== undefined || node.style.maxWidth !== undefined;
+const sized = (node: ResolvedNode) => node.style.width !== undefined || node.style.maxWidth !== undefined;
 
 export const toNumber = (value: Json) => (typeof value === "number" ? value : Number.parseFloat(String(value)));
 
@@ -31,7 +31,7 @@ export function boxWidth(node: ResolvedNode, fill: boolean): { width?: string; m
 }
 
 /** A phone width for a table or div: a percentage of its cell, or a px maximum. */
-export function phoneWidth(value: Json): Style {
+export function phoneWidth(value: Json | undefined): Style {
   const written = length(value);
   if (written === undefined) return {};
   return typeof value === "string" && value.endsWith("%") ? { width: written, maxWidth: "none" } : { width: "100%", maxWidth: written };
@@ -52,34 +52,36 @@ export function cellAlign(child: ResolvedNode, stack: ResolvedNode): string | un
   return text === "left" ? undefined : text;
 }
 
-const BOX_KEYS = ["padding", "border", "backgroundColor"];
-
-/**
- * A node's box (background, padding, border, corners, height, width) as a
- * one-cell table around its content; Word has none of these on a div or a
- * paragraph. No table where there's no box: the content fills its cell, and
- * takes the node's id.
- */
-export function boxed(node: ResolvedNode, context: Context, fill: boolean, content: (id: string | undefined) => Html): Html {
+/** Whether a node has a box of its own to write: a background, padding, border, corners, a height or a width. */
+function hasBox(node: ResolvedNode, fill: boolean): boolean {
   const { style } = node;
   const mobile = node.mobile ?? {};
-  const framed = ["padding", "border", "borderRadius", "backgroundColor", "height"].some((key) => style[key] !== undefined) || BOX_KEYS.some((key) => mobile[key] !== undefined);
   const width = boxWidth(node, fill);
-  const ownWidth = width.width !== "100%" || width.maxWidth !== undefined || mobile.width !== undefined || mobile.maxWidth !== undefined;
-  if (!framed && !ownWidth) return content(node.id);
-  if (style.borderRadius !== undefined && node.type !== "Button") {
-    context.d.add("email/outlook-degraded", "info", `borderRadius on this ${node.type} shows square corners in classic Outlook`, `${node.path}.style.borderRadius`, node.id);
-  }
-  const height = style.height !== undefined ? toNumber(style.height) : undefined;
-  const boxClass = phoneClass(context, phoneBox(node));
-  const inner = content(undefined);
-  const widthClass = phoneClass(context, mobile.maxWidth !== undefined ? phoneWidth(mobile.maxWidth) : mobile.width !== undefined ? phoneWidth(mobile.width) : {});
-
   return (
-    <Table id={node.id} class={widthClass} width={width.width} style={{ maxWidth: width.maxWidth }}>
+    ["padding", "border", "borderRadius", "backgroundColor", "height"].some((key) => style[key] !== undefined) ||
+    ["padding", "border", "backgroundColor", "width", "maxWidth"].some((key) => mobile[key] !== undefined) ||
+    width.width !== "100%" ||
+    width.maxWidth !== undefined
+  );
+}
+
+/**
+ * A node's box as a one-cell table around its content (Word has no box on a
+ * div or a paragraph), with the node's id. Without a box, the content alone,
+ * with the id.
+ */
+export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolean; children?: Child }): Html {
+  const content = (Array.isArray(children) ? children[0] : children) as Html;
+  if (!hasBox(node, fill)) return withId(content, node.id);
+  const { style } = node;
+  const mobile = node.mobile ?? {};
+  const width = boxWidth(node, fill);
+  const height = style.height !== undefined ? toNumber(style.height) : undefined;
+  return (
+    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
       <tr>
         <td
-          class={boxClass}
+          phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
           bgcolor={bgcolor(style.backgroundColor)}
           height={height}
           style={{
@@ -91,35 +93,34 @@ export function boxed(node: ResolvedNode, context: Context, fill: boolean, conte
             overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
-          {inner}
+          {content}
         </td>
       </tr>
     </Table>
   );
 }
 
-/** Children stacked down a table, one row each, `gap` as the cells' bottom padding. */
-export function stackRows(node: ResolvedNode, context: Context, mobile: MobileText): { rows: Html; className?: string } {
+/** A node's children stacked down a table, one row each, its `gap` as the cells' bottom padding. */
+export function Stack({ node, render, style }: { node: ResolvedNode; render: Props["render"]; style?: StyleValue }): Html {
   const children = node.children.filter(isNode).filter(shown);
   const gap = typeof node.style.gap === "number" ? node.style.gap : 0;
-  const rows = children.map((child, index) => {
-    const last = index === children.length - 1;
-    const content = context.render(child, { parent: node, fill: false, mobile, inline: false });
-    const hidden = hiding(child, context, "table-row");
-    const row = (
-      <tr class={hidden.className} style={hidden.style}>
-        <td align={cellAlign(child, node)} style={{ paddingBottom: !last && gap ? gap : undefined }}>
-          {content}
-        </td>
-      </tr>
-    );
-    // What's hidden on desktop isn't Outlook's at all (Outlook is never a phone).
-    return child.hidden?.desktop ? <NotOutlook>{row}</NotOutlook> : row;
-  });
-  const phoneGap = node.mobile?.gap;
-  const className =
-    phoneGap === undefined
-      ? undefined
-      : context.sheet.classFor("phone", `&>tbody>tr>td{padding-bottom:${length(phoneGap)}!important}&>tbody>tr:last-child>td{padding-bottom:0!important}`);
-  return { rows: <>{rows}</>, className };
+  const phoneGap = length(node.mobile?.gap);
+  // The gap on phones is the stack's rule for its rows' cells.
+  const gapClass = phoneGap && rule("phone", `&>tbody>tr>td{padding-bottom:${phoneGap}!important}&>tbody>tr:last-child>td{padding-bottom:0!important}`, "layout");
+  return (
+    <Table class={gapClass} width="100%" style={style}>
+      {children.map((child, index) => {
+        const hidden = hiding(child, "table-row");
+        const row = (
+          <tr class={hidden.class} style={hidden.style}>
+            <td align={cellAlign(child, node)} style={{ paddingBottom: index < children.length - 1 && gap ? gap : undefined }}>
+              {render(child)}
+            </td>
+          </tr>
+        );
+        // What's hidden on desktop isn't Outlook's at all (Outlook is never a phone).
+        return child.hidden?.desktop ? <NotOutlook>{row}</NotOutlook> : row;
+      })}
+    </Table>
+  );
 }

@@ -1,5 +1,5 @@
 /**
- * JSX that writes HTML strings, for the writers' components: no React, no DOM.
+ * JSX that writes HTML strings, for the email and page components: no React, no DOM.
  *
  *   <td align="center" style={{ padding: node.style.padding, fontSize: 0 }}>{label}</td>
  *
@@ -10,14 +10,40 @@
  *   radius from their objects, a border from its sides. Empty values are left out. Colors are
  *   shortened (`#ffffff` is `#fff`). `style` is always the last attribute.
  * - Attributes with no value (`undefined`, `null`, `false`) are left out.
+ * - `phone={style}` and `hover={style}` are styles for phones and on hover: each is a rule in the
+ *   render's stylesheet, under a class named after it, added to the element's classes. `class`
+ *   takes a name or a list of names (empty ones left out). The classes are written in the order
+ *   these props are, where the first of them that has one is.
  * - `<Outlook>` and `<NotOutlook>` write conditional comments; `<Merged>` puts neighbouring
  *   comments of a kind into one; `open()` and `close()` write an element's tags apart, for
  *   Outlook's tables that open in one comment and close in another.
  *
- * The writers' tsconfig sets `jsxFactory: "h"` and `jsxFragmentFactory: "Fragment"`; each
+ * The exporters' tsconfig sets `jsxFactory: "h"` and `jsxFragmentFactory: "Fragment"`; each
  * `.tsx` file imports them from here.
  */
+import type { Level, Media, Stylesheet } from "./shared/classes";
 import { border, css, escapeAttr, escapeText, insets, px, radius, type Declarations } from "./shared/css";
+
+// ─── The render's stylesheet ────────────────────────────────────────────────
+
+const sheets: Stylesheet[] = [];
+
+/** Writes markup with `sheet` as the stylesheet its `phone`, `hover` and `rule()` classes go in. */
+export function withStylesheet<T>(sheet: Stylesheet, write: () => T): T {
+  sheets.push(sheet);
+  try {
+    return write();
+  } finally {
+    sheets.pop();
+  }
+}
+
+/** The class of a rule in the render's stylesheet (`&` is where the class goes: `&>div{…}`). */
+export function rule(media: Media, text: string, level: Level = "own"): string {
+  const sheet = sheets[sheets.length - 1];
+  if (!sheet) throw new Error("[Elements] Markup with phone or hover styles is written inside withStylesheet()");
+  return sheet.classFor(media, text, level);
+}
 
 type Kind = "outlook" | "notOutlook";
 
@@ -92,14 +118,40 @@ export function styleText(style: StyleValue, important = false): string {
   return css(declarations(style), important);
 }
 
+/** A `class`, `phone` or `hover` prop's class names. */
+function classesOf(name: string, value: unknown): string[] {
+  if (name === "class") return (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === "string" && v !== "");
+  const text = styleText(value as StyleValue, true);
+  if (!text) return [];
+  return [name === "phone" ? rule("phone", `&{${text}}`) : rule("all", `&:hover{${text}}`, "hover")];
+}
+
 function attributes(props: Record<string, unknown>): string {
-  let out = "";
+  const out: string[] = [];
+  const classes: string[] = [];
+  let slot = -1;
   for (const [name, value] of Object.entries(props)) {
     if (name === "children" || name === "style" || value === undefined || value === null || value === false) continue;
-    out += ` ${name}="${escapeAttr(String(value))}"`;
+    if (name === "class" || name === "phone" || name === "hover") {
+      const found = classesOf(name, value);
+      if (found.length && slot < 0) slot = out.push("") - 1;
+      classes.push(...found);
+      continue;
+    }
+    out.push(` ${name}="${escapeAttr(String(value))}"`);
   }
+  if (slot >= 0) out[slot] = ` class="${escapeAttr(classes.join(" "))}"`;
   const style = styleText(props.style as StyleValue);
-  return style ? `${out} style="${escapeAttr(style)}"` : out;
+  return style ? `${out.join("")} style="${escapeAttr(style)}"` : out.join("");
+}
+
+/** `element` with an `id` as its first attribute, unless `id` is empty. */
+export function withId(element: Html, id: string | undefined): Html {
+  if (!id) return element;
+  const tag = /^<[a-zA-Z0-9]+/.exec(element.markup)?.[0];
+  if (!tag) throw new Error("[Elements] An id goes on an element");
+  const insert = (markup: string) => `${tag} id="${escapeAttr(id)}"${markup.slice(tag.length)}`;
+  return new Html(insert(element.markup), { ...element.options, start: element.options.start && insert(element.options.start) });
 }
 
 export function h(type: string | Component<any>, props: Record<string, unknown> | null, ...children: Child[]): Html {
@@ -145,7 +197,9 @@ export declare namespace h {
       children: unknown;
     }
     interface IntrinsicElements {
-      [tag: string]: { style?: StyleValue; children?: Child } & { [attribute: string]: Attribute | StyleValue | Child };
+      [tag: string]: { style?: StyleValue; phone?: StyleValue; hover?: StyleValue; class?: string | ReadonlyArray<string | undefined>; children?: Child } & {
+        [attribute: string]: Attribute | StyleValue | Child | ReadonlyArray<string | undefined>;
+      };
     }
   }
 }

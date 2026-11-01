@@ -14,8 +14,9 @@
  * 4. Outlook-only markup only inside `<!--[if mso]>`.
  *
  * Each component is written by its own file here (Button.tsx, Row.tsx, …), in
- * JSX that writes strings (../jsx.ts); `context.ts`, `markup.tsx`, `layout.tsx`
- * and `styles.tsx` are what they share.
+ * JSX that writes strings (../jsx.ts), from one props object (context.ts);
+ * `markup.tsx`, `layout.tsx` and `styles.tsx` are what they share. What email
+ * can't do as asked is found in one pass (support.ts).
  *
  * Choices measured against classic Outlook (unlayer/email-renderer,
  * oracle/CALIBRATION.md): a 100% table with a px `max-width` is that width in
@@ -26,57 +27,87 @@
  * wrapped inside the shape's fixed size.
  */
 import { Diagnostics, type Diagnostic, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { Fragment, h, raw, withStylesheet, type Html } from "../jsx";
 import { Stylesheet } from "../shared/classes";
-import { raw, type Html } from "../jsx";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
-import { shown, type Context, type EmailOptions, type Place, type Writer } from "./context";
-import { writeButton } from "./Button";
-import { writeColumn } from "./Column";
-import { writeDivider } from "./Divider";
-import { writeEmail } from "./Email";
-import { writeHeading } from "./Heading";
-import { writeImage } from "./Image";
-import { writeLineBreak } from "./LineBreak";
-import { writeLink } from "./Link";
-import { writeMergeTag } from "./MergeTag";
-import { writeParagraph } from "./Paragraph";
-import { writeRow } from "./Row";
-import { writeSpan } from "./Span";
-import { writeText } from "./Text";
+import { shown, type EmailOptions, type Props, type Component } from "./context";
+import { Button } from "./Button";
+import { Column } from "./Column";
+import { Divider } from "./Divider";
+import { Email } from "./Email";
+import { Heading } from "./Heading";
+import { Image } from "./Image";
+import { LineBreak } from "./LineBreak";
+import { Link } from "./Link";
+import { MergeTag } from "./MergeTag";
+import { Paragraph } from "./Paragraph";
+import { Row } from "./Row";
+import { Section } from "./Section";
+import { Span } from "./Span";
+import { Text } from "./Text";
+import { mobileTextOf, phoneText, type MobileText } from "./styles";
+import { emailSupport } from "./support";
 
 export type { EmailOptions } from "./context";
 
-/** Each component's writer, where it goes: in a stack or a Row, or inside text. (The root and Sections are written by `writeEmail`.) */
-const BLOCKS: Record<string, Writer> = {
-  Row: writeRow,
-  Column: writeColumn,
-  Text: writeText,
-  Paragraph: writeParagraph,
-  Heading: writeHeading,
-  Button: writeButton,
-  Link: writeLink,
-  Image: writeImage,
-  Divider: writeDivider,
+/** The components, by where they go: in a stack or a Row, or inside text. (The root, `Email`, is called on its own.) */
+const BLOCKS: Record<string, Component> = {
+  Section,
+  Row,
+  Column,
+  Text,
+  Paragraph,
+  Heading,
+  Button,
+  Link,
+  Image,
+  Divider,
 };
-const INLINES: Record<string, Writer> = {
-  Span: writeSpan,
-  Link: writeLink,
-  Image: writeImage,
-  LineBreak: writeLineBreak,
-  MergeTag: writeMergeTag,
+const INLINES: Record<string, Component> = {
+  Span,
+  Link,
+  Image,
+  LineBreak,
+  MergeTag,
 };
 
-function render(this: Context, node: ResolvedNode, place: Place): Html {
+/** Where a node is written: its parent, whether it fills its cell, the phone text styles it inherits, inside text or not. */
+interface Place {
+  parent: ResolvedNode;
+  fill: boolean;
+  mobile: MobileText;
+  inline: boolean;
+}
+
+/** What a node's component gets. */
+function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props {
+  const mobileText = mobileTextOf(node, place.mobile);
+  const render: Props["render"] = (child, how = {}) => write(child, { parent: node, fill: how.fill ?? false, mobile: mobileText, inline: how.inline ?? false }, options);
+  return {
+    node,
+    style: node.style,
+    mobile: node.mobile ?? {},
+    parent: place.parent,
+    fill: place.fill,
+    inline: place.inline,
+    phoneText: phoneText(node, mobileText),
+    text: () => <>{node.children.map((child) => (typeof child === "string" ? child : render(child, { inline: true })))}</>,
+    render,
+    options,
+  };
+}
+
+function write(node: ResolvedNode, place: Place, options: EmailOptions): Html {
   if (place.inline) {
     if (!shown(node)) return raw("");
-    const writer = INLINES[node.type];
-    if (!writer) throw new Error(`[Elements] The email exporter can't render a ${node.type} inside text`);
-    return writer(node, place, this);
+    const component = INLINES[node.type];
+    if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} inside text`);
+    return component(propsOf(node, place, options));
   }
-  const writer = BLOCKS[node.type];
-  if (!writer) throw new Error(`[Elements] The email exporter can't render a ${node.type} here (in a ${place.parent.type})`);
-  return writer(node, place, this);
+  const component = BLOCKS[node.type];
+  if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} here (in a ${place.parent.type})`);
+  return component(propsOf(node, place, options));
 }
 
 export interface EmailHtml {
@@ -101,10 +132,12 @@ export const GMAIL_STYLE_BYTES = 16_384;
 
 export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = {}): EmailHtml {
   const root = resolved.root;
-  const context: Context = { options, sheet: new Stylesheet(options.classPrefix), d: new Diagnostics(), render };
+  const sheet = new Stylesheet(options.classPrefix);
+  const d = new Diagnostics();
+  d.list.push(...emailSupport(root));
   const fonts = fontFaces(root, { swap: false });
   const width = root.width ?? 600;
-  const email = writeEmail(root, context);
+  const email = withStylesheet(sheet, () => String(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false }, options))));
 
   const background = root.style.backgroundColor as string | undefined;
   const lang = root.props.lang as string | undefined;
@@ -114,7 +147,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
 
   const resets =
     "table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}img{-ms-interpolation-mode:bicubic}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}";
-  const stylesheet = resets + context.sheet.css(`@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`);
+  const stylesheet = resets + sheet.css(`@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`);
   const head = [
     '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -149,11 +182,11 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
 
   const bytes = new TextEncoder().encode(html).length;
   if (bytes > GMAIL_CLIP_BYTES) {
-    context.d.warning("email/size", `The email is ${Math.round(bytes / 1024)} KB; Gmail clips a message after ${GMAIL_CLIP_BYTES / 1024} KB ("[Message clipped]")`, "root");
+    d.warning("email/size", `The email is ${Math.round(bytes / 1024)} KB; Gmail clips a message after ${GMAIL_CLIP_BYTES / 1024} KB ("[Message clipped]")`, "root");
   }
   const styleBytes = new TextEncoder().encode(stylesheet).length;
   if (styleBytes > GMAIL_STYLE_BYTES) {
-    context.d.warning("email/style-size", `The stylesheet is ${Math.round(styleBytes / 1024)} KB; Gmail reads ${GMAIL_STYLE_BYTES / 1024} KB of a <style>`, "root");
+    d.warning("email/style-size", `The stylesheet is ${Math.round(styleBytes / 1024)} KB; Gmail reads ${GMAIL_STYLE_BYTES / 1024} KB of a <style>`, "root");
   }
-  return { html, head, body, bodyStyle, diagnostics: context.d.list };
+  return { html, head, body, bodyStyle, diagnostics: d.list };
 }

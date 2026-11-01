@@ -9,6 +9,16 @@
 
 export type Media = "all" | "phone" | "desktop";
 
+/**
+ * Which rule wins where two set the same property on one element with the
+ * same specificity (CSS takes the later one): a layout's rules for its
+ * children (a Row stacking them on phones) come first, a node's own rules
+ * (its phone styles, hiding) after them, so what the author set on the node
+ * wins, then hover. The order rules are made in doesn't matter.
+ */
+export type Level = "layout" | "own" | "hover";
+const LEVELS: Level[] = ["layout", "own", "hover"];
+
 /** A 32-bit FNV-1a hash: small, fast, and the same everywhere. */
 function fnv1a(text: string): number {
   let hash = 0x811c9dc5;
@@ -25,7 +35,7 @@ export const CLASS_PREFIX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 export class Stylesheet {
   private readonly names = new Map<string, string>();
   private readonly keys = new Map<string, string>();
-  private readonly rules: Record<Media, string[]> = { all: [], phone: [], desktop: [] };
+  private readonly rules: Record<Media, Array<{ level: Level; text: string }>> = { all: [], phone: [], desktop: [] };
 
   constructor(private readonly prefix = "e") {
     if (!CLASS_PREFIX.test(prefix)) throw new Error(`[Elements] A class prefix starts with a letter and holds letters, digits, "_" and "-", not ${JSON.stringify(prefix)}`);
@@ -33,9 +43,9 @@ export class Stylesheet {
 
   /**
    * The class for `rule`, written with `&` where the class goes (`&{…}`,
-   * `&:hover{…}`, `&>*{…}`), under `media`.
+   * `&:hover{…}`, `&>*{…}`), under `media`, at `level`.
    */
-  classFor(media: Media, rule: string): string {
+  classFor(media: Media, rule: string, level: Level = "own"): string {
     const key = `${media}\n${rule}`;
     const known = this.names.get(key);
     if (known) return known;
@@ -45,16 +55,20 @@ export class Stylesheet {
     for (let size = 6; this.keys.has(name); size++) name = size <= 7 ? `${this.prefix}${hash.slice(-size)}` : `${name}x`;
     this.names.set(key, name);
     this.keys.set(name, key);
-    this.rules[media].push(rule.replace(/&/g, `.${name}`));
+    this.rules[media].push({ level, text: rule.replace(/&/g, `.${name}`) });
     return name;
   }
 
-  /** The rules, with the queries that say what a phone and a desktop are. */
+  /** The rules, with the queries that say what a phone and a desktop are: by media, then by level, then in the order they were made. */
   css(phone: string, desktop: string): string {
+    const ordered = (media: Media) =>
+      LEVELS.flatMap((level) => this.rules[media].filter((rule) => rule.level === level))
+        .map((rule) => rule.text)
+        .join("");
     return [
-      ...this.rules.all,
-      ...(this.rules.desktop.length ? [`${desktop}{${this.rules.desktop.join("")}}`] : []),
-      ...(this.rules.phone.length ? [`${phone}{${this.rules.phone.join("")}}`] : []),
+      ordered("all"),
+      ...(this.rules.desktop.length ? [`${desktop}{${ordered("desktop")}}`] : []),
+      ...(this.rules.phone.length ? [`${phone}{${ordered("phone")}}`] : []),
     ].join("");
   }
 }

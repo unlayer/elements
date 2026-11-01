@@ -1,8 +1,7 @@
-/** What inline styles can't do, as classes in the stylesheet: phone overrides, hiding, hover, a Row stacking on phones. Also the text in a node. */
+/** What inline styles can't do, as classes in the stylesheet: phone overrides, hiding, hover, a Row stacking on phones. */
 import type { Json, ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, type Html } from "../jsx";
+import { rule } from "../jsx";
 import { border, css, insets, length, textValue, type Declarations } from "../shared/css";
-import type { Context } from "./context";
 
 const OVERRIDE: Record<string, (value: Json) => Declarations> = {
   width: (v) => [["width", length(v)]],
@@ -25,28 +24,22 @@ function declarationsOf(values: Record<string, Json>): Declarations {
 }
 
 /** The classes of the stylesheet's rules for the node (phone styles, hiding, hover, stacking), if any. */
-export function classesFor(node: ResolvedNode, context: Context): string | undefined {
-  const { sheet } = context;
+export function classesFor(node: ResolvedNode): string | undefined {
   const classes: string[] = [];
   if (node.mobile) {
     // A Divider's length is its line's.
     const { width, ...rest } = node.mobile;
-    if (Object.keys(rest).length) classes.push(sheet.classFor("phone", `&{${css(declarationsOf(rest), true)}}`));
+    if (Object.keys(rest).length) classes.push(rule("phone", `&{${css(declarationsOf(rest), true)}}`));
     const line = node.type === "Divider" && node.style.padding !== undefined ? ">hr" : "";
-    if (width !== undefined) classes.push(sheet.classFor("phone", `&${line}{${css(declarationsOf({ width }), true)}}`));
+    if (width !== undefined) classes.push(rule("phone", `&${line}{${css(declarationsOf({ width }), true)}}`));
   }
-  if (node.hidden?.mobile) classes.push(sheet.classFor("phone", "&{display:none!important}"));
-  if (node.hidden?.desktop) classes.push(sheet.classFor("desktop", "&{display:none!important}"));
-  if (node.hover) classes.push(sheet.classFor("all", `&:hover{${css(declarationsOf(node.hover), true)}}`));
+  if (node.hidden?.mobile) classes.push(rule("phone", "&{display:none!important}"));
+  if (node.hidden?.desktop) classes.push(rule("desktop", "&{display:none!important}"));
+  if (node.hover) classes.push(rule("all", `&:hover{${css(declarationsOf(node.hover), true)}}`, "hover"));
   if (node.type === "Row" && node.style.wrap === "stack") {
     classes.push(
-      sheet.classFor("phone", "&{flex-direction:column!important;align-items:stretch!important}&>*{flex:0 0 auto!important;width:auto!important;max-width:100%!important;align-self:stretch!important}")
+      rule("phone", "&{flex-direction:column!important;align-items:stretch!important}&>*{flex:0 0 auto!important;width:auto!important;max-width:100%!important;align-self:stretch!important}", "layout")
     );
   }
   return classes.length ? classes.join(" ") : undefined;
-}
-
-/** A node's text and the runs in it. */
-export function inline(node: ResolvedNode, context: Context): Html {
-  return <>{node.children.map((child) => (typeof child === "string" ? child : context.render(child, node, [])))}</>;
 }

@@ -1,8 +1,5 @@
 /** A MergeTag: the sending service's syntax for the value (`{{name}}` unless the options say otherwise), as text. */
 import { Fragment, h } from "../jsx";
-import type { Writer } from "./context";
+import type { Component } from "./context";
 
-export const writeMergeTag: Writer = (node, _place, context) => {
-  const write = context.options.mergeTag ?? ((name: string) => `{{${name}}}`);
-  return <>{write(node.props.name as string)}</>;
-};
+export const MergeTag: Component = ({ node, options }) => <>{(options.mergeTag ?? ((name: string) => `{{${name}}}`))(node.props.name as string)}</>;

@@ -4,26 +4,22 @@
  */
 import { h } from "../jsx";
 import { px, textDeclarations } from "../shared/css";
-import type { Writer } from "./context";
-import { stackChildren, stackOf } from "./layout";
-import { classesFor } from "./styles";
+import type { Component } from "./context";
+import { stackOf } from "./layout";
 
-export const writeSection: Writer = (node, parent, context) => {
-  const classes = classesFor(node, context);
-  const { top, right, bottom, left } = (node.style.padding as { top: number; right: number; bottom: number; left: number } | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
-  // The side padding, at least as given, more where the window is wider than the content.
-  const side = (padding: number) => `max(${px(padding)}, calc((100% - ${px(parent.width ?? 0)}) / 2 + ${px(padding)}))`;
+type Sides = { top: number; right: number; bottom: number; left: number };
+
+export const Section: Component = ({ node, style, parent: root, classes, children }) => {
+  const { top, right, bottom, left } = (style.padding as Sides | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  // The side padding: at least as given, more where the window is wider than the content.
+  const side = (padding: number) => `max(${px(padding)}, calc((100% - ${px(root.width ?? 0)}) / 2 + ${px(padding)}))`;
   return (
     <section
       id={node.id}
-      class={classes}
-      style={[
-        stackOf(node),
-        { padding: `${px(top)} ${side(right)} ${px(bottom)} ${side(left)}`, backgroundColor: node.style.backgroundColor, border: node.style.border },
-        textDeclarations(node.text, parent.text),
-      ]}
+      class={classes()}
+      style={[stackOf(node), { padding: `${px(top)} ${side(right)} ${px(bottom)} ${side(left)}`, backgroundColor: style.backgroundColor, border: style.border }, textDeclarations(node.text, root.text)]}
     >
-      {stackChildren(node, context)}
+      {children()}
     </section>
   );
 };

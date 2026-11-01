@@ -1,11 +1,12 @@
 /**
- * What the email writer's components share: the render's state, where a node
- * is being written, and how a child is written (through `context.render`, so
- * components don't import each other).
+ * What the email components get: one props object per node, with
+ * what every component needs worked out (its styles, its phone text styles, its
+ * text), and `render()` for its children, so components don't import each
+ * other.
  */
-import type { Diagnostics, Json, ResolvedNode } from "@unlayer-internal/elements-core";
+import type { Json, ResolvedNode } from "@unlayer-internal/elements-core";
 import type { Html } from "../jsx";
-import type { Stylesheet } from "../shared/classes";
+import type { Declarations } from "../shared/css";
 
 export interface EmailOptions {
   /** How a merge tag is written (default `{{name}}`). */
@@ -14,33 +15,28 @@ export interface EmailOptions {
   classPrefix?: string;
 }
 
-/** Text styles a phone override changes, inherited down to the text that doesn't set them itself. */
-export type MobileText = Record<string, Json>;
-
-/** Where a node is written. */
-export interface Place {
+export interface Props {
+  node: ResolvedNode;
+  /** Its styles, its component's defaults included. */
+  style: Record<string, Json>;
+  /** Its own phone styles (empty where it has none). */
+  mobile: Record<string, Json>;
   parent: ResolvedNode;
   /** Its cell is exactly its width (a Row's child), so it fills it rather than placing itself. */
   fill: boolean;
-  /** The phone text styles its parents set, for the text in it. */
-  mobile: MobileText;
   /** Inside text. */
   inline: boolean;
-}
-
-export interface Context {
+  /** The phone text styles of its text: its own, and its parents' where it doesn't set them itself. */
+  phoneText: Declarations;
+  /** Its text, and the runs in it. */
+  text(): Html;
+  /** Writes a child: a block (with `fill` where its cell is exactly its width), or with `inline`, a run inside text. */
+  render(child: ResolvedNode, how?: { fill?: boolean; inline?: boolean }): Html;
   options: EmailOptions;
-  sheet: Stylesheet;
-  d: Diagnostics;
-  /** Writes a child: a block (`place.inline` false) or a run of text. */
-  render(node: ResolvedNode, place: Place): Html;
 }
 
-/** One component's writer. */
-export type Writer = (node: ResolvedNode, place: Place, context: Context) => Html;
+/** A component's markup in this output, from its props. */
+export type Component = (props: Props) => Html;
 
 export const isNode = (child: ResolvedNode | string): child is ResolvedNode => typeof child !== "string";
 export const shown = (node: ResolvedNode) => !(node.hidden?.mobile && node.hidden?.desktop);
-
-/** A child written inside text. */
-export const inText = (parent: ResolvedNode): Place => ({ parent, fill: false, mobile: {}, inline: true });

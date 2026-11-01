@@ -1,43 +1,22 @@
 /**
- * Email styles: text as every client needs it (on the element with the
- * text, line heights in px), and what inline styles can't do, as classes in
- * the stylesheet: phone overrides, hiding, hover.
+ * Email styles: text as every client needs it (on the element with the text,
+ * line heights in px), phone text styles inherited down to the text, and
+ * hiding on phones or desktop.
  */
-import { lineHeightPx, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, styleText, type Html, type Style, type StyleValue } from "../jsx";
-import { css, fontFamily, px, textDeclarations, textValue, type Declarations } from "../shared/css";
-import { inText, type Context, type MobileText } from "./context";
+import { lineHeightPx, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { rule, type Style } from "../jsx";
+import { fontFamily, px, textDeclarations, textValue, type Declarations } from "../shared/css";
 
+/** Text styles a phone override changes, inherited down to the text that doesn't set them itself. */
+export type MobileText = Record<string, Json>;
 const TEXT_KEYS = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"];
 
-// ─── Classes: phones, hiding, hover ─────────────────────────────────────────
-
-/** The class of a phone rule, or nothing when the style is empty; `selector` follows the class (`>div`). */
-export function phoneClass(context: Context, style: StyleValue, selector = ""): string | undefined {
-  const text = styleText(style, true);
-  return text ? context.sheet.classFor("phone", `&${selector}{${text}}`) : undefined;
-}
-
 /** Hidden on phones: a class. Hidden on desktop: inline, and shown on phones by a class (`display` is how it shows). */
-export function hiding(node: ResolvedNode, context: Context, display: string): { className?: string; style: Style } {
-  if (node.hidden?.mobile) return { className: context.sheet.classFor("phone", "&{display:none!important}"), style: {} };
-  if (node.hidden?.desktop) return { className: context.sheet.classFor("phone", `&{display:${display}!important}`), style: { display: "none" } };
+export function hiding(node: ResolvedNode, display: string): { class?: string; style: Style } {
+  if (node.hidden?.mobile) return { class: rule("phone", "&{display:none!important}"), style: {} };
+  if (node.hidden?.desktop) return { class: rule("phone", `&{display:${display}!important}`), style: { display: "none" } };
   return { style: {} };
 }
-
-export function hoverClass(node: ResolvedNode, context: Context): string | undefined {
-  if (!node.hover) return undefined;
-  const declarations: Declarations = [];
-  for (const [key, value] of Object.entries(node.hover)) {
-    if (key === "color") declarations.push(["color", value as string]);
-    else if (key === "backgroundColor") declarations.push(["background-color", value as string]);
-    else if (key === "textDecoration") declarations.push(["text-decoration", value as string]);
-  }
-  return context.sheet.classFor("all", `&:hover{${css(declarations, true)}}`);
-}
-
-/** What a phone override does to a box: its padding, border and background. */
-export const phoneBox = (node: ResolvedNode): Style => ({ padding: node.mobile?.padding, border: node.mobile?.border, backgroundColor: node.mobile?.backgroundColor });
 
 /** The phone text styles of a node's own text: its own overrides, and its parents' where it doesn't set the style itself. */
 export function mobileTextOf(node: ResolvedNode, inherited: MobileText): MobileText {
@@ -61,8 +40,6 @@ export function phoneText(node: ResolvedNode, mobile: MobileText): Declarations 
   }
   return out;
 }
-
-// ─── Text ───────────────────────────────────────────────────────────────────
 
 /**
  * All of a node's text styles: every client gets them on the element with the
@@ -90,9 +67,4 @@ export function runText(node: ResolvedNode, parent: ResolvedNode, always: Array<
   const out = textDeclarations(node.text, parent.text, always).filter(([property]) => property !== "line-height");
   if (node.text.lineHeightPx !== parent.text.lineHeightPx) out.push(["line-height", px(node.text.lineHeightPx)]);
   return out;
-}
-
-/** A node's text and the runs in it. */
-export function inline(node: ResolvedNode, context: Context): Html {
-  return <>{node.children.map((child) => (typeof child === "string" ? child : context.render(child, inText(node))))}</>;
 }

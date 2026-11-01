@@ -5,8 +5,10 @@ import { h, type Child, type StyleValue } from "../jsx";
 /** What every layout table has: no role for screen readers, no spacing, no border. */
 export const TABLE = { role: "presentation", cellpadding: "0", cellspacing: "0", border: "0" };
 
+type TableProps = { id?: string; class?: string | Array<string | undefined>; phone?: StyleValue; width?: string | number; bgcolor?: string; style?: StyleValue; children?: Child };
+
 /** A layout table; an author's `id` first. */
-export function Table({ children, style, ...attributes }: { id?: string; class?: string; width?: string | number; bgcolor?: string; style?: StyleValue; children?: Child }) {
+export function Table({ children, style, ...attributes }: TableProps) {
   return (
     <table id={attributes.id} {...TABLE} {...attributes} style={style}>
       {children}
@@ -16,6 +18,3 @@ export function Table({ children, style, ...attributes }: { id?: string; class?:
 
 /** A color Word reads as a `bgcolor` attribute (hex only). */
 export const bgcolor = (value: Json | undefined) => (typeof value === "string" && /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(value) ? value : undefined);
-
-/** Joined class names, or undefined. */
-export const names = (...classes: Array<string | undefined>) => classes.filter(Boolean).join(" ") || undefined;

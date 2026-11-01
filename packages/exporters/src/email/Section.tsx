@@ -5,56 +5,40 @@
  */
 import { h, NotOutlook } from "../jsx";
 import { px } from "../shared/css";
-import type { Writer } from "./context";
-import { stackRows } from "./layout";
+import type { Component } from "./context";
+import { Stack } from "./layout";
 import { bgcolor, Table } from "./markup";
-import { hiding, mobileTextOf, phoneClass } from "./styles";
+import { hiding } from "./styles";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
 
-/** `place.parent` is the root, whose width is the content width. */
-export const writeSection: Writer = (node, place, context) => {
-  const width = place.parent.width ?? 600;
-  const { style } = node;
+export const Section: Component = ({ node, style, mobile, parent: root, render }) => {
+  const width = root.width ?? 600;
   const padding = (style.padding as Sides | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
-  const stack = stackRows(node, context, mobileTextOf(node, place.mobile));
-  const hidden = hiding(node, context, "table-row");
-  const phonePadding = node.mobile?.padding as Sides | undefined;
-  const cellClass = phoneClass(context, {
-    paddingTop: phonePadding?.top,
-    paddingBottom: phonePadding?.bottom,
-    border: node.mobile?.border,
-    backgroundColor: node.mobile?.backgroundColor,
-  });
-
-  // The content at the content width; its side padding on a cell around it.
-  const content =
-    padding.left || padding.right ? (
-      <Table width="100%" style={{ maxWidth: width }}>
-        <tr>
-          <td style={{ padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` }}>
-            <Table class={stack.className} width="100%">
-              {stack.rows}
-            </Table>
-          </td>
-        </tr>
-      </Table>
-    ) : (
-      <Table class={stack.className} width="100%" style={{ maxWidth: width }}>
-        {stack.rows}
-      </Table>
-    );
+  const phonePadding = mobile.padding as Sides | undefined;
+  const hidden = hiding(node, "table-row");
 
   const row = (
-    <tr class={hidden.className} style={hidden.style}>
+    <tr class={hidden.class} style={hidden.style}>
       <td
         id={node.id}
         align="center"
         bgcolor={bgcolor(style.backgroundColor)}
-        class={cellClass}
+        phone={{ paddingTop: phonePadding?.top, paddingBottom: phonePadding?.bottom, border: mobile.border, backgroundColor: mobile.backgroundColor }}
         style={{ paddingTop: padding.top || undefined, paddingBottom: padding.bottom || undefined, backgroundColor: style.backgroundColor, border: style.border }}
       >
-        {content}
+        {padding.left || padding.right ? (
+          // The side padding on a cell around the content.
+          <Table width="100%" style={{ maxWidth: width }}>
+            <tr>
+              <td style={{ padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` }}>
+                <Stack node={node} render={render} />
+              </td>
+            </tr>
+          </Table>
+        ) : (
+          <Stack node={node} render={render} style={{ maxWidth: width }} />
+        )}
       </td>
     </tr>
   );

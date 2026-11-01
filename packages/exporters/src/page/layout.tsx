@@ -3,7 +3,7 @@
  * styles, and a stack's own.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, type Html, type Style } from "../jsx";
+import type { Style } from "../jsx";
 import { length, type Declarations } from "../shared/css";
 
 export const FLEX_ALIGN: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
@@ -66,10 +66,4 @@ export function stackOf(node: ResolvedNode): Style {
     gap: node.style.gap,
     justifyContent: node.style.justify ? JUSTIFY[node.style.justify as string] : undefined,
   };
-}
-
-/** A stack's children, each placed across it. */
-export function stackChildren(node: ResolvedNode, context: { render(node: ResolvedNode, parent: ResolvedNode, placement: Declarations): Html }): Html {
-  const children = node.children.filter((child): child is ResolvedNode => typeof child !== "string");
-  return <>{children.map((child) => context.render(child, node, alignSelf(child, node)))}</>;
 }

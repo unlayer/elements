@@ -1,5 +1,5 @@
 /** A LineBreak: `<br>`. */
 import { h } from "../jsx";
-import type { Writer } from "./context";
+import type { Component } from "./context";
 
-export const writeLineBreak: Writer = () => <br />;
+export const LineBreak: Component = () => <br />;

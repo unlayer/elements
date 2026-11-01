@@ -6,38 +6,29 @@
  * shape's fixed size (unlayer/email-renderer's captures). Square corners in
  * classic Outlook.
  */
-import { linkParts, type LinkValue } from "@unlayer-internal/elements-core";
 import { h } from "../jsx";
 import { insets } from "../shared/css";
-import type { Writer } from "./context";
+import { link } from "../shared/link";
+import type { Component } from "./context";
 import { boxWidth, phoneWidth, TEXT_ALIGN } from "./layout";
-import { bgcolor, names, Table } from "./markup";
-import { fullText, hoverClass, inline, mobileTextOf, phoneClass, phoneText } from "./styles";
+import { bgcolor, Table } from "./markup";
+import { fullText } from "./styles";
 
-export const writeButton: Writer = (node, place, context) => {
-  const { href, target } = linkParts(node.props.href as LinkValue);
-  const { style, mobile } = node;
-  const width = boxWidth(node, place.fill);
-  const linkClass = phoneClass(context, [phoneText(node, mobileTextOf(node, place.mobile)), { padding: mobile?.padding }]);
-  const label = inline(node, context);
-  const cellClass = names(hoverClass(node, context), phoneClass(context, { border: mobile?.border, backgroundColor: mobile?.backgroundColor }));
-  const mobileWidth = mobile?.maxWidth ?? mobile?.width;
-  const tableClass = mobileWidth !== undefined ? phoneClass(context, phoneWidth(mobileWidth)) : undefined;
-
+export const Button: Component = ({ node, style, mobile, fill, phoneText, text }) => {
+  const width = boxWidth(node, fill);
   return (
-    <Table id={node.id} class={tableClass} width={width.width} style={{ maxWidth: width.maxWidth }}>
+    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
       <tr>
         <td
           align={TEXT_ALIGN[node.text.textAlign]}
           bgcolor={bgcolor(style.backgroundColor)}
-          class={cellClass}
+          hover={node.hover}
+          phone={{ border: mobile.border, backgroundColor: mobile.backgroundColor }}
           style={{ backgroundColor: style.backgroundColor, border: style.border, borderRadius: style.borderRadius, msoPaddingAlt: insets(style.padding) }}
         >
           <a
-            href={href}
-            target={target}
-            rel={target === "_blank" ? "noopener noreferrer" : undefined}
-            class={linkClass}
+            {...link(node.props.href)}
+            phone={[phoneText, { padding: mobile.padding }]}
             style={[
               // A button with a width fills it.
               { display: width.width !== undefined ? "block" : "inline-block", padding: style.padding },
@@ -45,7 +36,7 @@ export const writeButton: Writer = (node, place, context) => {
               { textDecoration: style.textDecoration ?? "none", borderRadius: style.borderRadius },
             ]}
           >
-            {label}
+            {text()}
           </a>
         </td>
       </tr>

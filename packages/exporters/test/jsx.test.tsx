@@ -50,3 +50,19 @@ describe("the writers' JSX", () => {
     expect(html(<><Outlook>a</Outlook><Outlook>b</Outlook></>)).toBe("<!--[if mso]>a<![endif]--><!--[if mso]>b<![endif]-->");
   });
 });
+
+describe("phone and hover styles in the writers' JSX", () => {
+  it("writes them as rules in the render's stylesheet, their classes where the first of class, phone and hover is", async () => {
+    const { Stylesheet } = await import("../src");
+    const { withStylesheet, withId } = await import("../src/jsx");
+    const sheet = new Stylesheet();
+    const td = withStylesheet(sheet, () => String(<td align="center" hover={{ color: "#000000" }} phone={{ padding: 4 }} class={[undefined, "own"]} style={{ color: "#ff0000" }} />));
+    const [hover, phone] = /class="(e\w{5}) (e\w{5}) own"/.exec(td)!.slice(1);
+    expect(td).toBe(`<td align="center" class="${hover} ${phone} own" style="color:#f00"></td>`);
+    expect(sheet.css("@media (max-width: 1px)", "@media (min-width: 2px)")).toBe(`.${hover}:hover{color:#000!important}@media (max-width: 1px){.${phone}{padding:4px!important}}`);
+    // Nothing to write, no class.
+    expect(withStylesheet(sheet, () => String(<td phone={{ padding: undefined }} hover={undefined} class={[]} />))).toBe("<td></td>");
+    expect(() => String(<td phone={{ padding: 4 }} />)).toThrow(/withStylesheet/);
+    expect(String(withId(<p class="x">a</p>, "intro"))).toBe('<p id="intro" class="x">a</p>');
+  });
+});

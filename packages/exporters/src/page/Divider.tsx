@@ -1,23 +1,20 @@
 /** A Divider: an `<hr>` drawn by its top border, in a padded div where it has padding; placed by its parent's text alignment. */
 import { h, type Style } from "../jsx";
 import { px } from "../shared/css";
-import type { Writer } from "./context";
-import { classesFor } from "./styles";
+import type { Component } from "./context";
 
 const MARGIN: Record<string, string> = { center: "0 auto", right: "0 0 0 auto" };
 
-export const writeDivider: Writer = (node, parent, context, placement) => {
-  const classes = classesFor(node, context);
-  const { style } = node;
+export const Divider: Component = ({ node, style, parent, placement, classes }) => {
   const line: Style = {
     margin: MARGIN[parent.text.textAlign] ?? "0",
     border: "0",
     borderTop: `${px(style.thickness as number)} ${style.lineStyle} ${style.color}`,
     width: style.width,
   };
-  if (style.padding === undefined) return <hr id={node.id} class={classes} style={[placement, line]} />;
+  if (style.padding === undefined) return <hr id={node.id} class={classes()} style={[placement, line]} />;
   return (
-    <div id={node.id} class={classes} style={[placement, { boxSizing: "border-box", padding: style.padding }]}>
+    <div id={node.id} class={classes()} style={[placement, { boxSizing: "border-box", padding: style.padding }]}>
       <hr style={line} />
     </div>
   );
