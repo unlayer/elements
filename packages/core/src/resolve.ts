@@ -254,12 +254,13 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
       continue;
     }
     const own: Layout = source.type === "Row" ? "row" : resolved.definition.children.text ? "text" : "stack";
-    // A box without a known width (a Link around an image) gives its children what it was given.
-    let inner = resolved.contentWidth ?? resolved.available;
+    // A box without a known width (a Link around an image) gives its children what it was given; one inside text, what the text was given.
+    let inner = resolved.contentWidth ?? resolved.available ?? (layout === "text" ? available : null);
     // A List's items are beside its markers' column.
     if (source.type === "List" && inner !== null) inner = Math.max(0, inner - (toPx(resolved.style.indent, null) ?? 0));
     resolved.children = resolveChildren(source, at, resolved, inner, own, context);
-    if (resolved.width === null && source.type === "Link") {
+    // A block Link around an image is as wide as it; inside text, a Link is a run and takes no width.
+    if (resolved.width === null && source.type === "Link" && layout !== "text") {
       const image = resolved.children.find((c): c is ResolvedNode => typeof c !== "string" && c.type === "Image");
       if (image && image.width !== null) setWidth(resolved, image.width + horizontalFrame(resolved.style));
     }

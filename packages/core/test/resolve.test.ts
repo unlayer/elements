@@ -70,6 +70,28 @@ describe("widths", () => {
     expect(child(root, 2).available).toBe(600);
   });
 
+  it("sizes an image in a link inside text by the text's width", () => {
+    const image = (width: number) => ({ type: "Image", props: { src: { src: "https://example.com/a.png", width } } });
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "Column",
+          style: { width: 300 },
+          children: [
+            { type: "Text", children: ["see ", { type: "Link", props: { href: "#" }, children: [image(1000)] }] },
+            { type: "Text", children: [{ type: "Span", children: [{ type: "Link", props: { href: "#" }, children: [image(100)] }] }] },
+          ],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    expect(child(root, 0, 0, 1, 0).width).toBe(300);
+    // The Link around it is a run of the text: no width of its own.
+    expect(child(root, 0, 0, 1).width).toBeNull();
+    expect(child(root, 0, 1, 0, 0, 0).width).toBe(100);
+  });
+
   it("warns when children are wider than their parent, and when flex is on a child of something else", () => {
     const { diagnostics } = resolve({
       type: "Email",
