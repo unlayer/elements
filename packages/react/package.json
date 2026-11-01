@@ -55,6 +55,11 @@
       "import": "./dist/primitives.js",
       "require": "./dist/primitives.cjs"
     },
+    "./builder": {
+      "types": "./dist/builder.d.ts",
+      "import": "./dist/builder.js",
+      "require": "./dist/builder.cjs"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
