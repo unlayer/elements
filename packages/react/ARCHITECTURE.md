@@ -188,7 +188,9 @@ promise. The output is in tree order whatever settles first. A render that fails
 React's stream does (React Email's render too: a part that never settles holds it), then fails with the first error in
 the order react-dom first called the components in. A lazy component outside any `<Suspense>` is in one of its own,
 with no fallback: what it loads failing, React would stop the whole render at once, and in one it's a part that fails
-where it is. An error React handled in a `<Suspense>` inside what a lazy component renders, which no part of the
+where it is. Each failure React handles in a `<Suspense>` gets a digest of the render's own (what `onError` returns),
+which React writes where that `<Suspense>` renders its fallback, so each is where it failed, whatever order React told
+them in (React 18.0 writes no digest: there, two such failures are said in the order React told them). An error React handled in a `<Suspense>` inside what a lazy component renders, which no part of the
 template accounts for, comes after the rest, at the first lazy component's place (React's public API doesn't say
 where it was). A `<Suspense>` around the root, or around a template's own content, renders
 what's in it. A template wrapper that waits is waited for as above (Unwrap).

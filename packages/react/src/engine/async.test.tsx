@@ -146,6 +146,22 @@ describe("the async collecting render", () => {
       await expect(renderToHtml(<Email><Row><Column>{wrap(<LazyFails />)}<FailsAfter /></Column></Row></Email>), at).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] lazy/) });
       await expect(renderToHtml(<Email><Row><Column><LoadsLater /><Fails text="first in the tree" ms={30} />{wrap(<FailsSooner />)}</Column></Row></Email>), at).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] first in the tree/) });
       await expect(renderToHtml(<Email><Row><Column>{wrap(<FailsSooner />)}<Slow /></Column></Row></Email>), at).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] lazy/) });
+      // Two whose loads fail, the second sooner (React tells them as they fail): each is where it is. (React 18.0 writes
+      // no digest where a boundary failed: there, they're in the order React told them, both said.)
+      const First = React.lazy(() => failsLater<{ default: React.ComponentType }>(30, "first lazy"));
+      const Second = React.lazy(() => failsLater<{ default: React.ComponentType }>(5, "second lazy"));
+      const two = <Email><Row><Column><Paragraph>Kept</Paragraph>{wrap(<First />)}{wrap(<Second />)}</Column></Row></Email>;
+      const digests = !React.version.startsWith("18.0.");
+      await expect(renderToHtml(two), at).rejects.toMatchObject({ message: expect.stringMatching(digests ? /^\[Unlayer\] first lazy/ : /^\[Unlayer\] (first|second) lazy/) });
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const parts = await renderToHtmlParts(two, { onError: "omit" });
+        expect(parts.body, at).toContain("Kept");
+        const omitted = parts.omitted.map((e) => (e.cause as Error).message);
+        expect(digests ? omitted : [...omitted].sort(), at).toEqual(["first lazy", "second lazy"]);
+      } finally {
+        error.mockRestore();
+      }
     }
     if ((React as unknown as { use?: unknown }).use) {
       // A promise given as a child (React 19), the same.

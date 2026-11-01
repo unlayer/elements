@@ -89,6 +89,8 @@ export function parse(html: string, c: Collection): Part[] {
     if (!find) endTags.set(name, (find = next(new RegExp(`</${name}(?=[\\t\\n\\f\\r />])`, "gi"))));
     return find;
   };
+  /** Where a boundary that failed renders its fallback (right after its <template>), and its error's digest. */
+  let failedAt: { at: number; digest: string } | undefined;
   /** The marker end tags read as ones, and where a <style>'s or <script>'s text React wrote as given is (see copies). */
   let endsRead = 0;
   const asGiven: Array<[number, number]> = [];
@@ -168,10 +170,15 @@ export function parse(html: string, c: Collection): Part[] {
       // template's comments are only in HTML given whole, which isn't here.)
       const own = c.async && /^<!--(?:\$[?!]?|\/\$| |&|\/&)-->$/.test(html.slice(lt, stop));
       if (!own) text(html.slice(lt, stop));
-      // (And after a boundary that failed, the <template> it writes with the error's digest: React's, not the template's.)
+      // (And after a boundary that failed, the <template> it writes with the error's digest: React's, not the template's.
+      // The digest, the render's own, says which error it was, for the fallback's marker right after it.)
       else if (html.startsWith("<!--$!-->", lt) && html.startsWith("<template", stop)) {
         const close = templateEnd(stop);
-        if (close >= 0) stop = close + "</template>".length;
+        if (close >= 0) {
+          const digest = DIGEST.exec(html.slice(stop, close))?.[1];
+          stop = close + "</template>".length;
+          if (digest !== undefined) failedAt = { at: stop, digest };
+        }
       }
       at = stop;
       continue;
@@ -220,7 +227,9 @@ export function parse(html: string, c: Collection): Part[] {
       c.read.add(n);
       const quiet = c.marks[n].k === "r" && (c.marks[n] as { quiet?: boolean }).quiet;
       const held = c.marks[n].k === "t" ? (c.marks[n] as { unescape: boolean; ends: readonly string[] }) : undefined;
-      stack.push({ tag: MARK, mark: true, lazy: c.marks[n].k === "l", parts: markPart(c, n, from.parts), head: from.head || !!quiet, foreign: from.foreign, ends: held ? held.ends : quiet ? [] : from.ends, unescape: held ? held.unescape : from.unescape });
+      const digest = failedAt?.at === lt ? failedAt.digest : undefined;
+      failedAt = undefined;
+      stack.push({ tag: MARK, mark: true, lazy: c.marks[n].k === "l", parts: markPart(c, n, from.parts, digest), head: from.head || !!quiet, foreign: from.foreign, ends: held ? held.ends : quiet ? [] : from.ends, unescape: held ? held.unescape : from.unescape });
       at = gt + 1;
       continue;
     }
@@ -334,6 +343,18 @@ function kept(c: Collection): void {
   for (const n of c.rawRendered) if (!c.rawRead.has(n) && !out(c.raw[n].scope)) throw forged();
 }
 
+/** The digest in the <template> React writes where a boundary that failed renders its fallback (escaped, as any value). */
+const DIGEST = /^<template[^>]*?\sdata-dgst="([^"]*)"/;
+
+/**
+ * What React told the stream failed where a boundary renders its fallback: the error with that digest (each error React
+ * handles is told, and gets a digest, in the order it fails, not the tree's), or the next one told.
+ */
+function toldFor(c: Collection, digest: string | undefined) {
+  const at = digest === undefined ? -1 : c.reactErrors.findIndex((t) => t.digest === digest);
+  return at >= 0 ? c.reactErrors.splice(at, 1)[0] : c.reactErrors.shift();
+}
+
 /** The comments React 18's stream writes in a <style>'s or <script>'s text: between two texts, around a <Suspense>'s content. */
 const REACT_COMMENTS = ["<!-- -->", "<!--$-->", "<!--/$-->"];
 
@@ -373,13 +394,13 @@ const whole = (c: Collection, n: number): Part[] => {
 /**
  * What failed inside a <Suspense> whose fallback React rendered (its marker `n`, at `frame`), or undefined where
  * what's in it suspended (a synchronous render renders the fallback, as React's server renderer does). An async render
- * waits for what suspends: there, a fallback is what failed, as React told its stream (in order). A synchronous one
- * keeps no error React handled there: what's said is where, and what to do.
+ * waits for what suspends: there, a fallback is what failed, as React told its stream (the error its digest names, see
+ * toldFor). A synchronous one keeps no error React handled there: what's said is where, and what to do.
  */
-function fallbackFailed(c: Collection, n: number, frame: Frame): RenderError | undefined {
+function fallbackFailed(c: Collection, n: number, frame: Frame, digest?: string): RenderError | undefined {
   const lazy = c.lazies.find((x) => x.suspenseAt === n);
   if (c.async) {
-    const told = c.reactErrors.shift();
+    const told = toldFor(c, digest);
     if (!told) return swallowed(lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
     return new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "Suspense"), positionOf(lazy?.frame ?? frame), told.error);
   }
@@ -407,7 +428,7 @@ function failedIn(c: Collection, n: number): { error: unknown; fatal: boolean } 
 }
 
 /** The part a marker stands for, added to `into`: where what's inside the marker goes. */
-function markPart(c: Collection, n: number, into: Part[]): Part[] {
+function markPart(c: Collection, n: number, into: Part[], digest?: string): Part[] {
   const mark = c.marks[n];
   switch (mark.k) {
     case "r": {
@@ -449,7 +470,7 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
         into.push({ t: "error", error: lost.error as RenderError, fatal: lost.fatal });
         return [];
       }
-      const failed = fallbackFailed(c, n, mark.frame);
+      const failed = fallbackFailed(c, n, mark.frame, digest);
       if (!failed) return into;
       into.push({ t: "error", error: failed, fatal: false });
       return [];
@@ -460,7 +481,7 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
       const lazy = s ? undefined : c.lazies.find((x) => x.boundary === mark.boundary);
       if (c.async) {
         // (An async render waits for what suspends: what React handled itself failed, as it told the stream.)
-        const told = c.reactErrors.shift();
+        const told = toldFor(c, digest);
         const error = told ? new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "component"), positionOf(lazy?.frame ?? null), told.error) : swallowed(lazy ? "lazy" : "component", lazy?.frame ?? null);
         into.push({ t: "boundary", parts: [{ t: "error", error, fatal: false }] });
         return [];

@@ -77,11 +77,12 @@ function sink(done: (html: string) => void) {
 /**
  * react-dom's streaming render of `node` once everything in it is ready, in a `<noscript>`, without it and without the
  * stream's own comments (where its Suspense boundaries are, between texts): Node's pipeable stream where react-dom has
- * it, a web stream elsewhere. `onError` is told what React handles itself (a part in a Suspense that failed). No chunk
+ * it, a web stream elsewhere. `onError` is told what React handles itself (a part in a Suspense that failed), and what
+ * it returns is the error's digest, which React writes where that <Suspense> renders its fallback. No chunk
  * size: React 19 otherwise writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden
  * <div> and scripts that move it (an email can run none).
  */
-export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown, info?: unknown) => void): Promise<string> {
+export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown, info?: unknown) => string | void): Promise<string> {
   // (Where react-dom can't render (React Server Components' React on the edge runtime), its stream throws where nothing
   // catches it, and never settles: the render fails as the synchronous ones do, by name, before it starts (see
   // renderFailure). Asked of react-dom itself: Next.js's Server Components on the Node.js runtime have a React with no
@@ -89,7 +90,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   if (!reactDomRenders()) return Promise.reject(new TypeError("react-dom can't render with this React"));
   const element = createElement("noscript", null, node);
   const S = Server as unknown as Record<string, any>;
-  const report = (error: unknown, info?: unknown) => void onError?.(error, info);
+  const report = (error: unknown, info?: unknown) => onError?.(error, info) ?? undefined;
   const bare = (html: string) => raw(inWrapper(html));
   return streamed(S, element, idPrefix, report).then(
     (html) => settleStream(S).then(() => bare(html)),
@@ -143,7 +144,7 @@ function settleStream(S: Record<string, any>): Promise<void> {
 }
 
 /** react-dom's streaming render of `element`, its whole output once everything in it is ready. */
-function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown, info?: unknown) => void): Promise<string> {
+function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown, info?: unknown) => string | undefined): Promise<string> {
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;

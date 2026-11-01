@@ -121,7 +121,12 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   let html: string;
   try {
     // (What React handles itself, in order: a <Suspense>'s fallback rendered for it, see parse.ts's fallbackFailed.)
-    html = await streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => void c.reactErrors.push({ error, name: failedIn(info) }));
+    html = await streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => {
+      // (Its digest, this render's own: where React renders a fallback for it, the parse finds which it was.)
+      const digest = `${c.nonce}.${c.reactErrors.length}`;
+      c.reactErrors.push({ error, name: failedIn(info), digest });
+      return digest;
+    });
   } catch (error) {
     throw failure(error, options, frame, c);
   }

@@ -102,8 +102,11 @@ export interface Collection {
    * `done`, what it renders rendered with no error (it suspended, or rendered: see LazyDone).
    */
   lazies: Array<{ frame: Frame; boundary: number; suspenseAt?: number; done?: boolean }>;
-  /** In an async render, what React handled itself (in a <Suspense>, that it rendered the fallback of), in order. */
-  reactErrors: Array<{ error: unknown; name?: string }>;
+  /**
+   * In an async render, what React handled itself (in a <Suspense>, that it rendered the fallback of), as it told it, and
+   * each one's digest, which React writes where that <Suspense> renders its fallback (see parse.ts's fallbackFailed).
+   */
+  reactErrors: Array<{ error: unknown; name?: string; digest?: string }>;
   /** An async component's promise, by its props (React calls Call again once it settles). */
   pending: WeakMap<object, Tracked>;
   /** What a component that failed gave, by its props: React calls it again where it set its state as it rendered. */
