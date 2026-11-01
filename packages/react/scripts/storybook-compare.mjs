@@ -8,7 +8,7 @@
 // This loads each one in headless Chromium at the desktop and phone widths, with main's quirks drawn
 // (where main draws something other than what its template asks, the story's `nextAsMain`), and checks
 // that every run of text and every image sits in the same place, at the same size and in the same style
-// on both sides, within a pixel.
+// on both sides, within a pixel, and each image is the same file.
 //
 // Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes):
 // each frame's screenshot with its text made transparent, pixel by pixel, a pixel counting as
@@ -88,7 +88,7 @@ function measure(styles) {
       const computed = doc.defaultView.getComputedStyle(node.parentElement);
       (texts[words] ??= []).push({ box: box(rect), style: styles.map((p) => `${p}:${computed[p]}`).join(";") });
     }
-    const images = [...doc.images].filter((img) => img.getBoundingClientRect().width).map((img) => box(img.getBoundingClientRect()));
+    const images = [...doc.images].filter((img) => img.getBoundingClientRect().width).map((img) => ({ box: box(img.getBoundingClientRect()), src: img.getAttribute("src") }));
     return { texts, images };
   });
 }
@@ -170,7 +170,11 @@ function differences([main, next]) {
     });
   }
   if (main.images.length !== next.images.length) out.push(`${main.images.length} images in main, ${next.images.length} in the new engine`);
-  else main.images.forEach((box, i) => near(box, next.images[i]) || out.push(`image ${i + 1}: at ${box} in main, ${next.images[i]} in the new engine`));
+  else
+    main.images.forEach((image, i) => {
+      if (!near(image.box, next.images[i].box)) out.push(`image ${i + 1}: at ${image.box} in main, ${next.images[i].box} in the new engine`);
+      if (image.src !== next.images[i].src) out.push(`image ${i + 1}: ${image.src.slice(0, 80)} in main, ${next.images[i].src.slice(0, 80)} in the new engine`);
+    });
   return out;
 }
 
