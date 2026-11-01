@@ -33,8 +33,7 @@ export function classesFor(node: ResolvedNode): string | undefined {
     const line = node.type === "Divider" && node.style.padding !== undefined ? ">hr" : "";
     if (width !== undefined) classes.push(rule("phone", `&${line}{${css(declarationsOf({ width }), true)}}`));
   }
-  if (node.hidden?.mobile) classes.push(rule("phone", "&{display:none!important}"));
-  if (node.hidden?.desktop) classes.push(rule("desktop", "&{display:none!important}"));
+  classes.push(...hidingClasses(node.hidden));
   if (node.hover) classes.push(rule("all", `&:hover{${css(declarationsOf(node.hover), true)}}`, "hover"));
   if (node.type === "Row" && node.props.stackOnMobile !== false) {
     classes.push(
@@ -42,4 +41,12 @@ export function classesFor(node: ResolvedNode): string | undefined {
     );
   }
   return classes.length ? classes.join(" ") : undefined;
+}
+
+/** The classes that hide something on phones or on desktop. */
+export function hidingClasses(hidden: ResolvedNode["hidden"]): string[] {
+  const classes: string[] = [];
+  if (hidden?.mobile) classes.push(rule("phone", "&{display:none!important}"));
+  if (hidden?.desktop) classes.push(rule("desktop", "&{display:none!important}"));
+  return classes;
 }

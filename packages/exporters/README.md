@@ -12,7 +12,8 @@ src/
   plain-text.ts    the plain-text version (the same for every output)
   shared/          what every HTML output shares: escaping and CSS values (css.ts), the stylesheet's
                    short class names (classes.ts), @font-face rules (fonts.ts), link attributes
-                   (link.ts), the support pass (support.ts), indented HTML for `pretty` (pretty.ts)
+                   (link.ts), the support pass (support.ts), indented HTML for `pretty` (pretty.ts),
+                   where gaps go between what shows on desktop and on phones (gaps.ts)
   email/           <Email>: tables, px widths, Outlook's markup in conditional comments
   page/            <Page>: one element per node, flexbox
 ```

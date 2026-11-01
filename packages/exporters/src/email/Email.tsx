@@ -4,15 +4,18 @@
  * window between runs of content.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, raw } from "../jsx";
+import { Fragment, h, NotOutlook, raw, type Html } from "../jsx";
 import { px } from "../shared/css";
+import { gapHidden, gapsBefore, gapShown, runHidden, type GapAt } from "../shared/gaps";
 import { isNode, shown, type Component } from "./context";
 import { Stack } from "./layout";
 import { bgcolor, Table } from "./markup";
+import { hiding } from "./styles";
 
-export const Email: Component = ({ node: root, style, render }) => {
+export const Email: Component = ({ node: root, style, mobile, render }) => {
   const width = root.width ?? 600;
   const gap = typeof style.gap === "number" ? style.gap : 0;
+  const phoneGap = typeof mobile.gap === "number" ? mobile.gap : gap;
 
   // Runs of content between Sections.
   const parts: Array<ResolvedNode | ResolvedNode[]> = [];
@@ -23,18 +26,14 @@ export const Email: Component = ({ node: root, style, render }) => {
     else parts.push([node]);
   }
 
-  // Between a Section and its neighbours the gap is a row of its own, outside the Section's background.
-  const spacer = gap ? (
-    <tr>
-      <td style={{ fontSize: 0, lineHeight: px(gap), msoLineHeightRule: "exactly" }}>{raw("&nbsp;")}</td>
-    </tr>
-  ) : null;
+  // Between a Section and its neighbours the gap is a row of its own, outside the Section's background, where both show.
+  const gaps = gapsBefore(parts.map((part) => ({ hidden: Array.isArray(part) ? runHidden(part) : part.hidden })));
 
   return (
     <Table width="100%" bgcolor={bgcolor(style.backgroundColor)} style={{ backgroundColor: style.backgroundColor }}>
       {parts.map((part, index) => (
         <>
-          {index > 0 && spacer}
+          {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
           {Array.isArray(part) ? (
             <tr>
               <td align="center">
@@ -49,3 +48,17 @@ export const Email: Component = ({ node: root, style, render }) => {
     </Table>
   );
 };
+
+/** A gap as a row of its own: as tall as the gap, the phone gap on phones, hidden where there's none (and out of Outlook's view then). */
+function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
+  if (!at.desktop && !at.phone) return null;
+  const hidden = hiding({ hidden: gapHidden(at) }, "table-row");
+  const row = (
+    <tr class={hidden.class} style={hidden.style}>
+      <td phone={at.phone && phoneGap !== gap ? { lineHeight: px(phoneGap) } : undefined} style={{ fontSize: 0, lineHeight: px(gap), msoLineHeightRule: "exactly" }}>
+        {raw("&nbsp;")}
+      </td>
+    </tr>
+  );
+  return at.desktop ? row : <NotOutlook>{row}</NotOutlook>;
+}

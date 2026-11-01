@@ -7,7 +7,8 @@
 import { toPx } from "@unlayer-internal/elements-core";
 import { h, NotOutlook } from "../jsx";
 import { isNode, shown, type Component } from "./context";
-import { Box, phoneGap } from "./layout";
+import { Box, gapBelow } from "./layout";
+import { gapsAfter } from "../shared/gaps";
 import { Table } from "./markup";
 import { fullText, hiding } from "./styles";
 
@@ -17,20 +18,20 @@ const MARKER_GAP = 8;
 export const List: Component = ({ node, style, fill, render }) => {
   const items = node.children.filter(isNode).filter(shown);
   const indent = toPx(style.indent, null) ?? 0;
-  const gap = typeof style.gap === "number" ? style.gap : 0;
+  const gaps = gapsAfter(items);
   const marker = (index: number) => (node.props.type === "number" ? `${Number(node.props.start) + index}.` : "•");
   return (
     <Box node={node} fill={fill}>
-      <Table role="list" class={phoneGap(node)} width="100%">
+      <Table role="list" width="100%">
         {items.map((item, index) => {
           const hidden = hiding(item, "table-row");
-          const below = index < items.length - 1 && gap ? gap : undefined;
+          const below = gapBelow(node, gaps[index]);
           const row = (
             <tr role="listitem" class={hidden.class} style={hidden.style}>
-              <td aria-hidden="true" width={indent} valign="top" style={[fullText(item, { align: false }), { textAlign: "right", width: indent, boxSizing: "border-box", paddingRight: MARKER_GAP, paddingBottom: below }]}>
+              <td aria-hidden="true" width={indent} valign="top" phone={below.phone} style={[fullText(item, { align: false }), { textAlign: "right", width: indent, boxSizing: "border-box", paddingRight: MARKER_GAP }, below.style]}>
                 {marker(index)}
               </td>
-              <td valign="top" style={{ paddingBottom: below }}>
+              <td valign="top" phone={below.phone} style={below.style}>
                 {render(item)}
               </td>
             </tr>

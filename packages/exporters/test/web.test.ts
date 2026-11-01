@@ -209,6 +209,29 @@ describe("web HTML", () => {
     expect(body).toContain('<ol start="5" style="margin:0;padding:4px 4px 4px 34px;list-style-type:decimal;box-sizing:border-box"><li style="margin:0">c</li><li style="margin:0;margin-top:6px">d</li></ol>');
   });
 
+  it("puts a list's gap above an item only where an item before it shows, the phone gap on phones", () => {
+    const { head, body } = web(page([{ type: "List", style: { gap: 12 }, children: [{ type: "ListItem", hidden: { desktop: true }, children: ["one"] }, { type: "ListItem", children: ["two"] }] }]));
+    // Desktop doesn't show "one", so "two" is first there; phones show both.
+    const two = /<li class="(e[0-9a-z]{5})" style="margin:0">two<\/li>/.exec(body)![1];
+    expect(head).toContain(`@media (max-width: 480px){.${two}{margin-top:12px!important}}`);
+    // The List's phone gap.
+    const phone = web(page([{ type: "List", style: { gap: 12 }, mobile: { gap: 4 }, children: [{ type: "ListItem", children: ["a"] }, { type: "ListItem", children: ["b"] }] }]));
+    const b = /<li class="(e[0-9a-z]{5})" style="margin:0;margin-top:12px">b<\/li>/.exec(phone.body)![1];
+    expect(phone.head).toContain(`.${b}{margin-top:4px!important}`);
+    // No gap at all: no class.
+    expect(web(page([{ type: "List", children: [{ type: "ListItem", hidden: { mobile: true }, children: ["a"] }, { type: "ListItem", children: ["b"] }] }])).body).toContain('<li style="margin:0">b</li>');
+  });
+
+  it("hides a run of the root's content where all of it hides, so its gap beside a Section goes too, and gives the root its phone gap", () => {
+    const section = { type: "Section", children: [{ type: "Text", children: ["band"] }] };
+    const { head, body } = web(page([{ type: "Text", children: ["A"] }, section, { type: "Text", hidden: { desktop: true }, children: ["phones only"] }, section], { style: { gap: 16 }, mobile: { gap: 4 } }));
+    const run = /<div class="(e[0-9a-z]{5}) (e[0-9a-z]{5})" style="width:100%;[^"]*"><div class="e[0-9a-z]{5}"[^>]*>phones only/.exec(body)!;
+    // Desktop doesn't show the run: it's hidden there, and the flex gap beside it with it.
+    expect(head).toMatch(new RegExp(`@media \\(min-width: 481px\\)\\{[^}]*\\.${run[1]}\\{display:none!important\\}`));
+    expect(head).toContain(`.${run[2]}{gap:4px!important}`);
+    expect(body).toMatch(/<main class="(e[0-9a-z]{5})"/);
+  });
+
   it("writes tables with fixed columns, no spacing, header rows in thead", () => {
     const { body } = web(
       page([

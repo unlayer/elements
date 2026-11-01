@@ -13,6 +13,7 @@ import { isNode, shown, type Props, type Component } from "./context";
 import { boxWidth, phoneWidth, toNumber, VALIGN } from "./layout";
 import { bgcolor, Table, TABLE } from "./markup";
 import { hiding } from "./styles";
+import { gapHidden, gapsBefore, gapShown, type GapAt } from "../shared/gaps";
 
 const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "right" };
 
@@ -49,58 +50,48 @@ export const Row: Component = (props) => {
 };
 
 const gapOf = (props: Props) => (typeof props.style.gap === "number" ? props.style.gap : 0);
+/** The gap on phones: the Row's phone gap, else its gap. */
+const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? props.mobile.gap : gapOf(props));
 const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
 function fluidHybrid(props: Props): Html {
-  const { node, mobile, render } = props;
-  const gap = gapOf(props);
+  const { node, render } = props;
+  const [gap, phoneGap] = [gapOf(props), phoneGapOf(props)];
   const valign = valignOf(props);
+  const children = node.children.filter(isNode).filter(shown);
+  const gaps = gapsBefore(children);
   return (
     <Merged>
       <Outlook>
         {open(<table {...TABLE} width="100%" />)}
         {open(<tr />)}
       </Outlook>
-      {node.children
-        .filter(isNode)
-        .filter(shown)
-        .map((child, index) => {
-          const width = child.width ?? undefined;
-          const hidden = hiding(child, "inline-block");
-          const column = (
-            <div class={hidden.class} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width }, hidden.style]}>
-              {render(child, { fill: width !== undefined })}
-            </div>
-          );
-          // What's hidden on desktop isn't in Outlook's table.
-          const inOutlook = !child.hidden?.desktop;
-          return (
-            <>
-              {index > 0 && gap ? (
-                <>
-                  {inOutlook && (
-                    <Outlook>
-                      <td width={gap} style={{ width: gap }} />
-                    </Outlook>
-                  )}
-                  <NotOutlook>
-                    <div phone={{ height: typeof mobile.gap === "number" ? mobile.gap : gap }} style={{ display: "inline-block", width: gap }} />
-                  </NotOutlook>
-                </>
-              ) : null}
-              {inOutlook ? (
-                <>
-                  <Outlook>{open(<td width={width} valign={valign} style={{ width }} />)}</Outlook>
-                  {column}
-                  <Outlook>{close("td")}</Outlook>
-                </>
-              ) : (
-                <NotOutlook>{column}</NotOutlook>
-              )}
-            </>
-          );
-        })}
+      {children.map((child, index) => {
+        const width = child.width ?? undefined;
+        const hidden = hiding(child, "inline-block");
+        const column = (
+          <div class={hidden.class} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width }, hidden.style]}>
+            {render(child, { fill: width !== undefined })}
+          </div>
+        );
+        // What's hidden on desktop isn't in Outlook's table.
+        const inOutlook = !child.hidden?.desktop;
+        return (
+          <>
+            {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
+            {inOutlook ? (
+              <>
+                <Outlook>{open(<td width={width} valign={valign} style={{ width }} />)}</Outlook>
+                {column}
+                <Outlook>{close("td")}</Outlook>
+              </>
+            ) : (
+              <NotOutlook>{column}</NotOutlook>
+            )}
+          </>
+        );
+      })}
       <Outlook>
         {close("tr")}
         {close("table")}
@@ -112,7 +103,7 @@ function fluidHybrid(props: Props): Html {
 /** A table row: the children side by side on phones too. */
 function sideBySide(props: Props): Html {
   const { node, render } = props;
-  const gap = gapOf(props);
+  const [gap, phoneGap] = [gapOf(props), phoneGapOf(props)];
   const valign = valignOf(props);
   // Room the children leave: an empty cell takes it (where the Row's justify puts it), else a table spreads it over them.
   const placed = node.children.filter(isNode).filter((child) => shown(child) && !child.hidden?.desktop);
@@ -120,28 +111,58 @@ function sideBySide(props: Props): Html {
   const left = node.contentWidth !== null && placed.every((child) => child.width !== null) && used < node.contentWidth - 0.5;
   const justify = node.style.justifyContent as string | undefined;
   const filler = <td />;
+  const children = node.children.filter(isNode).filter(shown);
+  const gaps = gapsBefore(children);
   return (
     <Table width="100%">
       <tr>
         {left && (justify === "end" || justify === "center") && filler}
-        {node.children
-          .filter(isNode)
-          .filter(shown)
-          .map((child, index) => {
-            const width = child.width ?? undefined;
-            const hidden = hiding(child, "table-cell");
-            const cell = (
-              <>
-                {index > 0 && gap ? <td width={gap} style={{ width: gap }} /> : null}
-                <td class={hidden.class} width={width} valign={valign} style={[{ width }, hidden.style]}>
-                  {render(child, { fill: width !== undefined })}
-                </td>
-              </>
-            );
-            return child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell;
-          })}
+        {children.map((child, index) => {
+          const width = child.width ?? undefined;
+          const hidden = hiding(child, "table-cell");
+          const cell = (
+            <td class={hidden.class} width={width} valign={valign} style={[{ width }, hidden.style]}>
+              {render(child, { fill: width !== undefined })}
+            </td>
+          );
+          return (
+            <>
+              {gapCell(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
+              {child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell}
+            </>
+          );
+        })}
         {left && justify !== "end" && filler}
       </tr>
     </Table>
   );
+}
+
+/**
+ * The gap before a stacking Row's child, where there is one (`at`, from gapShown): a cell in Outlook's table on
+ * desktop; for the rest, an inline-block as wide as the gap, and as tall as the phone gap where the children stack.
+ */
+function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
+  if (!at.desktop && !at.phone) return null;
+  const hidden = hiding({ hidden: gapHidden(at) }, "inline-block");
+  return (
+    <>
+      {at.desktop && (
+        <Outlook>
+          <td width={gap} style={{ width: gap }} />
+        </Outlook>
+      )}
+      <NotOutlook>
+        <div class={hidden.class} phone={{ height: phoneGap }} style={[{ display: "inline-block", width: gap || undefined }, hidden.style]} />
+      </NotOutlook>
+    </>
+  );
+}
+
+/** The gap before a side-by-side Row's child, where there is one, as a cell: the phone gap's width on phones, and kept from Outlook where there's none on desktop. */
+function gapCell(at: GapAt, gap: number, phoneGap: number): Html | null {
+  if (!at.desktop && !at.phone) return null;
+  const hidden = hiding({ hidden: gapHidden(at) }, "table-cell");
+  const cell = <td class={hidden.class} width={gap || undefined} phone={at.phone && phoneGap !== gap ? { width: phoneGap } : undefined} style={[{ width: gap || undefined }, hidden.style]} />;
+  return at.desktop ? cell : <NotOutlook>{cell}</NotOutlook>;
 }

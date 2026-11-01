@@ -4,11 +4,12 @@
  * box as a table around its content) and `<Stack>` (children as table rows).
  */
 import { toPx, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { h, NotOutlook, rule, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
+import { h, NotOutlook, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
 import { isNode, shown, type Props } from "./context";
 import { bgcolor, Table } from "./markup";
 import { hiding } from "./styles";
+import { gapsAfter, type GapAt } from "../shared/gaps";
 
 export const VALIGN: Record<string, string> = { start: "top", center: "middle", end: "bottom", stretch: "top" };
 const ALIGN: Record<string, string | undefined> = { start: undefined, center: "center", end: "right", stretch: undefined };
@@ -102,23 +103,30 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
   );
 }
 
-/** The gap on phones, for a table of rows with the gap as their cells' bottom padding (a stack, a list): the table's rule for its rows' cells. */
-export function phoneGap(node: ResolvedNode): string | undefined {
-  const gap = length(node.mobile?.gap);
-  return gap && rule("phone", `&>tbody>tr>td{padding-bottom:${gap}!important}&>tbody>tr:last-child>td{padding-bottom:0!important}`, "layout");
+/**
+ * A row's gap below it, for a table of rows with the gap as their cells' bottom padding (a stack, a list):
+ * inline where a row after it shows on desktop, and by a class where phones need another (the phone gap, or none).
+ */
+export function gapBelow(node: ResolvedNode, at: GapAt): { style: Style; phone?: Style } {
+  const gap = typeof node.style.gap === "number" ? node.style.gap : 0;
+  const phoneGap = typeof node.mobile?.gap === "number" ? node.mobile.gap : gap;
+  const desktop = at.desktop ? gap : 0;
+  const phone = at.phone ? phoneGap : 0;
+  return { style: { paddingBottom: desktop || undefined }, phone: phone !== desktop ? { paddingBottom: phone } : undefined };
 }
 
 /** A node's children stacked down a table, one row each, its `gap` as the cells' bottom padding. */
 export function Stack({ node, render, style }: { node: ResolvedNode; render: Props["render"]; style?: StyleValue }): Html {
   const children = node.children.filter(isNode).filter(shown);
-  const gap = typeof node.style.gap === "number" ? node.style.gap : 0;
+  const gaps = gapsAfter(children);
   return (
-    <Table class={phoneGap(node)} width="100%" style={style}>
+    <Table width="100%" style={style}>
       {children.map((child, index) => {
         const hidden = hiding(child, "table-row");
+        const below = gapBelow(node, gaps[index]);
         const row = (
           <tr class={hidden.class} style={hidden.style}>
-            <td align={cellAlign(child, node)} style={{ paddingBottom: index < children.length - 1 && gap ? gap : undefined }}>
+            <td align={cellAlign(child, node)} phone={below.phone} style={below.style}>
               {render(child)}
             </td>
           </tr>

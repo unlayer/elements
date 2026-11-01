@@ -203,6 +203,81 @@ describe("email HTML", () => {
     expect(body).not.toContain("never");
   });
 
+  describe("gaps only between what shows, on desktop and on phones", () => {
+    const column = (hidden?: Record<string, boolean>) => ({ type: "Column", hidden, children: [{ type: "Text", children: ["x"] }] });
+    const row = (children: unknown[], style: Record<string, unknown> = { gap: 20 }, props: Record<string, unknown> = {}) => render(email([{ type: "Row", style, props, children }]));
+    /** What classic Outlook reads: its conditional comments in, what's kept from it out. */
+    const outlookView = (html: string) => html.replace(/<!--\[if !mso\]><!-->[\s\S]*?<!--<!\[endif\]-->/g, "").replace(/<!--\[if mso\]>|<!\[endif\]-->/g, "");
+    /** The spacers other clients show on desktop (a spacer only phones show is display:none). */
+    const shownSpacers = (html: string) => notOutlook(html).match(/<div( class="[^"]*")? style="display:inline-block;width:20px"><\/div>/g) ?? [];
+
+    it("leaves a child hidden on desktop out of Outlook's gaps, first or in the middle, in a stacking Row and one kept side by side", () => {
+      for (const children of [[column({ desktop: true }), column(), column()], [column(), column({ desktop: true }), column()]]) {
+        const stacking = row(children).body;
+        expect(outlookOnly(stacking).match(/<td width="20"/g)).toHaveLength(1);
+        expect(shownSpacers(stacking)).toHaveLength(1);
+        const sideBySide = row(children, { gap: 20 }, { stackOnMobile: false }).body;
+        expect(outlookView(sideBySide).match(/<td width="20"/g)).toHaveLength(1);
+      }
+    });
+
+    it("puts the phone gap between stacked children, with a spacer only phones show where the desktop has no gap", () => {
+      // No gap anywhere: no spacer (an empty inline-block).
+      expect(notOutlook(row([column(), column()], { gap: 0 }).body)).not.toMatch(/<div[^>]*style="display:inline-block[^"]*"><\/div>/);
+      const { head, body } = render(email([{ type: "Row", style: { gap: 0 }, mobile: { gap: 12 }, children: [column(), column()] }]));
+      expect(outlookOnly(body)).not.toMatch(/<td width="0"/);
+      const [, shows, tall] = /<div class="(e[0-9a-z]{5}) (e[0-9a-z]{5})" style="display:inline-block;display:none"><\/div>/.exec(notOutlook(body))!;
+      expect(head).toContain(`.${shows}{display:inline-block!important}`);
+      expect(head).toContain(`.${tall}{height:12px!important}`);
+    });
+
+    it("gives a Row kept side by side its phone gap on phones", () => {
+      const { head, body } = render(email([{ type: "Row", style: { gap: 20 }, mobile: { gap: 4 }, props: { stackOnMobile: false }, children: [column(), column()] }]));
+      const cell = /<td width="20" class="(e[0-9a-z]{5})" style="width:20px"><\/td>/.exec(body)![1];
+      expect(head).toContain(`.${cell}{width:4px!important}`);
+    });
+
+    it("leaves no gap under the last child shown on desktop, and gives phones theirs where they show what's under it", () => {
+      const { head, body } = render(
+        email(
+          [
+            { type: "Text", children: ["A"] },
+            { type: "Text", children: ["B"] },
+            { type: "Text", hidden: { desktop: true }, children: ["C"] },
+          ],
+          { style: { gap: 16 }, mobile: { gap: 6 } }
+        )
+      );
+      // A has a gap under it on desktop, and the phone gap on phones.
+      const underA = /<td class="(e[0-9a-z]{5})" style="padding-bottom:16px"><div[^>]*>A<\/div>/.exec(body)![1];
+      expect(head).toContain(`.${underA}{padding-bottom:6px!important}`);
+      // B is the last child desktop shows; phones show C under it.
+      const underB = /<td class="(e[0-9a-z]{5})"><div[^>]*>B<\/div>/.exec(body)![1];
+      expect(head).toContain(`.${underB}{padding-bottom:6px!important}`);
+    });
+
+    it("leaves no gap under the last item phones show, in its marker's cell as in its own", () => {
+      const { head, body } = render(email([{ type: "List", style: { gap: 4 }, children: [{ type: "ListItem", children: ["x"] }, { type: "ListItem", hidden: { mobile: true }, children: ["y"] }] }]));
+      const [, marker, item] = /<td aria-hidden="true"[^>]*class="(e[0-9a-z]{5})"[^>]*>•<\/td><td valign="top" class="(e[0-9a-z]{5})" style="padding-bottom:4px"><div[^>]*>x<\/div>/.exec(body)!;
+      expect(marker).toBe(item);
+      expect(head).toContain(`.${item}{padding-bottom:0!important}`);
+    });
+
+    it("puts the root's gap beside a Section only where both show, the phone gap on phones", () => {
+      const section = (hidden?: Record<string, boolean>) => ({ type: "Section", hidden, children: [{ type: "Text", children: ["band"] }] });
+      const gapRow = /<tr( class="e[0-9a-z]{5}")?( style="display:none")?><td( class="e[0-9a-z]{5}")? style="font-size:0;line-height:30px;mso-line-height-rule:exactly">&nbsp;<\/td><\/tr>/g;
+      // A, a Section only phones show, B: one gap between A and B on desktop, in Outlook too.
+      const hiddenBand = render(email([{ type: "Text", children: ["A"] }, section({ desktop: true }), { type: "Text", children: ["B"] }], { style: { gap: 30 } })).body;
+      const rows = [...hiddenBand.matchAll(gapRow)];
+      expect(rows.filter((m) => !m[2])).toHaveLength(1);
+      expect(outlookView(hiddenBand).match(gapRow)).toHaveLength(1);
+      // The phone gap beside a Section.
+      const { head, body } = render(email([section(), { type: "Text", children: ["A"] }], { style: { gap: 30 }, mobile: { gap: 8 } }));
+      const cell = /<tr><td class="(e[0-9a-z]{5})" style="font-size:0;line-height:30px/.exec(body)![1];
+      expect(head).toContain(`.${cell}{line-height:8px!important}`);
+    });
+  });
+
   it("writes links, line breaks and merge tags in text, and links around images", () => {
     const { body } = render(
       email([

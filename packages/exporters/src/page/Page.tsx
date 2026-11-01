@@ -6,19 +6,28 @@
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
 import { h, type Style } from "../jsx";
 import { textDeclarations } from "../shared/css";
+import { runHidden } from "../shared/gaps";
 import { isNode, type Component } from "./context";
 import { alignSelf } from "./layout";
+import { hidingClasses } from "./styles";
 
 export const Page: Component = ({ node: root, style, render }) => {
   const width = root.width ?? 0;
   const stack: Style = { display: "flex", flexDirection: "column", gap: style.gap };
+  // The root's phone gap, between its children and in each run of them.
+  const phone = root.mobile?.gap !== undefined ? { gap: root.mobile.gap } : undefined;
   const content = (children: ResolvedNode[]) => children.map((child) => render(child, alignSelf(child, root)));
   const nodes = root.children.filter(isNode);
   if (!nodes.some((node) => node.type === "Section")) {
-    return <main style={[{ maxWidth: width, margin: "0 auto" }, stack, textDeclarations(root.text, undefined)]}>{content(nodes)}</main>;
+    return (
+      <main phone={phone} style={[{ maxWidth: width, margin: "0 auto" }, stack, textDeclarations(root.text, undefined)]}>
+        {content(nodes)}
+      </main>
+    );
   }
 
-  // Sections span the window: the other children are kept to the content width, in runs between them.
+  // Sections span the window: the other children are kept to the content width, in runs between them. A run
+  // hides where all of its children do, so the gap beside it goes too.
   const parts: Array<ResolvedNode | ResolvedNode[]> = [];
   for (const node of nodes) {
     const last = parts[parts.length - 1];
@@ -27,8 +36,16 @@ export const Page: Component = ({ node: root, style, render }) => {
     else parts.push([node]);
   }
   return (
-    <main style={[stack, textDeclarations(root.text, undefined)]}>
-      {parts.map((part) => (Array.isArray(part) ? <div style={[{ width: "100%", maxWidth: width, margin: "0 auto" }, stack]}>{content(part)}</div> : render(part, [])))}
+    <main phone={phone} style={[stack, textDeclarations(root.text, undefined)]}>
+      {parts.map((part) =>
+        Array.isArray(part) ? (
+          <div class={hidingClasses(runHidden(part))} phone={phone} style={[{ width: "100%", maxWidth: width, margin: "0 auto" }, stack]}>
+            {content(part)}
+          </div>
+        ) : (
+          render(part, [])
+        )
+      )}
     </main>
   );
 };
