@@ -5,18 +5,25 @@ import { render } from "../index";
 import * as airbnb from "./AirbnbConfirmation";
 import * as luma from "./LumaEventInvite";
 import * as mercury from "./MercuryReceipt";
+import * as brew from "./MorningBrewDigest";
+import * as nike from "./NikeDrop";
+import * as notion from "./NotionWelcome";
 import * as phone from "./PhoneOverrides";
+import * as digest from "./ProductDigest";
 import { SideBySide, type Width } from "./SideBySide";
 import * as spotify from "./SpotifyWelcome";
 import * as stripe from "./StripeReceipt";
 import * as warby from "./WarbyOrderShipped";
 
-type Args = { width: Width };
+type Args = { width: Width; quirks: boolean };
 
 const meta: Meta<Args> = {
   title: "Primitives/Compare with main",
-  args: { width: "desktop" },
-  argTypes: { width: { control: "inline-radio", options: ["desktop", "phone"] } },
+  args: { width: "desktop", quirks: false },
+  argTypes: {
+    width: { control: "inline-radio", options: ["desktop", "phone"] },
+    quirks: { control: "boolean", name: "Draw main's quirks", description: "Where main draws something other than what its template asks, the new engine draws it as main does." },
+  },
   parameters: {
     docs: {
       description: {
@@ -28,15 +35,25 @@ const meta: Meta<Args> = {
 };
 export default meta;
 
+/** A design: main's template, the new one, and where main differs from what its template asks, the new one drawn as main does it. */
+interface Design {
+  main: ReactElement;
+  next: ReactElement;
+  nextAsMain?: ReactElement;
+  quirks?: string;
+}
+
 /** A story rendering a design both ways: main's template with renderToHtml(), the new one with render(). */
-const compare = (design: { main: ReactElement; next: ReactElement }): StoryObj<Args> => ({
+const compare = (design: Design): StoryObj<Args> => ({
   loaders: [
-    async () => {
-      const next = await render(design.next);
+    async ({ args }) => {
+      const next = await render(args.quirks && design.nextAsMain ? design.nextAsMain : design.next);
       return { main: renderToHtml(design.main), next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
     },
   ],
-  render: ({ width }, { loaded }) => <SideBySide main={loaded.main} next={loaded.next} notes={loaded.notes} width={width} />,
+  render: ({ width, quirks }, { loaded }) => (
+    <SideBySide main={loaded.main} next={loaded.next} notes={loaded.notes} width={width} quirks={design.quirks ? { what: design.quirks, drawn: quirks } : undefined} />
+  ),
 });
 
 export const StripeReceipt = compare(stripe);
@@ -46,3 +63,7 @@ export const AirbnbConfirmation = compare(airbnb);
 export const MercuryReceipt = compare(mercury);
 export const LumaEventInvite = compare(luma);
 export const WarbyOrderShipped = compare(warby);
+export const NotionWelcome = compare(notion);
+export const NikeDrop = compare(nike);
+export const MorningBrewDigest = compare(brew);
+export const ProductDigest = compare(digest);

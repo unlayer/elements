@@ -1,8 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
-/** The window each render is shown in: an email client's on a desktop, or a phone's. */
+/**
+ * The window each render is shown in: an email client's on a desktop, or a phone's. The desktop one has room for
+ * main's Row padding, which main puts outside the content (up to 56px a side in these examples).
+ */
 export type Width = "desktop" | "phone";
-const WIDTHS: Record<Width, number> = { desktop: 700, phone: 375 };
+const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
 const GAP = 16;
 
 export interface SideBySideProps {
@@ -13,6 +16,8 @@ export interface SideBySideProps {
   /** What the new engine's render() reported (warnings and notes). */
   notes: string[];
   width: Width;
+  /** Where main draws something other than what its template asks, and whether the new engine draws it as main does. */
+  quirks?: { what: string; drawn: boolean };
 }
 
 /**
@@ -40,7 +45,7 @@ function Frame({ label, html, width, scale }: { label: string; html: string; wid
 }
 
 /** main's render next to the new engine's, in windows of one width. */
-export function SideBySide({ main, next, notes, width }: SideBySideProps) {
+export function SideBySide({ main, next, notes, width, quirks }: SideBySideProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(Infinity);
   useLayoutEffect(() => {
@@ -55,6 +60,12 @@ export function SideBySide({ main, next, notes, width }: SideBySideProps) {
 
   return (
     <div ref={box}>
+      {quirks && (
+        <p style={{ font: "13px system-ui, sans-serif", margin: "0 0 12px" }}>
+          {quirks.drawn ? "The new engine draws main's quirk here: " : "Main differs: "}
+          {quirks.what}
+        </p>
+      )}
       <div style={{ display: "flex", gap: GAP, alignItems: "flex-start" }}>
         <Frame label="main: today's components" html={main} width={window} scale={scale} />
         <Frame label="New engine: /primitives" html={next} width={window} scale={scale} />

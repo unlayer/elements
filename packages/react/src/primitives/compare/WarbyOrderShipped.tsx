@@ -2,8 +2,8 @@
  * main's "Warby Parker · Order Shipped" example, and the same design written with the new components
  * (main's layout read as StripeReceipt.tsx says).
  *
- * One difference is main's: its Row padding is outside the 600px content, and one Row's 56px sides
- * don't fit in a 700px window, so main narrows that paragraph by 12px there; the new engine doesn't.
+ * main puts a Row's padding outside the 600px content: in a window narrower than 712px, this Row's 56px
+ * sides narrow its paragraph (the comparison's 760px window has room for them).
  */
 import { WarbyOrderShipped } from "../../examples/WarbyOrderShipped.stories";
 import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section } from "../index";

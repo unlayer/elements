@@ -188,6 +188,15 @@ jobs:
       - name: Storybook visual-drift gate
         run: pnpm --filter @unlayer/react-elements test:visual
 
+      # ── The new engine draws what main draws ────────────────────
+      # Each "Primitives/Compare with main" story: one of main's designs and
+      # the same design in the new components (main's quirks drawn), loaded
+      # in Chromium at desktop and phone widths (reusing the static build).
+      # Fails naming each run of text or image that sits elsewhere, at another
+      # size or in another style than main's.
+      - name: Primitives draw what main draws
+        run: pnpm --filter @unlayer/react-elements test:compare
+
       # ── Next.js integration test ────────────────────────────────
       # Packs the built react-elements as a tarball and installs it
       # in a real Next.js app — exactly like a consumer would.

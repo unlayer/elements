@@ -3,7 +3,8 @@
  * layout read as StripeReceipt.tsx says; main's text has a 140% line height where it sets none).
  *
  * One difference is main's: the hosts' photos, 48px wide, come out 52px (main writes a px width as a
- * percentage, as SpotifyWelcome.tsx says), so what's below them sits 6px lower in main.
+ * percentage, as SpotifyWelcome.tsx says), so what's below them sits 6px lower in main; `nextAsMain`
+ * draws them as main does.
  */
 import { LumaEventInvite } from "../../examples/LumaEventInvite.stories";
 import { Button, Column, Divider, Email, Heading, Image, Link, Paragraph, Row, Section, Span } from "../index";
@@ -15,10 +16,10 @@ const ACCENT = "#FF5C38";
 const CARD = "#FFFFFF";
 const NBSP = " ";
 
-function host(photo: string, name: string, role: string) {
+function host(photo: string, name: string, role: string, asMain: boolean) {
   return (
     <Column style={{ padding: 10, gap: 20 }}>
-      <Image src={photo} alt={name} style={{ width: 48 }} />
+      <Image src={photo} alt={name} style={asMain ? { width: "20%", maxWidth: 52 } : { width: 48 }} />
       <Paragraph style={{ fontSize: 14, fontWeight: 700, color: INK, lineHeight: "140%" }}>{name}</Paragraph>
       <Paragraph style={{ fontSize: 13, color: SUBTLE, lineHeight: "140%" }}>{role}</Paragraph>
     </Column>
@@ -27,7 +28,8 @@ function host(photo: string, name: string, role: string) {
 
 export const main = <LumaEventInvite />;
 
-export const next = (
+/** The design; `asMain` draws the hosts' photos as main does. */
+const design = (asMain: boolean) => (
   <Email width={600} style={{ backgroundColor: "#F4F4F7", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
     <Section style={{ backgroundColor: CARD, padding: [38, 10, 26, 10] }}>
       <Heading level={4} style={{ fontSize: 15, fontWeight: 800, color: INK, letterSpacing: -0.2, lineHeight: "140%" }}>
@@ -84,8 +86,8 @@ export const next = (
     </Section>
     <Section style={{ backgroundColor: CARD, padding: [0, 0, 28, 0] }}>
       <Row>
-        {host("https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80", "Maya Okonkwo", "Founder, Lumen")}
-        {host("https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80", "Theo Park", "Head of Community")}
+        {host("https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80", "Maya Okonkwo", "Founder, Lumen", asMain)}
+        {host("https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80", "Theo Park", "Head of Community", asMain)}
       </Row>
     </Section>
 
@@ -96,3 +98,7 @@ export const next = (
     </Section>
   </Email>
 );
+
+export const next = design(false);
+export const nextAsMain = design(true);
+export const quirks = "its hosts' 48px photos are 20% wide, at most 52px.";

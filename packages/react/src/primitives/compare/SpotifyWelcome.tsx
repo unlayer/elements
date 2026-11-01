@@ -4,8 +4,8 @@
  *
  * One difference is main's: its logo, 120px wide, comes out 125px wide on desktop and 85px on
  * phones. main writes the width as a percentage (24%), of the content less the Row's side padding,
- * which on desktop is outside the content. The new engine draws it at 120px, so what's below the
- * logo sits a pixel or two higher.
+ * which on desktop is outside the content. `next` draws it at 120px, so what's below the logo sits a
+ * pixel or two higher; `nextAsMain` draws it as main does.
  */
 import { SpotifyPremiumWelcome } from "../../SpotifyWelcome.stories";
 import { Button, Column, Divider, Email, Heading, Image, Paragraph, Row, Section } from "../index";
@@ -29,10 +29,11 @@ function benefit(title: string, desc: string) {
 
 export const main = <SpotifyPremiumWelcome />;
 
-export const next = (
+/** The design; `asMain` draws the logo as main does. */
+const design = (asMain: boolean) => (
   <Email width={600} style={{ backgroundColor: BG, fontFamily: "Circular, 'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
     <Section style={{ backgroundColor: BG, padding: [42, 10, 28, 10] }}>
-      <Image src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_White.png" alt="Spotify" style={{ width: 120 }} />
+      <Image src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_White.png" alt="Spotify" style={asMain ? { width: "24%", maxWidth: 124.8 } : { width: 120 }} />
     </Section>
 
     <Section style={{ backgroundColor: BG, padding: 10 }}>
@@ -86,3 +87,7 @@ export const next = (
     </Section>
   </Email>
 );
+
+export const next = design(false);
+export const nextAsMain = design(true);
+export const quirks = "its 120px logo is 24% wide, at most 124.8px: 125px on desktop and 85px on phones.";

@@ -4,8 +4,8 @@
  *
  * One difference is main's: its photo, 100% wide, comes out 520px wide and centered. main takes the
  * Row's side padding (40px each) off an image's width, though on desktop that padding is outside the
- * content and the text keeps the full width. The new engine draws it at the column's 580px, so what's
- * below it sits 40px lower.
+ * content and the text keeps the full width. `next` draws it at the column's 580px, so what's below it
+ * sits 40px lower; `nextAsMain` draws it as main does.
  */
 import { AirbnbConfirmation } from "../../examples/AirbnbConfirmation.stories";
 import { Button, Email, Heading, Image, Link, Paragraph, Section, Span } from "../index";
@@ -21,7 +21,8 @@ const lines = { label: MUTED, value: INK, line: LINE };
 
 export const main = <AirbnbConfirmation />;
 
-export const next = (
+/** The design; `asMain` draws the photo as main does. */
+const design = (asMain: boolean) => (
   <Email width={600} style={{ backgroundColor: "#F7F7F7", fontFamily: "Circular, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
     <Section style={{ backgroundColor: WHITE, padding: [38, 10, 22, 10] }}>
       <Heading level={2} style={{ fontSize: 22, fontWeight: 700, color: RAUSCH, lineHeight: "140%" }}>
@@ -29,8 +30,12 @@ export const next = (
       </Heading>
     </Section>
 
-    <Section style={{ backgroundColor: WHITE, padding: [14, 10, 10, 10] }}>
-      <Image src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&q=80" alt="Oceanview Villa" style={{ width: "100%" }} />
+    <Section style={{ backgroundColor: WHITE, padding: [14, 10, 10, 10], alignItems: "center" }}>
+      <Image
+        src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&q=80"
+        alt="Oceanview Villa"
+        style={asMain ? { width: "100%", maxWidth: 520 } : { width: "100%" }}
+      />
     </Section>
 
     <Section style={{ backgroundColor: WHITE, padding: [38, 10, 14, 10], gap: 20 }}>
@@ -69,3 +74,7 @@ export const next = (
     </Section>
   </Email>
 );
+
+export const next = design(false);
+export const nextAsMain = design(true);
+export const quirks = "its photo, 100% wide, is at most 520px (its column less the Row's 40px side padding), centered, instead of the column's 580px.";
