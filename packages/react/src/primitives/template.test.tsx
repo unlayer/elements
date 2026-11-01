@@ -3,6 +3,7 @@ import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext,
 import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
+import * as primitives from "./index";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
 const tree = (element: React.ReactElement) => collectTemplate(element).document;
@@ -153,6 +154,10 @@ describe("render()", () => {
     expect(html).toContain('<circle cx="30" cy="30" r="20" fill="none" stroke="#ffffff" stroke-width="4"></circle>');
     // @ts-expect-error: a Circle's radius is a number
     expect(validate(<Canvas><Svg width={10} height={10}><Circle r="big" /></Svg></Canvas>).valid).toBe(false);
+  });
+
+  it("has no component for Raw, the node importers make for markup they bring in", () => {
+    expect(Object.keys(primitives)).not.toContain("Raw");
   });
 
   it("takes JSX only", async () => {

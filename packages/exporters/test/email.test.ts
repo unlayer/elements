@@ -658,4 +658,31 @@ describe("email HTML", () => {
     const template = email([{ type: "Row", children: [{ type: "Column", hidden: { mobile: true } }, { type: "Column" }] }]);
     expect(render(template).html).toBe(render(template).html);
   });
+
+  describe("imported markup (Raw)", () => {
+    const block = (html: string, extra: Record<string, unknown> = {}) => ({ type: "Raw", props: { html, css: ".u-btn{color:red}", text: "Buy now" }, ...extra });
+
+    it("writes its markup as it is, in its place in the stack, and its CSS once, before the stylesheet's own rules", () => {
+      const { head, body, text } = render(
+        email([block('<a class="u-btn" href="https://example.com">Buy <b>now</b></a>'), { type: "Text", mobile: { fontSize: 12 }, children: ["Hi"] }, block("<hr>")])
+      );
+      expect(notOutlook(body)).toContain('<tr><td><div style="font-size:16px"><a class="u-btn" href="https://example.com">Buy <b>now</b></a></div></td></tr>');
+      expect(notOutlook(body)).toContain('<tr><td><div style="font-size:16px"><hr></div></td></tr>');
+      expect(head.split(".u-btn{color:red}").length).toBe(2);
+      expect(head.indexOf(".u-btn{color:red}")).toBeLessThan(head.indexOf("font-size:12px"));
+      expect(text).toBe("Buy now\n\nHi\n\nBuy now");
+    });
+
+    it("is in the template's text size in a stacking Row's cell, whose own is 0", () => {
+      const { body } = render(email([{ type: "Row", children: [{ type: "Column", children: [block("<a>One</a> <a>Two</a>")] }] }], { style: { fontSize: 14 } }));
+      expect(body).toContain('<div style="font-size:14px"><a>One</a> <a>Two</a></div>');
+    });
+
+    it("can't end the stylesheet early, keeps its id, and is hidden where it's hidden", () => {
+      const { head, body } = render(email([block("<p>Sale</p>", { id: "sale", hidden: { mobile: true }, props: { html: "<p>Sale</p>", css: "a{}</style><script>x</script>" } })]));
+      expect(head).not.toContain("</style><script>");
+      expect(head).toContain("a{}<\\/style><script>x</script>");
+      expect(body).toMatch(/<tr class="[^"]+"><td><div id="sale" style="font-size:16px"><p>Sale<\/p><\/div><\/td><\/tr>/);
+    });
+  });
 });

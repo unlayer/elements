@@ -40,9 +40,12 @@ export function describeComponent(type: string, options?: ComponentsOption): Com
   return definition && describe(definition);
 }
 
-/** Every built-in component, and the custom ones given. */
+/** Every built-in component a template can use, and the custom ones given. */
 export function describeComponents(options?: ComponentsOption): ComponentDescription[] {
-  return registryOf(options).all().map(describe);
+  return registryOf(options)
+    .all()
+    .filter((definition) => !definition.imported)
+    .map(describe);
 }
 
 function describe(definition: ComponentDefinition): ComponentDescription {

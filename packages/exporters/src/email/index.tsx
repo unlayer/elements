@@ -44,6 +44,7 @@ import { List } from "./List";
 import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Paragraph } from "./Paragraph";
+import { Raw } from "./Raw";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Section } from "./Section";
@@ -76,6 +77,7 @@ const BLOCKS: Record<string, Component> = {
   TableRow,
   TableCell,
   Video,
+  Raw,
 };
 const INLINES: Record<string, Component> = {
   Span,

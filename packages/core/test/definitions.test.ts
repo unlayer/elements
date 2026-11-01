@@ -29,6 +29,12 @@ describe("property discovery", () => {
     expect(describeComponent("Nope")).toBeUndefined();
   });
 
+  it("leaves imported nodes (Raw) out of what a template can use", () => {
+    expect(describeComponents().map((d) => d.type)).not.toContain("Raw");
+    expect(describeComponents().length).toBe(Object.keys(COMPONENTS).length - 1);
+    expect(describeComponent("Raw")?.type).toBe("Raw");
+  });
+
   it("names only paths each component has in its editor groups", () => {
     for (const description of describeComponents()) {
       const paths = new Set(description.properties.map((p) => p.path));

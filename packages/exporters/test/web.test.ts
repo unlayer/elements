@@ -396,4 +396,13 @@ describe("web HTML", () => {
     );
     expect(web(page([{ type: "Video", props: { src: "https://player.vimeo.com/video/76979871" } }])).body).toContain('src="https://player.vimeo.com/video/76979871"');
   });
+
+  it("writes imported markup (Raw) as it is, its CSS once, in a div only where it needs one", () => {
+    const raw = (extra: Record<string, unknown> = {}) => ({ type: "Raw", props: { html: "<p>Sale</p>", css: ".sale{color:red}", text: "Sale" }, ...extra });
+    const { head, body, text } = web(page([raw(), raw({ id: "again", hidden: { mobile: true } }), { type: "Row", children: [raw()] }]));
+    expect(head.split(".sale{color:red}").length).toBe(2);
+    expect(body).toMatch(/<p>Sale<\/p><div id="again" class="[^"]+"><p>Sale<\/p><\/div>/);
+    expect(body).toMatch(/<div style="[^"]*flex[^"]*"><p>Sale<\/p><\/div>/);
+    expect(text).toBe("Sale\n\nSale\n\nSale");
+  });
 });

@@ -27,6 +27,7 @@ import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Page } from "./Page";
 import { Paragraph } from "./Paragraph";
+import { Raw } from "./Raw";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Document, documentCss } from "./Document";
@@ -87,6 +88,7 @@ const COMPONENTS: Record<string, Component> = {
   TableRow,
   TableCell,
   Video,
+  Raw,
 };
 
 /** What a node's component gets. */

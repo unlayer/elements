@@ -90,8 +90,9 @@ jobs:
       # unminified ESM, its core, writers and JSX API bundled (Social, Menu,
       # Video, Grid, Layer, Document's print HTML, Canvas and Svg, outline(),
       # and the PDF and image checks validate() runs for a Document or a
-      # Canvas: what they can't show, content that can't fit), with no
-      # @unlayer/exporters in it. Raise it on purpose, with what grew.
+      # Canvas: what they can't show, content that can't fit; the Raw node
+      # importers make for markup they bring in), with no @unlayer/exporters
+      # in it. Raise it on purpose, with what grew.
       - name: Check /primitives bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"

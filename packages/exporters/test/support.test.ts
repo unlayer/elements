@@ -168,6 +168,8 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
       return node({ props: { items: [{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }], separator: "|" } });
     case "Social":
       return node({ props: { icons: [{ name: "Instagram", href: "https://instagram.com/acme" }, { name: "X", href: "https://x.com/acme" }] } });
+    case "Raw":
+      return node({ props: { html: "<p>raw</p>" } });
     default:
       return node({ children: ["words"] });
   }
@@ -175,10 +177,10 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
 
 function render(root: string, type: string, style: Record<string, Json>, props: Record<string, Json>, key: string) {
   try {
-    const { html, diagnostics } = renderTemplate(host(root, type, nodeOf(type, style, props), key));
-    return { html, diagnostics };
+    const { html, text, diagnostics } = renderTemplate(host(root, type, nodeOf(type, style, props), key));
+    return { html, text, diagnostics };
   } catch (error) {
-    return { html: "", diagnostics: [], error: String(error) };
+    return { html: "", text: "", diagnostics: [], error: String(error) };
   }
 }
 
@@ -231,7 +233,7 @@ for (const { target, root } of OUTPUTS) {
     for (const definition of components) {
       const type = definition.type;
       for (const { where, key, spec } of entries(definition)) {
-        const base = render(root, type, {}, {}, key).html;
+        const base = render(root, type, {}, {}, key);
         const current = inEffect(root, type, where, key);
         // Only values its kind takes (a root's width is px only).
         for (const value of samples(key, spec.kind.name, spec.kind.jsonSchema() as { enum?: Json[] }, spec.default).filter((v) => spec.kind.parse(v).ok)) {
@@ -249,7 +251,8 @@ for (const { target, root } of OUTPUTS) {
           const subject = type === root ? "root" : undefined;
           const reported = result.diagnostics.some((d) => d.path.endsWith(`.${where}.${key}`) || d.nodeId === "subject" || d.path === subject);
           if (declaredOtherwise(spec.support![target]!, value) && !reported) unreported.push(label);
-          else if (result.html === base && !reported) silent.push(label);
+          // The output is the HTML and the plain text (a Raw node's text shows only there).
+          else if (result.html === base.html && result.text === base.text && !reported) silent.push(label);
         }
       }
     }

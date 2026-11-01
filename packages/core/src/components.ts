@@ -484,9 +484,27 @@ export const Video = defineComponent({
   editor: { groups: [{ title: "Video", paths: ["props.src", "props.thumbnail", "props.title", "style.width", "style.maxWidth"] }] },
 });
 
+export const Raw = defineComponent({
+  type: "Raw",
+  label: "Raw HTML",
+  description:
+    "Markup another format holds that Elements has no component for (a builder block), written as it is, with the rules it needs in the stylesheet and what it reads as in plain text.",
+  categories: ["block"],
+  props: {
+    html: prop(text(), { support: WRITTEN, label: "HTML", required: true, description: "The markup, written as it is." }),
+    css: prop(text(), { support: WRITTEN, label: "CSS", description: "Rules for the stylesheet, written once however many nodes carry them." }),
+    text: prop(text(), { support: WRITTEN, label: "Plain text", description: "What it reads as in the plain-text version." }),
+  },
+  style: {},
+  children: {},
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  imported: true,
+});
+
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Raw].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

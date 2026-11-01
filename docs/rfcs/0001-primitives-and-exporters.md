@@ -452,6 +452,11 @@ and is switched over when its output passes the existing suites (designs and pla
 equal in content and styles by convert-core's check at desktop and phone widths, the browser and
 Storybook gates). Its markup may change; each switch is a changelog entry naming what changed.
 
+Meanwhile, a block that has no new component yet is a `Raw` node: the markup today's exporter writes for it,
+the CSS it needs in the stylesheet (each rule once) and its plain text. Only importers make one (the
+legacy entry now, the builder adapter later, for blocks such as custom tools that Elements can't know);
+it isn't a JSX component and `describeComponents()` leaves it out.
+
 The new major version then makes the new API the main import, keeps today's at `/legacy` (removed in
 the major after), ships the codemod and the migration guide, and drops `@unlayer/exporters` and
 `@unlayer/types`. `@unlayer/migrate`'s React Email converter moves to the new API.
