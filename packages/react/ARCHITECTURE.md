@@ -91,7 +91,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); whether its static renderer is calling a component of an app's, and another module of it to render with there (`withFreeBuild`); and what it can't render, said by name (see below) |
 | `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered where it is (Elements' components in it collected through `…/collects`), a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render a lazy component outside any `<Suspense>` in one of its own |
-| `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one; what a lazy component renders read no further than the markers React wrote after it, its tags and comments as a browser reads them, with React 18's `javascript:` URLs there written as React 19 writes them where it's read as a browser reads it |
+| `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one; what a lazy component renders kept as React wrote it, read only for the markers React wrote in it (by their exact text), React's stream comments taken out of it and React 18's `javascript:` URLs there written as React 19 writes them |
 | `capture.ts`, `root-capture.ts` | Template wrappers called in a render of react-dom's of their own; a lazy template's root, given by the root |
 | `output.ts` | The parts (text, markup, records, boundaries, errors), flattened in tree order into the content's tree |
 | `host.ts`, `attributes.ts` | Markup as react-dom writes it, for the string exporters (`src/exporters`): attributes and styles by React 18's property table or React 19's switch, escaping, a `<Head>`'s raw text rules (`rawText`) |
@@ -154,20 +154,21 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   loads but rendering it), with the contexts around it, inside a context of the collection's (`…/collects`, by
   `Symbol.for`): Elements' Rows, Columns, blocks, `<Tailwind>`s and `<Head>`/`<Font>` entries React renders there give
   their element to the collection, which records it where it is, so one that loaded renders as the component it loads
-  would. What isn't Elements' is react-dom's as it renders it (an error thrown there fails the render, even with
-  `onError: "omit"`; HTML given whole there is read as markup, in a marker of the lazy component's own, and no further
-  than the next marker or placeholder React wrote: its tags and comments are read as a browser reads them (a `>` in a
-  quoted value is the value's), a `<style>`'s or `<script>`'s text ends where a browser ends it (React 18, which writes
-  markup there, reading a `<` in `i<n` as text), a tag, `<style>`, `<script>` or comment it leaves open is its text,
-  as in the same component not lazy, an end tag in it ends only what's open in it (one that ends nothing is left out among the
-  blocks, as a browser leaves it out), and a marker forged in it, or an end tag of one, fails the render by name.
-  React 18's `javascript:` URLs are written there as React 19 writes them, but not in what a browser reads as text
-  (a `<textarea>`, a `<title>`), nor after an `<svg>`'s or `<math>`'s `<style>`, `<script>` or CDATA (which a
-  browser reads as markup, and as text) or something left open: a quote written in could end what a browser reads as a value, so what's
-  after is written as given), and a component of the user's own there that starts a synchronous render is
-  said at the lazy one's place. One that
-  hasn't loaded: a synchronous render says it's async, at its place (left out with `onError: "omit"`); an async one
-  waits for it.
+  would. What isn't Elements' is react-dom's as it renders it, kept as React wrote it, byte for byte: the parse doesn't
+  read it, but for the markers React wrote in it (found by their exact text) and the lazy component's own end. It's
+  the markup of a component of the template's own, the lazy one (`component` in its Html block's id), as any
+  component's is: among the rows it's in the HTML as written, and in a Column it's an Html block where it's markup
+  only. So HTML given whole there that leaves a tag, a quote, a comment or a `<style>` open is read by a browser into
+  what's after it, as in React's own render (the design and the plain text keep the blocks after it); a marker forged
+  in it, a copy of one React wrote, or an end tag of one (in any case, the tag ended any way) fails the render by
+  name. React's stream comments (`<!-- -->`, `<!--$-->`, …) are taken out of it in an async render, as a static render
+  writes none (in HTML given whole there too), and with React 18 a `javascript:` URL in a double-quoted attribute there
+  is written as React 19 writes it (in HTML given whole there too, which React 19 writes as given). An error thrown
+  there is the lazy component's: it fails the render, or with `onError: "omit"` it's left out (a synchronous render
+  can't say why: React's static render keeps no error); in an async render, one outside any `<Suspense>` is in one of
+  its own, so it fails where it is in tree order. A component of the user's own there that starts a synchronous render
+  is said at the lazy one's place. One that hasn't loaded: a synchronous render says it's async, at its place (left
+  out with `onError: "omit"`); an async one waits for it.
 
 ### React versions
 
@@ -278,8 +279,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    open in it ending with it, and every one React rendered in a part it kept is read: an end tag of a marker with none
    open (each forged `</unlayer-mark>` leaves one, React writing one per marker), a marker never ended and one never
    read fail the render too, and so does a copy of one of the render's markers or placeholders, or a marker end tag
-   more than were read (React writes each once: a copy is what HTML given whole made, standing in for one it hid), so
-   what a lazy component renders (HTML given whole as written there) can't move or hide a part of the template.
+   more than were read (React writes each once: a copy is what HTML given whole made in what a lazy component renders,
+   which isn't read but for the markers React wrote there, found by their exact text), so that HTML can't stand in for
+   a part of the template, nor take one out of the records.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them. (A root nested among another's
    rows, which renders on its own, is the one thing the design leaves out, said: the editor's design has one body.)
@@ -373,7 +375,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | What | Tests |
 |--|--|
 | The collecting render gives back what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, a style's, script's and title's text, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
-| Strings that look like the collecting render's markers or placeholders, in HTML given whole, a `<Head>`'s style and script, text: markup as any other, in a render alone and one started inside another; what a lazy component's HTML leaves open or ends | `src/engine/forged-markers.test.tsx` |
+| Strings that look like the collecting render's markers or placeholders, in HTML given whole, a `<Head>`'s style and script, text: markup as any other, in a render alone and one started inside another; what a lazy component's HTML leaves open or ends (kept as written, the markers React wrote in it read), forges or copies (the render fails by name) | `src/engine/forged-markers.test.tsx` |
 | The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with the exporters' react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
 | Siblings at once, tree order, determinism over random delays, renders at once, the first error in tree order once everything has settled | `src/engine/async.test.tsx` |
 | The error policy, every renderer, every place `onError` goes; `renderToJson` calling no exporter by default | `src/utils/render-errors.test.tsx` |

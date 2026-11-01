@@ -6,7 +6,6 @@
  */
 import { unrunUrl } from "@unlayer-internal/shared-elements";
 import { REACT_18, REACT_19_3 } from "./react-compat";
-import { readTag } from "../utils/html-tags";
 
 const MATCH_HTML = /["'&<>]/;
 const ESCAPES: Record<string, string> = { '"': "&quot;", "&": "&amp;", "'": "&#x27;", "<": "&lt;", ">": "&gt;" };
@@ -35,23 +34,19 @@ const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction", "xlink:hr
 /** That URL, as React writes it in an attribute. */
 const UNRUN = `"${escapeText(url("javascript:"))}"`;
 
+/** A URL attribute as React writes it (`␣href="…"`: its value escaped, so no `"` in it), and an <object>'s `data`. */
+const URL_ATTRIBUTE = /(\s)(href|src|action|formaction|xlink:href|data)="([^"]*)"/gi;
+
 /**
- * A start tag react-dom 18 wrote (`<a href="…">`), with each `javascript:` URL in it as react-dom 19 writes it (one that
- * throws), as the collector writes it in any other: for what a lazy component renders, which React renders itself,
- * unprepared (see parse.ts). Read as a browser reads the tag, and the URL with its character references decoded (React
- * escapes its own `&`, so one in the prop stays text); anything else as it is, byte for byte.
+ * Markup react-dom 18 wrote (what a lazy component renders, which React renders itself, unprepared: see parse.ts), with
+ * each `javascript:` URL in an attribute as react-dom 19 writes it (one that throws), as the collector writes it in any
+ * other. Not read: every value written as React writes one is looked at, its character references decoded (React
+ * escapes its own `&`, so one in the prop stays text), in HTML given whole there too, where it's any attribute's (a
+ * `data` but an <object>'s) or no attribute at all. Only a URL that runs is written otherwise, so nothing is made that
+ * runs; anything else is as it is, byte for byte.
  */
-export function unrunTag(tag: string): string {
-  const read = readTag(tag, 0);
-  if (!read) return tag;
-  let written = "";
-  let from = 0;
-  for (const { name, value, start, end } of read.attributes) {
-    if (value === undefined || !(URL_ATTRIBUTES.has(name) || (name === "data" && read.name === "object")) || unrunUrl(value, true) === value) continue;
-    written += `${tag.slice(from, start)}${tag.slice(start, start + name.length)}=${UNRUN}`;
-    from = end;
-  }
-  return from ? written + tag.slice(from) : tag;
+export function unrunAttributes(html: string): string {
+  return html.replace(URL_ATTRIBUTE, (written: string, space: string, name: string, value: string) => (URL_ATTRIBUTES.has(name.toLowerCase()) || name.toLowerCase() === "data") && unrunUrl(value, true) !== value ? `${space}${name}=${UNRUN}` : written);
 }
 
 /**

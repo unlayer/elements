@@ -10,7 +10,7 @@
  * changed back), in the HTML, the plain text and the design, in a render alone and in one started inside another.
  */
 import React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Button, Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
@@ -257,10 +257,10 @@ describe("a marker or placeholder of a part React left out (a <Suspense>'s conte
 
 describe("HTML given whole in what a lazy component renders that isn't whole (an element, a <style> or a comment left open, an end tag of what it didn't open)", () => {
   // What a lazy component renders is React's own render of it (see above): its HTML given whole is in react-dom's output
-  // as written, among the markers React wrote after it. A <style> or <script> it left open took every block and row
-  // after it (the design kept none, the email lost them) and wrote the render's markers into the email; one closed by
-  // a later <style>'s end tag did the same, and a comment left open did up to the next `-->` React wrote; an
-  // `</unlayer-mark>` in it ended the Column it was in, so the blocks after it were left out with nothing said.
+  // as written, among the markers React wrote in it and after it. The parse doesn't read it: it's kept as React wrote it,
+  // but for those markers, found by their exact text. (Reading it as a browser does to find them went wrong: a <style>
+  // or <script> it left open took every block and row after it, a comment left open ran on to the next `-->` React
+  // wrote, and an `</unlayer-mark>` in it ended the Column it was in.)
   const Cms = ({ html }: { html: string }) => <div className="cms" dangerouslySetInnerHTML={{ __html: html }} />;
   const lazyCms = (html: string) => loaded(() => <Cms html={html} />);
   /** The same, not lazy: its HTML given whole kept out of react-dom's output, so nothing in it is read. */
@@ -387,7 +387,7 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     }
   });
 
-  it("writes what's after an <svg> a browser keeps open, where the parse doesn't, as given (React 18's URLs too)", async () => {
+  it("writes what's after an <svg> a browser keeps open as given, as the same component not lazy (React 18's URLs too)", async () => {
     // (A `</svg>` in its <foreignObject>'s HTML ends nothing to a browser, and one left open at the lazy component's end
     // goes on into what's after it: a <style> there is markup to the browser, and React 18's URL written in it ended a
     // value.)
@@ -420,9 +420,9 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     }
   });
 
-  it("ends an element a browser reads as text (a <textarea>, a <title>) only at its own end tag, where its HTML holds another's", async () => {
-    // (Its `</div>` ended the <div> around it, and its own end tag then ended nothing among the blocks, left out: the
-    // browser's <textarea> took the rest of the email, which the plain text still had.)
+  it("keeps an element a browser reads as text (a <textarea>, a <title>) as written, where its HTML holds another's end tag, as the same component not lazy", async () => {
+    // (Read, its `</div>` ended the <div> around it, and its own end tag then ended nothing among the blocks, left out:
+    // the browser's <textarea> took the rest of the email, which the plain text still had.)
     for (const tag of ["textarea", "title", "xmp", "iframe", "noembed", "noframes"]) {
       const Snippet = () => <div className="box"><span dangerouslySetInnerHTML={{ __html: `<${tag}></div></${tag}>` }} /></div>;
       const email = (Content: React.ComponentType) => <Email><Row><Column><Content /><Paragraph>After</Paragraph></Column></Row></Email>;
@@ -432,6 +432,104 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
         const named = (out: string) => out.replace(/u_content_snippet/g, "u_content_component");
         for (const api of ["html", "text", "json"] as const) expect(await r[api](email(loaded(Snippet))), `${mode} ${api} ${tag}`).toBe(named(await r[api](email(Snippet))));
       }
+    }
+  });
+
+  it("reads every marker React wrote in it, whatever its HTML leaves open before them (a comment, a <style>, a <textarea>, an <svg>, a quote): its blocks and rows are kept, as the same component's not lazy, and its HTML is React's", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const raw of ["<!-- open", "<style>.a{color:red}", "<textarea>", "<svg><style>", '<img alt="open', "<script>var a = '"]) {
+        const Html = () => <div className="cms" dangerouslySetInnerHTML={{ __html: raw }} />;
+        // (Blocks in a Column, after it; a Row among the rows, after it.)
+        const Blocks = () => <><Html /><Paragraph>Inside</Paragraph><Button href="https://example.com/go">Go</Button></>;
+        const Rows = () => <><Html /><Row><Column><Paragraph>Inside row</Paragraph></Column></Row></>;
+        const email = (B: React.ComponentType, R: React.ComponentType) => (
+          <Email>
+            <Row><Column><B /><Paragraph>After</Paragraph></Column></Row>
+            <R />
+            <Row><Column><Paragraph>Last</Paragraph></Column></Row>
+          </Email>
+        );
+        for (const mode of ["sync", "async"] as const) {
+          const r = renderers(mode);
+          const at = `${mode}: ${raw}`;
+          for (const api of ["html", "text", "json"] as const) {
+            const out = await r[api](email(loaded(Blocks), loaded(Rows)));
+            expect(out, `${at} (${api})`).toBe(await r[api](email(Blocks, Rows)));
+            expect(out, `${at} (${api})`).not.toMatch(GENUINE);
+          }
+          expect(blocks(await r.json(email(loaded(Blocks), loaded(Rows)))), at).toEqual([[["text", "button", "text"]], [["text"]], [["text"]]]);
+          // (Among the rows, as React wrote it: a browser reads on into what's after it, as React's own render.)
+          expect(await r.html(email(loaded(Blocks), loaded(Rows))), at).toContain(`<div class="cms">${raw}</div>`);
+        }
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("keeps what it renders byte for byte (character references, whitespace, a <pre>'s first newline, React's own escaping)", async () => {
+    const raw = "<pre>\n  a &amp; b\t&#x3C;c&gt; &nbsp;</pre>";
+    const Section = () => <><div dangerouslySetInnerHTML={{ __html: raw }} /><p>{"x & y < z"}</p></>;
+    for (const mode of ["sync", "async"] as const) {
+      const html = await renderers(mode).html(<Email><Section /><Row><Column><Paragraph>After</Paragraph></Column></Row></Email>);
+      const lazy = await renderers(mode).html(<Email>{React.createElement(loaded(Section))}<Row><Column><Paragraph>After</Paragraph></Column></Row></Email>);
+      expect(lazy, mode).toContain(`<div>${raw}</div><p>x &amp; y &lt; z</p>`);
+      expect(lazy, mode).toBe(html);
+    }
+  });
+
+  it("takes React's stream comments out of it in the async renderers, as the synchronous ones write none (in its HTML given whole too)", async () => {
+    const raw = 'a<!-- -->b<!--$-->c<!--/$-->d<!--$?-->e<!--$!--><template data-dgst="x"></template>f<!--&-->g<!--/&-->h<!-- kept -->';
+    const Section = () => <div dangerouslySetInnerHTML={{ __html: raw }} />;
+    const email = <Email>{React.createElement(loaded(Section))}<Row><Column><Paragraph>After</Paragraph></Column></Row></Email>;
+    expect(await renderers("sync").html(email)).toContain(`<div>${raw}</div>`);
+    expect(await renderers("async").html(email)).toContain("<div>abcdefgh<!-- kept --></div>");
+  });
+
+  it("reads the markers React wrote around a <Suspense> in it that waited, or failed (React's stream comments and the failure's <template> out)", async () => {
+    let ready = false;
+    const Waits = () => {
+      if (!ready) throw new Promise<void>((resolve) => setTimeout(() => ((ready = true), resolve()), 5));
+      return <Row><Column><Paragraph>Loaded</Paragraph></Column></Row>;
+    };
+    const Fails = (): React.ReactElement => {
+      throw new Error("section failed");
+    };
+    const Section = ({ failing }: { failing?: boolean }) => (
+      <React.Suspense fallback={<p>Fallback</p>}>{failing ? <Fails /> : <Waits />}</React.Suspense>
+    );
+    const Lazy = loaded(Section);
+    const email = (failing?: boolean) => <Email><Lazy failing={failing} /><Row><Column><Paragraph>After</Paragraph></Column></Row></Email>;
+    const html = await asyncRenderers.renderToHtml(email());
+    expect(html).toContain("Loaded");
+    expect(html).not.toMatch(/<!--\/?\$|<template|unlayer-mark/);
+    expect(blocks(JSON.stringify(await asyncRenderers.renderToJson(email())))).toEqual([[["text"]], [["text"]]]);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(asyncRenderers.renderToHtml(email(true))).rejects.toThrow(/section failed/);
+      const parts = await asyncRenderers.renderToHtmlParts(email(true), { onError: "omit" });
+      expect(parts.body).toContain("Fallback");
+      expect(parts.body).not.toMatch(/<!--\/?\$|<template|unlayer-mark/);
+      expect(parts.omitted.map((e) => e.message)).toEqual([expect.stringMatching(/section failed/)]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("fails the render, by name, where it holds a copy of a placeholder the render wrote; one it didn't write is kept as written", async () => {
+    // (Placeholder 0: the HTML given whole before it, which the collection kept out of react-dom's output.)
+    const email = (raw: string) => (
+      <Email>
+        <Row><Column><div dangerouslySetInnerHTML={{ __html: "<i>given</i>" }} /></Column></Row>
+        {React.createElement(loaded(() => <div dangerouslySetInnerHTML={{ __html: raw }} />))}
+      </Email>
+    );
+    for (const mode of ["sync", "async"] as const) {
+      const r = renderers(mode);
+      await expect(r.html(email(`<!--u${nextNumbers()[0]}.0-->`)), mode).rejects.toThrow(/marker of Elements' own collecting render/);
+      const unknown = `<!--u${nextNumbers()[0]}.999-->`;
+      expect(await r.html(email(unknown)), mode).toContain(`<div>${unknown}</div>`);
     }
   });
 
@@ -468,7 +566,8 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
   });
 
   it("fails the render, by name, where it ends one of the render's markers (`</unlayer-mark>`), whatever is after it", async () => {
-    const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
+    // (Whatever the parse may take for one: any case, and any end of the tag, which it doesn't, is counted.)
+    const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</Unlayer-Mark>", "</unlayer-mark >", "</unlayer-mark\n>", "</unlayer-mark/>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
     for (const mode of ["sync", "async"] as const) {
       const r = renderers(mode);
       for (const raw of ends) {
