@@ -75,6 +75,8 @@ interface Open {
    * it (-1: nowhere). The parse reads what's in it, as React writes there, but rewrites nothing in it.
    */
   textEnd?: number;
+  /** A <style>'s or <script>'s content read as markup (`inert`) in what a lazy component renders: where a browser ends it. */
+  rawEnd?: number;
 }
 
 /** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `withRaw`). */
@@ -195,6 +197,29 @@ export function parse(html: string, c: Collection): Part[] {
     // end tag left out, a `javascript:` URL React 18 wrote). One that runs on past a marker React wrote (a quote left
     // open), or to the end, is text, as written. (Not in what a browser reads as text: a <style>'s or <script>'s content
     // on React 18.)
+    if (top().inert) {
+      // (A <style>'s or <script>'s content React 18 writes as markup, in what a lazy component renders: it ends where a
+      // browser ends it, and a `<` whose tag would run past that is its text, as to a browser (`for (i = 0; i < n; i++)`
+      // in HTML given whole: React escapes its own text there).)
+      let floor = stack.length - 1;
+      while (floor > 0 && !stack[floor].floor) floor--;
+      const end = stack[floor].rawEnd;
+      const gt = html.indexOf(">", lt);
+      if (end !== undefined && lt === end) {
+        const done = stack[floor];
+        stack.length = floor;
+        at = gt < 0 ? html.length : gt + 1;
+        done.host!.close = html.slice(lt, at);
+        // (An end tag a browser reads on past its first `>`, in a quoted value: see `shifted`.)
+        if (readTag(html, lt)?.end !== at) shifted = true;
+        continue;
+      }
+      if (end !== undefined && (gt < 0 || gt >= end)) {
+        text("<");
+        at = lt + 1;
+        continue;
+      }
+    }
     const read = top().lazy && !top().inert ? readTag(html, lt) : undefined;
     if (read === null || (read && runsOn(lt + 1, read.end - 1))) {
       shifted = true;
@@ -299,7 +324,7 @@ export function parse(html: string, c: Collection): Part[] {
         c.rawRead.add(n);
         host.parts.push(...whole(c, n));
       } else if (REACT_18) {
-        stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true, lazy: from.lazy });
+        stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true, lazy: from.lazy, rawEnd: from.lazy ? stop : undefined });
         continue;
       } else if (content) host.parts.push(content);
       const endGt = html.indexOf(">", stop);

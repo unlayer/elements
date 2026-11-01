@@ -318,6 +318,10 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     '<b>bold</b><!-- --!><img alt="x --> <a href=javascript:alert(1) onerror=alert(2) src=y>" src=z>',
     '<!--><img alt="x --> <a href=javascript:alert(1) onerror=alert(2) src=y>" src=z>',
     '<textarea><a title="</textarea><img alt=" href=javascript:alert(1) onerror=alert(2) src=y z="w">',
+    // (A `<` in a <script>'s or <style>'s text, which React 18's content there, read as markup, took for a tag.)
+    "<script>for(var i=0;i<3;i++){}</script><h2>Sale</h2>",
+    "<script>s='<';a</b/.test(s)</script><style>@media (width<600px){.a{color:red}}</style>",
+    '<script>x</script q="> <a href=javascript:1>link</a> ">',
     '<STYLE><a title="</STYLE><img alt=" href=javascript:0 onerror=alert(1) src=y z="w">',
     // (In an <svg> or <math>, a <style>'s or <script>'s content is markup: a `</style>` in a value isn't its end.)
     '<svg><style><a title="x> <a href=javascript:1 onclick=alert(1)>"></style></svg>',

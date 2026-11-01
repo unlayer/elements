@@ -157,8 +157,9 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   would. What isn't Elements' is react-dom's as it renders it (an error thrown there fails the render, even with
   `onError: "omit"`; HTML given whole there is read as markup, in a marker of the lazy component's own, and no further
   than the next marker or placeholder React wrote: its tags and comments are read as a browser reads them (a `>` in a
-  quoted value is the value's), a tag, `<style>`, `<script>` or comment it leaves open is its text, as in the same
-  component not lazy, an end tag in it ends only what's open in it (one that ends nothing is left out among the
+  quoted value is the value's), a `<style>`'s or `<script>`'s text ends where a browser ends it (React 18, which writes
+  markup there, reading a `<` in `i<n` as text), a tag, `<style>`, `<script>` or comment it leaves open is its text,
+  as in the same component not lazy, an end tag in it ends only what's open in it (one that ends nothing is left out among the
   blocks, as a browser leaves it out), and a marker forged in it, or an end tag of one, fails the render by name.
   React 18's `javascript:` URLs are written there as React 19 writes them, but not in what a browser reads as text
   (a `<textarea>`, a `<title>`), nor after an `<svg>`'s or `<math>`'s `<style>`, `<script>` or CDATA (which a
