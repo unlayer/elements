@@ -13,8 +13,10 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
   const { src, width: fileWidth, height: fileHeight } = assetParts(node.props.src as Asset);
   const width = node.width ?? undefined;
   const height = style.height !== undefined ? toNumber(style.height) : undefined;
-  // A percentage of its cell on phones too, where it isn't the whole of a Row's cell.
-  const percent = !fill && typeof style.width === "string" && style.width.endsWith("%") && style.maxWidth === undefined ? style.width : undefined;
+  // A percentage of its cell on phones too, where it isn't the whole of a Row's cell; with a maximum, its width
+  // as written and its size in px as the cap.
+  const percent = !fill && typeof style.width === "string" && style.width.endsWith("%") ? style.width : undefined;
+  const capped = percent !== undefined && style.maxWidth !== undefined;
   // In a stack or a Row its cell hides it; in a link, its own style.
   const hidden = parent.type === "Link" ? hiding(node, "block") : { style: {} };
   return (
@@ -30,7 +32,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
       height={height ?? (width !== undefined && fileWidth && fileHeight ? Math.round((fileHeight * width) / fileWidth) : undefined)}
       border="0"
       style={[
-        { display: "block", width: width !== undefined ? "100%" : undefined, maxWidth: percent ?? width ?? "100%", height: height ?? "auto", border: "0" },
+        { display: "block", width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? width : (percent ?? width ?? "100%"), height: height ?? "auto", border: "0" },
         { border: style.border, borderRadius: style.borderRadius },
         hidden.style,
       ]}
