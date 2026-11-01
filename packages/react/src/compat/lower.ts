@@ -6,9 +6,9 @@
  */
 import type { Json } from "@unlayer-internal/elements-core";
 import { rowPaddingInEmail } from "./quirks";
+import { color, px, sides, some } from "./values";
 
 type Values = Record<string, any>;
-type Sides = { top: number; right: number; bottom: number; left: number };
 
 /** A block of the design: its tool and values. */
 export interface DesignBlock {
@@ -33,25 +33,6 @@ export interface LowerOptions {
   /** A block as a node of the tree. */
   block(block: DesignBlock): TreeNode;
 }
-
-const px = (value: unknown): number | undefined => {
-  if (typeof value === "number") return value;
-  const match = typeof value === "string" ? /^\s*(-?[\d.]+)\s*(px)?\s*$/.exec(value) : null;
-  return match ? Number(match[1]) : undefined;
-};
-
-/** "10px 20px" (1 to 4 values) as four sides. */
-function sides(value: unknown): Sides | undefined {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value === "number") return { top: value, right: value, bottom: value, left: value };
-  const parts = String(value).trim().split(/\s+/).map((part) => parseFloat(part));
-  if (parts.some((part) => !Number.isFinite(part))) return undefined;
-  const [top, right = top, bottom = top, left = right] = parts;
-  return { top, right, bottom, left };
-}
-
-const color = (value: unknown) => (typeof value === "string" && value !== "" && value !== "transparent" ? value : undefined);
-const some = (s: Sides | undefined) => (s && (s.top || s.right || s.bottom || s.left) ? s : undefined);
 
 /** A legacy border (`borderTopWidth`, …) as the new engine's, side by side. */
 function border(values: Values = {}): Json | undefined {

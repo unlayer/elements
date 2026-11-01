@@ -1,6 +1,7 @@
 /**
  * A legacy template rendered by the new engine (RFC 0001 step 7, in shadow): its design lowered into the new
- * engine's tree (lower.ts), each block a Raw node with the HTML its exporter writes and the legacy stylesheet.
+ * engine's tree (lower.ts), each block in the new components where it has moved over (blocks.ts), else a Raw node
+ * with the HTML its exporter writes and the legacy stylesheet.
  * Not public: the comparison stories render with it, and its components move over one at a time.
  */
 import type React from "react";
@@ -9,6 +10,7 @@ import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import { recordingBlockHtml } from "../utils/block-html";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
+import { BLOCKS } from "./blocks";
 import { lowerDesign } from "./lower";
 
 /** The stylesheet a legacy document has, Outlook's own (in its conditional comments) left out. */
@@ -27,9 +29,9 @@ export function renderWithNewEngine(element: React.ReactElement, mode: "email" |
   let next = 0;
   const tree = lowerDesign(design, {
     mode,
-    block: () => {
+    block: (block) => {
       const html = blocks[next++] ?? "";
-      return { type: "Raw", props: { html, css, text: htmlToPlainText(html) } };
+      return BLOCKS[block.type]?.(block) ?? { type: "Raw", props: { html, css, text: htmlToPlainText(html) } };
     },
   });
   if (next !== blocks.length) throw new Error(`[Elements] The design has ${next} blocks and the render wrote ${blocks.length}: they can't be paired`);
