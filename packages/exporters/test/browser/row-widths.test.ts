@@ -117,12 +117,16 @@ describe("Row widths in Chromium", () => {
 });
 
 describe("children of their own size in Chromium", () => {
-  // Links whose width only the client knows, packed at the Row's start, center or end: where the Page's flexbox puts
-  // each one, the Email's table puts it too.
-  const WORDS = ["Docs", "Blog", "Careers"];
+  // A Button and Links whose width only the client knows, packed at the Row's start, center or end: where the Page's
+  // flexbox puts each one, the Email's table puts it too, each on one line however many words it has.
+  const CHILDREN = [
+    { type: "Button", props: { href: "#" }, children: ["Get started today"] },
+    { type: "Link", props: { href: "#" }, children: ["Read the docs"] },
+    { type: "Link", props: { href: "#" }, children: ["Careers"] },
+  ];
   for (const justifyContent of ["start", "center", "end"]) {
     it(`packs them at the ${justifyContent}, as the page does`, async () => {
-      const ids = WORDS.map((_, index) => `l${index}`);
+      const ids = CHILDREN.map((_, index) => `l${index}`);
       const template = (root: "Page" | "Email") =>
         resolveDocument(
           parseDocument({
@@ -134,7 +138,7 @@ describe("children of their own size in Chromium", () => {
                   type: "Row",
                   props: { stackOnMobile: false },
                   style: { gap: 30, justifyContent },
-                  children: WORDS.map((word, index) => ({ type: "Link", id: ids[index], props: { href: "#" }, style: { flex: "none" }, children: [word] })),
+                  children: CHILDREN.map((child, index) => ({ ...child, id: ids[index], style: { flex: "none" } })),
                 },
               ],
             },

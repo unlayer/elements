@@ -120,8 +120,10 @@ function sideBySide(props: Props): Html {
   const cells = children.map((child, index) => {
     const width = child.width ?? undefined;
     const hidden = hiding(child, "table-cell");
+    // A child whose size only the client knows is as wide as its content on one line, as a flex item of its own size
+    // is on the page: beside the empty cells that take the room, its cell would otherwise shrink to its longest word.
     const cell = (
-      <td class={hidden.class} width={width} valign={valign} style={[{ width }, hidden.style]}>
+      <td class={hidden.class} width={width} valign={valign} style={[{ width, whiteSpace: child.width === null ? "nowrap" : undefined }, hidden.style]}>
         {render(child, { fill: width !== undefined })}
       </td>
     );
