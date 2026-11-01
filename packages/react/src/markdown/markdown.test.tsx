@@ -417,7 +417,9 @@ describe("Markdown from data: no more than its size calls for", () => {
     // (`*a `), or overflowed the stack (emphasis nested deep). Past what an email's Markdown takes, the rest is text.
     const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
     const shapes: [string, string, boolean?][] = [];
-    for (const unit of ["*a ", "*a **a ", "_a __a ", "**a *", "<a *", "~a ~~a ", "[a](", "![a](", "[a](b ", "[a](b (", "[a](<", "[`a](", "`a``b```c", "<a ", "[[[a]]](", "a*b", "http", "a_", "a <?a ", "a <!a "]) {
+    // (And emphasis on emphasis, each opened and closed at once: the text marked looks for its delimiters in, a Mailchimp
+    // tag's stars read as letters, was made again for each one, from the rest of the text: 100 KB of `*_` took 13 s.)
+    for (const unit of ["*a ", "*a **a ", "_a __a ", "**a *", "<a *", "~a ~~a ", "[a](", "![a](", "[a](b ", "[a](b (", "[a](<", "[`a](", "`a``b```c", "<a ", "[[[a]]](", "a*b", "http", "a_", "a <?a ", "a <!a ", "*_", "_*", "**__", "***___", "**_", "*~", "[*_]", "`*_", "<b>*_", "~~*_"]) {
       shapes.push([unit, fill(unit)], [unit + "\\n", fill(unit + "\n").replace(/\n$/, ")")]);
     }
     shapes.push(

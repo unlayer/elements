@@ -102,18 +102,20 @@ class Inline extends Limited {
 
   /**
    * The text marked looks for emphasis's delimiters in, a Mailchimp tag's stars in it read as a word's letters, as the
-   * name it's filled with reads (`**Welcome, *|FNAME|*!**` bold around it, not shown as `**`). Once per text.
+   * name it's filled with reads (`**Welcome, *|FNAME|*!**` bold around it, not shown as `**`). Once per text: marked
+   * reads what each emphasis holds as a text of its own, then goes on with the text it's in, so each is kept (a text
+   * read again only where it's nested, which is 32 deep at most: see `deep`).
    */
   private unstarred(masked: string): string {
-    if (masked !== this.maskedText) {
-      this.maskedText = masked;
-      this.maskedOut = masked.includes("*|") ? masked.replace(MERGE_TAGS, (tag) => "a".repeat(tag.length)) : masked;
+    let out = this.masked.get(masked);
+    if (out === undefined) {
+      out = masked.includes("*|") ? masked.replace(MERGE_TAGS, (tag) => "a".repeat(tag.length)) : masked;
+      this.masked.set(masked, out);
     }
-    return this.maskedOut;
+    return out;
   }
 
-  private maskedText?: string;
-  private maskedOut = "";
+  private masked = new Map<string, string>();
 
   codespan(src: string): Tokens.Codespan | undefined {
     return src[0] === "`" ? this.within(src, codeReach(src), (part) => super.codespan(part)) : super.codespan(src);
