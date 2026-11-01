@@ -3,7 +3,7 @@
  * layout read as StripeReceipt.tsx says).
  *
  * One difference is main's: its menu's links are a space further apart than their padding says, as
- * MenuLinks.tsx says; `nextAsMain` adds it to the padding.
+ * MenuLinks.tsx says; `nextAsMain` puts a non-breaking space before each link but the first and before the separator, and its content may sit up to 3px from main's (`allowance`).
  */
 import { ProductDigest } from "../../examples/ProductDigest.stories";
 import { Column, Divider, Email, Heading, Link, Menu, Paragraph, Row, Section } from "../index";
@@ -24,6 +24,10 @@ function feature(title: string, text: string) {
     </Column>
   );
 }
+
+/** A menu's items as main spaces them (`asMain`): a non-breaking space before each but the first, a space wide in any font. */
+const withSpaces = (asMain: boolean, items: Array<{ text: string; href: string }>) =>
+  asMain ? items.map((item, i) => (i > 0 ? { ...item, text: `\u00a0${item.text}` } : item)) : items;
 
 export const main = <ProductDigest />;
 
@@ -65,13 +69,12 @@ const design = (asMain: boolean) => (
 
     <Section style={{ backgroundColor: WHITE, padding: [26, 10, 18, 10] }}>
       <Menu
-        items={[
+        items={withSpaces(asMain, [
           { text: "Docs", href: "https://linear.app/docs" },
           { text: "Blog", href: "https://linear.app/blog" },
           { text: "Careers", href: "https://linear.app/careers" },
-        ]}
-        separator="•"
-        style={{ padding: [5, asMain ? 17 : 15] }}
+        ])}
+        separator={asMain ? "\u00a0•" : "•"}
       />
     </Section>
     <Section style={{ backgroundColor: WHITE, padding: [10, 10, 46, 10] }}>
@@ -82,4 +85,7 @@ const design = (asMain: boolean) => (
 
 export const next = design(false);
 export const nextAsMain = design(true);
-export const quirks = "its menu's links are inline-blocks with spaces between them, so each is about 4px further from the next than its padding says.";
+export const quirks = "its menu's links are inline-blocks with a space between each, so each is a space further from the next than its padding says.";
+
+/** main's menu spaces its links and lines by its font, Elements exactly (MenuLinks.tsx): they may sit up to 3px from main's. */
+export const allowance = { x: 3, y: 3 };

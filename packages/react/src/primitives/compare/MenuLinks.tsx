@@ -2,9 +2,12 @@
  * main's Menu stories (Components/Menu), each in an email, and the same links with the new Menu: main's
  * `linkColor` is the color, `textColor` the separator's, `align` the alignment.
  *
- * One difference is main's: its links are inline-blocks with spaces between them in its markup, and spaces
- * around its separator, so each is about 4.7px further from the next than their padding says. `nextAsMain`
- * adds it to the padding. Its font is main's email default as main writes it.
+ * main's links are inline-blocks with a space between each in its markup, so each is a space further from the
+ * next than their padding says; `nextAsMain` puts a non-breaking space before each link but the first and before
+ * the separator (before, not after: a packed cell's width leaves a trailing one out). main's spaces are in its
+ * container's font size, and its menu takes the font's normal line height, where Elements writes an exact one (1.2)
+ * that every client draws alike: its links may sit up to 3px from main's, across and up and down (`allowance`).
+ * Its font is main's email default as main writes it.
  */
 import { Column as MainColumn, Email as MainEmail, Menu as MainMenu, Row as MainRow } from "../../index";
 import { Email, Menu, Section } from "../index";
@@ -16,11 +19,17 @@ const ITEMS = [
   { text: "Contact", href: "#contact" },
 ];
 
+const NBSP = "\u00a0";
+
 function design(separatorColor?: string) {
-  const next = (sides: number) => (
+  const next = (asMain: boolean) => (
     <Email width={600} style={{ fontFamily: "arial, helvetica, sans-serif" }}>
       <Section style={{ padding: 10 }}>
-        <Menu items={ITEMS} separator="|" style={{ padding: [10, sides], fontSize: 14, color: "#2563eb", lineHeight: 1.2, ...(separatorColor ? { separatorColor } : {}) }} />
+        <Menu
+          items={asMain ? ITEMS.map((item, i) => (i > 0 ? { ...item, text: NBSP + item.text } : item)) : ITEMS}
+          separator={asMain ? `${NBSP}|` : "|"}
+          style={{ padding: [10, 16], fontSize: 14, color: "#2563eb", ...(separatorColor ? { separatorColor } : {}) }}
+        />
       </Section>
     </Email>
   );
@@ -34,9 +43,10 @@ function design(separatorColor?: string) {
         </MainRow>
       </MainEmail>
     ),
-    next: next(16),
-    nextAsMain: next(18.33),
-    quirks: "its links are inline-blocks with spaces between them and around its separator, so each is about 4.7px further from the next than its padding says.",
+    next: next(false),
+    nextAsMain: next(true),
+    quirks: "its links are inline-blocks with a space between each, so each is a space further from the next than its padding says.",
+    allowance: { x: 3, y: 3 },
   };
 }
 

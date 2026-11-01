@@ -81,8 +81,10 @@ function measure(styles) {
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const words = node.textContent.replace(/\s+/g, " ").trim();
       if (!words) continue;
+      // The words' box: spaces before and after them (non-breaking ones too) aren't drawn.
       const range = doc.createRange();
-      range.selectNodeContents(node);
+      range.setStart(node, node.textContent.length - node.textContent.trimStart().length);
+      range.setEnd(node, node.textContent.trimEnd().length);
       const rect = range.getBoundingClientRect();
       if (!rect.width) continue;
       const computed = doc.defaultView.getComputedStyle(node.parentElement);
@@ -94,7 +96,7 @@ function measure(styles) {
 }
 
 /** Pixels painted differently: their number and where (text left out; one pixel of give, as for the boxes). */
-async function paintDifferences(page) {
+async function paintDifferences(page, allowance) {
   const frames = page.locator("#storybook-root iframe");
   // Text made transparent, and every image the placeholder (an inline one too): their boxes are compared above.
   for (const index of [0, 1]) {
@@ -106,7 +108,7 @@ async function paintDifferences(page) {
     }, `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER)}`);
   }
   const shots = await Promise.all([0, 1].map(async (index) => `data:image/png;base64,${(await frames.nth(index).screenshot()).toString("base64")}`));
-  return page.evaluate(async (sources) => {
+  return page.evaluate(async ([sources, allowance]) => {
     const load = (src) => new Promise((resolve, reject) => Object.assign(new Image(), { onload() { resolve(this); }, onerror: reject, src }));
     const pixels = (img) => {
       const canvas = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height });
@@ -126,8 +128,8 @@ async function paintDifferences(page) {
           const i = (y * p.width + x) * 4;
           if (same(i, (y * q.width + x) * 4)) continue;
           let near = false;
-          for (let dy = -1; dy <= 1 && !near; dy++) {
-            for (let dx = -1; dx <= 1 && !near; dx++) {
+          for (let dy = -allowance.y; dy <= allowance.y && !near; dy++) {
+            for (let dx = -allowance.x; dx <= allowance.x && !near; dx++) {
               const nx = x + dx;
               const ny = y + dy;
               near = nx >= 0 && ny >= 0 && nx < q.width && ny < q.height && same(i, (ny * q.width + nx) * 4);
@@ -145,13 +147,15 @@ async function paintDifferences(page) {
     scan(a, b);
     scan(b, a);
     return { count, box, heights: [a.height, b.height] };
-  }, shots);
+  }, [shots, allowance]);
 }
 
-const near = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= TOLERANCE);
+/** Boxes [x, y, width, height] within a pixel, and within a design's allowance across (x) and up and down (y). */
+const near = (a, b, allowance = { x: TOLERANCE, y: TOLERANCE }) =>
+  a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= (i === 0 ? allowance.x : i === 1 ? allowance.y : TOLERANCE));
 
 /** What differs between main's frame and the new engine's. */
-function differences([main, next]) {
+function differences([main, next], allowance) {
   const out = [];
   for (const words of new Set([...Object.keys(main.texts), ...Object.keys(next.texts)])) {
     const a = main.texts[words] ?? [];
@@ -162,7 +166,7 @@ function differences([main, next]) {
       continue;
     }
     a.forEach((run, i) => {
-      if (!near(run.box, b[i].box)) out.push(`${label}: at ${run.box} in main, ${b[i].box} in the new engine`);
+      if (!near(run.box, b[i].box, allowance)) out.push(`${label}: at ${run.box} in main, ${b[i].box} in the new engine`);
       if (run.style !== b[i].style) {
         const theirs = new Set(b[i].style.split(";"));
         out.push(`${label}: ${run.style.split(";").filter((s) => !theirs.has(s)).join(", ")} in main; ${b[i].style.split(";").filter((s) => !run.style.includes(s)).join(", ")} in the new engine`);
@@ -172,7 +176,7 @@ function differences([main, next]) {
   if (main.images.length !== next.images.length) out.push(`${main.images.length} images in main, ${next.images.length} in the new engine`);
   else
     main.images.forEach((image, i) => {
-      if (!near(image.box, next.images[i].box)) out.push(`image ${i + 1}: at ${image.box} in main, ${next.images[i].box} in the new engine`);
+      if (!near(image.box, next.images[i].box, allowance)) out.push(`image ${i + 1}: at ${image.box} in main, ${next.images[i].box} in the new engine`);
       if (image.src !== next.images[i].src) out.push(`image ${i + 1}: ${image.src.slice(0, 80)} in main, ${next.images[i].src.slice(0, 80)} in the new engine`);
     });
   return out;
@@ -205,9 +209,16 @@ try {
         { timeout: 15_000 }
       );
       await page.evaluate(() => Promise.all([...document.querySelectorAll("#storybook-root iframe")].map((f) => f.contentDocument.fonts.ready)));
-      const found = differences(await page.evaluate(measure, TEXT_STYLES));
-      const paint = await paintDifferences(page);
-      if (Math.abs(paint.heights[0] - paint.heights[1]) > TOLERANCE) found.push(`main is ${paint.heights[0]}px tall, the new engine ${paint.heights[1]}px`);
+      // A design may allow its content to sit a few px from main's, across or up and down, where main's position depends on
+      // the font (its story says why: data-allowance-x, data-allowance-y).
+      const declared = await page.evaluate(() => {
+        const at = document.querySelector("[data-allowance-x], [data-allowance-y]");
+        return { x: Number(at?.getAttribute("data-allowance-x") ?? 0), y: Number(at?.getAttribute("data-allowance-y") ?? 0) };
+      });
+      const allowance = { x: Math.max(TOLERANCE, declared.x), y: Math.max(TOLERANCE, declared.y) };
+      const found = differences(await page.evaluate(measure, TEXT_STYLES), allowance);
+      const paint = await paintDifferences(page, allowance);
+      if (Math.abs(paint.heights[0] - paint.heights[1]) > allowance.y) found.push(`main is ${paint.heights[0]}px tall, the new engine ${paint.heights[1]}px`);
       if (paint.count > PAINT_TOLERANCE) found.push(`${paint.count} pixels painted differently (text left out), within ${paint.box.join(",")}`);
       if (process.env.COMPARE_VERBOSE) console.log(`    ${id}@${width}: ${paint.count} pixels differ`);
       const story = `${id.slice(PREFIX.length)}@${width}`;

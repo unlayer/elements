@@ -18,6 +18,8 @@ export interface SideBySideProps {
   width: Width;
   /** Where main draws something other than what its template asks, and whether the new engine draws it as main does. */
   quirks?: { what: string; drawn: boolean };
+  /** How many px across and up or down the design's content may sit from main's, where main's depends on the font (the check reads it). */
+  allowance?: { x?: number; y?: number };
 }
 
 /**
@@ -45,7 +47,7 @@ function Frame({ label, html, width, scale }: { label: string; html: string; wid
 }
 
 /** main's render next to the new engine's, in windows of one width. */
-export function SideBySide({ main, next, notes, width, quirks }: SideBySideProps) {
+export function SideBySide({ main, next, notes, width, quirks, allowance }: SideBySideProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(Infinity);
   useLayoutEffect(() => {
@@ -59,7 +61,7 @@ export function SideBySide({ main, next, notes, width, quirks }: SideBySideProps
   const scale = Math.min(1, (room - GAP) / (2 * window));
 
   return (
-    <div ref={box}>
+    <div ref={box} data-allowance-x={allowance?.x} data-allowance-y={allowance?.y}>
       {quirks && (
         <p style={{ font: "13px system-ui, sans-serif", margin: "0 0 12px" }}>
           {quirks.drawn ? "The new engine draws main's quirk here: " : "Main differs: "}

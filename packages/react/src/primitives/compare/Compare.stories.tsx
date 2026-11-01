@@ -44,6 +44,8 @@ interface Design {
   next: ReactElement;
   nextAsMain?: ReactElement;
   quirks?: string;
+  /** How many px across and up or down its content may sit from main's (a menu's spaces and line height, which main leaves to the font). */
+  allowance?: { x?: number; y?: number };
 }
 
 /** A story rendering a design both ways: main's template with renderToHtml(), the new one with render(). */
@@ -55,7 +57,14 @@ const compare = (design: Design): StoryObj<Args> => ({
     },
   ],
   render: ({ width, quirks }, { loaded }) => (
-    <SideBySide main={loaded.main} next={loaded.next} notes={loaded.notes} width={width} quirks={design.quirks ? { what: design.quirks, drawn: quirks } : undefined} />
+    <SideBySide
+      main={loaded.main}
+      next={loaded.next}
+      notes={loaded.notes}
+      width={width}
+      quirks={design.quirks ? { what: design.quirks, drawn: quirks } : undefined}
+      allowance={design.allowance}
+    />
   ),
 });
 

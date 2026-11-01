@@ -47,6 +47,10 @@ const hit = (emoji: string, bold: string, rest: string, href: string, color?: st
 
 const rule = (width: number, color: string) => <Divider style={{ borderTop: `${width}px solid ${color}` }} />;
 
+/** A menu's items as main spaces them (`asMain`): a non-breaking space before each but the first, a space wide in any font. */
+const withSpaces = (asMain: boolean, items: Array<{ text: string; href: string }>) =>
+  asMain ? items.map((item, i) => (i > 0 ? { ...item, text: `\u00a0${item.text}` } : item)) : items;
+
 export const main = <MorningBrewDigest />;
 
 /** The design; `asMain` draws the photo and the links as main does. */
@@ -136,13 +140,12 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
     <Section style={{ backgroundColor: PAPER, padding: 10 }}>{rule(1, LINE)}</Section>
     <Section style={{ backgroundColor: PAPER, padding: [34, 10, 18, 10] }}>
       <Menu
-        items={[
+        items={withSpaces(asMain, [
           { text: "Subscribe", href: "https://example.com/subscribe" },
           { text: "Archive", href: "https://example.com/archive" },
           { text: "Unsubscribe", href: "https://example.com/unsubscribe" },
-        ]}
-        separator="·"
-        style={{ padding: [5, asMain ? 17 : 15] }}
+        ])}
+        separator={asMain ? "\u00a0·" : "·"}
       />
     </Section>
     <Section style={{ backgroundColor: PAPER, padding: [14, 10, 46, 10] }}>
@@ -156,4 +159,7 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
 export const next = design(false);
 export const nextAsMain = design(true);
 export const quirks =
-  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF); and its menu's links are about 4px further apart than their padding says.";
+  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF); and its menu's links are a space further apart than their padding says.";
+
+/** main's menu spaces its links and lines by its font, Elements exactly (MenuLinks.tsx): they may sit up to 3px from main's. */
+export const allowance = { x: 3, y: 3 };
