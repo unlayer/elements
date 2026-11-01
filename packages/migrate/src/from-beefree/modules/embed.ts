@@ -51,8 +51,9 @@ export function video(descriptor: Record<string, any>, ctx: ModuleContext): Modu
   const { containerPadding } = blockPadding(descriptor);
   const values: Values = {
     containerPadding,
-    // The template's thumbnail where it has one (Beefree's own, often the video's largest).
-    video: { type: found.type, videoId: found.id, thumbnail: thumbnail || (found.type === "youtube" ? `https://img.youtube.com/vi/${found.id}/0.jpg` : ""), loading: false },
+    // Its URL, which the thumbnail links to, as Elements' Video writes it; the template's thumbnail where it has one
+    // (Beefree's own, often the video's largest).
+    video: { url, type: found.type, videoId: found.id, thumbnail: thumbnail || (found.type === "youtube" ? `https://img.youtube.com/vi/${found.id}/0.jpg` : ""), loading: false },
   };
   if (source.mode && source.mode !== "thumbnail") ctx.warn("video-embedded", `${ctx.where}: Beefree embeds this video (${source.mode}); Unlayer shows its thumbnail, linking to it.`);
   return [ctx.builder.content("video", values, blockDevice(descriptor, ctx))];
