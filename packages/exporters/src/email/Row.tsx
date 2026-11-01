@@ -8,7 +8,8 @@
  * phones, where the children stack). A Row that stays side by side
  * (`stackOnMobile` false) is a table row.
  */
-import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
+import type { ResolvedNode } from "@unlayer-internal/elements-core";
+import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html, type Style } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
 import { boxWidth, phoneWidth, toNumber, VALIGN } from "./layout";
 import { bgcolor, Table, TABLE } from "./markup";
@@ -117,19 +118,27 @@ function sideBySide(props: Props): Html {
   const filler = <td width={packed ? (justify === "center" ? "50%" : "100%") : undefined} />;
   const children = node.children.filter(isNode).filter(shown);
   const gaps = gapsBefore(children);
+  const shares = packed ? undefined : phoneShares(children, phoneGap);
   const cells = children.map((child, index) => {
     const width = child.width ?? undefined;
     const hidden = hiding(child, "table-cell");
     // A child whose size only the client knows is as wide as its content on one line, as a flex item of its own size
     // is on the page: beside the empty cells that take the room, its cell would otherwise shrink to its longest word.
     const cell = (
-      <td class={hidden.class} width={width} valign={valign} style={[{ width, whiteSpace: child.width === null ? "nowrap" : undefined }, hidden.style]}>
+      <td
+        class={hidden.class}
+        width={width}
+        valign={valign}
+        phone={shares?.get(child)}
+        style={[{ width, whiteSpace: child.width === null ? "nowrap" : undefined }, hidden.style]}
+      >
         {render(child, { fill: width !== undefined })}
       </td>
     );
     return (
       <>
-        {gapCell(gapShown(gaps[index], gap, phoneGap), gap, phoneGap, packed)}
+        {/* With the shares, the gaps on phones are the cells' padding. */}
+        {gapCell(gapShown(shares ? { ...gaps[index], phone: false } : gaps[index], gap, phoneGap), gap, phoneGap, packed)}
         {child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell}
       </>
     );
@@ -143,6 +152,32 @@ function sideBySide(props: Props): Html {
       </tr>
     </Table>
   );
+}
+
+/**
+ * Each child's width on phones in a side-by-side Row whose children share it: a table shares its width out by its
+ * cells' content, flexbox (as on desktop) by their widths. A cell's share is a percentage, and the gaps are the cells'
+ * side padding, inside their width (a cell's share of the gaps, split so neighbours leave one gap between them): the
+ * shares add up to the whole, which every client's table gives exactly. None where a padding would be negative.
+ */
+function phoneShares(children: readonly ResolvedNode[], gap: number): Map<ResolvedNode, Style> | undefined {
+  const onPhones = children.filter((child) => !child.hidden?.mobile);
+  // Only children that share the Row (no width of their own, a flex): one of its own size keeps it, as on the page.
+  const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
+  if (onPhones.length < 2 || !onPhones.every(sharing)) return undefined;
+  const total = onPhones.reduce((sum, child) => sum + child.width!, 0);
+  const gaps = gap * (onPhones.length - 1);
+  const out = new Map<ResolvedNode, Style>();
+  let left = 0;
+  for (const [index, child] of onPhones.entries()) {
+    const share = child.width! / total;
+    const right = index === onPhones.length - 1 ? 0 : share * gaps - left;
+    if (left < -0.01 || right < -0.01) return undefined;
+    const px = (n: number) => Math.round(n * 100) / 100;
+    out.set(child, { width: `${px(share * 100)}%`, paddingLeft: left ? px(left) : undefined, paddingRight: right ? px(right) : undefined, boxSizing: "border-box" });
+    left = gap - right;
+  }
+  return out;
 }
 
 /**
@@ -168,8 +203,9 @@ function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
 
 /**
  * The gap before a side-by-side Row's child, where there is one, as a cell: the phone gap's width on phones, and kept
- * from Outlook where there's none on desktop. Beside cells that take all the room (`solid`), an empty cell would give
- * its width up: a div as wide as the gap holds it.
+ * from Outlook where there's none on desktop. Beside cells that take all the room (`solid`: empty cells packing the
+ * children, or the children's shares on phones), an empty cell would give its width up: a div as wide as the gap
+ * holds it.
  */
 function gapCell(at: GapAt, gap: number, phoneGap: number, solid = false): Html | null {
   if (!at.desktop && !at.phone) return null;

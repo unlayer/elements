@@ -102,6 +102,27 @@ describe("gaps beside hidden children in Chromium", () => {
   });
 });
 
+describe("a Row kept side by side, on phones", () => {
+  it("keeps each child's share of the width, as the page does, whatever their words", async () => {
+    const text = (words: string) => ({ type: "Text", children: [words] });
+    const children = [
+      { type: "Column", id: "s0", children: [text("Write anything: docs, notes and wikis that feel effortless to create.")] },
+      { type: "Column", id: "s1", style: { flex: 2 }, children: [text("Plan.")] },
+      { type: "Column", id: "s2", children: [text("Find it fast.")] },
+    ];
+    const template = (root: "Page" | "Email") =>
+      resolveDocument(parseDocument({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, style: { gap: 24 }, children }] } }));
+    const boxes = async (html: string) => {
+      const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+      await page.setContent(html);
+      const found = await page.evaluate(() => ["s0", "s1", "s2"].map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ x, width }) => [Math.round(x), Math.round(width)]));
+      await page.close();
+      return found;
+    };
+    expect(await boxes(renderEmail(template("Email")).html)).toEqual(await boxes(renderPage(template("Page")).html));
+  });
+});
+
 describe("Row widths in Chromium", () => {
   for (const [name, children, style, props] of CASES) {
     it(`gives each child the resolver's width: ${name}`, async () => {

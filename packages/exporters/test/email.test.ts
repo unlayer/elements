@@ -85,9 +85,13 @@ describe("email HTML", () => {
   });
 
   it("keeps a Row that doesn't stack on phones as a table row", () => {
-    const { body } = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { gap: 10 }, children: [{ type: "Column", children: [] }, { type: "Column", children: [] }] }]));
-    expect(body).toContain('<tr><td width="295" valign="top" style="width:295px">');
-    expect(body).toContain('<td width="10" style="width:10px"></td><td width="295" valign="top" style="width:295px">');
+    const { body, head } = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { gap: 10 }, children: [{ type: "Column", children: [] }, { type: "Column", children: [] }] }]));
+    // Each cell its width; on phones its share of the width as flexbox gives it, the gap its padding (half on each
+    // side of it), and the gap's cell hidden.
+    const [, first, gap, second] = /<tr><td width="295" valign="top" class="(e[0-9a-z]{5})" style="width:295px">.*?<td class="(e[0-9a-z]{5})" width="10" style="width:10px"><\/td><td width="295" valign="top" class="(e[0-9a-z]{5})" style="width:295px">/.exec(body)!;
+    expect(head).toContain(`.${first}{width:50%!important;padding-right:5px!important;box-sizing:border-box!important}`);
+    expect(head).toContain(`.${second}{width:50%!important;padding-left:5px!important;box-sizing:border-box!important}`);
+    expect(head).toContain(`.${gap}{display:none!important}`);
     expect(body).not.toContain("[if mso]");
   });
 
@@ -251,7 +255,7 @@ describe("email HTML", () => {
         expect(outlookOnly(stacking).match(/<td width="20"/g)).toHaveLength(1);
         expect(shownSpacers(stacking)).toHaveLength(1);
         const sideBySide = row(children, { gap: 20 }, { stackOnMobile: false }).body;
-        expect(outlookView(sideBySide).match(/<td width="20"/g)).toHaveLength(1);
+        expect(outlookView(sideBySide).match(/<td[^>]* width="20"/g)).toHaveLength(1);
       }
     });
 
@@ -267,8 +271,10 @@ describe("email HTML", () => {
 
     it("gives a Row kept side by side its phone gap on phones", () => {
       const { head, body } = render(email([{ type: "Row", style: { gap: 20 }, mobile: { gap: 4 }, props: { stackOnMobile: false }, children: [column(), column()] }]));
-      const cell = /<td width="20" class="(e[0-9a-z]{5})" style="width:20px"><\/td>/.exec(body)![1];
-      expect(head).toContain(`.${cell}{width:4px!important}`);
+      // The cells' padding on phones (the gap's own cell is hidden there).
+      const [first, second] = [...body.matchAll(/<td width="290" valign="top" class="(e[0-9a-z]{5})"/g)].map((m) => m[1]);
+      expect(head).toContain(`.${first}{width:50%!important;padding-right:2px!important;box-sizing:border-box!important}`);
+      expect(head).toContain(`.${second}{width:50%!important;padding-left:2px!important;box-sizing:border-box!important}`);
     });
 
     it("leaves no gap under the last child shown on desktop, and gives phones theirs where they show what's under it", () => {
