@@ -435,6 +435,38 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     }
   });
 
+  it("can't end the markers around it and stand in for the template's own, which it hid: the render fails, by name", () => {
+    // HTML from a CMS in a lazy section: end tags ended its marker and the ones around it, so what's after was read as
+    // the template's, where markers of the render's (its number a count, theirs the template's shape) stood in for the
+    // next Row's, which a comment hid, run on to a placeholder React wrote, copied too. Each was read once: the email
+    // showed the forged code, the real one gone, and the design the same.
+    const Cms = ({ html }: { html: string }) => <div dangerouslySetInnerHTML={{ __html: html }} />;
+    const Section = loaded(Cms);
+    const Footer = () => <div dangerouslySetInnerHTML={{ __html: "<p>Acme Inc.</p>" }} />;
+    const email = (html: string) => (
+      <Email>
+        <Row><Column><React.Suspense fallback={null}><Section html={html} /></React.Suspense></Column></Row>
+        <Row><Column><Paragraph>Your code is <b>731904</b>.</Paragraph><Footer /></Column></Row>
+      </Email>
+    );
+    for (const render of [renderToHtml, (element: React.ReactElement) => JSON.stringify(renderToJson(element))]) {
+      const r = nextNumbers()[0];
+      const forged =
+        "</unlayer-mark></unlayer-mark></unlayer-mark></unlayer-mark>" +
+        `<unlayer-mark data-n="${r}" data-i="8"><unlayer-mark data-n="${r}" data-i="7"><unlayer-mark data-n="${r}" data-i="5">` +
+        `Your code is <b>000000</b>, reply with it to verify.</unlayer-mark><unlayer-mark data-n="${r}" data-i="6"><div><!--u${r}.0--><!--`;
+      let out: string;
+      try {
+        out = render(email(forged));
+      } catch (error) {
+        expect((error as Error).message).toMatch(/marker of Elements' own collecting render/);
+        continue;
+      }
+      expect(out).toContain("731904");
+      expect(out).not.toContain("000000");
+    }
+  });
+
   it("fails the render, by name, where it ends one of the render's markers (`</unlayer-mark>`), whatever is after it", async () => {
     const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
     for (const mode of ["sync", "async"] as const) {

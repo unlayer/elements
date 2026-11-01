@@ -115,6 +115,9 @@ export function parse(html: string, c: Collection): Part[] {
    * quote written in may end what a browser reads as a value.
    */
   let shifted = false;
+  /** The marker end tags read as ones, and where a <style>'s or <script>'s text React wrote as given is (see copies). */
+  let endsRead = 0;
+  const asGiven: Array<[number, number]> = [];
   /** Whether an <svg> or <math> is open (foreign content, which a browser reads otherwise). */
   const inForeign = () => stack.some((open) => FOREIGN.has(open.tag));
   /** Where the comment at `lt` ends as a browser ends it (its `>`'s start: -1, nowhere), in HTML given whole. */
@@ -237,6 +240,7 @@ export function parse(html: string, c: Collection): Part[] {
         if (!depth) throw forged();
         if (stack.slice(depth).some((open) => open.textEnd !== undefined || FOREIGN.has(open.tag))) shifted = true;
         stack.length = depth;
+        endsRead++;
         at = gt < 0 ? html.length : gt + 1;
         continue;
       }
@@ -335,7 +339,10 @@ export function parse(html: string, c: Collection): Part[] {
       } else if (REACT_18) {
         stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true, lazy: from.lazy, rawEnd: from.lazy ? stop : undefined });
         continue;
-      } else if (content) host.parts.push(content);
+      } else if (content) {
+        host.parts.push(content);
+        asGiven.push([at, stop]);
+      }
       const endGt = html.indexOf(">", stop);
       at = endGt < 0 ? html.length : endGt + 1;
       host.close = html.slice(stop, at);
@@ -351,6 +358,7 @@ export function parse(html: string, c: Collection): Part[] {
   // (React ends every marker it writes.)
   if (stack.some((open) => open.mark)) throw forged();
   kept(c);
+  copies(html, c, endsRead, asGiven);
   return root;
 }
 
@@ -396,6 +404,31 @@ function kept(c: Collection): void {
 const REACT_COMMENTS = ["<!-- -->", "<!--$-->", "<!--/$-->"];
 
 const forged = () => new RenderError(FORGED, "template", "");
+
+/**
+ * Fails the render where react-dom's output holds a copy of a marker or placeholder of the render's (one React rendered),
+ * or more marker end tags than were read as ones: React writes each once, so another is what a lazy component's HTML
+ * given whole made, ending markers early and standing in for ones it hid (in a comment run on to one React wrote), so
+ * each was read once and what's around it moved or hid a part of the template. (A `</unlayer-mark>` in a <style>'s or
+ * <script>'s text React wrote as given, from data, is that text's.)
+ */
+function copies(html: string, c: Collection, endsRead: number, asGiven: Array<[number, number]>): void {
+  const seen = new Set<string>();
+  for (const [, marker, raw] of html.matchAll(new RegExp(`<${MARK} data-n="${c.nonce}" data-i="(\\d{1,9})"|<!--u${c.nonce}\\.(\\d{1,9})-->`, "g"))) {
+    const key = marker !== undefined ? `m${marker}` : `u${raw}`;
+    if (!(marker !== undefined ? c.rendered.has(Number(marker)) : c.rawRendered.has(Number(raw)))) continue;
+    if (seen.has(key)) throw forged();
+    seen.add(key);
+  }
+  // (The text written as given is in order, as the end tags are: each is looked for once.)
+  let ends = 0;
+  let range = 0;
+  for (const { index } of html.matchAll(new RegExp(`</${MARK}(?=[\\t\\n\\f\\r />])`, "gi"))) {
+    while (range < asGiven.length && asGiven[range][1] <= index) range++;
+    if (!(range < asGiven.length && asGiven[range][0] <= index)) ends++;
+  }
+  if (ends > endsRead) throw forged();
+}
 
 /** What HTML given whole `n` is: as written, or what the marker of a <Head>'s text it's from held (read before it). */
 const whole = (c: Collection, n: number): Part[] => {
