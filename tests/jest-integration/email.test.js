@@ -21,3 +21,12 @@ test("works out a design inside a page's react-dom/server render, and the page's
   }
   expect(renderToString(h(Page))).toBe("<pre>1 rows, open=false</pre>");
 });
+
+test("today's API is at /legacy too, unchanged: the same module as the main entry", () => {
+  // The next major makes the new API the main entry and keeps today's at /legacy (RFC 0001).
+  const main = require("@unlayer/react-elements");
+  const legacy = require("@unlayer/react-elements/legacy");
+  expect(legacy).toBe(main);
+  expect(legacy.renderToHtml(email)).toContain("Hello jest");
+});
+

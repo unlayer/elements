@@ -45,6 +45,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./legacy": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
     "./primitives": {
       "types": "./dist/primitives.d.ts",
       "import": "./dist/primitives.js",
