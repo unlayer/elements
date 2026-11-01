@@ -345,6 +345,26 @@ describe("a Row or Column whose exporter fails", () => {
     );
     expect(renders(rows(null, laidOut(true)), { onError: "omit" })).toEqual(renders(rows(null, laidOut(false))));
   });
+
+  it("leaves the template's only Row out of the design too, where a component in it failed and it no longer fits its layout", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // (Its design had the Row as written, as the template has it: an Email with nothing left gave its own children.)
+    const Picks = ({ items }: { items?: { id: number; title: string }[] }) => items!.map((item) => <Column key={item.id}><Paragraph>{item.title}</Paragraph></Column>);
+    const email = (
+      <Email>
+        <Row layout={ColumnLayouts.ThreeEqual}>
+          <Column><Paragraph>Featured</Paragraph></Column>
+          <Picks />
+        </Row>
+      </Email>
+    );
+    for (const r of [{ renderToHtml, renderToJson, renderToPlainText }, asyncRenderers]) {
+      expect(await r.renderToHtml(email, { onError: "omit" })).not.toContain("Featured");
+      expect((await r.renderToPlainText(email, { onError: "omit" })).trim()).toBe("");
+      expect((await r.renderToJson(email, { onError: "omit" })).body.rows).toEqual([]);
+    }
+  });
 });
 
 describe("a part that suspends in a <Suspense>", () => {

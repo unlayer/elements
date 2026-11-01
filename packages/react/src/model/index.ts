@@ -47,5 +47,7 @@ export function normalizedRoot(root: React.ReactElement, mode?: string): React.R
   const props = root.props as { className?: string; children?: React.ReactNode };
   const name = (root.type as { displayName?: string }).displayName ?? "Body";
   const styled = rootProps(props, name);
-  return React.cloneElement(root, { ...styled, ...rootDefaults(styled, name) }, ...normalizedChildren(props.children, mode ? { ...styled, mode } : styled, name));
+  const children = normalizedChildren(props.children, mode ? { ...styled, mode } : styled, name);
+  // (None, where every Row was left out (`onError: "omit"`): cloneElement given no children keeps the template's.)
+  return children.length ? React.cloneElement(root, { ...styled, ...rootDefaults(styled, name) }, ...children) : React.cloneElement(root, { ...styled, ...rootDefaults(styled, name), children: undefined });
 }
