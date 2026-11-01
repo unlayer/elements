@@ -452,6 +452,16 @@ describe("email HTML", () => {
     expect(text).toBe("3. One bold\n4. Two\n  - Nested");
   });
 
+  it("keeps an item's id and its nested List's apart when the item starts with the List", () => {
+    const { body } = render(email([{ type: "List", children: [{ type: "ListItem", id: "item", children: [{ type: "List", id: "inner", children: [{ type: "ListItem", children: ["x"] }] }] }] }]));
+    const dom = new JSDOM(body).window.document;
+    expect(dom.getElementById("item")!.querySelector("#inner")).not.toBeNull();
+    expect(body.match(/<[a-z]+[^>]*\sid="[^"]*"[^>]*\sid="/g)).toBeNull();
+    // Text, a nested List, then text: the id once, on the first part.
+    const mixed = render(email([{ type: "List", children: [{ type: "ListItem", id: "item", children: ["a", { type: "List", children: [{ type: "ListItem", children: ["x"] }] }, "b"] }] }])).body;
+    expect(mixed.match(/id="item"/g)).toHaveLength(1);
+  });
+
   it("writes a data table: columns in a colgroup, cells with px widths for Word and shares elsewhere, a header row as th", () => {
     const { body, text } = render(
       email([
