@@ -10,7 +10,8 @@
 // that every run of text and every image sits in the same place, at the same size and in the same style
 // on both sides, within a pixel, and each image is the same file.
 //
-// Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes):
+// Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes, background images
+// drawn as the placeholder):
 // each frame's screenshot with its text made transparent, pixel by pixel, a pixel counting as
 // different only where no pixel within one of it on the other side has its color.
 //
@@ -28,8 +29,9 @@ const PKG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const STATIC_DIR = join(PKG_DIR, "storybook-static");
 const PORT = 6008;
 const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
-// main's designs next to the same written with the new components, and next to the codemod's migration of them.
-const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--"];
+// main's designs next to the same written with the new components, and next to the codemod's migration of them; and
+// templates drawn as a Page next to the same drawn as an Email.
+const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--"];
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
 // Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
@@ -91,7 +93,14 @@ function measure(styles) {
       const computed = doc.defaultView.getComputedStyle(node.parentElement);
       (texts[words] ??= []).push({ box: box(rect), style: styles.map((p) => `${p}:${computed[p]}`).join(";") });
     }
-    const images = [...doc.images].filter((img) => img.getBoundingClientRect().width).map((img) => ({ box: box(img.getBoundingClientRect()), src: img.getAttribute("src") }));
+    // Images in the order they're in: <img>s, and boxes with a background image (an email's Layer draws its image so).
+    const images = [...doc.body.querySelectorAll("*")].flatMap((element) => {
+      const rect = element.getBoundingClientRect();
+      if (!rect.width) return [];
+      if (element.tagName === "IMG") return [{ box: box(rect), src: element.getAttribute("src") }];
+      const url = /^url\("?(.*?)"?\)$/.exec(doc.defaultView.getComputedStyle(element).backgroundImage)?.[1];
+      return url ? [{ box: box(rect), src: url }] : [];
+    });
     return { texts, images };
   });
 }
@@ -105,7 +114,17 @@ async function paintDifferences(page, allowance) {
       const style = frame.contentDocument.createElement("style");
       style.textContent = "*{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important}";
       frame.contentDocument.head.append(style);
-      await Promise.all([...frame.contentDocument.images].map((img) => ((img.src = placeholder), img.decode().catch(() => {}))));
+      // Each image keeps its box (one without a height would take the square placeholder's).
+      const images = [...frame.contentDocument.images].map((img) => [img, img.getBoundingClientRect()]);
+      for (const [img, rect] of images) {
+        img.style.setProperty("width", `${rect.width}px`, "important");
+        img.style.setProperty("height", `${rect.height}px`, "important");
+      }
+      await Promise.all(images.map(([img]) => ((img.src = placeholder), img.decode().catch(() => {}))));
+      for (const element of frame.contentDocument.body.querySelectorAll("*")) {
+        if (frame.contentWindow.getComputedStyle(element).backgroundImage.startsWith("url(")) element.style.setProperty("background-image", `url("${placeholder}")`, "important");
+      }
+      await Object.assign(new Image(), { src: placeholder }).decode().catch(() => {});
     }, `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER)}`);
   }
   const shots = await Promise.all([0, 1].map(async (index) => `data:image/png;base64,${(await frames.nth(index).screenshot()).toString("base64")}`));

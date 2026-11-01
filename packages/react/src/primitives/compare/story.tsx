@@ -6,7 +6,7 @@
 import type { StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { renderToHtml } from "../../index";
-import { render } from "../index";
+import { Email, Page, render } from "../index";
 import { SideBySide, type Width } from "./SideBySide";
 
 export type Args = { width: Width; quirks: boolean };
@@ -47,3 +47,17 @@ export const compare = (design: Design): StoryObj<Args> => ({
   ),
 });
 
+
+/**
+ * A template drawn as a Page and as an Email (`Root` is each), side by side: the two outputs' markup differs (flexbox
+ * and CSS grid, tables and inline-blocks), and the comparison gate checks they draw the same.
+ */
+export const outputs = (template: (Root: typeof Page) => ReactElement, allowance?: Design["allowance"]): StoryObj<Args> => ({
+  loaders: [
+    async () => {
+      const [page, email] = await Promise.all([render(template(Page)), render(template(Email as unknown as typeof Page))]);
+      return { main: page.html, next: email.html, notes: email.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
+    },
+  ],
+  render: ({ width }, { loaded }) => <SideBySide main={loaded.main} next={loaded.next} notes={loaded.notes} width={width} allowance={allowance} labels={["Page", "Email"]} />,
+});

@@ -20,6 +20,8 @@ export interface SideBySideProps {
   quirks?: { what: string; drawn: boolean };
   /** How many px across and up or down the design's content may sit from main's, where main's depends on the font (the check reads it). */
   allowance?: { x?: number; y?: number };
+  /** What each frame shows (main's, then the new engine's, by default). */
+  labels?: [string, string];
 }
 
 /**
@@ -47,7 +49,7 @@ function Frame({ label, html, width, scale }: { label: string; html: string; wid
 }
 
 /** main's render next to the new engine's, in windows of one width. */
-export function SideBySide({ main, next, notes, width, quirks, allowance }: SideBySideProps) {
+export function SideBySide({ main, next, notes, width, quirks, allowance, labels = ["main: today's components", "New engine: /primitives"] }: SideBySideProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(Infinity);
   useLayoutEffect(() => {
@@ -69,8 +71,8 @@ export function SideBySide({ main, next, notes, width, quirks, allowance }: Side
         </p>
       )}
       <div style={{ display: "flex", gap: GAP, alignItems: "flex-start" }}>
-        <Frame label="main: today's components" html={main} width={window} scale={scale} />
-        <Frame label="New engine: /primitives" html={next} width={window} scale={scale} />
+        <Frame label={labels[0]} html={main} width={window} scale={scale} />
+        <Frame label={labels[1]} html={next} width={window} scale={scale} />
       </div>
       {notes.length > 0 && (
         <details style={{ font: "13px system-ui, sans-serif", marginTop: 16 }}>
