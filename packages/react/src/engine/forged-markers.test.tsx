@@ -558,6 +558,63 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     expect(html).not.toContain("Loading…");
   });
 
+  it("can't stand for a marker React rendered and left out (a fallback's, where what's in its <Suspense> waited) around the template's own Row: the Row stays, or the render fails by name", async () => {
+    // (Its start tag around the Row, its end tag after: the Row was read inside the forged block, so the design and the
+    // plain text lost it and the email showed the fallback React left out.)
+    const Snippet = ({ html }: { html: string }) => <div dangerouslySetInnerHTML={{ __html: html }} />;
+    const section = (open: string) => {
+      let ready = false;
+      const Orders = () => {
+        if (!ready) throw new Promise<void>((resolve) => setTimeout(() => ((ready = true), resolve()), 2));
+        return <Row><Column><Paragraph>Your 3 orders</Paragraph></Column></Row>;
+      };
+      return loaded(() => (
+        <>
+          <Snippet html={open} />
+          <Row><Column><Paragraph>Order total: $42.00</Paragraph></Column></Row>
+          <Snippet html="</unlayer-mark>" />
+          <React.Suspense fallback={<Row><Column><Paragraph>Loading your orders</Paragraph></Column></Row>}><Orders /></React.Suspense>
+        </>
+      ));
+    };
+    let forgedFailures = 0;
+    for (let i = 0; i < 24; i++) {
+      for (const api of ["html", "text", "json"] as const) {
+        const [r] = nextNumbers();
+        const Section = section(`<unlayer-mark data-n="${r}" data-i="${i}">`);
+        const email = <Email><Row><Column><Paragraph>Hi Ana</Paragraph></Column></Row><Section /></Email>;
+        let out: string;
+        try {
+          out = api === "html" ? await asyncRenderers.renderToHtml(email) : api === "text" ? await asyncRenderers.renderToPlainText(email) : JSON.stringify(await asyncRenderers.renderToJson(email));
+        } catch (error) {
+          expect((error as Error).message, `${i} ${api}`).toMatch(/marker of Elements' own collecting render/);
+          forgedFailures++;
+          continue;
+        }
+        expect(out, `${i} ${api}`).toContain("Order total: $42.00");
+        expect(out, `${i} ${api}`).not.toContain("Loading your orders");
+      }
+    }
+    expect(forgedFailures).toBeGreaterThan(0);
+  });
+
+  it("can't hide a marker React wrote in what it reads after ending the lazy component's marker early (a comment, a <style>): the render fails by name", async () => {
+    for (const [open, close] of [["<!--", "-->"], ["<style>", "</style>"], ["<script>", "</script>"]]) {
+      const Section = loaded(() => (
+        <>
+          <div dangerouslySetInnerHTML={{ __html: `</unlayer-mark>${open}` }} />
+          <Row><Column><Paragraph>Order total: $42.00</Paragraph></Column></Row>
+          <div dangerouslySetInnerHTML={{ __html: close }} />
+        </>
+      ));
+      const email = <Email><Section /><Row><Column><Paragraph>Thanks</Paragraph></Column></Row></Email>;
+      for (const mode of ["sync", "async"] as const) {
+        const r = renderers(mode);
+        for (const api of ["html", "text", "json"] as const) await expect(r[api](email), `${mode} ${api} ${open}`).rejects.toThrow(/marker of Elements' own collecting render/);
+      }
+    }
+  });
+
   it("fails the render, by name, where it holds a copy of a placeholder the render wrote; one it didn't write is kept as written", async () => {
     // (Placeholder 0: the HTML given whole before it, which the collection kept out of react-dom's output.)
     const email = (raw: string) => (

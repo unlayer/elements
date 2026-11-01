@@ -285,8 +285,13 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    read fail the render too (but in what a lazy component renders, where one never read is of a part React left out
    there, a <Suspense> of its own that rendered its fallback: that part failed, and is said so at the lazy one's place), and so does a copy of one of the render's markers or placeholders, or a marker end tag
    more than were read (React writes each once: a copy is what HTML given whole made in what a lazy component renders,
-   which isn't read but for the markers React wrote there, found by their exact text), so that HTML can't stand in for
-   a part of the template, nor take one out of the records.
+   which isn't read but for the markers React wrote there, found by their exact text; there, every `</unlayer-mark>`
+   counts, one in a `<style>`'s or `<script>`'s text too, so in a template with a lazy component, data that holds one
+   in a `<Head>`'s JSON-LD fails the render by name). And each marker or placeholder is read only in the marker it was
+   prepared in, as React writes it there: one React rendered in what a lazy component renders and left out (a
+   `<Suspense>` of its own), whose start tag HTML given whole there can write, stands only where it would have, and
+   nothing of the template's own is read inside it. So that HTML can't move, drop or wrap a part of the template; the
+   most it can do is show such a part where React left it out, with that HTML's own text in it.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them. (A root nested among another's
    rows, which renders on its own, is the one thing the design leaves out, said: the editor's design has one body.)

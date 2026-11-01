@@ -14,11 +14,13 @@
  * and the marker's end. So a marker or placeholder is only one the collection made and react-dom rendered, in a part
  * React kept, read once: anything else that looks like one (another render's, a number out of range, one never
  * rendered) is the markup it is, and one read twice, or one of a part React left out (a <Suspense>'s content where it
- * rendered the fallback, a fallback it didn't render: `kept`), fails the render, by name (FORGED). Every marker React
- * wrote is closed by its own end tag: so an end tag of a marker with none open, or a marker never ended, is another's
- * `</unlayer-mark>` (each forged one leaves one such end tag, React writing one per marker), and fails the render too,
- * as does a marker React rendered in a part it kept that's never read, and a copy anywhere of one React wrote (see
- * copies).
+ * rendered the fallback, a fallback it didn't render: `kept`), fails the render, by name (FORGED). Each is read only in
+ * the marker it was prepared in, as React writes it there (`inPlace`): one React rendered and left out in what a lazy
+ * component renders, which HTML given whole there can stand for, stands nowhere else, so nothing of the template's own
+ * is read inside it. Every marker React wrote is closed by its own end tag: so an end tag of a marker with none open,
+ * or a marker never ended, is another's `</unlayer-mark>` (each forged one leaves one such end tag, React writing one
+ * per marker), and fails the render too, as does a marker React rendered in a part it kept that's never read, and a
+ * copy anywhere of one React wrote (see copies).
  */
 import { ASYNC_IN_SYNC, positionOf, RenderError, SWALLOWED, threw, type Frame } from "./errors";
 import { MARK, type Collection } from "./collector";
@@ -57,8 +59,9 @@ interface Open {
   floor?: boolean;
   /** In a <Head>'s style's or script's text rendered in a marker (collector.ts's headText): React's escaping undone. */
   unescape?: boolean;
-  /** A marker of the render's: closed by its own end tag only, and no other end tag in it ends what it's in. */
+  /** A marker of the render's: closed by its own end tag only, and no other end tag in it ends what it's in. Its number. */
   mark?: boolean;
+  n?: number;
   /** What a lazy component renders (`l`): kept as React wrote it, but for the markers in it (see the top). */
   lazy?: boolean;
 }
@@ -92,9 +95,8 @@ export function parse(html: string, c: Collection): Part[] {
   };
   /** Where a boundary that failed renders its fallback (right after its <template>), and its error's digest. */
   let failedAt: { at: number; digest: string } | undefined;
-  /** The marker end tags read as ones, and where a <style>'s or <script>'s text React wrote as given is (see copies). */
+  /** The marker end tags read as ones (see copies). */
   let endsRead = 0;
-  const asGiven: Array<[number, number]> = [];
   /**
    * In what a lazy component renders, from `from`: where the next marker React wrote there starts (one the collection
    * made and React rendered: its exact start tag), or where the lazy component's own ends (`</unlayer-mark>`, exactly),
@@ -108,6 +110,22 @@ export function parse(html: string, c: Collection): Part[] {
       if (n >= 0 && n < c.marks.length && c.rendered.has(n)) return open;
     }
     return end;
+  };
+  /**
+   * Whether a marker or placeholder of the render's (prepared in `parent`, see collector.ts's Box) is where React wrote
+   * it: in the marker it was prepared in, the innermost one open. Anything else is what HTML given whole in what a lazy
+   * component renders forged, standing for one React rendered and left out (React writes none of those), around or
+   * among the template's own.
+   */
+  const inPlace = (parent: { i: number } | undefined) => {
+    let open = -1;
+    for (let i = stack.length - 1; i > 0; i--) {
+      if (stack[i].mark) {
+        open = stack[i].n!;
+        break;
+      }
+    }
+    return (parent?.i ?? -1) === open;
   };
   let at = 0;
   const text = (s: string) => {
@@ -143,7 +161,7 @@ export function parse(html: string, c: Collection): Part[] {
       }
       const n = raw ? Number(raw[1]) : -1;
       if (raw && given(c, n, false)) {
-        if (c.rawRead.has(n)) throw forged();
+        if (c.rawRead.has(n) || !inPlace(c.raw[n].parent)) throw forged();
         c.rawRead.add(n);
         // HTML given whole: the element's own, as written (nothing in it read for a marker); a <Head>'s title's, what
         // its marker held.
@@ -224,13 +242,13 @@ export function parse(html: string, c: Collection): Part[] {
     const mark = !from.inert && name === MARK ? markOpen.exec(tagText) : null;
     if (mark && mark[1] === c.nonce && Number(mark[2]) < c.marks.length && c.rendered.has(Number(mark[2]))) {
       const n = Number(mark[2]);
-      if (c.read.has(n)) throw forged();
+      if (c.read.has(n) || !inPlace(c.marks[n].parent)) throw forged();
       c.read.add(n);
       const quiet = c.marks[n].k === "r" && (c.marks[n] as { quiet?: boolean }).quiet;
       const held = c.marks[n].k === "t" ? (c.marks[n] as { unescape: boolean; ends: readonly string[] }) : undefined;
       const digest = failedAt?.at === lt ? failedAt.digest : undefined;
       failedAt = undefined;
-      stack.push({ tag: MARK, mark: true, lazy: c.marks[n].k === "l", parts: markPart(c, n, from.parts, digest), head: from.head || !!quiet, foreign: from.foreign, ends: held ? held.ends : quiet ? [] : from.ends, unescape: held ? held.unescape : from.unescape });
+      stack.push({ tag: MARK, mark: true, n, lazy: c.marks[n].k === "l", parts: markPart(c, n, from.parts, digest), head: from.head || !!quiet, foreign: from.foreign, ends: held ? held.ends : quiet ? [] : from.ends, unescape: held ? held.unescape : from.unescape });
       at = gt + 1;
       continue;
     }
@@ -262,16 +280,13 @@ export function parse(html: string, c: Collection): Part[] {
       const only = placeholder.exec(content);
       const n = only && only[0].length === content.length ? Number(only[1]) : -1;
       if (given(c, n, true)) {
-        if (c.rawRead.has(n)) throw forged();
+        if (c.rawRead.has(n) || !inPlace(c.raw[n].parent)) throw forged();
         c.rawRead.add(n);
         host.parts.push(...whole(c, n));
       } else if (REACT_18) {
         stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true });
         continue;
-      } else if (content) {
-        host.parts.push(content);
-        asGiven.push([at, stop]);
-      }
+      } else if (content) host.parts.push(content);
       const endGt = html.indexOf(">", stop);
       at = endGt < 0 ? html.length : endGt + 1;
       host.close = html.slice(stop, at);
@@ -289,7 +304,7 @@ export function parse(html: string, c: Collection): Part[] {
   const left = kept(c);
   if (!c.async) for (const lazy of left) c.leftOut.push(swallowed("lazy", c.lazies[lazy].frame));
   // (Only what a lazy component renders has HTML given whole in react-dom's output, as written: see the top.)
-  if (c.lazies.length) copies(html, c, endsRead, asGiven);
+  if (c.lazies.length) copies(html, c, endsRead);
   return root;
 }
 
@@ -387,9 +402,12 @@ const forged = () => new RenderError(FORGED, "template", "");
  * or more marker end tags than were read as ones: React writes each once, so another is what a lazy component's HTML
  * given whole made, ending a marker early or standing for one React wrote. Its patterns are looser than the parse's
  * (any case, any end of the tag, a marker's start with any end), so whatever the parse may have read as one is counted.
- * (A `</unlayer-mark>` in a <style>'s or <script>'s text React wrote as given, from data, is that text's.)
+ * Every end tag counts, a `</unlayer-mark>` in a <style>'s or <script>'s text too: where HTML given whole ended what a
+ * lazy component renders early, what the parse reads after it as the template's can be such text that hides one React
+ * wrote, which an end tag counted but never read gives away. (In a template with no lazy component, there's nothing to
+ * count: one in data, such as JSON-LD's, is that text's.)
  */
-function copies(html: string, c: Collection, endsRead: number, asGiven: Array<[number, number]>): void {
+function copies(html: string, c: Collection, endsRead: number): void {
   const seen = new Set<string>();
   for (const [, marker, raw] of html.matchAll(new RegExp(`<${MARK} data-n="${c.nonce}" data-i="(\\d{1,9})"|<!--u${c.nonce}\\.(\\d{1,9})-->`, "g"))) {
     const key = marker !== undefined ? `m${marker}` : `u${raw}`;
@@ -397,14 +415,7 @@ function copies(html: string, c: Collection, endsRead: number, asGiven: Array<[n
     if (seen.has(key)) throw forged();
     seen.add(key);
   }
-  // (The text written as given is in order, as the end tags are: each is looked for once.)
-  let ends = 0;
-  let range = 0;
-  for (const { index } of html.matchAll(new RegExp(`</${MARK}(?=[\\t\\n\\f\\r />])`, "gi"))) {
-    while (range < asGiven.length && asGiven[range][1] <= index) range++;
-    if (!(range < asGiven.length && asGiven[range][0] <= index)) ends++;
-  }
-  if (ends > endsRead) throw forged();
+  if ([...html.matchAll(new RegExp(`</${MARK}(?=[\\t\\n\\f\\r />])`, "gi"))].length > endsRead) throw forged();
 }
 
 /** What HTML given whole `n` is: as written, or what the marker of a <Head>'s text it's from held (read before it). */

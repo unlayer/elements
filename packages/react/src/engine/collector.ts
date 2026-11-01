@@ -78,7 +78,15 @@ export type Mark = (
    * output as written, kept so, but for the markers React wrote in it (parse.ts). Its record: the lazy component's.
    */
   | { k: "l"; record: object }
-) & { scope?: number };
+) & { scope?: number; parent?: Box };
+
+/**
+ * The marker a place is in, where its markers and placeholders are prepared (its number once it's made: a marker's
+ * children are prepared before it). React writes each where it's prepared, so the parse reads one only in the marker
+ * it was prepared in (`parent`: none, at the top), and what's forged where React wrote none stands nowhere else.
+ */
+export type Box = { i: number };
+const inBox = (): Box => ({ i: -1 });
 
 export interface Collection {
   nonce: string;
@@ -126,7 +134,7 @@ export interface Collection {
    * HTML given whole (`text`: a <style>'s or <script>'s, its whole text), the part of the tree it's in, those rendered;
    * `from`: what a marker of a <Head>'s text holds instead (see prepHost), read into `texts` by the parse.
    */
-  raw: Array<{ html: string; text?: boolean; scope: number; from?: number }>;
+  raw: Array<{ html: string; text?: boolean; scope: number; from?: number; parent?: Box }>;
   texts: Map<number, Part[]>;
   rawRendered: Set<number>;
   rawRead: Set<number>;
@@ -161,6 +169,8 @@ interface Ctx {
   ends?: readonly string[];
   /** The part of the tree React leaves out where it renders a fallback that this place is in (Collection's scopes). */
   scope?: number;
+  /** The marker this place is in (see Box). */
+  mark?: Box;
   /** In a <Head>'s text (see headText): nothing in it is recorded. */
   text?: boolean;
   /**
@@ -232,7 +242,7 @@ export const rootCtx = (frame: Frame): Ctx => ({ frame, suspense: 0, boundary: -
  * gives as HTML is read for a marker, and the parse takes no placeholder React didn't write.
  */
 function withRaw(c: Collection, ctx: Ctx, element: React.ReactElement, props: object, html: string, text = false): React.ReactElement {
-  const n = c.raw.push({ html, text, scope: ctx.scope ?? -1 }) - 1;
+  const n = c.raw.push({ html, text, scope: ctx.scope ?? -1, parent: ctx.mark }) - 1;
   const own = React.cloneElement(element, { ...props, dangerouslySetInnerHTML: { __html: placeholderOf(c.nonce, n) } } as object);
   return React.createElement(RawRendered, { key: element.key ?? undefined, c, n }, own);
 }
@@ -258,7 +268,12 @@ function Marker({ c, n, children }: { c: Collection; n: number; children?: React
   return React.createElement(MARK, { "data-n": c.nonce, "data-i": n }, children);
 }
 const withMark = (c: Collection, n: number, children?: React.ReactNode, key?: React.Key | null): React.ReactElement => React.createElement(Marker, { key: key ?? undefined, c, n, children });
-const marker = (c: Collection, mark: Mark, children?: React.ReactNode, key?: React.Key | null): React.ReactElement => withMark(c, c.marks.push(mark) - 1, children, key);
+/** A marker for `mark`, around `children` (prepared in `box`, which is given its number). */
+const marker = (c: Collection, mark: Mark, children?: React.ReactNode, key?: React.Key | null, box?: Box): React.ReactElement => {
+  const n = c.marks.push(mark) - 1;
+  if (box) box.i = n;
+  return withMark(c, n, children, key);
+};
 
 /** Whether a component threw to suspend, in this collection's renderer (see react-dom.ts's `suspends`). */
 const suspended = (c: Collection, thrown: unknown): boolean => suspends(thrown, c.async);
@@ -275,7 +290,7 @@ export function positioned(c: Collection, error: unknown, name: string, frame: F
 
 /** Where a part failed: a marker standing for its error, or in a <style>'s or <script>'s text (`ctx.raw`), nothing, the error kept by the boundary it's in. */
 function failedPart(c: Collection, error: unknown, fatal: boolean, ctx?: Ctx): React.ReactElement | null {
-  if (!ctx?.raw) return marker(c, { k: "f", error, fatal, scope: ctx?.scope });
+  if (!ctx?.raw) return marker(c, { k: "f", error, fatal, scope: ctx?.scope, parent: ctx?.mark });
   c.rawErrors.push({ error, fatal, boundary: ctx.boundary });
   return null;
 }
@@ -375,8 +390,8 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
   if (type === SUSPENSE) {
     // (Its fallback marked: where React renders it, the parse asks why. See parse.ts's fallbackFailed.)
     const at = c.marks.length;
-    c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense"), scope: ctx.scope });
-    const fallback = withMark(c, at, prep(props.fallback, c, { ...inner, scope: newScope(c, ctx, at, true) }, true));
+    c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense"), scope: ctx.scope, parent: ctx.mark });
+    const fallback = withMark(c, at, prep(props.fallback, c, { ...inner, scope: newScope(c, ctx, at, true), mark: { i: at } }, true));
     // (Where failed parts are left out, what's in it is left out whole with a part that fails in it, as React's nearest
     // <Suspense> takes an error: one in a <Suspense> in it takes its own, the rest of this one kept.)
     const content = c.omit ? boundary(null, props.children) : props.children;
@@ -527,8 +542,9 @@ function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode 
   // (What's in a Row, Column or block is its own: a <Tailwind>'s is where it is, see Ctx's links.)
   const links = (node.record as { kind?: string }).kind === "tailwind" ? ctx.links : undefined;
   if (ctx.raw) return node.children === undefined ? null : prep(node.children, c, { ...ctx, watch: null, links });
-  const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet, links }), 1), null];
-  return marker(c, { k: "r", record: node.record, quiet: node.quiet, scope: ctx.scope }, children);
+  const box = inBox();
+  const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet, links, mark: box }), 1), null];
+  return marker(c, { k: "r", record: node.record, quiet: node.quiet, scope: ctx.scope, parent: ctx.mark }, children, undefined, box);
 }
 
 /**
@@ -538,13 +554,13 @@ function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode 
 function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return prep(node.child, c, ctx);
   const at = c.marks.length;
-  c.marks.push({ k: "b", record: node.boundary });
+  c.marks.push({ k: "b", record: node.boundary, parent: ctx.mark });
   // (In a Suspense of its own: its fallback's marker made first, so what's in it is a part React leaves out there.)
-  const fallback = c.omit && ctx.suspense === 0 ? marker(c, { k: "s", boundary: at, scope: ctx.scope }) : undefined;
+  const fallback = c.omit && ctx.suspense === 0 ? marker(c, { k: "s", boundary: at, scope: ctx.scope, parent: ctx.mark }) : undefined;
   const scope = fallback ? newScope(c, ctx, (fallback.props as { n: number }).n) : ctx.scope;
   c.marks[at].scope = scope;
   const links = !!node.boundary || ctx.links;
-  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope, links };
+  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope, links, mark: { i: at } };
   const child = prep(node.child, c, inner);
   const element = withMark(c, at, child);
   return fallback ? React.createElement(React.Suspense, { fallback }, element) : element;
@@ -645,7 +661,10 @@ function callFor(name: string): React.FC<CallProps> {
 
 function callElement(fn: any, named: unknown, props: Record<string, any>, second: unknown, key: React.Key | null, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
   // A <Link> (itself, memo'd or forwardRef'd to) in a component's markup: a record around what it renders.
-  if (ctx.links && !ctx.raw && !ctx.text && isLinkType(fn)) return marker(c, { k: "r", record: { kind: "link" }, scope: ctx.scope }, called(fn, named, props, second, null, c, ctx, keep), key);
+  if (ctx.links && !ctx.raw && !ctx.text && isLinkType(fn)) {
+    const box = inBox();
+    return marker(c, { k: "r", record: { kind: "link" }, scope: ctx.scope, parent: ctx.mark }, called(fn, named, props, second, null, c, { ...ctx, mark: box }, keep), key, box);
+  }
   return called(fn, named, props, second, key, c, ctx, keep);
 }
 
@@ -776,9 +795,10 @@ function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
   // (What's in it is in a part of its own: see Collection's scopes.)
   const scope = c.scopes.push({ parent: ctx.scope ?? -1, marker: -1, lazy: c.lazies.push(lazy) - 1 }) - 1;
-  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, scope }, lazy });
+  const box = inBox();
+  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, scope, mark: box }, lazy });
   // (A component of the template's own, whose markup is what it renders: see parse.ts's lazySection.)
-  return marker(c, { k: "l", scope: ctx.scope, record: { kind: "boundary", element } }, rendered, element.key);
+  return marker(c, { k: "l", scope: ctx.scope, record: { kind: "boundary", element }, parent: ctx.mark }, rendered, element.key, box);
 }
 
 /**
@@ -834,9 +854,9 @@ function ContextValue({ context, c, ctx }: { context: React.Context<unknown>; c:
  * or <math>, escaped as any text), a title's as markup. What's in it is recorded nowhere (`text`).
  */
 function headText(c: Collection, ctx: Ctx, inner: Ctx, element: React.ReactElement, props: object | undefined, children: unknown, text: boolean): React.ReactNode {
-  const at = c.marks.push({ k: "t", unescape: text && !inner.foreign, ends: inner.ends ?? [], scope: ctx.scope }) - 1;
-  const content = withMark(c, at, prep(children, c, { ...inner, text: true }, true), "text");
-  const n = c.raw.push({ html: "", text, scope: ctx.scope ?? -1, from: at }) - 1;
+  const at = c.marks.push({ k: "t", unescape: text && !inner.foreign, ends: inner.ends ?? [], scope: ctx.scope, parent: ctx.mark }) - 1;
+  const content = withMark(c, at, prep(children, c, { ...inner, text: true, mark: { i: at } }, true), "text");
+  const n = c.raw.push({ html: "", text, scope: ctx.scope ?? -1, from: at, parent: ctx.mark }) - 1;
   const own = React.cloneElement(element, { ...props, children: undefined, dangerouslySetInnerHTML: { __html: placeholderOf(c.nonce, n) } } as object);
   return React.createElement(React.Fragment, { key: element.key ?? undefined }, content, React.createElement(RawRendered, { key: "own", c, n }, own));
 }
