@@ -4,7 +4,7 @@
  * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor, type SupportByTarget } from "./define";
-import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text } from "./kinds";
+import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text, video } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, css, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 import { Menu, Social } from "./composites";
@@ -490,9 +490,30 @@ export const TableCell = defineComponent({
   editor: { groups: [{ title: "Cell", paths: ["props.colSpan", "style.width", "style.verticalAlign"] }, TEXT_EDITOR, { title: "Box", paths: ["style.padding", "style.backgroundColor", "style.border"] }] },
 });
 
+export const Video = defineComponent({
+  type: "Video",
+  label: "Video",
+  description: "A YouTube or Vimeo video: its player on a page; in an email (which can't play one), its thumbnail, linked to it.",
+  categories: ["block"],
+  props: {
+    src: prop(video(), { support: WRITTEN, label: "Video", required: true, description: "The video's YouTube or Vimeo link." }),
+    thumbnail: prop(asset(), {
+      support: { email: { level: "full", source: "writer" }, web: { level: "none", shows: "the video's player: a page plays the video", source: "writer" } },
+      label: "Thumbnail",
+      description: "The image an email shows, linked to the video. A YouTube video's own where there's none; a Vimeo video's can't be found without the network.",
+    }),
+    title: prop(text(), { support: WRITTEN, label: "Title", description: "The player's title on a page, the thumbnail's alternate text in an email.", default: "Video" }),
+  },
+  style: { ...pick(boxStyle, "width", "maxWidth"), ...placementStyle },
+  children: {},
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "Video", paths: ["props.src", "props.thumbnail", "props.title", "style.width", "style.maxWidth"] }] },
+});
+
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Social, Menu].map((d) => [
+    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

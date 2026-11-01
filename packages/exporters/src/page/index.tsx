@@ -34,6 +34,7 @@ import { Table } from "./Table";
 import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
 import { Text } from "./Text";
+import { Video } from "./Video";
 
 export type { PageOptions } from "./context";
 
@@ -73,6 +74,7 @@ const COMPONENTS: Record<string, Component> = {
   Table,
   TableRow,
   TableCell,
+  Video,
 };
 
 /** What a node's component gets. */

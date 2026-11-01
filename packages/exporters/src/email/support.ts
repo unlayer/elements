@@ -6,7 +6,7 @@
  * cell, a font stack that ends on a web font. Size budgets are checked on the
  * written email (index.tsx).
  */
-import { Diagnostics, fontStack, type Diagnostic, type FontFace, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { Diagnostics, fontStack, videoParts, type Diagnostic, type FontFace, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { support } from "../shared/support";
 import { isNode, shown } from "./context";
 
@@ -52,6 +52,9 @@ function structure(node: ResolvedNode, d: Diagnostics): void {
   }
   if (node.type === "TableCell" && node.hidden) {
     d.warning("email/unsupported", "A TableCell can't be hidden in email (its row would lose a column): hide its TableRow", `${path}.hidden`, id);
+  }
+  if (node.type === "Video" && node.props.thumbnail === undefined && !videoParts(String(node.props.src))?.thumbnail) {
+    d.warning("email/video-thumbnail", "A Vimeo video's thumbnail can't be found without the network: give this Video a thumbnail, or the email shows a link with its title", `${path}.props.thumbnail`, id);
   }
   if (node.type === "Image" && node.width === null) {
     d.warning("email/image-width", "This Image has no width: Outlook shows it at the size of its file, however wide that is. Give it a width, or the file's width in src", `${path}.props.src`, id);

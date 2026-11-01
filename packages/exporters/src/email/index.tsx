@@ -50,6 +50,7 @@ import { Table } from "./Table";
 import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
 import { Text } from "./Text";
+import { Video } from "./Video";
 import { mobileTextOf, phoneText, type MobileText } from "./styles";
 
 export type { EmailOptions } from "./context";
@@ -71,6 +72,7 @@ const BLOCKS: Record<string, Component> = {
   Table,
   TableRow,
   TableCell,
+  Video,
 };
 const INLINES: Record<string, Component> = {
   Span,

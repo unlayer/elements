@@ -561,6 +561,20 @@ describe("email HTML", () => {
     expect(render(email([button])).diagnostics.filter((d) => d.code === "email/width")).toHaveLength(1);
   });
 
+  it("writes a Video as its thumbnail linked to it, a YouTube video's own by default; a Vimeo video without one as a link, with a warning", () => {
+    const youtube = render(email([{ type: "Video", props: { src: "https://youtu.be/dQw4w9WgXcQ", title: "Our <launch>" } }]));
+    expect(youtube.body).toContain(
+      '<a href="https://youtu.be/dQw4w9WgXcQ" title="Our &lt;launch&gt;"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" alt="Our &lt;launch&gt;" width="600" border="0" style="display:block;width:100%;max-width:600px;height:auto;border:0"></a>'
+    );
+    expect(youtube.text).toBe("Our <launch> (https://youtu.be/dQw4w9WgXcQ)");
+    const own = render(email([{ type: "Video", props: { src: "https://vimeo.com/76979871", thumbnail: "https://example.com/t.png" } }]));
+    expect(own.body).toContain('<img src="https://example.com/t.png" alt="Video"');
+    expect(own.diagnostics.filter((d) => d.code === "email/video-thumbnail")).toEqual([]);
+    const vimeo = render(email([{ type: "Video", props: { src: "https://vimeo.com/76979871" } }]));
+    expect(vimeo.body).toContain('<a href="https://vimeo.com/76979871">Video</a>');
+    expect(vimeo.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[0].props.thumbnail"]);
+  });
+
   it("warns before Gmail clips a message", () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
     expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");

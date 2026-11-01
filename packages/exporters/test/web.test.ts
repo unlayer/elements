@@ -281,4 +281,12 @@ describe("web HTML", () => {
     const document = page([{ type: "Row", children: [{ type: "Column", hidden: { mobile: true } }] }]);
     expect(web(document).html).toBe(web(document).html);
   });
+
+  it("writes a Video as its player, 16:9, as wide as its place", () => {
+    const { body } = web(page([{ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10", title: "Launch" }, style: { maxWidth: 400 } }]));
+    expect(body).toContain(
+      '<div style="align-self:flex-start;width:100%;max-width:400px"><div style="position:relative;height:0;padding-bottom:56.25%;overflow:hidden"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="Launch" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen="" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0"></iframe></div></div>'
+    );
+    expect(web(page([{ type: "Video", props: { src: "https://player.vimeo.com/video/76979871" } }])).body).toContain('src="https://player.vimeo.com/video/76979871"');
+  });
 });

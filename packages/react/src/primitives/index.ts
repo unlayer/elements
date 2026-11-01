@@ -27,6 +27,7 @@ export {
   TableCell,
   Social,
   Menu,
+  Video,
 } from "./components";
 export type {
   PrimitiveProps,
@@ -52,6 +53,7 @@ export type {
   TableCellProps,
   SocialProps,
   MenuProps,
+  VideoProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";
 export { render, validate, type RenderOptions, type RenderResult, type ValidationResult } from "./render";

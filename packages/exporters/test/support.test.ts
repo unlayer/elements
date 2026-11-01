@@ -108,6 +108,8 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
     case "Divider":
     case "LineBreak":
       return node({});
+    case "Video":
+      return node({ props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
     case "Menu":
       return node({ props: { items: [{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }], separator: "|" } });
     case "Social":

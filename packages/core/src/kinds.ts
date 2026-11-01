@@ -712,6 +712,38 @@ export type LinkTarget = "_blank" | "_self";
 export type LinkInput = string | { href: string; target?: LinkTarget };
 export type LinkValue = string | { href: string; target: LinkTarget };
 
+// ─── Videos ─────────────────────────────────────────────────────────────────
+
+export type VideoProvider = "youtube" | "vimeo";
+const YOUTUBE = /^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/;
+const VIMEO = /^https:\/\/(?:www\.|player\.)?vimeo\.com\/(?:video\/)?(\d+)/;
+
+/**
+ * A video's provider and id, and what follows from them without the network: its player's URL, and a YouTube
+ * video's thumbnail (a Vimeo video's is only found by asking Vimeo).
+ */
+export function videoParts(url: string): { provider: VideoProvider; id: string; embed: string; thumbnail?: string } | undefined {
+  const youtube = YOUTUBE.exec(url);
+  if (youtube) return { provider: "youtube", id: youtube[1], embed: `https://www.youtube.com/embed/${youtube[1]}`, thumbnail: `https://img.youtube.com/vi/${youtube[1]}/0.jpg` };
+  const vimeo = VIMEO.exec(url);
+  if (vimeo) return { provider: "vimeo", id: vimeo[1], embed: `https://player.vimeo.com/video/${vimeo[1]}` };
+  return undefined;
+}
+
+export function video(): Kind<string, string> {
+  const accepts = "a YouTube or Vimeo video's https link";
+  return kind<string, string>({
+    name: "video",
+    editor: "link",
+    accepts,
+    parse(input) {
+      if (typeof input !== "string" || !videoParts(input.trim())) return fail(`expected ${accepts}, not ${show(input)}`);
+      return ok(input.trim());
+    },
+    jsonSchema: () => ({ type: "string", pattern: "^https://" }),
+  });
+}
+
 export function link(): Kind<LinkInput, LinkValue> {
   const accepts = "a URL (http, https, mailto, tel, a path, or a merge tag) or { href, target }";
   return kind<LinkInput, LinkValue>({

@@ -71,6 +71,8 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           return [list(child, "")];
         case "Table":
           return [table(child)];
+        case "Video":
+          return [`${tidy(String(child.props.title))} (${child.props.src})`];
         default:
           return blocks(child);
       }

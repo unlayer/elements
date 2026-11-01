@@ -183,9 +183,13 @@ let failures = 0;
 try {
   await ready();
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
-  await page.route("**/*", (route) =>
-    route.request().resourceType() === "image" ? route.fulfill({ contentType: "image/svg+xml", body: PLACEHOLDER }) : route.continue()
-  );
+  // Images are the placeholder; a page that isn't Storybook's (a video's player) is blank.
+  await page.route("**/*", (route) => {
+    const request = route.request();
+    if (request.resourceType() === "image") return route.fulfill({ contentType: "image/svg+xml", body: PLACEHOLDER });
+    if (request.resourceType() === "document" && !request.url().startsWith(BASE)) return route.fulfill({ contentType: "text/html", body: "<!DOCTYPE html><title>blank</title>" });
+    return route.continue();
+  });
   for (const id of ids) {
     for (const width of WIDTHS) {
       await page.goto(`${BASE}/iframe.html?viewMode=story&id=${id}&args=width:${width};quirks:!true`, { waitUntil: "load" });

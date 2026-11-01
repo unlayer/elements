@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "./index";
+import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -73,6 +73,14 @@ describe("render()", () => {
     const page = await render(<Page><Menu items={items} layout="vertical" /></Page>);
     expect(page.html).not.toContain("|");
     expect(page.html.indexOf(">Docs<")).toBeLessThan(page.html.indexOf(">Blog<"));
+  });
+
+  it("renders a Video in JSX as its linked thumbnail in email and its player on a page, and checks its link", async () => {
+    const src = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const email = await render(<Email><Video src={src} title="Launch" /></Email>);
+    expect(email.html).toContain('<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg"');
+    expect((await render(<Page><Video src={src} /></Page>)).html).toContain('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"');
+    expect(validate(<Email><Video src="https://example.com/movie.mp4" /></Email>).diagnostics.map((d) => d.path)).toEqual(["root.children[0].props.src"]);
   });
 
   it("takes JSX only", async () => {

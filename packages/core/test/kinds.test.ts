@@ -1,4 +1,6 @@
-import { asset, border, color, enumOf, flex, fontFaces, fontFamily, fontStack, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
+import {
+  video,
+  videoParts, asset, border, color, enumOf, flex, fontFaces, fontFamily, fontStack, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
 
 const value = (kind: Kind<any, any>, input: unknown) => {
   const parsed = kind.parse(input);
@@ -145,3 +147,15 @@ describe("the other kinds", () => {
     rejects(flex(), -1);
   });
 });
+
+describe("video()", () => {
+  it("takes a YouTube or Vimeo link and works out its player and, for YouTube, its thumbnail, without the network", () => {
+    for (const url of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ", "https://www.youtube.com/watch?list=x&v=dQw4w9WgXcQ&t=1", "https://youtube.com/shorts/dQw4w9WgXcQ"]) {
+      expect(video().parse(url)).toEqual({ ok: true, value: url });
+      expect(videoParts(url)).toEqual({ provider: "youtube", id: "dQw4w9WgXcQ", embed: "https://www.youtube.com/embed/dQw4w9WgXcQ", thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg" });
+    }
+    expect(videoParts("https://vimeo.com/76979871")).toEqual({ provider: "vimeo", id: "76979871", embed: "https://player.vimeo.com/video/76979871" });
+    for (const url of ["http://youtu.be/dQw4w9WgXcQ", "https://example.com/v.mp4", "javascript:alert(1)", 42]) expect(video().parse(url).ok).toBe(false);
+  });
+});
+
