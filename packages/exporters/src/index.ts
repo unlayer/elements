@@ -8,6 +8,7 @@ import {
   type ComponentsOption,
   type Diagnostic,
   type ResolvedDocument,
+  type ResolvedNode,
   type Target,
 } from "@unlayer-internal/elements-core";
 import { renderEmail, type EmailOptions } from "./email";
@@ -45,6 +46,8 @@ export interface RenderResult {
 /** The output each root renders to, and whether its writer exists yet. */
 const OUTPUTS: Record<string, { target: Target; ready: boolean; later?: string }> = {
   Page: { target: "web", ready: true },
+  // Print HTML: a page writer's, each page a box of the paper's size.
+  Document: { target: "web", ready: true },
   Email: { target: "email", ready: true },
 };
 
@@ -84,7 +87,21 @@ export function prepareTemplate(input: unknown, options: ComponentsOption = {}):
   const resolved = resolveExpanded(expanded.document, registry);
   diagnostics.push(...resolved.diagnostics);
   diagnostics.push(...(output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target)));
+  if (root !== "Document") diagnostics.push(...pageNumbersOutside(resolved.root));
   return { resolved: failed() ? null : resolved, target: output.target, diagnostics };
+}
+
+/** A PageNumber outside a Document: a page has no number there. */
+function pageNumbersOutside(root: ResolvedNode): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const visit = (node: ResolvedNode) => {
+    if (node.type === "PageNumber") {
+      out.push({ code: "document/page-number", severity: "error", message: `A PageNumber is a page's number in a Document; this ${root.type} has no pages`, path: node.path, ...(node.id ? { nodeId: node.id } : {}) });
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
 }
 
 /** A template's problems, without writing it: errors make it invalid, warnings and notes don't. */

@@ -4,51 +4,22 @@
  * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor, type SupportByTarget } from "./define";
-import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text, video } from "./kinds";
+import { asset, boolean, enumOf, insets, length, line, link, number, text, video } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, css, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 import { Menu, Social } from "./composites";
 import { Grid, Layer } from "./layouts";
+import { ROOT_DEFAULT_STYLE, ROOT_PROPS, ROOT_STYLE, TEXT_EDITOR } from "./roots";
+import { Document, DocumentPage, PageBreak, PageFooter, PageHeader, PageNumber } from "./document";
 
 /** A prop each output writes as given. */
 const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
-
-const ROOT_PROPS = {
-  title: prop(text(), { support: WRITTEN, label: "Title", description: "The document's title (shown in a browser tab, and by some email clients)." }),
-  lang: prop(text({ maxLength: 35 }), { support: WRITTEN, label: "Language", description: 'Its language, as a BCP 47 tag ("en", "ar").' }),
-  dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction" }),
-  fonts: prop(fontFaces(), {
-    support: {
-      email: { level: "partial", shows: "Apple Mail and iOS Mail load web fonts; Gmail and classic Outlook don't, and show the next font in each stack", source: "caniemail" },
-      web: { level: "full", source: "writer" },
-    },
-    label: "Web fonts",
-    description: "The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.",
-  }),
-};
-
-/** A root's own style: the window's background, the text styles its content inherits, and how it stacks its children. */
-const ROOT_STYLE = {
-  ...inheritedTextStyle,
-  backgroundColor: { ...boxStyle.backgroundColor, label: "Background color", description: "The window's background, behind the content." },
-  ...pick(layoutStyle, "gap", "alignItems"),
-};
-
-const ROOT_DEFAULT_STYLE = {
-  color: "#000000",
-  fontFamily: "Arial, Helvetica, sans-serif",
-  fontSize: 16,
-  fontWeight: 400,
-  lineHeight: 1.5,
-  textAlign: "left",
-} as const;
 
 /** A block of text's own direction, beside its neighbours' (an Arabic paragraph in an English email). */
 const TEXT_DIR = {
   dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction", description: "Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise." }),
 };
 
-const TEXT_EDITOR = { title: "Text", paths: ["style.fontFamily", "style.fontSize", "style.fontWeight", "style.color", "style.lineHeight", "style.letterSpacing", "style.textAlign"] };
 const SPACING_EDITOR = { title: "Spacing", paths: ["style.padding"] };
 
 export const Email = defineComponent({
@@ -514,7 +485,7 @@ export const Video = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

@@ -8,6 +8,7 @@ import type { ComponentDefinition, Target } from "./define";
 import { Diagnostics, type Diagnostic } from "./diagnostics";
 import { assetParts, readLength, type Asset, type Border, type BorderSide, type FontFamily, type Insets, type LineHeight } from "./kinds";
 import { isNode, type ElementsDocument, type Json, type Node } from "./model";
+import { pageBox } from "./document";
 import { expandDocument } from "./expand";
 import { propsWithDefaults, registryOf, type ComponentsOption, type Registry } from "./registry";
 
@@ -131,7 +132,8 @@ export function resolveExpanded(document: ElementsDocument, options?: Components
   const definition = registry.get(document.root.type)!;
   const context: Context = { d, registry, responsive: !!definition.responsive };
   const root = resolveNode(document.root, "root", { ...INITIAL_TEXT, lineHeightPx: 24 }, null, context);
-  const width = toPx(root.props.width, null);
+  // A Document's content is as wide as its page inside the margins.
+  const width = root.type === "Document" ? pageBox(root.props).contentWidth : toPx(root.props.width, null);
   root.width = width;
   root.contentWidth = width;
   root.children = resolveChildren(document.root, "root", root, width, "stack", context);

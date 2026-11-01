@@ -29,6 +29,11 @@ export {
   Menu,
   Grid,
   Layer,
+  Document,
+  PageBreak,
+  PageHeader,
+  PageFooter,
+  PageNumber,
   Video,
 } from "./components";
 export type {
@@ -57,6 +62,12 @@ export type {
   MenuProps,
   GridProps,
   LayerProps,
+  DocumentProps,
+  DocumentPageProps,
+  PageBreakProps,
+  PageHeaderProps,
+  PageFooterProps,
+  PageNumberProps,
   VideoProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";

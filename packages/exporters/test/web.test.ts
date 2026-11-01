@@ -296,6 +296,64 @@ describe("web HTML", () => {
     expect(body).toMatch(/<a [^>]*style="grid-area:1 \/ 1;min-width:0;(?!justify-self)/);
   });
 
+  describe("a Document, as print HTML", () => {
+    const text = (...children: unknown[]) => ({ type: "Text", children });
+    const doc = (children: unknown[], props: Record<string, unknown> = {}) => ({ root: { type: "Document", props, children } });
+
+    it("writes each page as a box of the paper's size, its margins as padding, with CSS's @page", () => {
+      const { head, body } = web(doc([text("One"), { type: "PageBreak" }, text("Two")], { size: "Letter", orientation: "landscape", margin: [36, 48] }));
+      expect(head).toContain("@page{size:Letter landscape;margin:0}");
+      const pages = body.match(/<section class="elements-page" style="[^"]*"/g)!;
+      expect(pages).toHaveLength(2);
+      expect(pages[0]).toContain("width:1056px;height:816px;margin:0 auto;padding:36px 48px 36px 48px");
+      // A break after each page but the last.
+      expect(pages[0]).toContain("break-after:page");
+      expect(pages[1]).not.toContain("break-after");
+    });
+
+    it("puts its header and footer on every page, numbered, and its pages' content between them", () => {
+      const { body, text: plain } = web(
+        doc([
+          { type: "PageHeader", children: [text("Acme")] },
+          text("Cover"),
+          { type: "PageBreak" },
+          { type: "PageBreak" },
+          { type: "DocumentPage", id: "appendix", style: { backgroundColor: "#f5f5f5" }, children: [text("Appendix")] },
+          text("Back"),
+          { type: "PageFooter", children: [text("Page ", { type: "PageNumber" }, " of ", { type: "PageNumber", props: { total: true } })] },
+        ])
+      );
+      // Three pages: the cover, the given one, what follows it (an empty run between two breaks is no page).
+      const pages = body.split("<section ").slice(1);
+      expect(pages).toHaveLength(3);
+      expect(pages.map((page) => [page.includes(">Acme<"), /Page 1 of 3|Page 2 of 3|Page 3 of 3/.exec(page)?.[0]])).toEqual([
+        [true, "Page 1 of 3"],
+        [true, "Page 2 of 3"],
+        [true, "Page 3 of 3"],
+      ]);
+      expect(pages[1]).toMatch(/^id="appendix" class="elements-page" style="[^"]*background-color:#f5f5f5/);
+      // The header comes before the content, the footer after it.
+      expect(pages[0].indexOf(">Acme<")).toBeLessThan(pages[0].indexOf(">Cover<"));
+      expect(pages[0].indexOf(">Cover<")).toBeLessThan(pages[0].indexOf("Page 1 of 3"));
+      // Plain text: the pages' content, once (the header and footer are on every page).
+      expect(plain).toBe("Cover\n\nAppendix\n\nBack");
+    });
+
+    it("says where a document's own components can't go", () => {
+      const errors = (input: unknown) => {
+        try {
+          web(input);
+          return [];
+        } catch (error) {
+          return (error as ElementsError).diagnostics.filter((d) => d.severity === "error").map((d) => [d.code, d.path]);
+        }
+      };
+      expect(errors(page([text("p. ", { type: "PageNumber" })]))).toEqual([["document/page-number", "root.children[0].children[1]"]]);
+      expect(errors(doc([{ type: "Column", children: [{ type: "PageBreak" }] }]))[0][1]).toBe("root.children[0].children[0]");
+      expect(errors(doc([{ type: "DocumentPage", children: [{ type: "PageHeader", children: [] }] }]))[0][1]).toBe("root.children[0].children[0]");
+    });
+  });
+
   it("writes a Video as its player, 16:9, as wide as its place", () => {
     const { body } = web(page([{ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10", title: "Launch" }, style: { maxWidth: 400 } }]));
     expect(body).toContain(

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
+import { Button, Column, Divider, Document, ElementsError, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -94,6 +94,31 @@ describe("render()", () => {
     expect(page.html.indexOf("card-One")).toBeLessThan(page.html.indexOf("card-Three"));
     // @ts-expect-error: columns is a number of columns
     expect(validate(<Email><Grid columns="3">{cards}</Grid></Email>).valid).toBe(false);
+  });
+
+  it("renders a Document in JSX to print HTML: its pages, a header and footer on each, numbered", async () => {
+    const { html, text } = await render(
+      <Document size="A5" title="Report">
+        <PageHeader>
+          <Text>Quarterly report</Text>
+        </PageHeader>
+        <Heading>Summary</Heading>
+        <PageBreak />
+        <Document.Page style={{ backgroundColor: "#fafafa" }}>
+          <Text>Appendix</Text>
+        </Document.Page>
+        <PageFooter>
+          <Text style={{ textAlign: "right" }}>
+            <PageNumber /> / <PageNumber total />
+          </Text>
+        </PageFooter>
+      </Document>
+    );
+    expect(html).toContain("@page{size:A5 portrait;margin:0}");
+    expect(html.match(/class="elements-page"/g)).toHaveLength(2);
+    expect(html).toContain("1 / 2");
+    expect(html).toContain("2 / 2");
+    expect(text).toBe("SUMMARY\n\nAppendix");
   });
 
   it("takes JSX only", async () => {

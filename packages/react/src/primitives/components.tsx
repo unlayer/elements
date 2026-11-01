@@ -23,6 +23,12 @@ import {
   Menu as MenuDefinition,
   Grid as GridDefinition,
   Layer as LayerDefinition,
+  Document as DocumentDefinition,
+  DocumentPage as DocumentPageDefinition,
+  PageBreak as PageBreakDefinition,
+  PageHeader as PageHeaderDefinition,
+  PageFooter as PageFooterDefinition,
+  PageNumber as PageNumberDefinition,
   Video as VideoDefinition,
   Span as SpanDefinition,
   Table as TableDefinition,
@@ -96,6 +102,12 @@ export const Social = createPrimitive(SocialDefinition);
 export const Menu = createPrimitive(MenuDefinition);
 export const Grid = createPrimitive(GridDefinition);
 export const Layer = createPrimitive(LayerDefinition);
+/** A printed document; `Document.Page` is one of its pages. */
+export const Document = Object.assign(createPrimitive(DocumentDefinition), { Page: createPrimitive(DocumentPageDefinition) });
+export const PageBreak = createPrimitive(PageBreakDefinition);
+export const PageHeader = createPrimitive(PageHeaderDefinition);
+export const PageFooter = createPrimitive(PageFooterDefinition);
+export const PageNumber = createPrimitive(PageNumberDefinition);
 export const Video = createPrimitive(VideoDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
@@ -122,4 +134,10 @@ export type SocialProps = PrimitiveProps<typeof SocialDefinition>;
 export type MenuProps = PrimitiveProps<typeof MenuDefinition>;
 export type GridProps = PrimitiveProps<typeof GridDefinition>;
 export type LayerProps = PrimitiveProps<typeof LayerDefinition>;
+export type DocumentProps = PrimitiveProps<typeof DocumentDefinition>;
+export type DocumentPageProps = PrimitiveProps<typeof DocumentPageDefinition>;
+export type PageBreakProps = PrimitiveProps<typeof PageBreakDefinition>;
+export type PageHeaderProps = PrimitiveProps<typeof PageHeaderDefinition>;
+export type PageFooterProps = PrimitiveProps<typeof PageFooterDefinition>;
+export type PageNumberProps = PrimitiveProps<typeof PageNumberDefinition>;
 export type VideoProps = PrimitiveProps<typeof VideoDefinition>;

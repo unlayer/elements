@@ -15,7 +15,14 @@ import { prepareTemplate, renderTemplate } from "../src";
 const OUTPUTS: Array<{ target: Target; root: string }> = [
   { target: "email", root: "Email" },
   { target: "web", root: "Page" },
+  // Print HTML: a page writer's output, with a Document's own components.
+  { target: "web", root: "Document" },
 ];
+
+/** What only a Document takes. */
+const DOCUMENT_ONLY = new Set(["DocumentPage", "PageBreak", "PageHeader", "PageFooter", "PageNumber"]);
+/** The components an output's samples take: a Document's own under a Document; the others under the other roots. */
+const sampled = (root: string, type: string) => (root === "Document" ? DOCUMENT_ONLY.has(type) || type === root : !DOCUMENT_ONLY.has(type));
 
 const ROOTS = new Set(Object.values(COMPONENTS).filter((d) => d.categories.includes("root")).map((d) => d.type));
 
@@ -58,17 +65,19 @@ const text = (words = "words") => ({ type: "Text", children: [words] });
 
 /** A small template with the component in it, `node` its node: in a Row beside a Column for `flex`, else where it goes. */
 function host(root: string, type: string, node: Record<string, unknown>, key: string): Record<string, unknown> {
-  const doc = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: root, props: { width: 600 }, ...extra, children } });
+  const width = root === "Document" ? {} : { width: 600 };
+  const doc = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: root, props: width, ...extra, children } });
   if (type === root) {
     const children = [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }, { type: "Row", children: [{ type: "Column", children: [text("b")] }, { type: "Column", children: [text("c")] }] }];
-    return doc(children, { style: node.style, props: { width: 600, ...(node.props as object) } });
+    return doc(children, { style: node.style, props: { ...width, ...(node.props as object) } });
   }
   if (key === "flex") return doc([{ type: "Row", children: [node, { type: "Column", children: [text("beside")] }] }]);
   switch (type) {
     case "Span":
     case "MergeTag":
     case "LineBreak":
-      return doc([{ type: "Text", children: ["before ", node, " after"] }]);
+    case "PageNumber":
+      return doc([{ type: "Text", children: ["before ", node, " after"] }, ...(type === "PageNumber" ? [{ type: "PageBreak" }, text("second page")] : [])]);
     case "ListItem":
       return doc([{ type: "List", children: [node, { type: "ListItem", children: ["second"] }] }]);
     case "TableRow":
@@ -87,7 +96,12 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
   switch (type) {
     case "Section":
     case "Column":
+    case "DocumentPage":
+    case "PageHeader":
+    case "PageFooter":
       return node({ children: [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }] });
+    case "PageNumber":
+      return node({});
     case "Row":
       return node({ children: [{ type: "Column", children: [text("a")] }, { type: "Column", children: [text("b")] }] });
     case "Layer":
@@ -164,9 +178,9 @@ const entries = (definition: ComponentDefinition) => [
 ];
 
 for (const { target, root } of OUTPUTS) {
-  const components = Object.values(COMPONENTS).filter((definition) => definition.targets[target] && (!ROOTS.has(definition.type) || definition.type === root));
+  const components = Object.values(COMPONENTS).filter((definition) => definition.targets[target] && (!ROOTS.has(definition.type) || definition.type === root) && sampled(root, definition.type));
 
-  describe(`support in ${target}`, () => {
+  describe(`support in ${target} (${root})`, () => {
     it("is declared on every style and prop of every component that renders to it", () => {
       const missing = components.flatMap((definition) => entries(definition).filter(({ spec }) => !spec.support?.[target]).map(({ where, key }) => `${definition.type}.${where}.${key}`));
       expect(missing).toEqual([]);

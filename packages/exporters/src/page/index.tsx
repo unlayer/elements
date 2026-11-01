@@ -29,6 +29,8 @@ import { Page } from "./Page";
 import { Paragraph } from "./Paragraph";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
+import { Document, documentCss } from "./Document";
+import { PageNumber } from "./PageNumber";
 import { Section } from "./Section";
 import { Span } from "./Span";
 import { Table } from "./Table";
@@ -61,6 +63,11 @@ const COMPONENTS: Record<string, Component> = {
   Row,
   Column,
   Layer,
+  // A Document's header and footer, and a page, are stacks in their box.
+  PageHeader: Column,
+  PageFooter: Column,
+  DocumentPage: Column,
+  PageNumber,
   Text,
   Paragraph,
   Heading,
@@ -109,9 +116,10 @@ export function renderPage(resolved: ResolvedDocument, options: PageOptions = {}
   const root = resolved.root;
   const sheet = new Stylesheet(options.classPrefix);
   const fonts = fontFaces(root, { swap: true });
-  const body = withStylesheet(sheet, () => String(Page(propsOf(root, root, [], options))));
+  const document = root.type === "Document";
+  const body = withStylesheet(sheet, () => String((document ? Document : Page)(propsOf(root, root, [], options))));
 
-  const stylesheet = [...fonts, sheet.css(PHONE, DESKTOP)].join("");
+  const stylesheet = [...fonts, sheet.css(PHONE, DESKTOP), document ? documentCss(root) : ""].join("");
   const head = [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -119,10 +127,12 @@ export function renderPage(resolved: ResolvedDocument, options: PageOptions = {}
     typeof root.props.description === "string" ? `<meta${attrs({ name: "description", content: root.props.description })}>` : "",
     stylesheet ? `<style>${stylesheet}</style>` : "",
   ].join("");
+  // A Document's background is its pages', not the window's.
+  const background = document ? undefined : (root.style.backgroundColor as string | undefined);
   const bodyStyle = css([
     ["margin", "0"],
-    ["background-color", root.style.backgroundColor as string | undefined],
+    ["background-color", background],
   ]);
-  const html = `<!DOCTYPE html><html${attrs({ lang: root.props.lang as string | undefined, dir: root.props.dir as string | undefined })}><head>${head}</head><body${styleAttr([["margin", "0"], ["background-color", root.style.backgroundColor as string | undefined]])}>${body}</body></html>`;
+  const html = `<!DOCTYPE html><html${attrs({ lang: root.props.lang as string | undefined, dir: root.props.dir as string | undefined })}><head>${head}</head><body${styleAttr([["margin", "0"], ["background-color", background]])}>${body}</body></html>`;
   return { html, head, body, bodyStyle };
 }

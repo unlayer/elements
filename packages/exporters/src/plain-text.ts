@@ -73,6 +73,10 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           return [table(child)];
         case "Video":
           return [`${tidy(String(child.props.title))} (${child.props.src})`];
+        // A Document's header and footer are on every page: its text is its pages' content, once.
+        case "PageHeader":
+        case "PageFooter":
+          return [];
         default:
           return blocks(child);
       }

@@ -6,6 +6,8 @@ export * from "./styles";
 export * from "./components";
 export * from "./composites";
 export * from "./layouts";
+export * from "./document";
+export * from "./roots";
 export * from "./normalize";
 export * from "./describe";
 export * from "./resolve";
