@@ -581,6 +581,45 @@ describe("email HTML", () => {
     expect(vimeo.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[0].props.thumbnail"]);
   });
 
+  describe("a Layer", () => {
+    const photo = { src: "https://example.com/hero.jpg", width: 1200, height: 600 };
+    const layer = (children: unknown[], style: Record<string, unknown> = {}) => email([{ type: "Layer", id: "hero", style, children }]);
+    const image = (style: Record<string, unknown> = { width: "100%" }, src: unknown = photo) => ({ type: "Image", props: { src, alt: "Sea" }, style });
+    const over = { type: "Column", children: [{ type: "Text", children: ["Summer sale"] }] };
+
+    it("draws its Image as the cell's background, as tall as the image at the Layer's width, for every client and Outlook", () => {
+      const { body, diagnostics } = render(layer([image(), over], { alignItems: "center", justifyItems: "center" }));
+      expect(body).toContain('<td background="https://example.com/hero.jpg" height="300" valign="middle" align="center" style="height:300px;background-image:url(&quot;https://example.com/hero.jpg&quot;);background-size:cover;background-position:center;background-repeat:no-repeat">');
+      // Outlook takes neither: a VML rectangle the image fills, with the words in its text box.
+      expect(outlookOnly(body)).toContain('<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;height:300px"><v:fill type="frame" src="https://example.com/hero.jpg"></v:fill><v:textbox inset="0,0,0,0">');
+      expect(outlookOnly(body)).toContain("</v:textbox></v:rect>");
+      expect(body).toContain("Summer sale");
+      expect(body).not.toContain("<img");
+      // Without a height it keeps the desktop one on phones, which a page doesn't: noted.
+      expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([["email/layer-phone", "info", "root.children[0].style.height"]]);
+      expect(render(layer([image(), over], { height: 240 })).body).toContain('height="240"');
+    });
+
+    it("says what an email can't draw: not an Image under one child, an Image narrower than the Layer, a height it can't work out", () => {
+      const problems = (children: unknown[], style?: Record<string, unknown>) =>
+        (() => {
+          try {
+            render(layer(children, style));
+            return [];
+          } catch (error) {
+            return (error as { diagnostics: Array<{ code: string; path: string; message: string }> }).diagnostics.filter((d) => d.code === "email/layer").map((d) => [d.path, d.message]);
+          }
+        })();
+      expect(problems([image(), over, over])).toEqual([["root.children[0]", "In an email, a Layer is an Image with one child over it (drawn as the image's background); this one has 3 children"]]);
+      expect(problems([over, image()])).toEqual([["root.children[0]", "In an email, a Layer is an Image with one child over it (drawn as the image's background); this one has a Column under"]]);
+      expect(problems([image({ width: 200 }), over])).toEqual([["root.children[0].children[0].style.width", "In an email, a Layer's Image is as wide as the Layer (it's drawn as its background): give it width 100%"]]);
+      expect(problems([image({ width: "100%" }, "https://example.com/hero.jpg"), over])).toEqual([
+        ["root.children[0].children[0].props.src", "In an email, a Layer is as tall as its Image, which needs its file's width and height (src={{ src, width, height }}); or give the Layer a height"],
+      ]);
+      expect(problems([image({ width: "100%" }, "https://example.com/hero.jpg"), over], { height: 200 })).toEqual([]);
+    });
+  });
+
   it("warns before Gmail clips a message", () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
     expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");

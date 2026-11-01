@@ -27,6 +27,8 @@ export {
   TableCell,
   Social,
   Menu,
+  Grid,
+  Layer,
   Video,
 } from "./components";
 export type {
@@ -53,6 +55,8 @@ export type {
   TableCellProps,
   SocialProps,
   MenuProps,
+  GridProps,
+  LayerProps,
   VideoProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";

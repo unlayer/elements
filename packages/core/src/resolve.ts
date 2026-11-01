@@ -239,7 +239,9 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
     for (const { resolved, at, source } of nodes) {
       if (resolved.available === null && layout === "text") continue;
       // A stack that stretches its children widens those that take their own size (a Button, an Image), as flexbox does.
-      const stretched = layout === "stack" && parent.style.alignItems === "stretch" && resolved.definition.sizing === "shrink" && resolved.style.width === undefined;
+      // Across a Layer is its justifyItems (its alignItems is down it).
+      const across = parent.type === "Layer" ? parent.style.justifyItems : parent.style.alignItems;
+      const stretched = layout === "stack" && across === "stretch" && resolved.definition.sizing === "shrink" && resolved.style.width === undefined;
       const width = stretched && resolved.available !== null ? clamp(resolved.available, resolved.style, resolved.available) : stackedWidth(resolved, resolved.available);
       if (width !== null && resolved.available !== null && width > resolved.available + 0.5) {
         context.d.warning("layout/overflow", `This ${source.type} is ${Math.round(width)}px wide, wider than the ${Math.round(resolved.available)}px it's in`, at, source.id);

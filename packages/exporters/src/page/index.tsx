@@ -13,7 +13,7 @@ import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr, type Declarations } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
 import { isNode, type PageOptions, type Props, type Component } from "./context";
-import { alignSelf, rowPlacement } from "./layout";
+import { alignSelf, layerPlacement, rowPlacement } from "./layout";
 import { classesFor } from "./styles";
 import { Button } from "./Button";
 import { Column } from "./Column";
@@ -28,6 +28,7 @@ import { MergeTag } from "./MergeTag";
 import { Page } from "./Page";
 import { Paragraph } from "./Paragraph";
 import { Row } from "./Row";
+import { Layer } from "./Layer";
 import { Section } from "./Section";
 import { Span } from "./Span";
 import { Table } from "./Table";
@@ -59,6 +60,7 @@ const COMPONENTS: Record<string, Component> = {
   Section,
   Row,
   Column,
+  Layer,
   Text,
   Paragraph,
   Heading,
@@ -89,7 +91,7 @@ function propsOf(node: ResolvedNode, parent: ResolvedNode, placement: Declaratio
     children: () => {
       // Text and the runs in it; else the nodes it lays out, each placed by its layout.
       if (node.definition.children.text) return <>{node.children.map((child) => (typeof child === "string" ? child : render(child, [])))}</>;
-      const place = node.type === "Row" ? rowPlacement : alignSelf;
+      const place = node.type === "Row" ? rowPlacement : node.type === "Layer" ? layerPlacement : alignSelf;
       return <>{node.children.filter(isNode).map((child) => render(child, place(child, node)))}</>;
     },
     render,

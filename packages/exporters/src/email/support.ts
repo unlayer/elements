@@ -9,6 +9,7 @@
 import { Diagnostics, fontStack, videoParts, type Diagnostic, type FontFace, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { support } from "../shared/support";
 import { isNode, shown } from "./context";
+import { layerShape } from "./Layer";
 
 export function emailSupport(root: ResolvedNode): Diagnostic[] {
   const d = new Diagnostics();
@@ -48,6 +49,13 @@ function structure(node: ResolvedNode, d: Diagnostics): void {
       if (child.width === null && child.type !== "Link" && child.type !== "Text") {
         d.warning("email/width", `This ${child.type} takes its own size in a Row, and its size isn't known: give it a width, so Outlook can lay the Row out`, `${child.path}.style.width`, child.id);
       }
+    }
+  }
+  if (node.type === "Layer") {
+    const shape = layerShape(node);
+    if ("problem" in shape) d.error("email/layer", shape.problem, shape.path, id);
+    else if (node.style.height === undefined) {
+      d.add("email/layer-phone", "info", "On phones, the email keeps this Layer's height and cuts its image at the sides (a page scales it): give the Layer a height to draw both the same", `${path}.style.height`, id);
     }
   }
   if (node.type === "TableCell" && node.hidden) {

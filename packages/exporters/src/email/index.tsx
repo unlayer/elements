@@ -44,6 +44,7 @@ import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Paragraph } from "./Paragraph";
 import { Row } from "./Row";
+import { Layer } from "./Layer";
 import { Section } from "./Section";
 import { Span } from "./Span";
 import { Table } from "./Table";
@@ -59,6 +60,7 @@ export type { EmailOptions } from "./context";
 const BLOCKS: Record<string, Component> = {
   Section,
   Row,
+  Layer,
   Column,
   Text,
   Paragraph,

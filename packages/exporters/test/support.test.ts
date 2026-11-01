@@ -90,6 +90,12 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
       return node({ children: [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }] });
     case "Row":
       return node({ children: [{ type: "Column", children: [text("a")] }, { type: "Column", children: [text("b")] }] });
+    case "Layer":
+      // An Image with words over it: the one shape an email draws.
+      return node({ children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 600, height: 300 }, alt: "A" }, style: { width: "100%" } }, { type: "Column", children: [text("over")] }] });
+    case "Grid":
+      // Two rows (two to a row by default), the first of children of different heights, so alignItems shows.
+      return node({ children: [text("a"), { type: "Column", children: [text("b"), text("c")] }, text("d")] });
     case "Link":
       return node({ props: { href: "https://example.com" }, children: ["a link"] });
     case "Button":

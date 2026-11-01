@@ -282,6 +282,20 @@ describe("web HTML", () => {
     expect(web(document).html).toBe(web(document).html);
   });
 
+  it("writes a Layer as a grid of one cell, its children over each other, its Image covering it where it has a height", () => {
+    const children = [
+      { type: "Image", props: { src: { src: "https://example.com/hero.jpg", width: 1200, height: 600 }, alt: "Sea" } },
+      { type: "Column", children: [{ type: "Text", children: ["Summer sale"] }] },
+      { type: "Button", props: { href: "https://example.com" }, children: ["Shop"] },
+    ];
+    const { body } = web(page([{ type: "Layer", style: { height: 300, alignItems: "end", justifyItems: "center", borderRadius: 8 }, children }]));
+    expect(body).toContain('style="display:grid;grid-template:minmax(0, 1fr) / minmax(0, 1fr);align-items:end;justify-items:center;overflow:hidden;height:300px;border-radius:8px"');
+    expect(body).toMatch(/<img src="https:\/\/example.com\/hero.jpg" alt="Sea" width="600" style="grid-area:1 \/ 1;min-width:0;display:block;[^"]*;width:100%;height:100%;max-width:none;object-fit:cover">/);
+    // What fills the width fills it; what has its own size sits where justifyItems says.
+    expect(body).toContain('<div style="grid-area:1 / 1;min-width:0;justify-self:stretch;');
+    expect(body).toMatch(/<a [^>]*style="grid-area:1 \/ 1;min-width:0;(?!justify-self)/);
+  });
+
   it("writes a Video as its player, 16:9, as wide as its place", () => {
     const { body } = web(page([{ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10", title: "Launch" }, style: { maxWidth: 400 } }]));
     expect(body).toContain(

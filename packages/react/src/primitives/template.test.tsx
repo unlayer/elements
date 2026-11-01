@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
+import { Button, Column, Divider, ElementsError, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -81,6 +81,19 @@ describe("render()", () => {
     expect(email.html).toContain('<a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch"><img src="https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg"');
     expect((await render(<Page><Video src={src} /></Page>)).html).toContain('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"');
     expect(validate(<Email><Video src="https://example.com/movie.mp4" /></Email>).diagnostics.map((d) => d.path)).toEqual(["root.children[0].props.src"]);
+  });
+
+  it("renders a Grid in JSX as its children in columns of equal width, in email and on a page", async () => {
+    const cards = ["One", "Two", "Three"].map((word) => <Text key={word} id={`card-${word}`}>{word}</Text>);
+    const email = await render(<Email width={600}><Grid columns={2} style={{ gap: 20 }}>{cards}</Grid></Email>);
+    // Two Rows: two cells of 290px, then one and an empty cell that keeps its width (not drawn on phones).
+    expect(email.html.match(/width="290"/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(email.html).toContain('id="card-Three"');
+    expect(email.text).toBe("One\n\nTwo\n\nThree");
+    const page = await render(<Page width={600}><Grid columns={3}>{cards}</Grid></Page>);
+    expect(page.html.indexOf("card-One")).toBeLessThan(page.html.indexOf("card-Three"));
+    // @ts-expect-error: columns is a number of columns
+    expect(validate(<Email><Grid columns="3">{cards}</Grid></Email>).valid).toBe(false);
   });
 
   it("takes JSX only", async () => {

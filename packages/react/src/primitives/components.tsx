@@ -21,6 +21,8 @@ import {
   Section as SectionDefinition,
   Social as SocialDefinition,
   Menu as MenuDefinition,
+  Grid as GridDefinition,
+  Layer as LayerDefinition,
   Video as VideoDefinition,
   Span as SpanDefinition,
   Table as TableDefinition,
@@ -92,6 +94,8 @@ export const TableRow = createPrimitive(TableRowDefinition);
 export const TableCell = createPrimitive(TableCellDefinition);
 export const Social = createPrimitive(SocialDefinition);
 export const Menu = createPrimitive(MenuDefinition);
+export const Grid = createPrimitive(GridDefinition);
+export const Layer = createPrimitive(LayerDefinition);
 export const Video = createPrimitive(VideoDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
@@ -116,4 +120,6 @@ export type TableRowProps = PrimitiveProps<typeof TableRowDefinition>;
 export type TableCellProps = PrimitiveProps<typeof TableCellDefinition>;
 export type SocialProps = PrimitiveProps<typeof SocialDefinition>;
 export type MenuProps = PrimitiveProps<typeof MenuDefinition>;
+export type GridProps = PrimitiveProps<typeof GridDefinition>;
+export type LayerProps = PrimitiveProps<typeof LayerDefinition>;
 export type VideoProps = PrimitiveProps<typeof VideoDefinition>;

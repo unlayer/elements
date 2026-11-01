@@ -3,7 +3,10 @@ import { assetParts, type Asset } from "@unlayer-internal/elements-core";
 import { h } from "../jsx";
 import type { Component } from "./context";
 
-export const Image: Component = ({ node, style, parent, placement, classes }) => (
+export const Image: Component = ({ node, style, parent, placement, classes }) => {
+  // Under the children of a Layer with a height, it covers the Layer, cut at its sides or its top and bottom.
+  const covers = parent.type === "Layer" && parent.style.height !== undefined && parent.children.find((c) => typeof c !== "string") === node;
+  return (
   <img
     id={node.id}
     class={classes()}
@@ -22,6 +25,8 @@ export const Image: Component = ({ node, style, parent, placement, classes }) =>
         border: style.border,
         borderRadius: style.borderRadius,
       },
+      covers && { width: "100%", height: "100%", maxWidth: "none", objectFit: "cover" },
     ]}
   />
-);
+  );
+};

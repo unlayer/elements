@@ -27,6 +27,16 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declaration
   return [["align-self", align ? FLEX_ALIGN[align] : TEXT_ALIGN[stack.text.textAlign]], ...fill];
 }
 
+/**
+ * A Layer's child: in its one cell, over the ones before it. One that fills the width (a Column, a Text) fills it, as
+ * in a stack and in email; the Layer's justifyItems places those with their own size.
+ */
+export function layerPlacement(child: ResolvedNode): Declarations {
+  const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
+  const fills = child.definition.sizing === "stretch" && !sized;
+  return [["grid-area", "1 / 1"], ["min-width", "0"], ...(fills ? ([["justify-self", "stretch"]] as Declarations) : [])];
+}
+
 /** A Row's child: its width as a flex basis, or its share of what's left. */
 export function rowPlacement(child: ResolvedNode, row: ResolvedNode): Declarations {
   const out: Declarations = [];

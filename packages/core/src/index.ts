@@ -5,6 +5,7 @@ export * from "./define";
 export * from "./styles";
 export * from "./components";
 export * from "./composites";
+export * from "./layouts";
 export * from "./normalize";
 export * from "./describe";
 export * from "./resolve";

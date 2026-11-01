@@ -125,6 +125,11 @@ export interface ComponentDefinition<P extends PropSpecs = PropSpecs, S extends 
   sizing: "stretch" | "shrink" | "none";
   /** A root that has a phone width (Email, Page): `mobile` and `hidden` apply under it. */
   responsive?: boolean;
+  /**
+   * A built-in that lays its children out with other components (a Grid's Rows of Columns): its node as those,
+   * before layout. Its children (and their ids) are kept as they are.
+   */
+  arrange?: (node: Node) => Node;
   /** Where it renders; a target left out is a diagnostic. */
   targets: Partial<Record<Target, TargetSupport>>;
   editor?: { groups: readonly EditorGroup[] };

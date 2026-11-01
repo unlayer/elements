@@ -24,7 +24,9 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
   const rootDefinition = registry.get(document.root.type);
   const responsive = !!rootDefinition?.responsive;
 
-  const visit = (node: Node, path: string, depth: number): Node => {
+  const visit = (given: Node, path: string, depth: number): Node => {
+    const arrange = registry.get(given.type)?.arrange;
+    const node = arrange ? arrange(given) : given;
     const definition = registry.get(node.type)!;
     if (!node.children?.length) return node;
     const children = node.children.map((child, index) => {
