@@ -7,10 +7,10 @@
 import React, { cloneElement } from "react";
 import { ASYNC_IN_SYNC, childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat } from "./output";
-import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
+import { newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { LAZY_ASYNC_18, lazyAsyncIn18, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamStopped, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { LAZY_ASYNC_18, lazyAsyncIn18, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -116,43 +116,14 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
     // (A tree nested deeper than the stack goes: as collect fails, by name.)
     throw failure(error, options, frame, c);
   }
-  // A render that fails fails with the first error in tree order once nothing before it can still fail: it doesn't
-  // wait for what comes after it (a promise that never settles there), and react-dom's render is stopped.
-  const control: { abort?: (reason: unknown) => void } = {};
-  let fail!: (error: unknown) => void;
-  const failed = new Promise<never>((_, reject) => (fail = reject));
-  let stopped = false;
-  c.changed = () => {
-    if (c.omit || !c.errors.length) return;
-    const first = c.errors.reduce((a, b) => (before(b.at, a.at) ? b : a));
-    for (const at of c.waiting) if (before(at, first.at)) return;
-    c.changed = undefined;
-    stopped = true;
-    control.abort?.(first.error);
-    fail(first.error);
-  };
+  // Everything in it waited for, as React's stream waits (React Email's render too), whatever fails: a render that fails
+  // fails with the first error in tree order, whatever failed first.
   let html: string;
   try {
     // (What React handles itself, in order: a <Suspense>'s fallback rendered for it, see parse.ts's fallbackFailed.)
-    const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => {
-      c.reactErrors.push({ error, name: failedIn(info) });
-      // (It failed in what a lazy component renders, which React's public API doesn't say: at the last one's place, in
-      // tree order, so the render fails without waiting for what's after them all, and never before a part that's
-      // before the one it failed in can still fail.)
-      const at = c.lazies[c.lazies.length - 1]?.order;
-      if (at && c.changed) {
-        c.errors.push({ at, error });
-        c.changed();
-      }
-    }, control);
-    streamed.catch(() => {});
-    html = await Promise.race([streamed, failed]);
+    html = await streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => void c.reactErrors.push({ error, name: failedIn(info) }));
   } catch (error) {
-    // (Stopped where it failed: react-dom's request let go first, as a render that's done waits for it.)
-    if (stopped) await streamStopped();
     throw failure(error, options, frame, c);
-  } finally {
-    c.changed = undefined;
   }
   const parts = withRawErrors(c, parse(html, c));
   // What React handled itself that no part of the template accounts for: a part that failed inside a <Suspense> in what

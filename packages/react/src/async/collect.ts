@@ -4,7 +4,7 @@
  * main entry's internals, so one copy of the engine renders): the content rendered by react-dom's streaming render,
  * waited for whole, where React waits for what suspends (an async component, `use()` of a pending promise, a thrown
  * promise, a lazy component, a promise as a child), siblings at once; the output is read in tree order once
- * everything before the first error (or everything) has settled, whatever settled first.
+ * everything has settled, whatever settled first (a render that fails, with its first error in tree order).
  */
 import type React from "react";
 import type { Steps, Unwrapped } from "../utils/unwrap-root";

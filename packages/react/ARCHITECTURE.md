@@ -90,7 +90,7 @@ across an `await`: async code passes it on itself.
 | File | What it is |
 |--|--|
 | `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); whether its static renderer is calling a component of an app's, and another module of it to render with there (`withFreeBuild`); and what it can't render, said by name (see below) |
-| `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered where it is (Elements' components in it collected through `…/collects`), a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render the first error in tree order |
+| `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered where it is (Elements' components in it collected through `…/collects`), a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render a lazy component outside any `<Suspense>` in one of its own |
 | `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one; what a lazy component renders read no further than the markers React wrote after it, its tags and comments as a browser reads them, with React 18's `javascript:` URLs there written as React 19 writes them where it's read as a browser reads it |
 | `capture.ts`, `root-capture.ts` | Template wrappers called in a render of react-dom's of their own; a lazy template's root, given by the root |
 | `output.ts` | The parts (text, markup, records, boundaries, errors), flattened in tree order into the content's tree |
@@ -183,12 +183,13 @@ in it).
 They render the content with react-dom's streaming render (`renderToPipeableStream` in Node, `renderToReadableStream`
 elsewhere), waited for whole: React waits for what suspends (`use()`, a thrown promise, a lazy component), siblings at
 once. An async component (which React's server renderer doesn't run) is called once by `Call`, which waits for its
-promise. The output is in tree order whatever settles first. A render that fails fails with the first error in the
-order react-dom first called the components in, once nothing before it can still fail, and stops react-dom's render:
-it doesn't wait for what comes after it. A lazy component isn't waited for (React loads what's lazy itself, and its
-public API doesn't say when that's done: one that loaded would be waited for forever), so a part after one that fails
-fails the render whether or not what it loads fails too, and an error React handled in what one renders is put at the
-last lazy component's place. A `<Suspense>` around the root, or around a template's own content, renders
+promise. The output is in tree order whatever settles first. A render that fails waits for everything in it, as
+React's stream does (React Email's render too: a part that never settles holds it), then fails with the first error in
+the order react-dom first called the components in. A lazy component outside any `<Suspense>` is in one of its own,
+with no fallback: what it loads failing, React would stop the whole render at once, and in one it's a part that fails
+where it is. An error React handled in a `<Suspense>` inside what a lazy component renders, which no part of the
+template accounts for, comes after the rest, at the first lazy component's place (React's public API doesn't say
+where it was). A `<Suspense>` around the root, or around a template's own content, renders
 what's in it. A template wrapper that waits is waited for as above (Unwrap).
 
 ### Ids
@@ -211,8 +212,7 @@ whose `component` is the one that failed, `position` where it is in the template
 Columns numbered among their parent's, other components by name, numbered from the second of a name), and `cause` the
 original error. The message reads `[Unlayer] <what it threw> (in <Hero> at Row 3 › Column 1 › Hero)`. A part that
 fails in an async render is the first in tree order whatever fails first (the order react-dom first called the
-components in), but for a lazy component, which isn't waited for (see above); the render doesn't wait for what comes
-after it in the tree, and react-dom's render is stopped.
+components in), once everything in the render has settled (see above).
 
 `onError` (render options, a root's `config`, an `<UnlayerProvider>`; `renderToJson(element, { onError })`) changes
 that:
@@ -324,8 +324,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle, but for
    the work a render's Markdown and code blocks share (their budgets: see 9), which each charges as it renders: in an
    async render, where it runs out, the parts whose data arrived first have it (a later block is shown without its
-   code's colors, or a Markdown table past the cells it leaves fails); and for a lazy component, which isn't waited
-   for: an error after one, and one in what it loads, is the render's in the order they come.
+   code's colors, or a Markdown table past the cells it leaves fails); and for an error React handled in a
+   `<Suspense>` inside what a lazy component renders, which comes after the rest (see The async renderers).
 6. **Components run as React runs them**: once, and again where React renders again (a component that sets its state
    while rendering, one that suspends once what it waits for settles); an async component's function once.
 7. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
@@ -375,7 +375,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | The collecting render gives back what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, a style's, script's and title's text, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
 | Strings that look like the collecting render's markers or placeholders, in HTML given whole, a `<Head>`'s style and script, text: markup as any other, in a render alone and one started inside another; what a lazy component's HTML leaves open or ends | `src/engine/forged-markers.test.tsx` |
 | The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with the exporters' react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
-| Siblings at once, tree order, determinism over random delays, renders at once, the first error in tree order without waiting | `src/engine/async.test.tsx` |
+| Siblings at once, tree order, determinism over random delays, renders at once, the first error in tree order once everything has settled | `src/engine/async.test.tsx` |
 | The error policy, every renderer, every place `onError` goes; `renderToJson` calling no exporter by default | `src/utils/render-errors.test.tsx` |
 | The head reusing the values the HTML mapped (no block mapped again); a `<Head>`'s style and script text, fuzzed against a browser's parser | `src/utils/extract-head.test.tsx`, `src/head/head.test.tsx` |
 | `idPrefix`: against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |

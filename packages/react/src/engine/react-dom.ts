@@ -81,7 +81,7 @@ function sink(done: (html: string) => void) {
  * size: React 19 otherwise writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden
  * <div> and scripts that move it (an email can run none).
  */
-export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown, info?: unknown) => void, control: { abort?: (reason: unknown) => void } = {}): Promise<string> {
+export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown, info?: unknown) => void): Promise<string> {
   // (Where react-dom can't render (React Server Components' React on the edge runtime), its stream throws where nothing
   // catches it, and never settles: the render fails as the synchronous ones do, by name, before it starts (see
   // renderFailure). Asked of react-dom itself: Next.js's Server Components on the Node.js runtime have a React with no
@@ -91,7 +91,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   const S = Server as unknown as Record<string, any>;
   const report = (error: unknown, info?: unknown) => void onError?.(error, info);
   const bare = (html: string) => raw(inWrapper(html));
-  return streamed(S, element, idPrefix, report, control).then(
+  return streamed(S, element, idPrefix, report).then(
     (html) => settleStream(S).then(() => bare(html)),
     (error) =>
       settleStream(S).then(() => {
@@ -99,12 +99,6 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
       }),
   );
 }
-
-/**
- * Where a render stopped (it failed: see the engine's collectAsync), react-dom's streaming module settled as it is
- * after one that's done (see settleStream): a batch whose renders all fail, one after another, keeps no memory.
- */
-export const streamStopped = (): Promise<void> => settleStream(Server as unknown as Record<string, any>);
 
 /**
  * One macrotask later (setImmediate where there is one: Node.js, Bun; a timer elsewhere, and where it throws: Next.js's
@@ -149,7 +143,7 @@ function settleStream(S: Record<string, any>): Promise<void> {
 }
 
 /** react-dom's streaming render of `element`, its whole output once everything in it is ready. */
-function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown, info?: unknown) => void, control: { abort?: (reason: unknown) => void }): Promise<string> {
+function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown, info?: unknown) => void): Promise<string> {
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;
@@ -168,13 +162,10 @@ function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix:
         },
         onError: report,
       });
-      control.abort = (reason) => stream.abort(reason);
     });
   }
   return (async () => {
-    const aborts = new AbortController();
-    control.abort = (reason) => aborts.abort(reason);
-    const stream = await S.renderToReadableStream(element, { identifierPrefix: idPrefix, progressiveChunkSize: Infinity, onError: report, signal: aborts.signal });
+    const stream = await S.renderToReadableStream(element, { identifierPrefix: idPrefix, progressiveChunkSize: Infinity, onError: report });
     await stream.allReady;
     return new Response(stream).text();
   })();
