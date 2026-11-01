@@ -2,6 +2,7 @@
  * @unlayer/react-elements/font: `<Font>`, a web font for a template.
  */
 import type React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import { headEntry } from "../head/record";
 import { fontFamilyOf, fontTags, fontUrlInDesign, primaryFamily, type FontProps } from "../utils/font-design";
 
@@ -26,7 +27,10 @@ function fontInDesign(font: FontProps, body: Parameters<typeof fontUrlInDesign>[
  * </Email>
  * ```
  */
-export function Font(_: FontProps): React.ReactElement | null {
+export function Font(props: FontProps): React.ReactElement | null {
+  // (Rendered by react-dom in what a lazy component renders, in a collecting render: what that collects it as.)
+  const collected = collectedHere(Font, props);
+  if (collected !== NOT_COLLECTED) return collected as React.ReactElement | null;
   // What it gives the head and the root is recorded where the template is collected; it renders nothing.
   return null;
 }

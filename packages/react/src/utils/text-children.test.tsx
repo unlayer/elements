@@ -5,6 +5,7 @@ import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu, Link } from "../index";
 import { growth } from "../test-timing";
+import * as asyncRenderers from "../async";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -207,6 +208,139 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
+  it("clean a <Link>'s HTML however many components of yours it's in (memo, forwardRef, lazy, a class, what passes through), wherever its markup lands, in both renderers", async () => {
+    // Which markup is a <Link>'s was read from the component in the Column and what it returned: two components of
+    // yours between them, and the Link's HTML was an HTML block as it was (an image's handler and all).
+    const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const loaded = <P,>(type: React.ComponentType<P>) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType<P> }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType<P> }>);
+    const Theme = React.createContext("light");
+    type Wrap = (inner: React.ComponentType) => React.ComponentType;
+    const plain: Wrap = (Inner) => () => <Inner />;
+    const WRAPS: Record<string, Wrap> = {
+      plain,
+      memo: (Inner) => React.memo(() => <Inner />),
+      forwardRef: (Inner) => React.forwardRef(() => <Inner />) as unknown as React.ComponentType,
+      lazy: (Inner) => loaded(() => <Inner />),
+      class: (Inner) =>
+        class extends React.Component {
+          render() {
+            return <Inner />;
+          }
+        },
+      fragment: (Inner) => () => <><Inner /></>,
+      strict: (Inner) => () => <React.StrictMode><Inner /></React.StrictMode>,
+      provider: (Inner) => () => <Theme.Provider value="dark"><Inner /></Theme.Provider>,
+      suspense: (Inner) => () => <React.Suspense fallback={null}><Inner /></React.Suspense>,
+    };
+    /** The Link itself, a lazy one, or one in a lazy component. */
+    const links = (html: string): Record<string, React.ComponentType> => ({
+      Link: () => <Link href="https://example.com">Shop <Raw html={html} /></Link>,
+      "lazy Link": () => {
+        const Lazy = loaded(Link);
+        return <Lazy href="https://example.com">Shop <Raw html={html} /></Lazy>;
+      },
+    });
+    /** Where the components' markup lands: alone in a Column, with a block beside it, in markup, among the rows. */
+    const places: Record<string, (Top: React.ComponentType) => React.ReactElement> = {
+      alone: (Top) => <Email><Row><Column><Top /></Column></Row></Email>,
+      "beside a block": (Top) => {
+        const Beside = () => <><Top /><Paragraph>after</Paragraph></>;
+        return <Email><Row><Column><Beside /></Column></Row></Email>;
+      },
+      "in markup": (Top) => {
+        const Boxed = () => <div className="box"><Top /></div>;
+        return <Email><Row><Column><Boxed /></Column></Row></Email>;
+      },
+      "among the rows": (Top) => <Page><Top /><Row><Column><Paragraph>after</Paragraph></Column></Row></Page>,
+    };
+    // (And HTML that ends the Link's <a> to put what follows it outside the link.)
+    const hostile = ['<img src="https://example.com/x.png" onerror="alert(1)">', '<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>', '</a><img src="https://example.com/x.png" onerror="alert(1)">'];
+    const found: string[] = [];
+    const check = (where: string, out: string) => {
+      const doc = new DOMParser().parseFromString(out, "text/html");
+      const handlers = [...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].filter((a) => /^on/i.test(a.name)).map((a) => a.name));
+      if (handlers.length || /javascript:/i.test(out)) found.push(`${where}: ${handlers.join(",") || "javascript:"}`);
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const html of hostile) {
+        for (const [what, Bottom] of Object.entries(links(html))) {
+          // Two and three components of yours, each kind of wrapper outermost, then mixed.
+          const chains: Record<string, React.ComponentType> = {
+            "two components": plain(plain(Bottom)),
+            "three components": plain(plain(plain(Bottom))),
+            ...Object.fromEntries(Object.entries(WRAPS).map(([name, wrap]) => [`${name} around two`, wrap(plain(plain(Bottom)))])),
+            mixed: WRAPS.memo(WRAPS.lazy(WRAPS.fragment(WRAPS.forwardRef(WRAPS.class(WRAPS.provider(plain(Bottom))))))),
+          };
+          for (const [chain, Top] of Object.entries(chains)) {
+            for (const [place, made] of Object.entries(places)) {
+              const where = `${what}, ${chain}, ${place}, ${html}`;
+              const template = made(Top);
+              check(`${where}, html`, renderToHtml(template));
+              check(`${where}, design`, JSON.stringify(renderToJson(template)));
+              check(`${where}, async html`, await asyncRenderers.renderToHtml(template));
+              if (place !== "alone") continue;
+              // Alone, it's a Paragraph holding it, as one in a Paragraph is.
+              const [block] = renderToJson(template).body.rows[0].columns[0].contents as Array<{ type: string; values: { text?: string; html?: string } }>;
+              if (!["text", "html"].includes(block?.type) || !/Shop/.test(block.values.text ?? block.values.html ?? "")) found.push(`${where}: ${JSON.stringify(block)}`);
+            }
+          }
+        }
+      }
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+    expect(found).toEqual([]);
+  }, 120_000);
+
+  it("keep a component's own markup around a <Link> as it's written, the Link's cleaned (a footer's <p style>, a card, a nav), in both renderers", async () => {
+    // The component a <Link> rendered in had all its markup cleaned as the Link's: a footer's `<p style>` around its
+    // links was left out (and a card's <div>, its heading, a nav's table), where markup without a Link was kept.
+    type Linker = (href: string, text: string) => React.ReactNode;
+    const viaLink: Linker = (href, text) => <Link href={href}>{text}</Link>;
+    const written: Linker = (href, text) => <a href={href} target="_blank" rel="noopener">{text}</a>;
+    const shapes: Record<string, (a: Linker) => React.ComponentType> = {
+      footer: (a) => () => <p style={{ fontSize: 12, color: "#666666" }}>{a("https://example.com/privacy", "Privacy")} | {a("https://example.com/unsubscribe", "Unsubscribe")}</p>,
+      card: (a) => () => <div style={{ padding: 16, border: "1px solid #dddddd" }}><h3 style={{ margin: 0 }}>New in</h3><p>Fresh picks.</p>{a("https://example.com/new", "Shop now")}</div>,
+      nav: (a) => () => <table role="presentation"><tbody><tr><td>{a("https://example.com/a", "Shop")}</td><td>{a("https://example.com/b", "Blog")}</td></tr></tbody></table>,
+      "links in a component of yours in it": (a) => {
+        const Links = () => <>{a("https://example.com", "Shop")}</>;
+        return () => <p className="links"><b>Go:</b> <Links /></p>;
+      },
+    };
+    const places: Record<string, (Shape: React.ComponentType) => React.ReactElement> = {
+      "in a Column": (Shape) => <Email><Row><Column><Shape /></Column></Row></Email>,
+      "among the rows": (Shape) => <Page><Shape /><Row><Column><Paragraph>after</Paragraph></Column></Row></Page>,
+    };
+    for (const [shape, made] of Object.entries(shapes)) {
+      for (const [place, template] of Object.entries(places)) {
+        const linked = template(made(viaLink));
+        const asWritten = template(made(written));
+        const where = `${shape}, ${place}`;
+        expect(renderToHtml(linked), where).toBe(renderToHtml(asWritten));
+        expect(JSON.stringify(renderToJson(linked)), where).toBe(JSON.stringify(renderToJson(asWritten)));
+        expect(await asyncRenderers.renderToHtml(linked), where).toBe(await asyncRenderers.renderToHtml(asWritten));
+      }
+    }
+    // (The control: the footer kept as an HTML block, its <p style> and links in it.)
+    const footer = renderToJson(places["in a Column"](shapes.footer(viaLink))).body.rows[0].columns[0].contents[0] as { type: string; values: { html: string } };
+    expect(footer).toMatchObject({ type: "html", values: { html: '<p style="font-size:12px;color:#666666"><a href="https://example.com/privacy" target="_blank" rel="noopener">Privacy</a> | <a href="https://example.com/unsubscribe" target="_blank" rel="noopener">Unsubscribe</a></p>' } });
+
+    // HTML in the Link that ends its <a>: cleaned as the Link's (what follows it, as a browser reads it, outside the
+    // link), the component's <p> around it kept.
+    const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const Breakout = () => <p style={{ color: "red" }}>See <Link href="https://example.com">Shop <Raw html={'</a><img src="https://example.com/x.png" onerror="alert(1)"></span></p><b onclick="x()">x</b>'} /></Link> now</p>;
+    const email = <Email><Row><Column><Breakout /></Column></Row></Email>;
+    const cleaned = '<p style="color:red">See <a href="https://example.com" target="_blank" rel="noopener">Shop <span></span></a><img src="https://example.com/x.png"/><b>x</b> now</p>';
+    expect((renderToJson(email).body.rows[0].columns[0].contents[0] as { values: { html: string } }).values.html).toBe(cleaned);
+    for (const out of [renderToHtml(email), await asyncRenderers.renderToHtml(email)]) {
+      expect(out).toContain(cleaned);
+      expect(out).not.toMatch(/onerror|onclick/);
+    }
+  });
+
   it("leave out a URL that runs code however its characters are written: references, control characters, in markup given as HTML", () => {
     const hostile = [
       '<a href="&#106;avascript:alert(1)">a</a>',
@@ -306,10 +440,18 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
-  it("leave out a tag that never ends (before a <style> or <script> left open, whose markup goes to the end), so its attributes aren't a tag's in the email", () => {
+  it("leave out a tag's event handlers however its markup is written, and a tag that never ends (in a quote left open), so its attributes aren't a tag's in the email", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
-    const hostile = ["Nice <img src=x onerror=alert(1) <style>", "Nice <img src=x onerror=alert(1) <script>", "Nice <a href=x onmouseover=alert(1) <style>x", "Nice <img src=x onerror=alert(1)"];
-    for (const markup of hostile) {
+    // As a browser reads them: a `<style` or `<script` in a tag is an attribute's name (the tag ends at the next `>`),
+    // and a quote left open runs to the end, the tag with it.
+    const hostile: Record<string, string> = {
+      "Nice <img src=x onerror=alert(1) <style>": "Review: <span>Nice </span>",
+      "Nice <img src=x onerror=alert(1) <script>": "Review: <span>Nice </span>",
+      "Nice <a href=x onmouseover=alert(1) <style>x": 'Review: <span>Nice <a href="x">x</a></span>',
+      "Nice <img src=x onerror=alert(1)": "Review: <span>Nice </span>",
+      'Nice <a href=x onmouseover=alert(1) title="x': "Review: <span>Nice </span>",
+    };
+    for (const [markup, text] of Object.entries(hostile)) {
       for (const Root of [Email, Page]) {
         const template = (
           <Root><Row><Column>
@@ -323,7 +465,7 @@ describe("rich text children of Paragraph, Heading and Button", () => {
           const doc = new DOMParser().parseFromString(html, "text/html");
           expect([...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.name)).filter((name) => /^on/i.test(name))).toEqual([]);
         }
-        expect(texts[0]).toMatch(/^Review: <span>Nice ?$/);
+        expect(texts[0]).toBe(text);
       }
     }
   });
@@ -356,6 +498,59 @@ describe("rich text children of Paragraph, Heading and Button", () => {
       }
       expect(texts[1]).toMatch(/^Hi\s+there$/);
     }
+  });
+
+  it("end what a component's HTML leaves open in them with the block, so it doesn't run on into the blocks after it (on a page, a document, an email)", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    // (`<b` alone: the browser reads `<b</span>` as an element named `b<`, not a <b>. `<style` alone: `<style</span>`
+    // is one named `style<`, no style sheet, so the link around it ends where it ends.)
+    const cases: Array<[string, (markup: React.ReactNode) => React.ReactElement]> = [
+      ["<b", (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ['<a href="https://evil.test">', (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ["<b>Sale!", (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ["<i><u>Sale!</i>", (markup) => <Heading>Hi {markup}</Heading>],
+      ["<s>", (markup) => <Button href="https://example.com">Go {markup}</Button>],
+      ["<style", (markup) => <Paragraph>See <Link href="https://ok.test">{markup}</Link> after</Paragraph>],
+    ];
+    const FORMATTING = /^(a|b|i|u|s|strong|em|code|mark|small|sub|sup|span)$/i;
+    for (const [markup, block] of cases) {
+      for (const Root of [Page, Document, Email]) {
+        const template = (
+          <Root>
+            <Row><Column>{block(<Markup html={markup} />)}</Column></Row>
+            <Row><Column><Paragraph>Next row</Paragraph><Button href="https://shop.test">Buy now</Button></Column></Row>
+          </Root>
+        );
+        const doc = new DOMParser().parseFromString(renderToHtml(template), "text/html");
+        const around = (words: string) => {
+          const node = [...doc.querySelectorAll("*")].find((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.includes(words)));
+          const tags: string[] = [];
+          for (let e = node; e && e !== doc.body; e = e.parentElement!) tags.push(e.tagName.toLowerCase());
+          return tags.filter((tag) => FORMATTING.test(tag));
+        };
+        expect(around("Next row"), `${markup} in a ${Root.name}`).toEqual([]);
+        // (The button's own link.)
+        expect(around("Buy now").filter((tag) => tag !== "a" && tag !== "span"), `${markup} in a ${Root.name}`).toEqual([]);
+        if (markup === "<style") expect(around("after"), `${markup} in a ${Root.name}`).toEqual([]);
+        // The design's text too: each tag it opens ends in it.
+        const text = String((renderToJson(template).body.rows[0].columns[0].contents[0].values as { text: string }).text);
+        const opened = [...text.matchAll(/<(\/?)([a-z]+)[^>]*>/g)].filter(([, , tag]) => tag !== "br").map(([, close]) => (close ? -1 : 1) as number);
+        expect(opened.reduce((sum, n) => sum + n, 0), `${markup}: ${text}`).toBe(0);
+      }
+    }
+  });
+
+  it("end a <script>'s or <style>'s text where a browser ends it, keeping what's after it", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const ends = ["</style>", "</style >", "</STYLE\t>", '</style class="x">', "</style/>"];
+    for (const end of ends) {
+      const template = <Email><Row><Column><Paragraph>Hi <Markup html={`<style>.hidden{color:red}${end} there`} /></Paragraph></Column></Row></Email>;
+      const text = String((renderToJson(template).body.rows[0].columns[0].contents[0].values as { text: string }).text);
+      expect(text, end).toBe("Hi <span> there</span>");
+    }
+    // `<styles>` and `</styles>` are other elements: what's between them is text.
+    const other = <Email><Row><Column><Paragraph>Hi <Markup html="<styles>shown</styles> there" /></Paragraph></Column></Row></Email>;
+    expect(String((renderToJson(other).body.rows[0].columns[0].contents[0].values as { text: string }).text)).toBe("Hi <span>shown there</span>");
   });
 
   it("cost about ten times as much for ten times as much markup of any short shape (random, seeded): a component's own HTML in them, a lone link", async () => {

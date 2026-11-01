@@ -1,9 +1,9 @@
 /**
- * How a template is collected (see src/model): the walker (src/engine) renders it, and asks this collector about
- * each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their markers, or an older
- * copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded instead of being called, what's
- * inside them walked inside their records; everything else (the user's components, markup, Fragments, Context)
- * renders as React renders it.
+ * How a template is collected (see src/model): the collecting render (src/engine) prepares it for react-dom, and
+ * asks this collector about each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their
+ * markers, or an older copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded instead of
+ * being called, what's inside them rendered inside their records; everything else (the user's components, markup,
+ * Fragments, Context) renders as React renders it.
  * Each component of the template's own in a list is in a boundary, where it's left out when it fails and the render
  * leaves failed parts out (`onError: "omit"`).
  */
@@ -17,18 +17,23 @@ import { boundary, recordNode } from "../engine/records";
 import { htmlOf } from "../engine/output";
 import { checked, checkKeys } from "../engine/keys";
 import type { Collector } from "../engine";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { layerConfig } from "../context/layer-config";
+import { isOwnType } from "./own-type";
 
 interface Options {
   /** Markup is in a boundary too, so markup React rejects is left out rather than failing the render. */
   omit: boolean;
   /** In a template with no root: what says a root met in its content (by its name). */
   nested?: (root: string) => void;
+  /** The render's config (its root's, the render's options in it), which a root in its content renders with (see collector). */
+  config?: Record<string, unknown>;
 }
 
 /** Children as a list (arrays flattened, nothing and booleans left out), each list checked for keys. */
 function childList(children: React.ReactNode, owner: string, out: React.ReactNode[] = []): React.ReactNode[] {
   if (Array.isArray(children)) {
-    checkKeys(children, owner);
+    checkKeys(children, owner, true);
     for (const child of children) childList(child, owner, out);
   } else if (children !== null && children !== undefined && typeof children !== "boolean") out.push(children);
   return out;
@@ -69,8 +74,91 @@ function guarded(child: React.ReactNode, options: Options, owner: string, inCont
     return options.omit ? boundary(null, element) : element;
   }
   if (type === React.Fragment) return guard((child.props as { children?: React.ReactNode }).children, options, owner, inContainer);
-  const record: Recorded = { kind: "boundary", element: child };
+  // A context's provider, or <StrictMode>, around the rows: kept, as a Fragment's are, with its children in boundaries
+  // (`onError: "omit"` left out every row in it where one of them failed: a blank email). In a Row or Column it's one,
+  // whose HTML around what it renders is kept (src/model/elements.ts's keptMarkup).
+  if (!inContainer && wraps(child)) {
+    const inside = (child.props as { children?: React.ReactNode }).children;
+    const wrapped = React.cloneElement(child, undefined, ...guard(inside, options, owner, inContainer));
+    // (Its children given again as arguments, as written: the list cloneElement makes of them isn't one React's
+    // development build freezes, as createElement's is, so it's said to be checked; React 19 said it lacked keys.)
+    const list = (wrapped.props as { children?: unknown }).children;
+    if (Array.isArray(list)) checked(list);
+    return wrapped;
+  }
+  // (Among the rows, what it renders among them is made parts of their own, where failed parts are left out: see
+  // the engine's CollectOptions `parts`.)
+  const record: Recorded = inContainer ? { kind: "boundary", element: child } : { kind: "boundary", element: child, rows: true };
   return boundary(record, child);
+}
+
+/**
+ * What a component of the user's among the rows (a provider or a layout written as a component) rendered, where failed
+ * parts are left out (see the engine's CollectOptions `parts`): each section it was given (`given`, its children and
+ * the elements its other props hold, a layout's `header={<Hero />}`) that it renders among the rows a part of its own, so one that fails is left out alone, not with the rows around it.
+ * A section is told by its component, the one given (cloned too, `React.Children.map`'s); what the component renders
+ * of its own is one part with it (a Section's heading, with the list that failed in it). A component of the user's
+ * that the given sections are rendered in (a provider in a provider component) is a part that gives them on
+ * (`inherited`). Fragments, a context's provider and <StrictMode> are read through, as among the content's rows.
+ */
+export function rowParts(rendered: React.ReactNode, given: React.ReactNode, inherited?: unknown): React.ReactNode {
+  const types = new Set<unknown>(inherited instanceof Set ? inherited : []);
+  sectionTypes(given, types);
+  if (!types.size) return rendered;
+  const walk = (node: React.ReactNode): React.ReactNode => {
+    // (A list made again of one the template wrote: checked as it was, see keys.ts.)
+    if (Array.isArray(node)) return checked(node.map(walk));
+    if (!React.isValidElement(node)) return node;
+    const props = node.props as { children?: React.ReactNode };
+    if (node.type === React.Fragment || wraps(node)) return React.cloneElement(node, { children: walk(props.children) } as object);
+    if (types.has(node.type)) return boundary({ kind: "boundary", element: node, rows: true } satisfies Recorded, node);
+    if (userType(node.type) && holds(Object.values(props), types)) return boundary({ kind: "boundary", element: node, rows: true, given: types } satisfies Recorded, node);
+    return node;
+  };
+  return walk(rendered);
+}
+
+/** The components of the user's among `children`, through lists and Fragments: the sections a component is given. */
+function sectionTypes(children: React.ReactNode, into: Set<unknown>, depth = 0): void {
+  if (depth > 32) return;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    if (Array.isArray(child)) sectionTypes(child, into, depth + 1);
+    else if (React.isValidElement(child)) {
+      // (Through a Fragment, a context's provider or <StrictMode> around them, as the walk reads what it renders.)
+      if (child.type === React.Fragment || wraps(child)) sectionTypes((child.props as { children?: React.ReactNode }).children, into, depth + 1);
+      else if (userType(child.type)) into.add(child.type);
+    }
+  }
+}
+
+/** Whether a section of `types` is among `children`, through lists, Fragments, providers and components' props. */
+function holds(children: React.ReactNode, types: ReadonlySet<unknown>, depth = 0): boolean {
+  if (depth > 32) return false;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    if (Array.isArray(child) ? holds(child, types, depth + 1) : React.isValidElement(child) && (types.has(child.type) || holds(Object.values(child.props as object), types, depth + 1))) return true;
+  }
+  return false;
+}
+
+const MEMO = Symbol.for("react.memo");
+const FORWARD_REF = Symbol.for("react.forward_ref");
+/** A component of the user's (a function or a class, memo'd or forwardRef'd): not markup, React's, or Elements' own. */
+function userType(type: unknown): boolean {
+  const of = typeof type === "object" && type ? (type as { $$typeof?: symbol }).$$typeof : undefined;
+  return (typeof type === "function" || of === MEMO || of === FORWARD_REF) && !isElementsType(type);
+}
+
+const PROVIDER = Symbol.for("react.provider");
+const CONTEXT = Symbol.for("react.context");
+/**
+ * Whether `element` only passes its children on: a context's provider (React 18's `<Ctx.Provider>`, React 19's
+ * `<Ctx value>`, not a Consumer, whose child is a function) or <StrictMode>.
+ */
+function wraps(element: React.ReactElement): boolean {
+  const type = element.type as { $$typeof?: symbol } | symbol;
+  if (type === React.StrictMode) return true;
+  const of = typeof type === "object" && type ? type.$$typeof : undefined;
+  return of === PROVIDER || (of === CONTEXT && typeof (element.props as { children?: unknown }).children !== "function");
 }
 
 /** Whether there's a component of the user's own in `children`, in markup or Fragments (not Elements' own). */
@@ -88,6 +176,8 @@ function hasComponent(children: React.ReactNode): boolean {
  * doesn't), or a block (its item config).
  */
 function kindOf(type: any): "row" | "column" | "block" | undefined {
+  // (Not a component of yours that copied their statics: see own-type.ts.)
+  if (!isOwnType(type)) return undefined;
   if (type[UNLAYER_CONFIG_KEY] && type[UNLAYER_RENDER_KEY]) return "block";
   const name = displayName(type);
   if ((name === "Row" || name === "Column") && (type[RECORDS] || /\b_config\b/.test(String(type)))) return name === "Row" ? "row" : "column";
@@ -142,12 +232,22 @@ export function collector(options: Options): Collector {
         },
       };
     }
+    const root = !type[UNLAYER_RENDER_KEY] && rootName(type);
+    if (!root || given.has(element)) return undefined;
     // A root in a template with no root (unwrapping stopped before it): rendered as it renders, said.
-    const root = options.nested && !type[UNLAYER_RENDER_KEY] && rootName(type);
-    if (root) options.nested!(root);
-    return undefined;
+    if (options.nested) options.nested(root);
+    // A root in the content (a whole template reused as a section of another) renders on its own, from no provider:
+    // the render's config (its root's, the render's options in it) is under its own `config`, its sanitizer
+    // (`toSafeHtml`) too, which its HTML went without.
+    if (!options.config) return undefined;
+    const withConfig = React.cloneElement(element, { config: layerConfig(options.config as Partial<UnlayerConfig>, props.config) } as object);
+    given.add(withConfig);
+    return { record: () => withConfig };
   };
 }
+
+/** The roots in the content the render's config was given to (see collector): each once. */
+const given = new WeakSet<object>();
 
 /** A Row, Column or scope: its props recorded, its children (in boundaries) inside it. */
 function container(record: Recorded & { props: Record<string, any> }, options: Options, name: string): React.ReactNode {

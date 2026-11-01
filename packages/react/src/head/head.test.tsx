@@ -115,6 +115,8 @@ describe("Head", () => {
     const Css = ({ css }: { css: string }) => css;
     const name = "Ada";
     const data = { "@type": "Organization", name: "A & B </script>" };
+    // (React 18's development build said a title in parts, `Hi {name}`, holds a list, on every render.)
+    const error = vi.spyOn(console, "error");
     const parts = renderToHtmlParts(
       <Page>
         <Head>
@@ -137,6 +139,8 @@ describe("Head", () => {
         "<title>Hi Ada &amp; bye</title>",
       ].join(""),
     ]);
+    expect(error.mock.calls.map((call) => String(call[0])).filter((message) => /title/i.test(message))).toEqual([]);
+    error.mockRestore();
   });
 
   it("can't end a style's or a script's text early, whatever writes it: a component of yours, a list, text in parts, markup, what it's in", () => {
@@ -253,6 +257,24 @@ describe("Head", () => {
     expect(html.slice(0, html.indexOf("</head>"))).toContain(written);
   });
 
+  it("writes what a <Suspense> in a <style> or a <script> holds as the rest of its text, with the async renderers (React 18's stream too)", async () => {
+    // React 18's stream wrote its own comments around the <Suspense>'s content there: JSON-LD JSON.parse couldn't read,
+    // and CSS whose rule a browser dropped.
+    const Ld = async () => JSON.stringify({ "@context": "https://schema.org", "@type": "Organization" });
+    const Css = async () => ".brand{color:red}";
+    const parts = await asyncRenderers.renderToHtmlParts(
+      <Page>
+        <Head>
+          <script type="application/ld+json"><React.Suspense fallback={null}><Ld /></React.Suspense></script>
+          <style>.a{"{}"}<React.Suspense fallback={null}><Css /></React.Suspense>.b{"{}"}</style>
+        </Head>
+        {content}
+      </Page>
+    );
+    expect(parts.tags.join("")).toContain('<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization"}</script>');
+    expect(parts.tags.join("")).toContain("<style>.a{}.brand{color:red}.b{}</style>");
+  });
+
   it("renders its components as the template's: the async renderers wait for them, siblings at once, in tree order", async () => {
     const started: string[] = [];
     const Meta = async ({ name, ms }: { name: string; ms: number }) => {
@@ -318,5 +340,65 @@ describe("Head", () => {
   it("renders nothing outside a template's render", () => {
     expect(renderToHtml(<Email>{content}</Email>)).not.toContain("color-scheme");
     expect(renderToStaticMarkup(<Head><meta name="a" /></Head>)).toBe("");
+  });
+});
+
+describe("a <Head>'s <style>, <script> or <title> with an async component in it, in the async renderers", () => {
+  // On React 19, which renders no component in one, Elements rendered it with the synchronous renderer, so the async
+  // render failed with "it is async or suspends, and this renderer is synchronous".
+  it("waits for it, as for an async component anywhere else", async () => {
+    const { renderToHtml: renderAsync } = await import("../async");
+    const Brand = async () => (await Promise.resolve(), "#ff5500");
+    const Name = async () => (await Promise.resolve(), "Acme");
+    const email = (
+      <Email>
+        <Head>
+          <title><Name /> receipt</title>
+          <style>{[".brand{color:", <Brand key="b" />, "}"]}</style>
+          <script type="application/ld+json">{["{\"name\":\"", <Name key="n" />, "\"}"]}</script>
+        </Head>
+        <Row><Column><Paragraph>Hi</Paragraph></Column></Row>
+      </Email>
+    );
+    const html = await renderAsync(email);
+    expect(html).toContain(".brand{color:#ff5500}");
+    expect(html).toContain('{"name":"Acme"}');
+    expect(html).toMatch(/<title>Acme receipt<\/title>/);
+    // (The negative control: the same with no component waits for nothing.)
+    expect(await renderAsync(<Email><Head><style>{".brand{color:#ff5500}"}</style></Head><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>)).toContain(".brand{color:#ff5500}");
+  });
+});
+
+describe("a <Head>'s <style>, <script> or <title> with a component in it that reads a context", () => {
+  // On React 19, which renders no component in one, what's in it was rendered in a render of its own, where a context
+  // reads its default: a translated title was "MISSING TRANSLATION", a brand's CSS its default color. It's rendered
+  // where it is now, as on React 18, with the template's contexts.
+  const Messages = React.createContext<Record<string, string>>({});
+  const Brand = React.createContext("#abcdef");
+  const T = ({ id }: { id: string }) => <>{React.useContext(Messages)[id] ?? "MISSING TRANSLATION"}</>;
+  const BrandCss = () => <>{`.brand{color:${React.useContext(Brand)}}`}</>;
+  const BrandJson = () => <>{JSON.stringify({ color: React.useContext(Brand) })}</>;
+  const template = (
+    <Messages.Provider value={{ title: "Your receipt" }}>
+      <Brand.Provider value="#ff5a00">
+        <Email>
+          <Head>
+            <title><T id="title" /></title>
+            <style><BrandCss /></style>
+            <script type="application/ld+json"><BrandJson /></script>
+          </Head>
+          <Row><Column><Paragraph>Thanks</Paragraph></Column></Row>
+        </Email>
+      </Brand.Provider>
+    </Messages.Provider>
+  );
+
+  it("reads the template's value there, in the synchronous and async renderers", async () => {
+    for (const html of [renderToHtml(template), await asyncRenderers.renderToHtml(template)]) {
+      expect(html).toContain("<title>Your receipt</title>");
+      expect(html).toContain(".brand{color:#ff5a00}");
+      expect(html).toContain('{"color":"#ff5a00"}');
+      expect(html).not.toMatch(/MISSING TRANSLATION|#abcdef/);
+    }
   });
 });

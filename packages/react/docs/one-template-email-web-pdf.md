@@ -61,7 +61,7 @@ export function invoiceTemplate(data: InvoiceData, mode: "email" | "web" | "docu
   const receiptUrl = new URL(data.receiptUrl);
   if (receiptUrl.protocol !== "https:") throw new Error("receiptUrl must use HTTPS");
 
-  // Keep Row and Column directly visible to renderToJson's static tree walker.
+  // Row and Column in the tree, as in the email: renderToJson keeps them in the design.
   const content = (
     <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px">
       <Column>
@@ -89,7 +89,7 @@ export function invoiceTemplate(data: InvoiceData, mode: "email" | "web" | "docu
 }
 ```
 
-The factory returns the actual root, so the renderer can infer the correct mode and collect its document styles. Content is declared once. Keeping `Row` and `Column` directly in the tree also makes it usable by the static `renderToJson()` walker.
+The factory returns the actual root, so the renderer can infer the correct mode and collect its document styles. Content is declared once. `renderToJson()` renders the same template, so the design keeps its `Row`s and `Column`s.
 
 ## Render all outputs
 
@@ -115,6 +115,6 @@ Expected: six files in `examples/content-workflows/output/` when run via the wor
 
 ## Constraints
 
-Shared content does not imply identical pixels. Email uses table-oriented HTML and client-specific fallbacks; web uses responsive layouts; document output uses print styling and a fixed page size. Keep content within the printable width, and test long invoices for pagination. A browser preview does not prove inbox compatibility.
+Shared content does not imply identical pixels. Email uses table-oriented HTML and client-specific fallbacks; web uses responsive layouts; document output uses print styling, and its page size is the PDF tool's (the HTML sets none). Keep content within the printable width, and test long invoices for pagination. A browser preview does not prove inbox compatibility.
 
 For an authenticated web receipt, serve the web HTML from an authorized route with `Content-Type: text/html`; do not publish customer invoices at predictable public URLs. These examples use fictitious data. Use [provider integrations](./email-providers.md) to send the email and [visual editing](./visual-editing.md) to hand the template to an editor user.

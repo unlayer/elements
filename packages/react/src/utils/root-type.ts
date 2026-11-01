@@ -6,6 +6,8 @@
  * are that Body in their mode (`{ ...props, mode: "email" }`). A component of the user's own given a root's name (a
  * design-system wrapper, `Email.displayName = "Email"`) is neither, and is called as any component is.
  */
+import { isOwnType } from "./own-type";
+
 export const ROOT = Symbol.for("@unlayer/react-elements/root");
 
 /** An older copy's root, by its name: what its code has. */
@@ -20,7 +22,8 @@ const OLDER = new Map([
 export function rootName(type: unknown): string | undefined {
   if (typeof type !== "function") return undefined;
   const own = (type as unknown as Record<symbol, unknown>)[ROOT];
-  if (typeof own === "string") return own;
+  // (A component of yours that copied a root's statics is yours: see own-type.ts.)
+  if (typeof own === "string") return isOwnType(type) ? own : undefined;
   const name = (type as { displayName?: string }).displayName;
   return name && OLDER.get(name)?.test(String(type)) ? name : undefined;
 }

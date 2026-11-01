@@ -243,6 +243,21 @@ describe("renderToHtmlParts", () => {
       expect(renderToHtml(vip)).not.toMatch(/[\u000e\u000f]/);
     });
 
+    it("writes a display condition with a `<` whole (`{% if customer.orders < 1 %}`), as the HTML has it", () => {
+      // Its `<` was read as a tag's start: the text had `{% if customer.orders`, which the email service couldn't parse,
+      // failing the message for every recipient.
+      const email = (before: string) => (
+        <Email>
+          <Row><Column><Paragraph>Hello all</Paragraph></Column></Row>
+          <Row values={{ displayCondition: { before, after: "{% endif %}" } }}><Column><Paragraph>Welcome offer: 20% off</Paragraph></Column></Row>
+          <Row><Column><Paragraph>Bye</Paragraph></Column></Row>
+        </Email>
+      );
+      for (const before of ["{% if customer.orders < 1 %}", "{% if customer.orders <= 1 %}", "%%[ IF @orders < 1 THEN ]%%"]) {
+        expect(renderToPlainText(email(before))).toBe(`Hello all\n\n${before}\n\nWelcome offer: 20% off\n\n{% endif %}\n\nBye`);
+      }
+    });
+
     it("writes any HTML as text with toPlainText, as it writes a template's", () => {
       expect(toPlainText(renderToHtml(email), { links: "none" })).toBe("YOUR ORDER\n\nTrack it here.");
       expect(toPlainText("<p>A</p><p>B</p>")).toBe("A\nB");

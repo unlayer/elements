@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Image from "./Image";
@@ -9,6 +9,7 @@ import { Column } from "./Column";
 import { ColumnLayouts, type ColumnLayout } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtml } from "../utils/render-to-html";
+import { Link } from "./Link";
 import * as Roots from "../index";
 
 
@@ -265,5 +266,34 @@ describe("Image Component", () => {
     it("respects a wider contentWidth", () => {
       expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(880);
     });
+  });
+});
+
+describe("Image: a link given as another block's (an `href`, a <Link> around it)", () => {
+  // `<Image href>` linked nothing, said nowhere (its design keeps the `href`, as the previous release's did);
+  // `<Link><Image /></Link>` said the Link's markup is left out, where it's the link that goes (the Image is kept).
+  // Both say what links an Image.
+  const email = (block: React.ReactNode) => <Email><Row><Column>{block}</Column></Row></Email>;
+  it("says to give it as `action`", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const href = email(<Image src="https://example.com/a.png" alt="a" {...({ href: "https://example.com" } as object)} />);
+      renderToJson(href);
+      expect(renderToHtml(href)).not.toContain('href="https://example.com"');
+      const linked = email(<Link href="https://example.com"><Image src="https://example.com/a.png" alt="a" /></Link>);
+      renderToHtml(linked);
+      const said = warn.mock.calls.map((call) => String(call[0]));
+      // (Once in each render: the design's, and the HTML's.)
+      expect(said.filter((m) => /Image takes its link as `action=\{\{ name: "web", values: \{ href \} \}\}`/.test(m))).toHaveLength(2);
+      expect(said.filter((m) => /an <Image> in a <Link> is kept without the link: give the Image its link as `action=/.test(m))).toHaveLength(1);
+      expect(said.filter((m) => /<Link> rendered markup that isn't a block/.test(m))).toEqual([]);
+      // (The control: an Image given its link as `action` says nothing, and links.)
+      warn.mockClear();
+      const html = renderToHtml(email(<Image src="https://example.com/a.png" alt="a" action={{ name: "web", values: { href: "https://example.com/go" } }} />));
+      expect(html).toContain('href="https://example.com/go"');
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

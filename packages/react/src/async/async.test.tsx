@@ -1,5 +1,8 @@
 // @vitest-environment node
+import v8 from "node:v8";
+import vm from "node:vm";
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
 import { Button, Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, toPlainText, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
@@ -171,6 +174,65 @@ describe("the async renderers", () => {
     }
   });
 
+  // (React 19 writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden <div>, and
+  // scripts that move it: from about 12.8 KB of the template's markup, whatever's in the <Suspense>.)
+  it("wait for a <Suspense>'s content where it is in a long template, writing no fallback, hidden content or script", async () => {
+    const story = (i: number) => (
+      <Row key={i}>
+        <Column>
+          <Heading>{`Story ${i}`}</Heading>
+          <Paragraph>Read about <strong>{`story ${i}`}</strong> and what it means for you this week.</Paragraph>
+          <Button href={`https://example.com/s/${i}`}>Read more</Button>
+        </Column>
+      </Row>
+    );
+    const Coupon = async () => {
+      const code = await Promise.resolve("SAVE20");
+      return [
+        <Row key={1}><Column><Heading>Just for you</Heading><Paragraph>Your code is <strong>{code}</strong>, valid until Sunday at midnight, on everything in the store, including sale items and bundles.</Paragraph></Column></Row>,
+        <Row key={2}><Column><Paragraph>Use it at checkout. <a href="https://example.com/terms">Terms apply</a>; one use per customer, not combinable with other offers or gift cards.</Paragraph><Button href="https://example.com/shop">Shop now</Button></Column></Row>,
+      ];
+    };
+    const email = (
+      <Email>
+        {Array.from({ length: 40 }, (_, i) => story(i))}
+        <React.Suspense fallback={<Row><Column><Paragraph>Loading your code</Paragraph></Column></Row>}>
+          <Coupon />
+        </React.Suspense>
+        <Row><Column><Paragraph>Footer</Paragraph></Column></Row>
+      </Email>
+    );
+    const html = await renderToHtml(email);
+    expect(html).not.toMatch(/Loading your code|<template|<script|<div hidden/);
+    expect(html.indexOf("SAVE20")).toBeGreaterThan(html.indexOf("story 39"));
+    expect(html.indexOf("SAVE20")).toBeLessThan(html.indexOf("Footer"));
+    const text = await renderToPlainText(email);
+    expect(text).not.toContain("Loading");
+    expect(text.indexOf("SAVE20")).toBeLessThan(text.indexOf("Footer"));
+    const texts = contents(await renderToJson(email));
+    const rows = (await renderToJson(email)).body.rows.map((row: any) => JSON.stringify(row));
+    expect(rows.findIndex((r: string) => r.includes("SAVE20"))).toBe(40);
+    expect(rows.findIndex((r: string) => r.includes("Footer"))).toBe(42);
+  });
+
+  // (React 19.2's stream writes an <Activity>'s start and end as comments.)
+  const Activity = (React as unknown as { Activity?: React.ComponentType<{ mode: "visible"; children?: React.ReactNode }> }).Activity;
+  it.runIf(Activity)("render what's in a visible <Activity> as what's in it (React 19.2)", async () => {
+    const Shown = Activity!;
+    const email = one(<><Shown mode="visible"><Paragraph>Promo 50% off</Paragraph></Shown><Paragraph>after</Paragraph></>);
+    const text = await renderToPlainText(email);
+    expect(text).not.toContain("<!--");
+    expect(await renderToHtml(email)).not.toMatch(/<!--\/?&-->/);
+    expect(text).toBe(renderToPlainTextSync(email));
+  });
+
+  // (React 19 renders a promise given as a child as what it resolves to.)
+  it.runIf(use)("wait for a promise given as a child (React 19); the synchronous renderers say which component gave it", async () => {
+    const Holder = ({ text }: { text: PromiseLike<string> }) => <div>{text as unknown as React.ReactNode}</div>;
+    expect(() => renderToHtmlSync(one(<Holder text={new Promise<string>(() => {})} />))).toThrow(inSync("Holder", "Row 1 › Column 1 › Holder"));
+    expect(await renderToHtml(one(<Holder text={later("Given")} />))).toContain("Given");
+  });
+
   it("fail with what a promise a component throws rejected with, where it throws it again, as `use()` of it fails", async () => {
     const down = new Error("the translations didn't load");
     const failing = () => {
@@ -213,6 +275,33 @@ describe("the async renderers", () => {
     expect(await renderToJson(email)).toEqual(renderToJsonSync(email));
   });
 
+  it("give what the synchronous renderers give for text whose characters cross the stream's chunks (no NULs)", async () => {
+    // React 18.2's and 18.3's Node stream wrote its whole buffer where a character didn't fit at its end, the bytes
+    // it hadn't filled as NULs: Japanese text (3 bytes a character) had them in its HTML, plain text and design.
+    const article = "赤い果実やカカオ、ナッツの香りが広がる一杯です。".repeat(4);
+    for (let shift = 0; shift < 3; shift++) {
+      const email = (
+        <Email>
+          {Array.from({ length: 12 }, (_, i) => (
+            <Row key={i}>
+              <Column>
+                <Heading>{"x".repeat(shift) + `記事 ${i}`}</Heading>
+                <Paragraph>
+                  <strong>山田</strong>さん、{article}
+                </Paragraph>
+              </Column>
+            </Row>
+          ))}
+        </Email>
+      );
+      const html = await renderToHtml(email);
+      expect(html.includes("\u0000"), `shift ${shift}`).toBe(false);
+      expect(html).toBe(renderToHtmlSync(email));
+      expect(await renderToPlainText(email)).toBe(renderToPlainTextSync(email));
+      expect(await renderToJson(email)).toEqual(renderToJsonSync(email));
+    }
+  });
+
   it("render a template with no root as the synchronous renderers do, calling it once", async () => {
     // Rows with no root: renderToHtml() renders them in a document, renderToJson() says the root it needs. The
     // async template is called once a render (not again by the synchronous render after), inside the providers and
@@ -252,6 +341,34 @@ describe("the async renderers", () => {
     expect(runs.template).toBe(4);
   });
 
+  it("render an async template React.lazy loads on React 19, and on React 18, which renders it itself, say what to do", async () => {
+    // React 18 rejected it with React's own "Objects are not valid as a React child (found: [object Promise])".
+    const Receipt = async (props: { orderId?: string }) => {
+      await later(null);
+      return <Email><Row><Column><Paragraph>{`Order ${props?.orderId}`}</Paragraph></Column></Row></Email>;
+    };
+    const Lazy = React.lazy(async () => (await later(null), { default: Receipt }));
+    const rendered = renderToHtml(<Lazy orderId="A-1001" />);
+    if (Number.parseInt(React.version) >= 19) expect(await rendered).toContain("Order A-1001");
+    else await expect(rendered).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    // An async component in what a lazy section renders, in a <Suspense> there, the same (React handles that one, and
+    // its own error was given).
+    const Price = async () => (await later(null), <Paragraph>$10</Paragraph>);
+    const Section = () => <React.Suspense fallback={null}><Price /></React.Suspense>;
+    const LazySection = React.lazy(async () => (await later(null), { default: Section }));
+    const section = renderToHtml(<Email><Row><Column><LazySection /></Column></Row></Email>);
+    if (Number.parseInt(React.version) >= 19) expect(await section).toContain("$10");
+    else await expect(section).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    // And an async component a lazy component loads in the template, in a <Suspense> or not (where it's in one of its
+    // own: React 18's own message was given).
+    const LazyPrice = React.lazy(async () => (await later(null), { default: Price }));
+    for (const content of [<LazyPrice />, <React.Suspense fallback={null}><LazyPrice /></React.Suspense>]) {
+      const priced = renderToHtml(<Email><Row><Column>{content}</Column></Row></Email>);
+      if (Number.parseInt(React.version) >= 19) expect(await priced).toContain("$10");
+      else await expect(priced).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    }
+  });
+
   it("resolve a lazy template (`React.lazy`) as an async one, its root's settings read; the synchronous renderers say it's async", async () => {
     // It was taken for a template with no root: the HTML in a web page's document without the root's language and
     // fonts, and renderToJson() said its root wasn't one.
@@ -280,6 +397,51 @@ describe("the async renderers", () => {
     const failed = await renderToHtml(<Missing />).catch((error: unknown) => error);
     expect(failed).toBeInstanceOf(RenderError);
     expect(failed).toMatchObject({ message: "[Unlayer] no such chunk (in <lazy>)", component: "lazy", cause: new Error("no such chunk") });
+  });
+
+  it("fail where a part fails inside a <Suspense> of what a lazy component renders, as anywhere else, its fallback no stand-in", async () => {
+    // React renders what a lazy component renders itself: its <Suspense> rendered the fallback for the part that
+    // failed, and the render resolved with `Loading…` (or nothing), saying nothing, onError never called.
+    const Fails = () => {
+      throw new Error("price service down");
+    };
+    for (const fallback of [<Paragraph key="p">Loading…</Paragraph>, null]) {
+      const Section = React.lazy(async () => (await later(null), { default: () => <React.Suspense fallback={fallback}><Fails /></React.Suspense> }));
+      const email = <Email><Row><Column><Paragraph>Your order</Paragraph><Section /></Column></Row></Email>;
+      const failed = await renderToHtml(email).catch((error: unknown) => error);
+      expect(failed).toBeInstanceOf(RenderError);
+      expect((failed as RenderError).cause).toEqual(new Error("price service down"));
+      // Told, where a function is given; left out with "omit" (the part, which React's fallback stands for).
+      const told: unknown[] = [];
+      expect(await renderToHtml(email, { onError: (error) => void told.push(error) })).toContain("Your order");
+      expect(told.map((error) => (error as RenderError).cause)).toEqual([new Error("price service down")]);
+      expect(await renderToHtml(email, { onError: "omit" })).toContain("Your order");
+      // (And listed with every part left out, for what checks the list before it sends.)
+      const { omitted } = await renderToHtmlParts(email, { onError: "omit" });
+      expect(omitted.map((error) => error.cause)).toEqual([new Error("price service down")]);
+    }
+  });
+
+  it("render what's in a <Suspense> in what a lazy component renders whose fallback holds blocks, where what's in it waits", async () => {
+    // React renders that fallback and leaves it out: its blocks' markers, rendered and never read, failed the render as
+    // forged ones, saying to give it a fallback of null.
+    const cache = new Map<string, { value?: string; promise: Promise<void> }>();
+    const Order = ({ id }: { id: string }) => {
+      const entry = cache.get(id) ?? cache.set(id, { promise: later(null).then(() => void (cache.get(id)!.value = `Order ${id}`)) }).get(id)!;
+      if (entry.value === undefined) throw entry.promise;
+      return <Paragraph>{entry.value}</Paragraph>;
+    };
+    const section = (body: React.ReactElement) => React.lazy(async () => (await later(null), { default: () => body }));
+    const email = (part: React.ReactElement) => <Email><Row><Column><Paragraph>Your order</Paragraph>{part}</Column></Row></Email>;
+    const Blocks = section(<React.Suspense fallback={<Paragraph>Loading…</Paragraph>}><Order id="a" /></React.Suspense>);
+    const html = await renderToHtml(email(<Blocks />));
+    expect(html).toContain("Order a");
+    expect(html).not.toContain("Loading…");
+    // With no fallback, and around the lazy component, the same.
+    const Nothing = section(<React.Suspense fallback={null}><Order id="b" /></React.Suspense>);
+    expect(await renderToHtml(email(<Nothing />))).toContain("Order b");
+    const Inner = section(<Order id="c" />);
+    expect(await renderToHtml(email(<React.Suspense fallback={<Paragraph>Loading…</Paragraph>}><Inner /></React.Suspense>))).toContain("Order c");
   });
 
   it("unwrap a <Suspense> around the template, its root's settings read, waiting for what's in it; its fallback, which isn't a document, never renders", async () => {
@@ -440,6 +602,72 @@ describe("the async renderers", () => {
     await expect(renderToJson(<Template />)).rejects.toMatchObject({ message: "[Unlayer] the order service is down (in <Template>)", component: "Template", cause: boom });
   });
 
+  it("keep no memory over a batch whose renders all fail, one after another with nothing between them", async () => {
+    // React 19's stream holds each request till a macrotask it scheduled runs, which a render that failed didn't wait
+    // for: a batch whose data made every render fail, awaited one after another, grew 24 KB a render till the process
+    // ran out of memory. (React 18 keeps none either way.)
+    v8.setFlagsFromString("--expose-gc");
+    const gc = vm.runInNewContext("gc") as () => void;
+    const Items = async ({ items }: { items?: string[] }) => {
+      await null;
+      return items!.map((item) => <Paragraph key={item}>{item}</Paragraph>);
+    };
+    const receipt = (i: number) => <Email><Row><Column><Heading>{`Thanks, customer ${i}`}</Heading><Paragraph>{"Here is your receipt. ".repeat(20)}</Paragraph><Items /></Column></Row></Email>;
+    let failed = 0;
+    const batch = async (from: number, count: number) => {
+      for (let i = from; i < from + count; i++) await renderToHtml(receipt(i)).catch((error: unknown) => void (error instanceof RenderError && failed++));
+    };
+    await batch(0, 200);
+    gc();
+    const heap = process.memoryUsage().heapUsed;
+    await batch(200, 1500);
+    gc();
+    expect(failed).toBe(1700);
+    expect((process.memoryUsage().heapUsed - heap) / 1e6).toBeLessThan(8);
+  }, 120_000);
+
+  it("reject with a RenderError where the template nests deeper than the stack goes, as the synchronous renderers throw", async () => {
+    // Thousands of nested elements: the synchronous renderers threw a RenderError, the async ones a bare RangeError.
+    // (Where the stack runs out depends on the depth: each from 2,000 deep on.)
+    const bare: string[] = [];
+    for (const tag of ["span", "div"]) {
+      for (let depth = 2000; depth <= 20000; depth = Math.round(depth * 1.2)) {
+        let deep: React.ReactNode = "deep";
+        for (let i = 0; i < depth; i++) deep = React.createElement(tag, null, deep);
+        const email = <Email><Row><Column><Paragraph>{deep}</Paragraph></Column></Row></Email>;
+        for (const render of [renderToHtmlSync, renderToHtml, renderToJson, renderToPlainText]) {
+          const failed = await Promise.resolve().then(() => render(email)).then(() => undefined, (error: unknown) => error);
+          if (failed !== undefined && !(failed instanceof RenderError)) bare.push(`${tag} ${depth} ${render.name}: ${String(failed)}`);
+        }
+      }
+    }
+    expect(bare).toEqual([]);
+  }, 60_000);
+
+  it("fail a part that nests more than 256 components deep where it is, and render what comes after (React 19's renderer then broke every later render)", async () => {
+    // (A reply chain 8,000 deep, each reply with hooks and two providers: React 19 went on past where the stack ran
+    // out, and its module kept the providers: every later synchronous render, another tenant's, the app's own, failed.)
+    const Depth = React.createContext(0);
+    const Thread = React.createContext("");
+    const Reply = ({ depth }: { depth: number }): React.ReactElement => {
+      const [level] = React.useState(depth);
+      const label = React.useMemo(() => `reply ${level}`, [level]);
+      const id = React.useId();
+      if (depth === 0) return <span id={id}>{label}</span>;
+      return <Depth.Provider value={depth}><Thread.Provider value={label}><Reply depth={depth - 1} /></Thread.Provider></Depth.Provider>;
+    };
+    const deep = <Email><Row><Column><Paragraph>Kept</Paragraph><Reply depth={8000} /></Column></Row></Email>;
+    const next = <Email><Row><Column><Paragraph>Hello B</Paragraph></Column></Row></Email>;
+    for (const render of [renderToHtmlSync, renderToHtml]) {
+      await expect(Promise.resolve().then(() => render(deep)), render.name).rejects.toMatchObject({ name: "RenderError", message: expect.stringMatching(/nests more than 256 components deep/) });
+      expect(await render(next), render.name).toContain("Hello B");
+      expect(renderToStaticMarkup(<p>page</p>), render.name).toBe("<p>page</p>");
+    }
+    const parts = await renderToHtmlParts(deep, { onError: "omit" });
+    expect(parts.body).toContain("Kept");
+    expect(parts.omitted.map((e) => e.message)).toEqual([expect.stringMatching(/nests more than 256 components deep/)]);
+  }, 60_000);
+
   it("compile <Tailwind config>, also in a template that's async", async () => {
     async function Welcome() {
       const color = await later("#007291");
@@ -509,12 +737,45 @@ describe("the async renderers", () => {
     expect(text).toContain(`Shop now (${long(3)})`);
   });
 
-  it("sets the HTML's comments aside in time linear in its size, and fails as prettier does on one nothing closes", async () => {
+  it("sets the HTML's comments aside in time linear in its size, and gives one nothing closes back as it is", async () => {
     // `/<!--[\s\S]*?-->/g` looked from each `<!--` nothing closes to the end: 400 KB of them took 11 s.
-    const timing = await within(2000, () => formatted("<!--".repeat(102400)).then(() => undefined, (error: unknown) => error));
-    expect(timing.result).toBeInstanceOf(Error);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const unclosed = "<!--".repeat(102400);
+    const timing = await within(2000, () => formatted(unclosed));
+    expect(timing.result).toBe(unclosed);
     expect(inTime(timing)).toBe(true);
+    warn.mockRestore();
     expect(await formatted("<p>a<!-- one --><!--two--></p>")).toContain("<!-- one --><!--two-->");
+  });
+
+  it("give the HTML as it renders with `pretty` where prettier can't read it (Html blocks that open and close a <div>), said", async () => {
+    // Prettier's SyntaxError rejected the render: the email failed where only its formatting couldn't be done.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const email = (
+      <Email>
+        <Row>
+          <Column>
+            <Html html='<div style="border: 1px solid #ddd">' />
+            <Paragraph>In the box</Paragraph>
+            <Html html="</div>" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(await renderToHtml(email, { pretty: true })).toBe(await renderToHtml(email));
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] `pretty` left the HTML as it renders: prettier can't read it \(/)]);
+    warn.mockRestore();
+  });
+
+  it("give the HTML as it renders with `pretty` where its text has a NUL character, which prettier drops the text after", async () => {
+    // `BEFORE\u0000AFTER` was formatted as `BEFORE`: a browser shows `BEFOREAFTER`.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const email = <Email><Row><Column><Paragraph>{"BEFORE\u0000AFTER"}</Paragraph></Column></Row></Email>;
+    const html = await renderToHtml(email, { pretty: true });
+    expect(html).toBe(await renderToHtml(email));
+    expect(html).toContain("BEFORE\u0000AFTER");
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] `pretty` left the HTML as it renders: prettier can't read it \(/)]);
+    warn.mockRestore();
   });
 
   it("write the plain text with the synchronous renderer's options", async () => {

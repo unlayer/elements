@@ -131,7 +131,7 @@ const LINK_SHAPES: unknown[] = [
   { url: "https://example.com/", customAttrs: { is: "x-link", className: "c", onClick: "x()", hidden: true } },
 ];
 
-/** Item text given as JSX (markup, a component, a Fragment): the string version renders it with the walker. */
+/** Item text given as JSX (markup, a component, a Fragment): the string version renders it with react-dom. */
 const Em = ({ children }: { children?: React.ReactNode }) => React.createElement("em", { className: "x" }, children);
 const ELEMENT_TEXTS = [
   React.createElement("b", null, "Bold"),

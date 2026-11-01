@@ -216,7 +216,10 @@ export function highlightCode(code: string, options: HighlightOptions = {}): str
   // In pixels where the size is: Outlook reads no ratio.
   const lineHeight = ratio === undefined ? px(options.lineHeight!) : /^[\d.]+px$/.test(size) ? `${Math.round(parseFloat(size) * ratio)}px` : String(ratio);
   const font = attribute(`font-family: ${options.fontFamily ?? MONOSPACE}; font-size: ${size}; line-height: ${lineHeight}; mso-line-height-rule: exactly`);
-  const pre = `margin: 0; padding: 0; ${font}; color: ${theme.color}; white-space: ${options.wrap === false ? "pre; overflow-x: auto" : "pre-wrap"}; word-wrap: break-word; text-align: left; direction: ltr`;
+  // (Wrapped, a token longer than the line (a key, a URL) breaks too, where a table around it would otherwise grow to
+  // fit it: a page scrolled sideways, a printed document shrank and still cut it off. An email's cell breaks it.)
+  const wrapping = options.wrap === false ? "white-space: pre; overflow-x: auto; word-wrap: break-word" : "white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word";
+  const pre = `margin: 0; padding: 0; ${font}; color: ${theme.color}; ${wrapping}; text-align: left; direction: ltr`;
   const box = attribute(`width: 100%; border-collapse: separate; background-color: ${theme.background}; border-radius: ${px(options.borderRadius ?? 6)}${theme.border ? `; border: ${theme.border}` : ""}`);
   const padding = attribute(px(options.padding ?? 16));
   let inner: string;

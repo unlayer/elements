@@ -217,6 +217,38 @@ describe("<Tailwind>: classes as each component's props", () => {
   });
 });
 
+describe("<Tailwind>: in a lazy template's module, around its root", () => {
+  // A lazy template (`React.lazy(() => import("./Welcome"))`) whose module wraps its root in a <Tailwind> with something
+  // between them (a context's provider): only the root was found where it rendered, so its classes stayed as written
+  // (an unstyled email, its body's color lost), said nowhere.
+  const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+  const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+  const Theme = React.createContext("light");
+  const email = (
+    <Email className="bg-gray-100">
+      <Row><Column><Paragraph className="text-red-600">Welcome</Paragraph></Column></Row>
+    </Email>
+  );
+  const shapes: Record<string, (tailwind: (inside: React.ReactNode) => React.ReactElement) => React.ComponentType> = {
+    "a <Tailwind> around a provider": (tailwind) => () => tailwind(<Theme.Provider value="dark">{email}</Theme.Provider>),
+    "a provider around a <Tailwind>": (tailwind) => () => <Theme.Provider value="dark">{tailwind(email)}</Theme.Provider>,
+    "a <Tailwind> alone": (tailwind) => () => tailwind(email),
+  };
+  it("styles it as the same template not lazy, in the synchronous and async renderers", async () => {
+    for (const [shape, made] of Object.entries(shapes)) {
+      const Welcome = made((inside) => <Tailwind tw={tw}>{inside}</Tailwind>);
+      const eager = renderToHtml(<Welcome />);
+      expect(eager).toContain("#f3f4f6");
+      expect(eager).not.toMatch(/class="[^"]*text-red-600/);
+      expect(renderToHtml(React.createElement(loaded(Welcome))), shape).toBe(eager);
+      expect(renderToJson(React.createElement(loaded(Welcome))), shape).toEqual(renderToJson(<Welcome />));
+      // (Its config compiled by the async renderers.)
+      const Configured = made((inside) => <Tailwind config={config}>{inside}</Tailwind>);
+      expect(await renderToHtmlAsync(React.createElement(later(Configured))), shape).toBe(await renderToHtmlAsync(<Configured />));
+    }
+  });
+});
+
 describe("<Tailwind>: props given win over classes", () => {
   it("over a class, flat, in a group or in `values`", () => {
     expect(block(<Paragraph className="text-lg text-red-500" fontSize="20px">Hi</Paragraph>)).toMatchObject({ fontSize: "20px", color: "#fb2c36" });
@@ -353,6 +385,25 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     const email = renderToHtml(element);
     expect(email).toContain('style="padding: 16px; color: #fb2c36; color: blue"');
     expect(email).not.toMatch(/class="[^"]*(text-red|font-bold|text-brand)/);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("are inline styles in a component of yours's markup in a Column, the Html block it is: the HTML and the design, in both renderers", async () => {
+    // (A small styled component, a badge, kept its classes as written: email clients don't read them, and it wasn't said.)
+    function Badge() {
+      return <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">New arrivals</div>;
+    }
+    const element = (
+      <Tailwind tw={tw}>
+        <Email><Row><Column><Paragraph>Hi</Paragraph><Badge /></Column></Row></Email>
+      </Tailwind>
+    );
+    const styled = '<div style="border-radius: 8px; background-color: #155dfc; padding-left: 16px; padding-right: 16px; padding-top: 8px; padding-bottom: 8px; font-weight: 700; color: #fff">New arrivals</div>';
+    expect(renderToJson(element).body.rows[0].columns[0].contents[1]).toMatchObject({ type: "html", values: { html: styled } });
+    for (const email of [renderToHtml(element), await renderToHtmlAsync(element)]) {
+      expect(email).toContain(styled);
+      expect(email).not.toContain("bg-blue-600");
+    }
     expect(warnings()).toEqual([]);
   });
 

@@ -15,6 +15,9 @@ function Welcome({ name }: { name: string }) {
   );
 }
 
+/** The email as a template, for the async renderers. */
+export const welcome = () => h(Welcome, { name: "Ada" });
+
 export function emailCounts() {
   const html = renderToHtml(h(Welcome, { name: "Ada" }));
   const design = renderToJson(h(Welcome, { name: "Ada" }));

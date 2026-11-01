@@ -133,33 +133,6 @@
         "default": "./dist/codegen.cjs"
       }
     },
-    "./fizz-cleanup": {
-      "react-server": {
-        "import": "./dist/fizz-cleanup.noop.js",
-        "default": "./dist/fizz-cleanup.noop.cjs"
-      },
-      "deno": "./dist/fizz-cleanup.node.cjs",
-      "browser": {
-        "import": "./dist/fizz-cleanup.noop.js",
-        "default": "./dist/fizz-cleanup.noop.cjs"
-      },
-      "worker": {
-        "import": "./dist/fizz-cleanup.noop.js",
-        "default": "./dist/fizz-cleanup.noop.cjs"
-      },
-      "workerd": {
-        "import": "./dist/fizz-cleanup.noop.js",
-        "default": "./dist/fizz-cleanup.noop.cjs"
-      },
-      "edge-light": {
-        "import": "./dist/fizz-cleanup.noop.js",
-        "default": "./dist/fizz-cleanup.noop.cjs"
-      },
-      "default": {
-        "import": "./dist/fizz-cleanup.node.js",
-        "default": "./dist/fizz-cleanup.node.cjs"
-      }
-    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -190,7 +163,6 @@
   },
   "files": [
     "dist",
-    "fizz-cleanup",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_LICENSES.md"
@@ -223,6 +195,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@unlayer-internal/shared-elements": "workspace:*",
+    "@unlayer/react-elements-021": "npm:@unlayer/react-elements@0.2.1",
     "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.1.22",
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^3.2.4",

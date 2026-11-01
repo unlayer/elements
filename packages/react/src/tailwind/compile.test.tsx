@@ -195,8 +195,9 @@ describe("classNameToDeclarations", () => {
     const asFresh = (after: string) => {
       for (const normal of ["text-red-500", "p-2", "bg-blue-500/50", "before:content-['a']"]) expect(classNameToDeclarations(handle, normal), `${normal} after ${after}`).toEqual(classNameToDeclarations(tw, normal));
     };
-    // Brackets, parentheses, braces or quotes left open (an escaped one doesn't close), a comment: refused, never built.
-    for (const hostile of ["[color:x(]", "[color:/*]", "[color:*/]", "bg-[x\\]", "[color:x{]", "[content:'a]", "[content:'a\\']"]) {
+    // Brackets, parentheses, braces or quotes left open (an escaped one doesn't close), a comment, an at-rule variant
+    // name's escaped `(`, which Tailwind builds as an open one (`[@media\(]:` as `@media\ (`): refused, never built.
+    for (const hostile of ["[color:x(]", "[color:/*]", "[color:*/]", "bg-[x\\]", "[color:x{]", "[content:'a]", "[content:'a\\']", "[@media\\(]:p-1", "[@supports\\(]:p-1", "hover:[@med\\(ia]:p-1"]) {
       expect(classNameToDeclarations(handle, `${hostile} text-red-500`).ignored, hostile).toEqual([{ className: hostile, reason: unreadable }]);
       asFresh(hostile);
     }
@@ -206,8 +207,9 @@ describe("classNameToDeclarations", () => {
       asFresh(quoted);
     }
     expect(classNameToDeclarations(handle, '[background-image:image-set("x.png"_1x)]').declarations.map((d) => d.value)).toEqual(['image-set("x.png" 1x)']);
-    // What Tailwind can read stays readable: quotes and brackets closed, an escape in a string.
-    expect(classNameToDeclarations(handle, "before:content-['\\201C'] font-['Open_Sans'] [&>*]:p-2 max-[480px]:p-1").ignored.map((i) => i.reason)).not.toContain(unreadable);
+    // What Tailwind can read stays readable: quotes and brackets closed, an escape in a string, an escaped `(` after an
+    // at-rule's name.
+    expect(classNameToDeclarations(handle, "before:content-['\\201C'] font-['Open_Sans'] [&>*]:p-2 max-[480px]:p-1 [@media_screen\\(]:p-1").ignored.map((i) => i.reason)).not.toContain(unreadable);
   });
 
   it("keeps every class reading as on a fresh handle, whatever hostile classes it's given (fuzzed)", async () => {
@@ -1302,7 +1304,9 @@ describe("a class from data, before Tailwind's compiler", () => {
       </Tailwind>
     );
     renderToHtmlNow(email("warm", "text-gray-700"));
-    for (const hostile of ["max-sm:".repeat(3000) + "p-1", `w-[calc(${"(".repeat(10_000)}1px${")".repeat(10_000)})]`, `w-[${"var(--a,".repeat(2000)}1px${")".repeat(2000)}]`]) {
+    // (And an at-rule variant with an escaped `(` in its name, which Tailwind builds as an open one: `[@media\(]` as
+    // `@media\ (`.)
+    for (const hostile of ["max-sm:".repeat(3000) + "p-1", `w-[calc(${"(".repeat(10_000)}1px${")".repeat(10_000)})]`, `w-[${"var(--a,".repeat(2000)}1px${")".repeat(2000)}]`, "[@media\\(]:p-1"]) {
       const recipients = [{ name: "mallory", className: hostile }];
       const ordinary = ["text-blue-600", "text-green-700", "text-rose-500", "underline", "italic", "text-sm", "font-semibold", "text-[#123456]"];
       for (let i = 0; i < 50; i++) recipients.push({ name: `user${i}`, className: `${ordinary[i % ordinary.length]} p-[${i}px]` });
