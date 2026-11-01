@@ -91,7 +91,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); whether its static renderer is calling a component of an app's, and another module of it to render with there (`withFreeBuild`); and what it can't render, said by name (see below) |
 | `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered where it is (Elements' components in it collected through `…/collects`), a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render the first error in tree order |
-| `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one; what a lazy component renders read no further than the markers React wrote after it, with React 18's `javascript:` URLs there written as React 19 writes them |
+| `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one; what a lazy component renders read no further than the markers React wrote after it, its tags and comments as a browser reads them, with React 18's `javascript:` URLs there written as React 19 writes them where it's read as a browser reads it |
 | `capture.ts`, `root-capture.ts` | Template wrappers called in a render of react-dom's of their own; a lazy template's root, given by the root |
 | `output.ts` | The parts (text, markup, records, boundaries, errors), flattened in tree order into the content's tree |
 | `host.ts`, `attributes.ts` | Markup as react-dom writes it, for the string exporters (`src/exporters`): attributes and styles by React 18's property table or React 19's switch, escaping, a `<Head>`'s raw text rules (`rawText`) |
@@ -156,9 +156,14 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   their element to the collection, which records it where it is, so one that loaded renders as the component it loads
   would. What isn't Elements' is react-dom's as it renders it (an error thrown there fails the render, even with
   `onError: "omit"`; HTML given whole there is read as markup, in a marker of the lazy component's own, and no further
-  than the next marker or placeholder React wrote: a `<style>`, `<script>` or comment it leaves open is its text, as
-  in the same component not lazy, an end tag in it ends only what's open in it, and a marker forged in it, or an end
-  tag of one, fails the render by name), and a component of the user's own there that starts a synchronous render is
+  than the next marker or placeholder React wrote: its tags and comments are read as a browser reads them (a `>` in a
+  quoted value is the value's), a tag, `<style>`, `<script>` or comment it leaves open is its text, as in the same
+  component not lazy, an end tag in it ends only what's open in it (one that ends nothing is left out among the
+  blocks, as a browser leaves it out), and a marker forged in it, or an end tag of one, fails the render by name.
+  React 18's `javascript:` URLs are written there as React 19 writes them, but not in what a browser reads as text
+  (a `<textarea>`, a `<title>`), nor after an `<svg>`'s or `<math>`'s `<style>`, `<script>` or CDATA (which a
+  browser reads as markup, and as text) or something left open: a quote written in could end what a browser reads as a value, so what's
+  after is written as given), and a component of the user's own there that starts a synchronous render is
   said at the lazy one's place. One that
   hasn't loaded: a synchronous render says it's async, at its place (left out with `onError: "omit"`); an async one
   waits for it.

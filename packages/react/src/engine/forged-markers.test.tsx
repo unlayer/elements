@@ -303,8 +303,32 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
   const blocks = (design: string) => (JSON.parse(design) as ReturnType<typeof renderToJson>).body.rows.map((row) => row.columns.map((column) => column.contents.map((content) => content.type)));
   const GENUINE = /<unlayer-mark data-n="r[0-9a-z]+" data-i=|<!--ur[0-9a-z]+\.\d+-->/;
 
+  /**
+   * Markup in a quoted value, as a sanitizer built on a DOM (jsdom's) writes it: a `>` there is the value's, not the
+   * tag's end, so nothing after it is a tag, an end tag or a URL React 18 wrote. React 18's `javascript:` URL, written
+   * as React 19 writes it, there ended the value (its `"`), and the rest was the <img>'s: a live `onerror`. The same
+   * where the parse read on otherwise than a browser: past a quote left open, in a comment a browser ended (`<!-->`, at
+   * `--!>`), or in a <textarea> a browser ended inside what the parse read as a value.
+   */
+  const IN_VALUES = [
+    '<img alt="a> <a href=javascript:alert(1) title=x onerror=alert(2) src=y>" src="pic.png">',
+    "<img alt='a> <a href=javascript:alert(1) onerror=alert(2) src=y>' src=pic.png>",
+    '<a title="1 > 0" href="https://example.com/x">x</a><img alt="b></div></td></tr></table>c" src="pic.png">',
+    '<img alt="open quote <a href=javascript:alert(1)>',
+    '<b>bold</b><!-- --!><img alt="x --> <a href=javascript:alert(1) onerror=alert(2) src=y>" src=z>',
+    '<!--><img alt="x --> <a href=javascript:alert(1) onerror=alert(2) src=y>" src=z>',
+    '<textarea><a title="</textarea><img alt=" href=javascript:alert(1) onerror=alert(2) src=y z="w">',
+    '<STYLE><a title="</STYLE><img alt=" href=javascript:0 onerror=alert(1) src=y z="w">',
+    // (In an <svg> or <math>, a <style>'s or <script>'s content is markup: a `</style>` in a value isn't its end.)
+    '<svg><style><a title="x> <a href=javascript:1 onclick=alert(1)>"></style></svg>',
+    '<svg><script><a title="x> <a href=javascript:1 onclick=alert(1)>"></script></svg>',
+    '<math><style><a title="x> <a href=javascript:1 onclick=alert(1)>"></style></math>',
+    '<svg><style><a title="x></style><a href=javascript:1 onclick=alert(1) y="z"></a></svg>',
+    '<svg><![CDATA[ > <a title="]]><x y=" href=javascript:1 onclick=alert(1) z="w"></x></svg>',
+  ];
+
   it("is the email, plain text and design of the same component not lazy, every block and row kept and no marker written, where it leaves an element, a <style>, a <script> or a comment open or ends what it didn't open", async () => {
-    const left = ["<style>.promo{color:red}", "<script>var promo = 1;", "<style>", "<!-- promo", "<!--$!--><template>promo", "</div></div></td></tr></table>promo", "<div>promo", "<div><span>promo", "<p>a<p>promo", "<textarea>promo", "</style></script>--> promo"];
+    const left = ["<style>.promo{color:red}", "<script>var promo = 1;", "<style>", "<!-- promo", "<!--$!--><template>promo", "</div></div></td></tr></table>promo", "<div>promo", "<div><span>promo", "<p>a<p>promo", "<textarea>promo", "</style></script>--> promo", ...IN_VALUES];
     for (const mode of ["sync", "async"] as const) {
       const r = renderers(mode);
       // (The negative control: HTML that's whole.)
@@ -355,6 +379,39 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
         const text = await r.text(email(Content));
         expect(text, at).not.toMatch(/<\/(?:span|div)>/);
         for (const words of ["Thanks for reading", "Unsubscribe"]) expect(text, at).toContain(words);
+      }
+    }
+  });
+
+  it("writes what's after an <svg> a browser keeps open, where the parse doesn't, as given (React 18's URLs too)", async () => {
+    // (A `</svg>` in its <foreignObject>'s HTML ends nothing to a browser, and one left open at the lazy component's end
+    // goes on into what's after it: a <style> there is markup to the browser, and React 18's URL written in it ended a
+    // value.)
+    const style = '<style><a title="x> <a href=javascript:1 onclick=alert(1)>"></style>';
+    const Html = ({ tag, html }: { tag: "a" | "span"; html: string }) => React.createElement(tag, { className: "cms", dangerouslySetInnerHTML: { __html: html } });
+    const cases: React.ComponentType[][] = [
+      [() => <Html tag="span" html={`<svg><foreignObject><div></svg></div></foreignObject>${style}</svg>`} />],
+      [() => <Html tag="span" html="</span><svg>" />, () => <Html tag="a" html={style} />],
+    ];
+    for (const mode of ["sync", "async"] as const) {
+      const r = renderers(mode);
+      for (const [at, parts] of cases.entries()) {
+        const email = (lazy: boolean) => (
+          <Email>
+            <Row>
+              <Column>
+                <Wrap>
+                  {parts.map((Part, i) => {
+                    const Content = lazy ? loaded(Part) : Part;
+                    return <Content key={i} />;
+                  })}
+                </Wrap>
+                <Paragraph>After</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        );
+        expect(await r.html(email(true)), `${mode} ${at}`).toBe(await r.html(email(false)));
       }
     }
   });

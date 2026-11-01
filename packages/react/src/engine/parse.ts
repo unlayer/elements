@@ -16,23 +16,31 @@
  * fails the render, by name (FORGED). What a lazy component renders is in a marker of its own, and what's in it is read
  * no further than the next marker or placeholder React wrote (none is in the text of a <style>, <script> or comment
  * React writes): a <style>, <script> or comment left open there is its text, as a browser can't read it otherwise
- * here, and an end tag in a marker ends only what's open in it. Every marker React wrote is closed by its own end tag,
- * where whatever is still open in it ends with it (an element a lazy component's HTML left open, as a browser nests
- * what's after it there): so an end tag of a marker with none open, or a marker never ended, is another's
- * `</unlayer-mark>` (each forged one leaves one such end tag, React writing one per marker), and fails the render too,
- * as does a marker React rendered in a part it kept that's never read.
+ * here, and an end tag in a marker ends only what's open in it. There, tags and comments are read as a browser reads
+ * them (a `>` in a quoted value is the value's: see readTag), so nothing in a value is rewritten (React 18's
+ * `javascript:` URLs, an end tag that ends nothing), and nothing is after what the parse can't read on as a browser
+ * does (`shifted`). Every marker React wrote is closed by its own end tag, where whatever is still open in it ends with
+ * it (an element a lazy component's HTML left open, as a browser nests what's after it there): so an end tag of a
+ * marker with none open, or a marker never ended, is another's `</unlayer-mark>` (each forged one leaves one such end
+ * tag, React writing one per marker), and fails the render too, as does a marker React rendered in a part it kept
+ * that's never read.
  */
 import { ASYNC_IN_SYNC, positionOf, RenderError, SWALLOWED, threw, type Frame } from "./errors";
 import { MARK, type Collection } from "./collector";
 import type { BoundaryPart, ErrorPart, HostPart, Part, RecordPart } from "./output";
 import { REACT_18 } from "./react-compat";
 import { unrunTag } from "./attributes";
+import { readTag } from "../utils/html-tags";
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
 /** What React writes its own way: a <style>'s and <script>'s text, as given in React 19 (the tag as React names it). */
 const RAW = new Set(["script", "style"]);
 /** The elements whose content a parser reads to their own end tag (see host.ts's headFormat). */
 const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", "noembed", "noframes", "iframe", "xmp"]);
+/** Foreign content's roots. */
+const FOREIGN = new Set(["svg", "math"]);
+/** What a browser reads as text to its end tag in a page's body (a <style> and <script> are RAW), <plaintext> to the end. */
+const TEXT_IN_BODY = new Set(["title", "textarea", "noscript", "noembed", "noframes", "iframe", "xmp", "plaintext"]);
 
 /** React's text escaping, undone where a <Head>'s style or script text is written as given (see host.ts). */
 const unescaped = (s: string) => s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!);
@@ -62,6 +70,11 @@ interface Open {
   mark?: boolean;
   /** In what a lazy component renders (HTML given whole as written: see the top). */
   lazy?: boolean;
+  /**
+   * There, an element a browser reads as text to its end tag (a <textarea>, <title>, <xmp>, …): where the browser ends
+   * it (-1: nowhere). The parse reads what's in it, as React writes there, but rewrites nothing in it.
+   */
+  textEnd?: number;
 }
 
 /** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `withRaw`). */
@@ -80,10 +93,34 @@ export function parse(html: string, c: Collection): Part[] {
   // (Where each is next: the parse only goes on, so each is searched for once.)
   const next = finder(html);
   const commentEnd = next(/-->/g);
+  /** Where a comment ends as a browser ends it (at `--!>` too): HTML given whole can hold one (see lazyComment). */
+  const lazyCommentEnd = next(/--!?>/g);
   const templateEnd = next(/<\/template>/g);
   /** The next marker or placeholder React could have written: what's in a lazy component's HTML ends before it. */
   const nextMark = next(new RegExp(`</${MARK}>|<${MARK} data-n="${c.nonce}"|<!--u${c.nonce}\\.`, "g"));
   const endTags = new Map<string, (from: number) => number>();
+  /** Where `name`'s end tag is next, as a browser ends what it reads as text (`</style` and then a space, `/` or `>`). */
+  const endTagOf = (name: string) => {
+    let find = endTags.get(name);
+    if (!find) endTags.set(name, (find = next(new RegExp(`</${name}(?=[\\t\\n\\f\\r />])`, "gi"))));
+    return find;
+  };
+  /**
+   * Whether what a lazy component renders has been read otherwise than a browser reads it, or may be: HTML given whole
+   * there ran on past a marker React wrote (a quote, a comment, a <style> left open), an element a browser reads as text
+   * ended elsewhere, or an <svg>'s or <math>'s content held a <style>, a <script> or CDATA, or ended otherwise. What's
+   * after it is then written as it is, nothing in it rewritten (React 18's `javascript:` URLs): a
+   * quote written in may end what a browser reads as a value.
+   */
+  let shifted = false;
+  /** Whether an <svg> or <math> is open (foreign content, which a browser reads otherwise). */
+  const inForeign = () => stack.some((open) => FOREIGN.has(open.tag));
+  /** Where the comment at `lt` ends as a browser ends it (its `>`'s start: -1, nowhere), in HTML given whole. */
+  const lazyComment = (lt: number) => {
+    if (html.startsWith("<!-->", lt)) return lt + 4;
+    if (html.startsWith("<!--->", lt)) return lt + 5;
+    return lazyCommentEnd(lt + 4);
+  };
   /** Whether what's in a lazy component's HTML from `from` ends at `end` (-1: nowhere) only past a marker React wrote. */
   const runsOn = (from: number, end: number) => end < 0 || (top().lazy && nextMark(from) >= 0 && end > nextMark(from));
   let at = 0;
@@ -129,15 +166,18 @@ export function parse(html: string, c: Collection): Part[] {
         at = lt + (own ? own.length : 4);
         continue;
       }
-      const end = commentEnd(lt + 4);
+      // (Where HTML given whole can be, what a lazy component renders, it ends where a browser ends it: `<!-->` and
+      // `<!--->` at once, one at `--!>` too. React writes none of those.)
+      const end = top().lazy ? lazyComment(lt) : commentEnd(lt + 4);
       if (runsOn(lt + 4, end)) {
         // (React writes no comment it doesn't end: one that runs on is in HTML given whole in what a lazy component
         // renders, and the rest of the template's markup isn't a comment.)
+        if (top().lazy) shifted = true;
         text(html.slice(lt, lt + 4));
         at = lt + 4;
         continue;
       }
-      let stop = end + 3;
+      let stop = html.indexOf(">", end) + 1;
       // (react-dom's stream writes its own comments, where its Suspense and <Activity> boundaries are and between texts: the
       // template's comments are only in HTML given whole, which isn't here.)
       const own = c.async && /^<!--(?:\$[?!]?|\/\$| |&|\/&)-->$/.test(html.slice(lt, stop));
@@ -150,14 +190,27 @@ export function parse(html: string, c: Collection): Part[] {
       at = stop;
       continue;
     }
+    // Where HTML given whole can be (what a lazy component renders), a tag is read as a browser reads it: a `>` in a
+    // quoted value is the value's, not the tag's end, so what's in the value is never read as a tag, nor rewritten (an
+    // end tag left out, a `javascript:` URL React 18 wrote). One that runs on past a marker React wrote (a quote left
+    // open), or to the end, is text, as written. (Not in what a browser reads as text: a <style>'s or <script>'s content
+    // on React 18.)
+    const read = top().lazy && !top().inert ? readTag(html, lt) : undefined;
+    if (read === null || (read && runsOn(lt + 1, read.end - 1))) {
+      shifted = true;
+      text("<");
+      at = lt + 1;
+      continue;
+    }
     if (html[lt + 1] === "/") {
-      const gt = html.indexOf(">", lt);
-      const name = html.slice(lt + 2, gt < 0 ? html.length : gt).trim().toLowerCase();
+      const gt = read ? read.end - 1 : html.indexOf(">", lt);
+      const name = read ? read.name : html.slice(lt + 2, gt < 0 ? html.length : gt).trim().toLowerCase();
       if (name === MARK && !top().inert) {
         // A marker's end: the last one open ends, with what's still open in it. With none open, it's another's.
         let depth = stack.length - 1;
         while (depth > 0 && !stack[depth].mark) depth--;
         if (!depth) throw forged();
+        if (stack.slice(depth).some((open) => open.textEnd !== undefined || FOREIGN.has(open.tag))) shifted = true;
         stack.length = depth;
         at = gt < 0 ? html.length : gt + 1;
         continue;
@@ -175,14 +228,17 @@ export function parse(html: string, c: Collection): Part[] {
         const parts = top().parts;
         if (stack.some((open) => open.host?.parts === parts || TO_END_TAG.has(open.tag))) text(html.slice(lt, gt + 1));
       } else {
-        while (stack.length - 1 > depth) stack.pop();
+        // (In an <svg> or <math>, one that ends more than its own element may not end there as a browser reads it.)
+        if (top().lazy && stack.length - 1 > depth && inForeign()) shifted = true;
+        while (stack.length - 1 > depth) if (stack.pop()!.textEnd !== undefined) shifted = true;
         const done = stack.pop()!;
+        if (done.textEnd !== undefined && done.textEnd !== lt) shifted = true;
         if (done.host) done.host.close = html.slice(lt, gt + 1);
       }
       at = gt < 0 ? html.length : gt + 1;
       continue;
     }
-    const gt = html.indexOf(">", lt);
+    const gt = read ? read.end - 1 : html.indexOf(">", lt);
     let tagText = html.slice(lt, gt < 0 ? html.length : gt + 1);
     const name = /^<([^\s/>]+)/.exec(tagText)?.[1];
     if (!name || gt < 0) {
@@ -205,15 +261,18 @@ export function parse(html: string, c: Collection): Part[] {
     const lower = name.toLowerCase();
     // (React 18 writes a `javascript:` URL in what a lazy component renders as given: as React 19 writes it, as the
     // collector writes any other's. HTML given whole there is the same to the parse, so its tags are written so too.)
-    if (REACT_18 && from.lazy) tagText = unrunTag(tagText);
+    // (In an <svg>'s or <math>'s content a browser reads a <style>'s and a <script>'s as markup, and CDATA as text: in
+    // what a lazy component renders, what's after one there is written as given.)
+    if (from.lazy && (RAW.has(lower) || lower.startsWith("![cdata[")) && inForeign()) shifted = true;
+    // (Not where it isn't read as a browser reads it, nor in what a browser reads as text: see `shifted`.)
+    if (REACT_18 && from.lazy && !shifted && !stack.some((open) => open.textEnd !== undefined)) tagText = unrunTag(tagText);
     let endTag = -1;
     if (RAW.has(name)) {
-      let find = endTags.get(lower);
-      if (!find) endTags.set(lower, (find = next(new RegExp(`</${lower}(?=[\\s/>])`, "gi"))));
-      endTag = find(gt + 1);
+      endTag = endTagOf(lower)(gt + 1);
       if (runsOn(gt + 1, endTag)) {
         // (React writes none it doesn't end, and nothing in its text ends it: one left open is in HTML given whole in
         // what a lazy component renders, and the rest of the template's markup isn't its text.)
+        shifted = true;
         text(tagText);
         at = gt + 1;
         continue;
@@ -249,7 +308,11 @@ export function parse(html: string, c: Collection): Part[] {
       continue;
     }
     const ends = from.head && !foreign && TO_END_TAG.has(lower) ? [...(from.ends ?? []), lower] : from.ends;
-    stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends, raw: from.raw, inert: from.inert, unescape: from.unescape, lazy: from.lazy });
+    // (A <STYLE> or <SCRIPT> is one too, to a browser, which React writes as any element: see RAW.)
+    const textEnd = from.lazy && !from.inert && !from.head && (TEXT_IN_BODY.has(lower) || RAW.has(lower)) ? (lower === "plaintext" ? -1 : endTagOf(lower)(gt + 1)) : undefined;
+    // (One a browser reads past a marker React wrote: what's after it isn't read as the browser reads it.)
+    if (textEnd !== undefined && runsOn(gt + 1, textEnd)) shifted = true;
+    stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends, raw: from.raw, inert: from.inert, unescape: from.unescape, lazy: from.lazy, textEnd });
   }
   // (React ends every marker it writes.)
   if (stack.some((open) => open.mark)) throw forged();
