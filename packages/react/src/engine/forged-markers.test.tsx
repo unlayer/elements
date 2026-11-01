@@ -327,6 +327,38 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     }
   });
 
+  it("leaves out, as a browser does, an end tag that ends nothing where it would be a block's text (React's own, after the HTML ended the component's element)", async () => {
+    // (The `</div>` in the HTML ends the footer's <div>, as a browser reads it: React's `</span>` and `</div>` after it
+    // end nothing, among the blocks. In an element's content, one is written as it is, as the same HTML not lazy: above.)
+    const Footer = () => (
+      <div className="footer">
+        <Paragraph>Thanks for reading</Paragraph>
+        <span dangerouslySetInnerHTML={{ __html: "Text</div>" }} />
+        <Paragraph>Unsubscribe</Paragraph>
+      </div>
+    );
+    const email = (Content: React.ComponentType) => (
+      <Email>
+        <Row>
+          <Column>
+            <Content />
+          </Column>
+        </Row>
+      </Email>
+    );
+    for (const mode of ["sync", "async"] as const) {
+      const r = renderers(mode);
+      for (const Content of [loaded(Footer), Footer]) {
+        const at = `${mode}${Content === Footer ? " (not lazy)" : ""}`;
+        expect(await r.html(email(Content)), at).not.toMatch(/&lt;\/(?:span|div)&gt;/);
+        expect(await r.json(email(Content)), at).not.toMatch(/&lt;\/(?:span|div)&gt;/);
+        const text = await r.text(email(Content));
+        expect(text, at).not.toMatch(/<\/(?:span|div)>/);
+        for (const words of ["Thanks for reading", "Unsubscribe"]) expect(text, at).toContain(words);
+      }
+    }
+  });
+
   it("fails the render, by name, where it ends one of the render's markers (`</unlayer-mark>`), whatever is after it", async () => {
     const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
     for (const mode of ["sync", "async"] as const) {

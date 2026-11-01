@@ -162,14 +162,19 @@ export function parse(html: string, c: Collection): Part[] {
         at = gt < 0 ? html.length : gt + 1;
         continue;
       }
-      // An end tag of what's open (a stray one, in HTML given whole, is text), in a marker only of what's open in it,
-      // and inside a <style>'s or <script>'s content only of what's open there.
+      // An end tag of what's open, in a marker only of what's open in it, and inside a <style>'s or <script>'s content
+      // only of what's open there. A stray one (in HTML given whole in what a lazy component renders, or React's own
+      // after that HTML ended what React opened) is written as it is in an element's content, as the same HTML not
+      // lazy is, and in what a browser reads as text (a <style>'s or <script>'s content on React 18, a <title>'s, a
+      // <textarea>'s); among the blocks, where it would be a block's text, it's left out, as a browser leaves it out.
       let floor = stack.length - 1;
       while (floor > 0 && !stack[floor].floor && !stack[floor].mark) floor--;
       let depth = stack.length - 1;
       while (depth > floor && stack[depth].tag !== name) depth--;
-      if (depth === floor && !(floor > 0 && stack[floor].floor && stack[floor].tag === name)) text(html.slice(lt, gt + 1));
-      else {
+      if (depth === floor && !(floor > 0 && stack[floor].floor && stack[floor].tag === name)) {
+        const parts = top().parts;
+        if (stack.some((open) => open.host?.parts === parts || TO_END_TAG.has(open.tag))) text(html.slice(lt, gt + 1));
+      } else {
         while (stack.length - 1 > depth) stack.pop();
         const done = stack.pop()!;
         if (done.host) done.host.close = html.slice(lt, gt + 1);
