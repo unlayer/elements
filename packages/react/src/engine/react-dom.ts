@@ -106,8 +106,21 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
  */
 export const streamStopped = (): Promise<void> => settleStream(Server as unknown as Record<string, any>);
 
-/** One macrotask later (setImmediate where there is one: Node.js, Bun; a timer elsewhere). */
-const nextTask = (fn: () => void): void => void (typeof setImmediate === "function" ? setImmediate(fn) : setTimeout(fn, 0));
+/**
+ * One macrotask later (setImmediate where there is one: Node.js, Bun; a timer elsewhere, and where it throws: Next.js's
+ * edge runtime gives a `setImmediate` that throws, as a Node.js API it doesn't have).
+ */
+const nextTask = (fn: () => void): void => {
+  if (typeof setImmediate === "function") {
+    try {
+      setImmediate(fn);
+      return;
+    } catch {
+      // (Below.)
+    }
+  }
+  setTimeout(fn, 0);
+};
 
 /**
  * A render of nothing with react-dom's streaming module, done, one macrotask after it's done. React can leave a
@@ -118,7 +131,14 @@ const nextTask = (fn: () => void): void => void (typeof setImmediate === "functi
  */
 function settleStream(S: Record<string, any>): Promise<void> {
   return new Promise<void>((done) => {
-    const finish = () => nextTask(done);
+    // (It settles, whatever fails: a render waits for it.)
+    const finish = () => {
+      try {
+        nextTask(done);
+      } catch {
+        done();
+      }
+    };
     try {
       if (typeof S.renderToPipeableStream === "function") S.renderToPipeableStream(createElement("i"), { onAllReady: finish, onShellError: finish, onError() {} });
       else S.renderToReadableStream(createElement("i"), { onError() {} }).then((stream: { allReady: Promise<void> }) => stream.allReady).then(finish, finish);

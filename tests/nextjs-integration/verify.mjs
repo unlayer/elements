@@ -82,6 +82,7 @@ if (pagesApi) check("Pages Router API route", JSON.parse(await get("/api/email")
 if (edgeRoute) {
   const pages = JSON.parse(await get("/api/edge-email"));
   if (pages.error !== undefined) fail(`Pages Router edge API route: ${pages.error}`);
+  if (pages.async !== true) fail("Pages Router edge API route: the async renderer didn't render the email");
   check("Pages Router edge API route", pages);
 }
 server.kill();
