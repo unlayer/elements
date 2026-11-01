@@ -25,6 +25,7 @@ import { MARK, type Collection } from "./collector";
 import type { BoundaryPart, ErrorPart, HostPart, Part, RecordPart } from "./output";
 import { REACT_18 } from "./react-compat";
 import { unrunAttributes } from "./attributes";
+import { LAZY_ASYNC_18, lazyAsyncIn18 } from "./react-dom";
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
 /** What React writes its own way: a <style>'s and <script>'s text, as given in React 19 (the tag as React names it). */
@@ -402,13 +403,22 @@ function fallbackFailed(c: Collection, n: number, frame: Frame, digest?: string)
   if (c.async) {
     const told = toldFor(c, digest);
     if (!told) return swallowed(lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
-    return new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "Suspense"), positionOf(lazy?.frame ?? frame), told.error);
+    return toldError(told, lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
   }
   if (c.suspended.some((x) => x.suspenseAt === n) || c.lazies.some((x) => x.suspenseAt === n && x.done)) return undefined;
   return swallowed(lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
 }
 
 const swallowed = (name: string, frame: Frame | null) => new RenderError(SWALLOWED, name, positionOf(frame));
+
+/**
+ * What React told the stream failed, at `frame` (named `name` where React's report doesn't name it): on React 18, an
+ * async component a lazy component loaded is said as such (LAZY_ASYNC_18), not with React's own message.
+ */
+function toldError(told: { error: unknown; name?: string }, name: string, frame: Frame | null): RenderError {
+  if (lazyAsyncIn18(told.error)) return new RenderError(LAZY_ASYNC_18, "lazy", positionOf(frame), told.error);
+  return new RenderError(threw(told.error), told.name ?? name, positionOf(frame), told.error);
+}
 
 /**
  * The first part that failed in what a <Suspense> (its fallback's marker `n`) holds, in a synchronous render that
@@ -482,7 +492,7 @@ function markPart(c: Collection, n: number, into: Part[], digest?: string): Part
       if (c.async) {
         // (An async render waits for what suspends: what React handled itself failed, as it told the stream.)
         const told = toldFor(c, digest);
-        const error = told ? new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "component"), positionOf(lazy?.frame ?? null), told.error) : swallowed(lazy ? "lazy" : "component", lazy?.frame ?? null);
+        const error = told ? toldError(told, lazy ? "lazy" : "component", lazy?.frame ?? null) : swallowed(lazy ? "lazy" : "component", lazy?.frame ?? null);
         into.push({ t: "boundary", parts: [{ t: "error", error, fatal: false }] });
         return [];
       }

@@ -358,6 +358,14 @@ describe("the async renderers", () => {
     const section = renderToHtml(<Email><Row><Column><LazySection /></Column></Row></Email>);
     if (Number.parseInt(React.version) >= 19) expect(await section).toContain("$10");
     else await expect(section).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    // And an async component a lazy component loads in the template, in a <Suspense> or not (where it's in one of its
+    // own: React 18's own message was given).
+    const LazyPrice = React.lazy(async () => (await later(null), { default: Price }));
+    for (const content of [<LazyPrice />, <React.Suspense fallback={null}><LazyPrice /></React.Suspense>]) {
+      const priced = renderToHtml(<Email><Row><Column>{content}</Column></Row></Email>);
+      if (Number.parseInt(React.version) >= 19) expect(await priced).toContain("$10");
+      else await expect(priced).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+    }
   });
 
   it("resolve a lazy template (`React.lazy`) as an async one, its root's settings read; the synchronous renderers say it's async", async () => {
