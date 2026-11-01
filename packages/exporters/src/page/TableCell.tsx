@@ -14,7 +14,8 @@ export const TableCell: Component = ({ node, style, parent: row, classes, childr
       colspan={span > 1 ? span : undefined}
       dir={node.props.dir as string | undefined}
       style={[
-        { boxSizing: "border-box", padding: style.padding, backgroundColor: style.backgroundColor, border: style.border, verticalAlign: style.verticalAlign ?? "top" },
+        // No padding is none: browsers give a cell 1px of their own.
+        { boxSizing: "border-box", padding: style.padding ?? 0, backgroundColor: style.backgroundColor, border: style.border, verticalAlign: style.verticalAlign ?? "top" },
         textDeclarations(node.text, row.text, Cell === "th" ? ["fontWeight", "textAlign"] : []),
         { textDecoration: style.textDecoration },
       ]}

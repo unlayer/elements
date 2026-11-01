@@ -134,6 +134,19 @@ export const template = (root: "Page" | "Email") =>
             },
           ],
         },
+        // Every column has a width, and they leave room: they grow to fill the table.
+        {
+          type: "Table",
+          children: [
+            {
+              type: "TableRow",
+              children: [
+                { type: "TableCell", style: { width: 100 }, children: [{ type: "Image", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 250 } } }] },
+                { type: "TableCell", style: { width: 200 }, children: ["wide"] },
+              ],
+            },
+          ],
+        },
       ],
     }),
   });

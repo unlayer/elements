@@ -212,6 +212,25 @@ describe("lists and tables", () => {
     expect(child(table, 1, 0).text.fontWeight).toBe(400);
   });
 
+  it("grows columns that all have a width and leave room, in proportion, to fill the table", () => {
+    const { root } = resolve({
+      type: "Page",
+      props: { width: 600 },
+      children: [
+        {
+          type: "Table",
+          children: [
+            { type: "TableRow", children: [{ type: "TableCell", style: { width: 100 }, children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 250 } } }] }, { type: "TableCell", style: { width: 200 } }] },
+          ],
+        },
+      ],
+    });
+    const table = child(root, 0);
+    expect(table.columns).toEqual([200, 400]);
+    expect(child(table, 0, 0).width).toBe(200);
+    expect(child(table, 0, 0, 0).width).toBe(200);
+  });
+
   it("rounds columns given as a share before sharing the rest, so the columns add up to the table", () => {
     const { root } = resolve({
       type: "Email",
@@ -221,9 +240,10 @@ describe("lists and tables", () => {
     expect(child(root, 0).columns).toEqual([255, 263, 120]);
   });
 
-  it("warns where a Table's columns are wider than it", () => {
-    const { diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 300 } }] }] }] });
+  it("warns where a Table's columns are wider than it, and shrinks them in proportion, as they're drawn", () => {
+    const { root, diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 200 } }, { type: "TableCell", style: { width: 200 } }] }] }] });
     expect(diagnostics.map((d) => d.code)).toEqual(["layout/overflow"]);
+    expect(child(root, 0).columns).toEqual([300, 150, 150]);
   });
 });
 

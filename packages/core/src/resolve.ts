@@ -448,6 +448,9 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
     const free = set.map((width, index) => (width === null ? index : -1)).filter((index) => index >= 0);
     const shared = share(Math.max(0, available - fixed), free.map(() => 1));
     columns = set.map((width, index) => (width === null ? shared[free.indexOf(index)] : width));
+    // Every column has a width and they don't add up to the table: they grow or shrink in proportion to fill it, as
+    // the writers' shares of the table draw them (too wide is still warned about, above).
+    if (free.length === 0 && fixed > 0 && Math.abs(fixed - available) > 0.5) columns = share(available, columns);
   }
   table.columns = columns;
 
