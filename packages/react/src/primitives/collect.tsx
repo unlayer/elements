@@ -24,6 +24,8 @@ interface PrimitiveCollection {
   recorded: Recorded[];
   /** The custom components the JSX used. */
   components: Map<string, CustomDefinition<any>>;
+  /** Types two different custom components were both made with. */
+  clashes: Set<string>;
 }
 
 const SHARED = Symbol.for("@unlayer/react-elements/primitives/collecting");
@@ -41,7 +43,10 @@ function marker(collection: PrimitiveCollection, at: number, edge: "o" | "c"): R
 
 /** A custom component the JSX being collected uses. */
 export function registerUsed(collection: PrimitiveCollection, definition: CustomDefinition<any>): void {
-  collection.components.set(definition.type, definition);
+  const known = collection.components.get(definition.type);
+  // (A frame made by an older copy of Elements has no clashes.)
+  if (known && known !== definition) (collection.clashes ??= new Set()).add(definition.type);
+  else collection.components.set(definition.type, definition);
 }
 
 /** What a primitive renders while JSX is collected: its props recorded, markers around its children. */
@@ -112,7 +117,7 @@ function read(html: string, collection: PrimitiveCollection, diagnostics: Diagno
 /** JSX rendered once, read back as JSON nodes, with the custom components it used. */
 export function collectNodes(element: React.ReactElement): { nodes: Array<JsonNode | string>; components: CustomDefinition<any>[]; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
-  const collection: PrimitiveCollection = { nonce: nonce(), recorded: [], components: new Map() };
+  const collection: PrimitiveCollection = { nonce: nonce(), recorded: [], components: new Map(), clashes: new Set() };
   const html = withRenderScope(() => {
     frames.push(collection);
     try {
@@ -122,6 +127,14 @@ export function collectNodes(element: React.ReactElement): { nodes: Array<JsonNo
     }
   });
   const nodes = read(html, collection, diagnostics).filter((child) => typeof child !== "string" || child.trim());
+  for (const type of collection.clashes) {
+    diagnostics.push({
+      code: "custom/duplicate",
+      severity: "error",
+      message: `Two different custom components are named ${type}. If component() ran more than once (inside a function or a component, or in a module loaded twice), call it once, at the top of a module; if they're different components, give each its own type`,
+      path: "jsx",
+    });
+  }
   return { nodes, components: [...collection.components.values()], diagnostics };
 }
 

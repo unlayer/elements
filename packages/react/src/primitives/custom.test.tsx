@@ -193,6 +193,30 @@ describe("component()", () => {
     expect(result).toMatchObject({ valid: true, diagnostics: [{ code: "email/unsupported", severity: "warning", path: "root.children[0].style.justifyContent" }] });
   });
 
+  it("can't share its type with another custom component in one template", async () => {
+    const card = (label: string) =>
+      component({ type: "acme.Card", label, props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Text>{`${label}: ${title}`}</Text> });
+    const [A, B] = [card("A"), card("B")];
+    const template = (
+      <Page>
+        <A title="one" />
+        <B title="two" />
+      </Page>
+    );
+    expect(validate(template)).toMatchObject({ valid: false, diagnostics: [{ code: "custom/duplicate", severity: "error", path: "jsx" }] });
+    await expect(render(template)).rejects.toThrow(/Two different custom components are named acme\.Card/);
+    // One component used twice is one component.
+    expect(validate(<Page><A title="one" /><A title="two" /></Page>).valid).toBe(true);
+    // component() called in a component makes one per render: the message says where to call it.
+    const Product = ({ title }: { title: string }) => {
+      const Inline = component({ type: "acme.Inline", label: "Inline", props: { title: prop.text({ label: "Title", required: true }) }, render: (props) => <Text>{props.title}</Text> });
+      return <Inline title={title} />;
+    };
+    const twice = validate(<Page><Product title="one" /><Product title="two" /></Page>);
+    expect(twice.diagnostics.map((d) => d.code)).toEqual(["custom/duplicate"]);
+    expect(twice.diagnostics[0].message).toMatch(/call it once, at the top of a module/);
+  });
+
   it("says how to use it when rendered on its own", () => {
     expect(() => renderToStaticMarkup(<ProductCard name="a" photo="https://example.com/a.png" href="#" />)).toThrow(/render\(\)/);
   });
