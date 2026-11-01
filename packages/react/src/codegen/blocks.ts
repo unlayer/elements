@@ -380,7 +380,9 @@ function withoutComponent(content: Plain, type: string, ctx: BlockContext): JsxC
   const defaults: Plain = { ...BLOCK_BASE, ...BLOCK_DEFAULTS.Html };
   if (values.containerPadding !== undefined && values.containerPadding !== defaults.containerPadding) props.add("containerPadding", values.containerPadding);
   placeDevice(values._override, props, defaults, "block");
-  // The builder's settings no prop sets, as every block keeps them (a display condition: written around it).
+  // The builder's settings no prop sets, as every block keeps them (a display condition: written around it), and its
+  // merge tag rule, which the code and the design keep as the warning says (see warnMergeTagRule).
   for (const [key, value] of Object.entries(BUILDER_ONLY)) if (key in values && !deepEqual(values[key], value)) props.values[key] = values[key];
+  if (values.mergeTagGroup && values.mergeTagRule) Object.assign(props.values, { mergeTagGroup: values.mergeTagGroup, mergeTagRule: values.mergeTagRule });
   return { tag: "Html", attrs: attributes(props, ctx.state.types), children: [] };
 }

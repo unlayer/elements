@@ -159,6 +159,8 @@ describe("designToElements", () => {
     const { code, warnings } = designToElements(design([{ type: "timer", values }]), { html });
     expect(warnings).toEqual([expect.stringMatching(/block 1: its merge tag rule `products\.repeat` isn't applied/), expect.stringMatching(/block 1: a "timer" block has no Elements component, so it's kept as an <Html> block/)]);
     expect(code).toContain('anchor: "sale"');
+    // (The code and the design keep its rule, as the warning says.)
+    expect(Elements.renderToJson(React.createElement(evaluate(code))).body.rows[0].columns[0].contents[0].values).toMatchObject({ mergeTagGroup: "products", mergeTagRule: "repeat" });
     const rendered = Elements.renderToHtml(React.createElement(evaluate(code)));
     expect(rendered.indexOf("{% if customer.vip %}")).toBeGreaterThan(-1);
     expect(rendered.indexOf("VIP SALE")).toBeGreaterThan(rendered.indexOf("{% if customer.vip %}"));
