@@ -108,6 +108,7 @@ describe("checkDocument", () => {
       doc({
         type: "Email",
         props: { backgroundColor: "#ffffff" },
+        style: { width: 600, padding: 24 },
         children: [
           { type: "Heading", props: { levle: 2 }, style: { colour: "red", fontsize: 20, zzz: 1 }, children: ["Hi"] },
           { type: "Row", children: [{ type: "ListItem" }] },
@@ -116,6 +117,8 @@ describe("checkDocument", () => {
     ).diagnostics.map((d) => d.message);
     expect(messages).toEqual([
       'An Email has no prop "backgroundColor": it\'s a style, style={{ backgroundColor: … }}',
+      '"width" isn\'t a style an Email takes: it\'s a prop, width={…}. See Email in @unlayer/react-elements/PRIMITIVES.md',
+      '"padding" isn\'t a style an Email takes: a root has no padding; put it on a Column (a card) or a Section (a band) inside it. See Email in @unlayer/react-elements/PRIMITIVES.md',
       'A Heading has no prop "levle": did you mean "level"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
       '"colour" isn\'t a style a Heading takes: did you mean "color"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
       '"fontsize" isn\'t a style a Heading takes: did you mean "fontSize"? See Heading in @unlayer/react-elements/PRIMITIVES.md',

@@ -176,20 +176,20 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
   const props = readProps(input.props, definition, `${path}.props`, id, d);
   if (props) node.props = props;
 
-  const style = readStyles(input.style, definition.type, definition.style, `${path}.style`, id, d, "style", () => true);
+  const style = readStyles(input.style, definition, definition.style, `${path}.style`, id, d, "style", () => true);
   if (style) node.style = style;
 
   if (input.mobile !== undefined) {
     if (!context.responsive) d.error("mobile/not-supported", "Phone styles are for an Email or a Page, which have a phone width", `${path}.mobile`, id);
     else {
-      const mobile = readStyles(input.mobile, definition.type, definition.style, `${path}.mobile`, id, d, "mobile", (spec) => !!spec.mobile);
+      const mobile = readStyles(input.mobile, definition, definition.style, `${path}.mobile`, id, d, "mobile", (spec) => !!spec.mobile);
       if (mobile) node.mobile = mobile;
     }
   }
 
   if (input.hover !== undefined) {
     const allowed = new Set<string>(definition.hover ?? []);
-    const hover = readStyles(input.hover, definition.type, definition.style, `${path}.hover`, id, d, "hover", (_, key) => allowed.has(key));
+    const hover = readStyles(input.hover, definition, definition.style, `${path}.hover`, id, d, "hover", (_, key) => allowed.has(key));
     if (hover) node.hover = hover;
   }
 
@@ -251,9 +251,18 @@ const UNSUPPORTED_CSS: Record<string, string> = {
   lineStyle: 'a Divider\'s line is borderTop now: "1px solid #bbbbbb"',
 };
 
+/** What to write instead of a style a component doesn't take, after a colon; or nothing. */
+function styleHint(definition: ComponentDefinition, specs: StyleSpecs, key: string): string {
+  if (Object.prototype.hasOwnProperty.call(definition.props, key)) return `: it's a prop, ${key}={…}`;
+  if (key === "padding" && definition.categories.includes("root")) return ": a root has no padding; put it on a Column (a card) or a Section (a band) inside it";
+  if (UNSUPPORTED_CSS[key]) return `: ${UNSUPPORTED_CSS[key]}`;
+  const meant = nearest(key, Object.keys(specs));
+  return meant ? `: did you mean "${meant}"?` : "";
+}
+
 function readStyles(
   input: unknown,
-  type: string,
+  definition: ComponentDefinition,
   specs: StyleSpecs,
   path: string,
   id: string | undefined,
@@ -271,9 +280,7 @@ function readStyles(
     if (value === undefined) continue;
     const spec = Object.prototype.hasOwnProperty.call(specs, key) ? specs[key] : undefined;
     if (!spec) {
-      const meant = nearest(key, Object.keys(specs));
-      const hint = UNSUPPORTED_CSS[key] ?? (meant ? `did you mean "${meant}"?` : undefined);
-      d.error("style/unknown", seeing(`"${key}" isn't a style ${a(type).replace(/^A/, "a")} takes${hint ? `: ${hint}` : ""}`, type), `${path}.${key}`, id);
+      d.error("style/unknown", seeing(`"${key}" isn't a style ${a(definition.type).replace(/^A/, "a")} takes${styleHint(definition, specs, key)}`, definition.type), `${path}.${key}`, id);
       continue;
     }
     if (!allowed(spec, key)) {
