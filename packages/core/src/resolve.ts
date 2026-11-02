@@ -328,7 +328,8 @@ function flexItem(resolved: ResolvedNode, available: number): FlexItem {
   const { style } = resolved;
   const frame = horizontalFrame(style);
   const width = toPx(style.width, available);
-  const own = style.flex === "none" || style.flex === 0;
+  // An Svg is the size it says in a Row too (the Page draws it `flex: none`), not a share of what's left.
+  const own = style.flex === "none" || style.flex === 0 || resolved.type === "Svg";
   const intrinsic = own && width === null ? intrinsicWidth(resolved, available) : null;
   const base = width !== null ? width : own ? (intrinsic ?? 0) : frame;
   // Its content can't be narrower than nothing: at least its padding and border.

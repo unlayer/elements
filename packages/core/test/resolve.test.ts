@@ -295,6 +295,11 @@ describe("Row widths, as browser flexbox gives them", () => {
     expect(row([column({ width: 500 }), { type: "Image", props: { src: { src: "https://example.com/a.png", width: 200 } }, style: { flex: "none" } }])).toEqual({ widths: [400, 200], codes: ["layout/shrunk"] });
   });
 
+  it("gives an Svg the size it says, as the Page draws it (flex: none), and the rest to the others", () => {
+    const { root } = resolve({ type: "Page", props: { width: 600 }, children: [{ type: "Row", style: { gap: 10 }, children: [{ type: "Svg", props: { width: 28, height: 28 }, children: [] }, column(), column({ width: 200 })] }] });
+    expect(child(root, 0).children.map((c) => (c as ResolvedNode).width)).toEqual([28, 352, 200]);
+  });
+
   it("leaves a child that takes its own size unknown where its size isn't known, the others the room past its padding", () => {
     // The Button's label can't be measured: its padding (20px each side) is the least it takes.
     expect(row([{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["Go"] }, column()])).toEqual({ widths: [null, 560], codes: [] });
