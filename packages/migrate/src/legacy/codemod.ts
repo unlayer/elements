@@ -44,6 +44,8 @@ const LAYOUTS: Record<string, number[]> = {
   FiveEqual: [1, 1, 1, 1, 1],
 };
 const isLayout = (name: string) => Object.prototype.hasOwnProperty.call(LAYOUTS, name);
+/** The image today's Image draws without a src (as wide as its place, as it is there). */
+const PLACEHOLDER = "https://cdn.tools.unlayer.com/image/placeholder.png";
 
 /**
  * A prop's value: one known from the source (a literal, or a constant whose name is kept as `code`), or its source as
@@ -580,7 +582,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** A text block's phone settings: today's padding, font size, line height and alignment. */
   const textPhone = (props: Props, at: ts.Node) => {
     const m = phone(props, at);
-    return mobileAttr([["padding", n(m.get("containerPadding"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", m.get("lineHeight")], ["textAlign", m.get("textAlign")]]);
+    return mobileAttr([["padding", n(m.get("containerPadding"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", lineHeightOf(m.get("lineHeight"), at)], ["textAlign", m.get("textAlign")]]);
   };
 
   function heading(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
@@ -619,6 +621,25 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return lit(weight);
   }
 
+  /**
+   * Today's line height (a multiple of the font size, as a number or a string of digits; a percentage; px; em) as
+   * the new one's: a multiple, a percentage or px.
+   */
+  function lineHeightOf(value: Value | undefined, at: ts.Node): Value | undefined {
+    if (value && !isLiteral(value)) {
+      report.push(`${where(at)}: its lineHeight is computed (${value.code}): it's kept as it is, and the new components take a multiple of the font size (1.5), a percentage ("150%") or px ("24px"), not a string of digits ("1.5")`);
+      return value;
+    }
+    if (!isLiteral(value) || typeof value.literal === "number") return value;
+    const text = String(value.literal).trim();
+    if (/^\d*\.?\d+(px|%)$/.test(text)) return value;
+    // A string of digits, or em (of the font size): the multiple it is.
+    const multiple = /^(\d*\.?\d+)(em)?$/.exec(text);
+    if (multiple && Number(multiple[1]) > 0) return lit(Number(multiple[1]));
+    report.push(`${where(at)}: its lineHeight ${JSON.stringify(value.literal)} can't be read: it's left out`);
+    return undefined;
+  }
+
   function textStyle(props: Props, fontSize: Value | undefined, weight: string | undefined, lineHeight: string, at: ts.Node): Array<[string, Value | undefined]> {
     return [
       ["padding", n(padding(props))],
@@ -627,7 +648,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       ["fontWeight", fontWeight(given(props, "fontWeight", weight === undefined ? undefined : Number(weight)), at)],
       ["color", color(props, "color")],
       ["textAlign", props.get("textAlign")],
-      ["lineHeight", given(props, "lineHeight", lineHeight)],
+      ["lineHeight", lineHeightOf(given(props, "lineHeight", lineHeight), at)],
       ["letterSpacing", letterSpacing(props, fontSize, at)],
       ["textTransform", props.get("textTransform")],
     ];
@@ -652,20 +673,26 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["fontFamily", font(props)],
         ["fontSize", n(fontSize)],
         ["fontWeight", fontWeight(props.get("fontWeight"), node)],
-        ["lineHeight", props.get("lineHeight")],
+        ["lineHeight", lineHeightOf(props.get("lineHeight"), node)],
         ["letterSpacing", letterSpacing(props, fontSize, node)],
         ["padding", n(props.get("padding"))],
         ["borderRadius", n(radius)],
       ]),
-      mobileAttr([["width", isLiteral(m.get("autoWidth")) && (m.get("autoWidth") as { literal: unknown }).literal === true ? undefined : n(m.get("width"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", m.get("lineHeight")], ["padding", n(m.get("padding"))]]),
+      mobileAttr([["width", isLiteral(m.get("autoWidth")) && (m.get("autoWidth") as { literal: unknown }).literal === true ? undefined : n(m.get("width"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", lineHeightOf(m.get("lineHeight"), node)], ["padding", n(m.get("padding"))]]),
     ], textChildren(node, props, node));
     if (!href) report.push(`${where(node)}: this Button has no href: it links to "#"`);
     return wrapped(props, block, align(props, "textAlign", "center"), node);
   }
 
   function image(at: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, place: Place) {
-    // Today's `{ url, width, height }` is the new one's `{ src, width, height }`.
-    const src = props.get("src");
+    // Today's `{ url, width, height }` is the new one's `{ src, width, height }`. Without one, today's draw their
+    // placeholder image: the new Image needs its src, so that's written in.
+    let src = props.get("src");
+    const nothing = (value: Value) => (isLiteral(value) ? value.literal === undefined || value.literal === null : /^(undefined|null)$/.test(value.code.trim()));
+    if (!src || nothing(src)) {
+      src = lit(PLACEHOLDER);
+      report.push(`${where(at)}: this Image has no src: today's draw their placeholder image, which is written in (give it its own)`);
+    }
     let natural: unknown;
     let source: Value | undefined = src;
     const node = src && !isLiteral(src) && src.node ? bare(src.node) : undefined;
@@ -760,12 +787,17 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function social(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
     const icons = props.get("icons");
-    // Today's `{ name, url }` icons are the new one's `{ name, href }`.
+    // Today's `{ name, url, target }` icons are the new one's `{ name, href }`, a target part of the link.
     const rename = (list: string) => `${list}.map(({ name, url }) => ({ name, href: url }))`;
-    const list: Value | undefined =
-      isLiteral(icons) && Array.isArray(icons.literal)
-        ? { literal: (icons.literal as Array<{ name: string; url: string }>).map(({ name, url }) => ({ name, href: url })), code: icons.code && rename(icons.code) }
-        : icons && { code: rename(code(icons)) };
+    const target = (icon: { target?: unknown }) => (icon.target === "_blank" || icon.target === "_self" ? icon.target : undefined);
+    const literal = isLiteral(icons) && Array.isArray(icons.literal) ? (icons.literal as Array<{ name: string; url: string; target?: unknown }>) : undefined;
+    for (const icon of literal ?? []) {
+      if (icon.target !== undefined && !target(icon)) report.push(`${where(node)}: an icon's target ${JSON.stringify(icon.target)} is left out: a link opens in a new window ("_blank") or in its own ("_self")`);
+    }
+    if (icons && !literal) report.push(`${where(node)}: this Social's icons are computed (${code(icons)}): each one's url is its href, and a target it has is left out`);
+    const list: Value | undefined = literal
+      ? { literal: literal.map((icon) => ({ name: icon.name, href: target(icon) ? { href: icon.url, target: target(icon) } : icon.url })), code: icons!.code && !literal.some(target) ? rename(icons!.code) : undefined }
+      : icons && { code: rename(code(icons)) };
     const block = element("Social", [
       attr("icons", list ?? lit([])),
       attr("iconType", props.get("iconType")),
@@ -814,8 +846,9 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["padding", n(props.get("padding"))],
         ["justifyContent", alignOf(props.get("align"))],
       ]),
-      mobileAttr([["fontSize", n(m.get("fontSize"))], ["padding", n(m.get("padding"))]]),
+      mobileAttr([["fontSize", n(m.get("fontSize"))]]),
     ]);
+    if (m.get("padding")) report.push(`${where(node)}: its phone padding is left out: the new Menu's links keep their padding on phones`);
     report.push(`${where(node)}: today's Menu puts a space between its links on top of their padding (a few px); the new one spaces them by their padding alone`);
     return wrapped(props, block, undefined, node);
   }

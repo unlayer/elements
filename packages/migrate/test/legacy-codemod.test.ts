@@ -5,31 +5,17 @@
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
-import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 import { inlineHtml } from "../src/legacy/html";
 import { migrateElements } from "../src/legacy/codemod";
 import { main, type Io } from "../src/cli";
+import { errors } from "./migrated";
 
 const migrate = (body: string, imports = "Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button, Image, Divider, Social, Menu, Html") =>
   migrateElements(`import { ${imports} } from "@unlayer/react-elements";\n${body}`);
 /** The code without its spacing, to look for a piece of it whatever the formatting. */
 const squash = (code: string) => code.replace(/\s+/g, "");
-
-const elements = createRequire(createRequire(import.meta.url).resolve("@unlayer/react-elements/package.json"));
-const React = elements("react");
-const primitives = elements("@unlayer/react-elements/primitives");
-
-/** The errors validate() finds in a migrated module's component `T`, run with React and the new components. */
-function errors(code: string, props: Record<string, unknown> = {}): unknown[] {
-  const js = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 } }).outputText;
-  const exports: { T?: unknown } = {};
-  const modules: Record<string, unknown> = { react: React, "@unlayer/react-elements/primitives": primitives };
-  new Function("require", "exports", "React", js)((name: string) => modules[name], exports, React);
-  return primitives.validate(React.createElement(exports.T, props)).diagnostics.filter((d: { severity: string }) => d.severity === "error");
-}
 
 describe("migrateElements", () => {
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
@@ -290,6 +276,30 @@ export const T = () => (
       'line 4: its fontWeight is computed (weight): it\'s kept as it is, and the new components take a number from 100 to 900 in hundreds, "normal" or "bold", not a string of digits ("700")',
       "line 5: this Menu's items are computed (links): they're kept as they are, and an item's target is part of its link now ({ text, href: { href, target } }), not a field of its own",
     ]);
+  });
+
+  it("carries an icon's target into its link, writes today's placeholder where an Image has no src, and converts line heights", async () => {
+    const { code, report } = await migrate(
+      `export const T = () => (
+  <Email>
+    <Social icons={[{ name: "X", url: "https://x.com/acme", target: "_self" }, { name: "Facebook", url: "https://facebook.com/acme" }]} />
+    <Image />
+    <Image src={undefined} />
+    <Paragraph lineHeight="1.5" mobile={{ lineHeight: "2em" }}>Words</Paragraph>
+    <Menu items={[{ text: "Home", href: "/" }]} mobile={{ padding: 4 }} />
+  </Email>
+);`,
+      "Email, Social, Image, Paragraph, Menu"
+    );
+    const squashed = squash(code);
+    expect(squashed).toContain('icons={[{name:"X",href:{href:"https://x.com/acme",target:"_self"}},{name:"Facebook",href:"https://facebook.com/acme"},]}');
+    expect(squashed.split('<Imagesrc="https://cdn.tools.unlayer.com/image/placeholder.png"/>')).toHaveLength(3);
+    expect(squashed).toContain("lineHeight:1.5");
+    expect(squashed).toContain("mobile={{lineHeight:2}}");
+    expect(report).toContain("line 5: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
+    expect(report).toContain("line 6: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
+    expect(report).toContain("line 8: its phone padding is left out: the new Menu's links keep their padding on phones");
+    expect(errors(code)).toEqual([]);
   });
 
   it("leaves modules that don't import today's components as they are", async () => {
