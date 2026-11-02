@@ -150,18 +150,98 @@ class Writer {
       case "Svg":
         return this.svg(node, placed, key);
       case "Link":
+        // A Link of words (a Menu's links too) is a block of text; one holding an Image, that image.
+        if (node.children.some((child) => typeof child === "string" || child.definition.categories.includes("inline"))) return this.paragraph(node, { ...placed, ...this.box(node) }, key);
         return createElement(
           "div",
           { key, style: { display: "flex", flexDirection: "column", ...placed } },
           ...nodes(node).map((child, i) => this.block(child, node, i))
         );
-      default:
+      case "List":
+        return this.list(node, placed, key);
+      case "Table":
+        return this.table(node, placed, key);
+      case "Video":
+        // An image can't play a video: its title, as an email or a PDF without its thumbnail shows it.
+        return createElement("div", { key, style: { display: "flex", ...this.text(node), ...this.box(node), ...placed } }, String(node.props.title ?? "Video"));
+      case "Section":
+      case "Column":
         return createElement(
           "div",
           { key, style: { display: "flex", flexDirection: "column", ...this.box(node), ...placed, ...gap(node), justifyContent: flex(node.style.justifyContent) } },
           ...nodes(node).map((child, i) => this.block(child, node, i))
         );
+      default:
+        // Every block a Canvas takes is a case above (a test checks): one without a case fails rather than disappears.
+        throw new Error(`[Elements] The image writer draws no ${node.type}`);
     }
+  }
+
+  /** A List: each item a marker (its number, or a bullet) beside its text, a List in it under the text. */
+  list(node: ResolvedNode, placed: Style, key?: number): ReactNode {
+    const indent = typeof node.style.indent === "number" ? node.style.indent : 24;
+    const start = Number(node.props.start ?? 1);
+    return createElement(
+      "div",
+      { key, style: { display: "flex", flexDirection: "column", ...this.box(node), ...placed, ...gap(node) } },
+      ...nodes(node).map((item, i) =>
+        createElement(
+          "div",
+          { key: i, style: { display: "flex", flexDirection: "row" } },
+          createElement("div", { style: { display: "flex", ...this.text(item), width: px(indent), flexShrink: 0, textAlign: "left" } }, node.props.type === "number" ? `${start + i}.` : "•"),
+          createElement("div", { style: { display: "flex", flexDirection: "column", flexGrow: 1, flexShrink: 1 } }, ...this.itemParts(item))
+        )
+      )
+    );
+  }
+
+  /** A list item's text and the Lists in it, in their order: each run of text a paragraph, each List under it. */
+  itemParts(item: ResolvedNode): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let text: ResolvedNode["children"] = [];
+    const flush = () => {
+      if (text.some((child) => typeof child !== "string" || child.trim() !== "")) parts.push(this.paragraph({ ...item, children: text }, {}, parts.length));
+      text = [];
+    };
+    for (const child of item.children) {
+      if (typeof child !== "string" && child.type === "List") {
+        flush();
+        if (shown(child)) parts.push(this.list(child, {}, parts.length));
+      } else text.push(child);
+    }
+    flush();
+    return parts;
+  }
+
+  /** A Table: its rows one under another, each cell at its columns' width (a header row's text bold). */
+  table(node: ResolvedNode, placed: Style, key?: number): ReactNode {
+    const columns = node.columns ?? null;
+    const cellPadding = node.style.cellPadding as Sides | undefined;
+    const rowBorder = node.style.rowBorder as BorderSide | undefined;
+    const rows = nodes(node);
+    return createElement(
+      "div",
+      { key, style: { display: "flex", flexDirection: "column", ...this.box(node), ...placed } },
+      ...rows.map((row, r) => {
+        let column = 0;
+        const line = r < rows.length - 1 && rowBorder ? `${px(rowBorder.width)} ${rowBorder.style} ${rowBorder.color}` : undefined;
+        return createElement(
+          "div",
+          { key: r, style: { display: "flex", flexDirection: "row", ...this.box(row), borderBottom: line } },
+          ...nodes(row).map((cell, c) => {
+            const span = Math.max(1, Number(cell.props.colSpan ?? 1));
+            const width = columns ? columns.slice(column, column + span).reduce((sum, w) => sum + w, 0) : undefined;
+            column += span;
+            const padding = cellPadding ? `${px(cellPadding.top)} ${px(cellPadding.right)} ${px(cellPadding.bottom)} ${px(cellPadding.left)}` : undefined;
+            return createElement(
+              "div",
+              { key: c, style: { display: "flex", flexDirection: "column", padding, ...this.box(cell), width: width !== undefined ? px(width) : undefined, flexGrow: width === undefined ? 1 : 0, flexShrink: 0 } },
+              this.paragraph(cell, row.props.header ? { fontWeight: 700 } : {})
+            );
+          })
+        );
+      })
+    );
   }
 
   /** A block of text: its runs, a line break starting a new line. */

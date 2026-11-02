@@ -5,8 +5,38 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { Canvas, Circle, Column, Email, Heading, Image, Rect, Svg, Text } from "@unlayer/react-elements/primitives";
+import { COMPONENTS } from "@unlayer-internal/elements-core";
+import {
+  Button,
+  Canvas,
+  Circle,
+  Column,
+  Divider,
+  Email,
+  Grid,
+  Heading,
+  Image,
+  Layer,
+  Link,
+  List,
+  ListItem,
+  Menu,
+  Paragraph,
+  prepare,
+  Rect,
+  Row,
+  Section,
+  Social,
+  Svg,
+  Table,
+  TableCell,
+  TableRow,
+  Text,
+  Video,
+} from "@unlayer/react-elements/primitives";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderImage } from "../src";
+import { writeCanvas } from "../src/write";
 
 /** Liberation Sans (Arial's metrics, SIL OFL), as pdf.js ships it. */
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
@@ -74,6 +104,79 @@ describe("renderImage", () => {
     );
     await expect(renderImage(photo, { fonts })).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "image/image", path: "root.children[0].props.src" })] });
     expect(size((await renderImage(photo, { fonts, images: { "https://cdn.acme.test/photo.png": PNG } })).image)).toEqual([200, 100]);
+  });
+
+  describe("every block a Canvas takes", () => {
+    /** A sample of each, with the words it draws. */
+    const SAMPLES: Record<string, [ReactElement, string]> = {
+      Section: [<Section key="s"><Text>In a section</Text></Section>, "In a section"],
+      Row: [<Row key="r"><Column><Text>In a row</Text></Column></Row>, "In a row"],
+      Column: [<Column key="c"><Text>In a column</Text></Column>, "In a column"],
+      Grid: [<Grid key="g" columns={2}><Text>Left</Text><Text>Right</Text></Grid>, "LeftRight"],
+      Layer: [<Layer key="l"><Text>Under</Text><Text>Over</Text></Layer>, "UnderOver"],
+      Text: [<Text key="t">A text</Text>, "A text"],
+      Paragraph: [<Paragraph key="p">A paragraph</Paragraph>, "A paragraph"],
+      Heading: [<Heading key="h">A heading</Heading>, "A heading"],
+      Link: [<Link key="a" href="https://acme.test">A link</Link>, "A link"],
+      Button: [<Button key="b" href="https://acme.test">A button</Button>, "A button"],
+      Image: [<Image key="i" src={{ src: `data:image/png;base64,${Buffer.from(PNG).toString("base64")}`, width: 1, height: 1 }} alt="" />, ""],
+      Divider: [<Divider key="d" />, ""],
+      List: [
+        <List key="ul" type="number">
+          <ListItem>First</ListItem>
+          <ListItem>
+            Second
+            <List>
+              <ListItem>Inside</ListItem>
+            </List>
+            After
+          </ListItem>
+        </List>,
+        "1.First2.Second•InsideAfter",
+      ],
+      Table: [
+        <Table key="tb">
+          <TableRow header style={{ backgroundColor: "#ff0000" }}>
+            <TableCell>Plan</TableCell>
+            <TableCell>Price</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Pro</TableCell>
+            <TableCell>$20</TableCell>
+          </TableRow>
+        </Table>,
+        "PlanPricePro$20",
+      ],
+      Video: [<Video key="v" src="https://vimeo.com/76979871" title="Our launch" />, "Our launch"],
+      Svg: [<Svg key="svg" width={10} height={10}><Rect width={10} height={10} /></Svg>, ""],
+      Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
+      Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
+    };
+    const words = (node: ReactNode): string => {
+      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (Array.isArray(node)) return node.map(words).join("");
+      return isValidElement(node) ? words((node.props as { children?: ReactNode }).children) : "";
+    };
+    const canvas = (children: ReactNode) => <Canvas width={600} height={600} style={{ fontFamily: "Liberation Sans" }}>{children}</Canvas>;
+
+    it("has a sample of each (a new block needs its case in the writer, and one here)", () => {
+      const takes = new Set(COMPONENTS.Canvas.children.categories);
+      const blocks = Object.values(COMPONENTS).filter((definition) => definition.categories.some((category) => takes.has(category)));
+      expect(Object.keys(SAMPLES).sort()).toEqual(blocks.map((definition) => definition.type).sort());
+    });
+
+    it.each(Object.entries(SAMPLES))("draws a %s with its words", (_, [sample, drawn]) => {
+      const { root, diagnostics } = prepare(canvas(sample));
+      expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      expect(words(writeCanvas(root!, { fonts: new Set(["liberation sans"]), fallback: "Liberation Sans", image: (src) => src }))).toBe(drawn);
+    });
+
+    it("writes the text blocks as Satori draws them", async () => {
+      const text = ["Link", "List", "Table", "Video", "Menu"].map((type) => SAMPLES[type][0]);
+      const svg = new TextDecoder().decode((await renderImage(canvas(text), { fonts, format: "svg" })).image);
+      // The Table's header row's background.
+      expect(svg).toContain('fill="#ff0000"');
+    });
   });
 
   it("writes a Canvas only", async () => {
