@@ -4,12 +4,16 @@
  * Section a full-width row, a Row a row of its children as columns (their shares and gap as the columns' widths and
  * padding), content directly in the root a one-column row, a text block its HTML. What no tool shows (a Layer, an
  * Svg, a Table, a box nested in a column) is an HTML block of the new engine's own markup, and listed.
+ *
+ * Each element it makes is paired with what it was made from (`payloads`), which toDesign() keeps in the design.
  */
 import { Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { prepareTemplate, renderTemplate } from "@unlayer-internal/elements-exporters";
 import React from "react";
 import { Button, Column, Divider, Email, Heading, Html, Image, Menu, Page, Paragraph, Row, Social, Video } from "../index";
 import { collectTemplate } from "../primitives/collect";
+import { kept } from "./fields";
+import { bare, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
 type Props = Record<string, unknown>;
@@ -19,7 +23,12 @@ export interface Raised {
   element: React.ReactElement | null;
   /** What the builder can't hold as it is: one line each, with where. */
   report: string[];
+  /** What each element (the root, a row, a column, a block) was made from. */
+  payloads: WeakMap<object, Payload>;
 }
+
+/** A row's place in the template: the Section, and the Grid, it's a row of. */
+type RowGroup = { sec?: Group; grid?: Group };
 
 const px = (n: number) => `${Math.round(n * 100) / 100}px` as Length;
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -69,15 +78,27 @@ function runsHtml(node: Node): string {
 
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
+  const payloads = new WeakMap<object, Payload>();
   const { document, diagnostics, components } = collectTemplate(element);
-  if (!document || diagnostics.some((d) => d.severity === "error")) return { element: null, report: diagnostics.map((d) => `${d.path}: ${d.message}`) };
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { element: null, report: diagnostics.map((d) => `${d.path}: ${d.message}`), payloads };
   const prepared = prepareTemplate(document, { components });
-  if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
+  if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), payloads };
   const root = document.root;
   const resolvedRoot = prepared.resolved.root;
   if (root.type !== "Email" && root.type !== "Page") {
-    return { element: null, report: [`root: the builder edits an Email or a Page, not a ${root.type}`] };
+    return { element: null, report: [`root: the builder edits an Email or a Page, not a ${root.type}`], payloads };
   }
+  /** The element, paired with what it was made from. */
+  const tag = (made: React.ReactElement, payload: Omit<Payload, "v">): React.ReactElement => {
+    payloads.set(made, { v: PAYLOAD_VERSION, ...payload });
+    return made;
+  };
+  const wrapped = (wraps: Group[]) => (wraps.length ? { wrap: wraps } : {});
+  /** What of a node the design keeps with no editor in the builder yet, said. */
+  const noteKept = (node: Node, path: string) => {
+    const extra = kept(node);
+    if (extra.length) report.push(`${path}: kept in the design, with no editor in the builder yet: ${extra.join(", ")}`);
+  };
   // The resolved node where each node of the template is (a component made of others is replaced in place).
   const resolved = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
@@ -91,15 +112,23 @@ export function raise(element: React.ReactElement): Raised {
   const alignIn = (stack: ResolvedNode): TextAlign => (stack.style.alignItems ? ALIGN[String(stack.style.alignItems)] : stack.text.textAlign);
 
   /** Where a node can't be a tool: the new engine's own markup for it, in an HTML block. */
-  const locked = (node: Node, path: string, why: string, around: Sides): React.ReactElement => {
+  const locked = (node: Node, path: string, why: string, around: Sides, wraps: Group[] = []): React.ReactElement => {
     report.push(`${path}: ${why}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`);
     const own = at(path);
     const html = renderSubtree(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components);
-    return <Html key={path} html={html} containerPadding={sidesCss(around)} />;
+    return tag(<Html key={path} html={html} containerPadding={sidesCss(around)} />, { node, locked: true, ...wrapped(wraps) });
   };
 
   /** A block in a column, with `around` its space in the column (its stack's gap above it, the column's sides). */
-  const block = (node: Node, path: string, parent: ResolvedNode, around: Sides): React.ReactElement | React.ReactElement[] => {
+  const block = (node: Node, path: string, parent: ResolvedNode, around: Sides, wraps: Group[] = []): React.ReactElement | React.ReactElement[] => {
+    const made = tool(node, path, parent, around, wraps);
+    if (Array.isArray(made) || payloads.has(made)) return made;
+    noteKept(node, path);
+    return tag(made, { node, ...wrapped(wraps) });
+  };
+
+  /** The tool a block is in the builder. */
+  const tool = (node: Node, path: string, parent: ResolvedNode, around: Sides, wraps: Group[]): React.ReactElement | React.ReactElement[] => {
     const own = at(path);
     const text = own.text;
     const font = { label: String(text.fontFamily).split(",")[0].replace(/["']/g, "").trim(), value: String(text.fontFamily) };
@@ -218,13 +247,13 @@ export function raise(element: React.ReactElement): Raised {
         return <Video key={path} {...hidden} videoUrl={String(node.props?.src)} containerPadding={sidesCss(around)} />;
       default:
         // A plain stack (a Column without a box of its own) is its blocks, in the same column.
-        if (STACKS.has(node.type) && !hasBox(node)) return stack(node, path, own, around);
-        return locked(node, path, `a ${node.type} isn't a tool of the builder's`, around);
+        if (STACKS.has(node.type) && !hasBox(node)) return stack(node, path, own, around, [...wraps, { key: path, node: bare(node) }]);
+        return locked(node, path, `a ${node.type} isn't a tool of the builder's`, around, wraps);
     }
   };
 
   /** A stack's blocks, its gap above each but the first, its padding around them. */
-  const stack = (node: Node, path: string, own: ResolvedNode, around: Sides): React.ReactElement[] => {
+  const stack = (node: Node, path: string, own: ResolvedNode, around: Sides, wraps: Group[] = []): React.ReactElement[] => {
     const gap = typeof own.style.gap === "number" ? own.style.gap : 0;
     const pad = add(padding(node), around);
     const children = (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
@@ -232,19 +261,20 @@ export function raise(element: React.ReactElement): Raised {
       const first = i === 0;
       const last = i === children.length - 1;
       const space: Sides = { top: (first ? pad.top : gap), right: pad.right, bottom: last ? pad.bottom : 0, left: pad.left };
-      return ([] as React.ReactElement[]).concat(block(child, childPath, own, space));
+      return ([] as React.ReactElement[]).concat(block(child, childPath, own, space, wraps));
     });
   };
 
   const hasBox = (node: Node) => ["backgroundColor", "border", "borderRadius", "width", "maxWidth", "height"].some((key) => node.style?.[key] !== undefined);
 
   /** A row of the builder's for a Row: each child a column, its width and its share of the gap its column's. */
-  const row = (node: Node, path: string, band: Props, outer: Sides): React.ReactElement => {
+  const row = (node: Node, path: string, band: Props, outer: Sides, group: RowGroup, cellsOf?: Node): React.ReactElement => {
     const own = at(path);
     const gap = typeof own.style.gap === "number" ? own.style.gap : 0;
     const rowPad = add(padding(node), outer);
     const children = (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string" && !c.child.hidden?.desktop);
     const n = children.length;
+    if (!cellsOf) noteKept(bare(node), path);
     const columns = children.map(({ child, path: childPath }, i) => {
       const width = at(childPath).width ?? 0;
       // The Row's top and bottom padding is the builder's row's; its sides and its gap, the columns' own.
@@ -264,9 +294,12 @@ export function raise(element: React.ReactElement): Raised {
       const stacks = node.props?.stackOnMobile !== false;
       const phoneGap = typeof own.mobile?.gap === "number" ? own.mobile.gap : gap;
       const phonePadding = stacks ? add(isColumn ? padding(child) : ZERO, { left: rowPad.left, right: rowPad.right, top: i > 0 ? phoneGap : 0 }) : undefined;
+      // A Column is its own column; a Grid's cell is only where its item is; a block a column of its own size.
+      const columnPayload: Omit<Payload, "v"> = cellsOf ? {} : isColumn ? { node: bare(child) } : { direct: true };
+      if (isColumn && !cellsOf) noteKept(bare(child), childPath);
       return {
         share,
-        element: (
+        element: tag(
           <Column
             key={childPath}
             padding={sidesCss(columnPadding)}
@@ -276,56 +309,67 @@ export function raise(element: React.ReactElement): Raised {
             mobile={phoneBorder || phonePadding ? { ...(phoneBorder ? { border: legacyBorder(phoneBorder) as never } : {}), ...(phonePadding ? { padding: sidesCss(phonePadding) } : {}) } : undefined}
           >
             {isColumn ? stack(withoutPadding(child), childPath, at(childPath), ZERO) : block(child, childPath, own, ZERO)}
-          </Column>
+          </Column>,
+          columnPayload
         ),
       };
     });
-    return (
+    return tag(
       <Row key={path} cells={columns.map((c) => Math.max(1, Math.round(c.share)))} padding={`${px(rowPad.top)} 0px ${px(rowPad.bottom)} 0px`} noStackMobile={node.props?.stackOnMobile === false || undefined} columnsBackgroundColor={own.style.backgroundColor as string | undefined} hideOnMobile={node.hidden?.mobile || undefined} hideOnDesktop={node.hidden?.desktop || undefined} {...band}>
         {columns.map((c) => c.element)}
-      </Row>
+      </Row>,
+      { ...(cellsOf ? {} : { node: bare(node) }), ...group }
     );
   };
 
   /** A one-column row of the builder's holding blocks (content directly in the root, or a Section's). */
-  const oneColumn = (blocks: Array<{ child: Node; path: string }>, stackNode: ResolvedNode, band: Props, pad: Sides, key: string): React.ReactElement => {
+  const oneColumn = (blocks: Array<{ child: Node; path: string }>, stackNode: ResolvedNode, band: Props, pad: Sides, key: string, group: RowGroup): React.ReactElement => {
     const gap = typeof stackNode.style.gap === "number" ? stackNode.style.gap : 0;
-    return (
+    return tag(
       <Row key={key} cells={[1]} padding="0px" {...band}>
-        <Column padding="0px">
-          {blocks.flatMap(({ child, path }, i) => {
-            const space: Sides = { top: i === 0 ? pad.top : gap, right: pad.right, bottom: i === blocks.length - 1 ? pad.bottom : 0, left: pad.left };
-            return ([] as React.ReactElement[]).concat(child.type === "Row" ? locked(child, path, "a Row inside a Section's run of blocks", space) : block(child, path, stackNode, space));
-          })}
-        </Column>
-      </Row>
+        {tag(
+          <Column padding="0px">
+            {blocks.flatMap(({ child, path }, i) => {
+              const space: Sides = { top: i === 0 ? pad.top : gap, right: pad.right, bottom: i === blocks.length - 1 ? pad.bottom : 0, left: pad.left };
+              return ([] as React.ReactElement[]).concat(child.type === "Row" ? locked(child, path, "a Row inside a Section's run of blocks", space) : block(child, path, stackNode, space));
+            })}
+          </Column>,
+          { run: true }
+        )}
+      </Row>,
+      { run: true, ...group }
     );
   };
 
   /** The root's children, or a Section's: Rows (and Grids) as rows of their own, runs of blocks as one-column rows. */
-  const rows = (children: Array<{ child: Node; path: string }>, stackNode: ResolvedNode, band: Props, pad: Sides, keyBase: string): React.ReactElement[] => {
+  const rows = (children: Array<{ child: Node; path: string }>, stackNode: ResolvedNode, band: Props, pad: Sides, keyBase: string, group: RowGroup = {}): React.ReactElement[] => {
     const out: React.ReactElement[] = [];
     let run: Array<{ child: Node; path: string }> = [];
     const gap = typeof stackNode.style.gap === "number" ? stackNode.style.gap : 0;
     const flush = (last: boolean) => {
       if (!run.length) return;
       const top = out.length === 0 ? pad.top : gap;
-      out.push(oneColumn(run, stackNode, band, { ...pad, top, bottom: last ? pad.bottom : 0 }, `${keyBase}.run${out.length}`));
+      out.push(oneColumn(run, stackNode, band, { ...pad, top, bottom: last ? pad.bottom : 0 }, `${keyBase}.run${out.length}`, group));
       run = [];
     };
     children.forEach(({ child, path }, i) => {
       const last = i === children.length - 1;
       if (child.type === "Row") {
         flush(false);
-        out.push(row(child, path, band, { ...pad, top: out.length === 0 ? pad.top : gap, bottom: last ? pad.bottom : 0 }));
+        out.push(row(child, path, band, { ...pad, top: out.length === 0 ? pad.top : gap, bottom: last ? pad.bottom : 0 }, group));
       } else if (child.type === "Grid") {
-        // A Grid is the Column of Rows it's laid out as: each of its Rows a row of the builder's.
+        // A Grid is the Column of Rows it's laid out as: each of its Rows a row of the builder's, each cell a column
+        // holding the Grid's child there.
         flush(false);
         const arranged = at(path);
         const gridGap = typeof arranged.style.gap === "number" ? arranged.style.gap : 0;
+        const items = (child.children ?? []).filter((item): item is Node => typeof item !== "string");
+        let next = 0;
         arranged.children.forEach((gridRow, r) => {
           if (typeof gridRow === "string") return;
-          out.push(row(nodeOf(gridRow), gridRow.path, band, { ...pad, top: r === 0 ? (out.length === 0 ? pad.top : gap) : gridGap, bottom: 0 }));
+          const shape = nodeOf(gridRow);
+          const cells = (shape.children ?? []).map((cell) => (typeof cell !== "string" && cell.children?.length ? { ...cell, children: [items[next++]] } : cell));
+          out.push(row({ ...shape, children: cells }, gridRow.path, band, { ...pad, top: r === 0 ? (out.length === 0 ? pad.top : gap) : gridGap, bottom: 0 }, { ...group, grid: { key: path, node: bare(child) } }, shape));
         });
       } else run.push({ child, path });
     });
@@ -344,16 +388,18 @@ export function raise(element: React.ReactElement): Raised {
     if (child.type === "Section") {
       flushLoose();
       const own = at(path);
+      noteKept(bare(child), path);
       const sectionChildren = (child.children ?? []).map((c, i) => ({ child: c, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
-      body.push(...rows(sectionChildren, own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path));
+      body.push(...rows(sectionChildren, own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path, { sec: { key: path, node: bare(child) } }));
     } else loose.push({ child, path });
   }
   flushLoose();
 
+  noteKept(bare(root), "root");
   const Root = root.type === "Email" ? Email : Page;
   const style = resolvedRoot.style;
   const text = resolvedRoot.text;
-  const raised = (
+  const raised = tag(
     <Root
       contentWidth={px(Number(resolvedRoot.width)) as never}
       backgroundColor={style.backgroundColor as string | undefined}
@@ -362,9 +408,10 @@ export function raise(element: React.ReactElement): Raised {
       {...(root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {})}
     >
       {body}
-    </Root>
+    </Root>,
+    { node: bare(root) }
   );
-  return { element: raised, report };
+  return { element: raised, report, payloads };
 }
 
 /** A phone's column, about: what tells a percentage's width from its cap on a phone. */

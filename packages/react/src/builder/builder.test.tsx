@@ -70,6 +70,24 @@ describe("toDesign", () => {
     expect(row.values._override?.mobile?.hideMobile).toBe(true);
   });
 
+  it("keeps each node in the values the builder keeps (not beside them), and lists what has no editor in the builder yet", () => {
+    const { design, report } = toDesign(
+      <Email>
+        <Heading style={{ borderRadius: 8 }}>Hi</Heading>
+        <Image src={{ src: "https://example.com/a.png", width: 600, height: 300 }} alt="" style={{ borderRadius: 16 }} />
+      </Email>
+    );
+    expect(design.body.values._elements.node.type).toBe("Email");
+    const [heading, image] = design.body.rows[0].columns[0].contents;
+    expect(heading.values._elements).toMatchObject({ v: 1, node: { type: "Heading", style: { borderRadius: 8 }, children: ["Hi"] }, w: { text: "Hi", headingType: "h1" } });
+    expect(image.values._elements.node.style).toEqual({ borderRadius: 16 });
+    expect(Object.keys(design.body.rows[0]).sort()).toEqual(["cells", "columns", "values"]);
+    expect(report).toEqual([
+      "root.children[0]: kept in the design, with no editor in the builder yet: style.borderRadius",
+      "root.children[1]: kept in the design, with no editor in the builder yet: style.borderRadius",
+    ]);
+  });
+
   it("takes an Email or a Page, which the builder edits", () => {
     expect(() =>
       toDesign(
