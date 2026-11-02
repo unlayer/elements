@@ -34,7 +34,7 @@ export function runsHtml(node: Node): string {
         case "LineBreak":
           return "<br>";
         case "MergeTag":
-          return `{{${child.props?.name}}}`;
+          return `{{${escapeHtml(String(child.props?.name ?? ""))}}}`;
         case "PageNumber":
           // The builder has no page numbers: a token in their place, read back as one.
           return child.props?.total ? "{{page_count}}" : "{{page_number}}";

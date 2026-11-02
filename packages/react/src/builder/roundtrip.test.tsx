@@ -400,6 +400,21 @@ describe("fromDesign(toDesign())", () => {
       expect(tree(fromDesign(design).element)).toEqual(tree(template));
     });
 
+    it("writes a merge tag's name into the builder's text escaped, and brings it back as it was", () => {
+      const name = 'x"><img src=x onerror=alert(1)>';
+      const template = (
+        <Email>
+          <Text>
+            Hi <MergeTag name={name} />
+          </Text>
+        </Email>
+      );
+      const [text] = blocks(designOf(template));
+      expect(text.values.text).not.toContain("<img");
+      expect(text.values.text).toContain("{{x&quot;&gt;&lt;img src=x onerror=alert(1)&gt;}}");
+      expect(tree(fromDesign(toDesign(template).design).element)).toEqual(tree(template));
+    });
+
     it("writes a Button's merge tags to the builder, and says what a text edit leaves out", () => {
       const template = (
         <Email>
@@ -442,6 +457,25 @@ describe("fromDesign(toDesign())", () => {
   });
 
   describe("a template that's valid when it comes back", () => {
+    it("reads no template node in a later format than its own (made from the builder's values instead), and says so", () => {
+      const later = JSON.parse(JSON.stringify(toDesign(sample).design), (key, value) => (key === "_elements" ? { ...value, v: 2 } : value));
+      const back = fromDesign(later);
+      expect(back.report[0]).toMatch(/^body and \d+ more: written by a later version of Elements \(its format 2, this one reads 1\): made from the builder's values, as what's made in the builder is$/);
+      // The Heading's background and corners, which the builder has no editor for, were only in its node.
+      const find = (node: Node): Node | undefined => (node.type === "Heading" ? node : node.children?.map((child) => (typeof child === "string" ? undefined : find(child))).find(Boolean));
+      const heading = find(tree(back.element));
+      expect(heading?.children).toEqual(["Title"]);
+      expect(heading?.style?.backgroundColor).toBeUndefined();
+      expect(validate(back.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      // One block of a later version's, in a design of this one's: that block, said.
+      const one = designOf(sample);
+      const [first] = blocks(one);
+      first.values._elements = { ...first.values._elements, v: 2 };
+      expect(fromDesign(one).report).toEqual([
+        "body.rows[0].columns[0].contents[0]: written by a later version of Elements (its format 2, this one reads 1): made from the builder's values, as what's made in the builder is",
+      ]);
+    });
+
     it("takes a design made in the builder, without the template's nodes, as a valid Email", () => {
       const design = JSON.parse(JSON.stringify(toDesign(sample).design), (key, value) => (key === "_elements" ? undefined : value));
       expect(validate(fromDesign(design).element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);

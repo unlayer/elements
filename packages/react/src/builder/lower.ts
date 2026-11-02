@@ -11,7 +11,7 @@
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
-import { BUILDER_OWN, PAYLOAD_KEY, type Group, type Payload } from "./payload";
+import { BUILDER_OWN, PAYLOAD_KEY, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
 import { sameText } from "./runs";
 
 type Values = Record<string, any>;
@@ -26,9 +26,10 @@ export type Design = { body: { rows: Row[]; values: Values; headers?: Row[]; foo
  */
 const BUILDER_DATA = new Set(["displayCondition", "anchor", "_languages"]);
 
+/** A template's node in an item's values, in a format this version reads (its own, or an earlier one). */
 const payloadOf = (values: Values | undefined): Payload | undefined => {
   const payload = values?.[PAYLOAD_KEY];
-  return payload && typeof payload === "object" && payload.v >= 1 ? (payload as Payload) : undefined;
+  return payload && typeof payload === "object" && payload.v >= 1 && payload.v <= PAYLOAD_VERSION ? (payload as Payload) : undefined;
 };
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -87,6 +88,26 @@ export function lower(design: Design, report: string[]): Node {
 
   const body = design.body;
   const bodyPayload = payloadOf(body.values);
+  // Items a later version of Elements wrote (in a format this one doesn't read): made from the builder's values.
+  const later: Array<{ where: string; v: number }> = [];
+  const seen = (values: Values | undefined, where: string) => {
+    const v = (values?.[PAYLOAD_KEY] as { v?: unknown } | undefined)?.v;
+    if (typeof v === "number" && v > PAYLOAD_VERSION) later.push({ where, v });
+  };
+  seen(body.values, "body");
+  for (const [part, rows] of [["rows", body.rows], ["headers", body.headers ?? []], ["footers", body.footers ?? []]] as const) {
+    rows.forEach((row, r) => {
+      seen(row.values, `body.${part}[${r}]`);
+      row.columns.forEach((column, c) => {
+        seen(column.values, `body.${part}[${r}].columns[${c}]`);
+        column.contents.forEach((content, i) => seen(content.values, `body.${part}[${r}].columns[${c}].contents[${i}]`));
+      });
+    });
+  }
+  if (later.length) {
+    const more = later.length > 1 ? ` and ${later.length - 1} more` : "";
+    report.push(`${later[0].where}${more}: written by a later version of Elements (its format ${later[0].v}, this one reads ${PAYLOAD_VERSION}): made from the builder's values, as what's made in the builder is`);
+  }
   // A design made in the builder is an Email, or a Document where it has a document's parts (a header, a page break).
   const printed = Boolean(body.headers?.length || body.footers?.length) || body.rows.some((row) => row.columns.some((column) => column.contents.some((content) => content.type === "page_break")));
   const root: Node = bodyPayload?.node ? copy(bodyPayload.node) : { type: printed ? "Document" : "Email" };
