@@ -4,7 +4,7 @@
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Circle, Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
+import { Button, Circle, Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
 
 /** A 1×1 PNG. */
@@ -137,6 +137,20 @@ describe("renderPdf", () => {
     // 48px margin + 60px drawing = 81pt down, then the line of text below it.
     expect(pages[0].first?.str).toBe("Below the drawing");
     expect(pages[0].first!.y).toBeGreaterThan(36 + 45);
+  });
+
+  it("links to a link's URL, given as a string or as { href, target }", async () => {
+    const { pdf } = await renderPdf(
+      <Document>
+        <Button href={{ href: "https://a.test/go", target: "_blank" }}>Go</Button>
+        <Paragraph>
+          See <Link href={{ href: "https://b.test/more" }}>more</Link> or <Link href="https://c.test/x">this</Link>
+        </Paragraph>
+      </Document>
+    );
+    const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
+    const urls = (await (await document.getPage(1)).getAnnotations()).map((annotation: { url?: string }) => annotation.url);
+    expect(urls).toEqual(["https://a.test/go", "https://b.test/more", "https://c.test/x"]);
   });
 
   it("paints each page white unless it has a background of its own (a viewer may show a transparent page as black)", async () => {

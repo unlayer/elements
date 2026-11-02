@@ -18,7 +18,7 @@ import {
   Text as PdfText,
   View,
 } from "@react-pdf/renderer";
-import { assetParts, documentPages, pageBox, videoParts, type Asset, type BorderSide, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, documentPages, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { createElement, type ReactElement, type ReactNode } from "react";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle, type PdfStyle } from "./styles";
 
@@ -99,7 +99,7 @@ class Writer {
         return this.image(node, placed, key);
       case "Link":
         return (
-          <PdfLink key={key} src={String(node.props.href ?? "")} style={{ ...placed, textDecoration: "none" }}>
+          <PdfLink key={key} src={linkParts(node.props.href as LinkValue).href} style={{ ...placed, textDecoration: "none" }}>
             {nodes(node).map((child, i) => this.block(child, node, i))}
           </PdfLink>
         );
@@ -151,7 +151,7 @@ class Writer {
           return String(child.props.total ? this.page.total : this.page.number);
         case "Link":
           return (
-            <PdfLink key={i} src={String(child.props.href ?? "")} style={runStyle(child, this.context.fonts)}>
+            <PdfLink key={i} src={linkParts(child.props.href as LinkValue).href} style={runStyle(child, this.context.fonts)}>
               {this.runs(child)}
             </PdfLink>
           );
@@ -169,7 +169,7 @@ class Writer {
 
   button(node: ResolvedNode, placed: PdfStyle, key?: number): ReactNode {
     return (
-      <PdfLink key={key} src={String(node.props.href ?? "")} style={{ ...placed, textDecoration: "none" }}>
+      <PdfLink key={key} src={linkParts(node.props.href as LinkValue).href} style={{ ...placed, textDecoration: "none" }}>
         <View style={{ ...boxStyle(node), width: node.width !== null ? pt(node.width) : undefined }}>
           <PdfText style={{ ...textStyle(node, this.context.fonts), textAlign: "center" }}>{this.runs(node)}</PdfText>
         </View>

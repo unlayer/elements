@@ -7,7 +7,7 @@
  *
  * Each element it makes is paired with what it was made from (`payloads`), which toDesign() keeps in the design.
  */
-import { Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, type Json, type LinkValue, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { prepareTemplate, renderTemplate } from "@unlayer-internal/elements-exporters";
 import React from "react";
 import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
@@ -125,7 +125,7 @@ export function raise(element: React.ReactElement): Raised {
           <Button
             key={path}
             {...hidden}
-            href={String(own.props.href ?? "#")}
+            href={linkParts(own.props.href as LinkValue).href || "#"}
             {...textProps()}
             textAlign={alignIn(parent)}
             backgroundColor={style.backgroundColor as string | undefined}
@@ -156,7 +156,7 @@ export function raise(element: React.ReactElement): Raised {
           <Image
             key={path}
             {...hidden}
-            action={{ name: "web", values: { href: linked ? String(own.props.href ?? "") : "", target: "_blank" } }}
+            action={{ name: "web", values: { href: linked ? linkParts(own.props.href as LinkValue).href : "", target: "_blank" } }}
             src={{ url: parts.src, ...(parts.width ? { width: parts.width } : {}), ...(parts.height ? { height: parts.height } : {}) }}
             alt={String(imageOwn.props.alt ?? "")}
             // Its width on desktop as a px pin (today's draw it as their share of the column, as the new engine
@@ -192,7 +192,7 @@ export function raise(element: React.ReactElement): Raised {
           <Menu
             key={path}
             {...hidden}
-            items={(node.props?.items as Array<{ text: string; href: string }>) ?? []}
+            items={((node.props?.items as Array<{ text: string; href: LinkValue }>) ?? []).map(({ text, href }) => ({ text, href: linkParts(href).href }))}
             separator={(node.props?.separator as string | undefined) ?? ""}
             layout={(node.props?.layout as "horizontal" | "vertical" | undefined) ?? "horizontal"}
             linkColor={style.color as string}
@@ -207,7 +207,7 @@ export function raise(element: React.ReactElement): Raised {
       }
       case "Social": {
         const style = { ...(SocialDefinition.defaultStyle as Record<string, Json>), ...node.style };
-        const icons = ((node.props?.icons as Array<{ name: string; href: string }>) ?? []).map(({ name, href }) => ({ name, url: href }));
+        const icons = ((node.props?.icons as Array<{ name: string; href: LinkValue }>) ?? []).map(({ name, href }) => ({ name, url: linkParts(href).href }));
         return (
           <Social
             key={path}

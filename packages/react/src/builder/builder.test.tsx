@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToHtml } from "../index";
-import { Button, Canvas, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Row, Section, Text } from "../primitives";
+import { Button, Canvas, Column, Email, Grid, Heading, Image, Layer, Link, Menu, Page, Paragraph, Row, Section, Social, Text } from "../primitives";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import * as brew from "../primitives/codemod/MorningBrewDigest";
@@ -86,6 +86,30 @@ describe("toDesign", () => {
       "root.children[0]: kept in the design, with no editor in the builder yet: style.borderRadius",
       "root.children[1]: kept in the design, with no editor in the builder yet: style.borderRadius",
     ]);
+  });
+
+  it("writes a link given as { href, target } as its URL: a Button's, a link in text, an image's, a Menu's and Social's", () => {
+    const href = { href: "https://shop.test", target: "_blank" } as const;
+    const { design } = toDesign(
+      <Email>
+        <Button href={href}>Go</Button>
+        <Paragraph>
+          See <Link href={href}>shop</Link>
+        </Paragraph>
+        <Link href={href}>
+          <Image src={{ src: "https://example.com/a.png", width: 600, height: 300 }} alt="" />
+        </Link>
+        <Menu items={[{ text: "Shop", href }]} />
+        <Social icons={[{ name: "x", href }]} />
+      </Email>
+    );
+    const [button, text, image, menu, social] = design.body.rows[0].columns[0].contents.map((content: { values: Record<string, any> }) => content.values);
+    expect(button.href.values.href).toBe("https://shop.test");
+    expect(text.text).toContain('<a href="https://shop.test" target="_blank">shop</a>');
+    expect(image.action.values.href).toBe("https://shop.test");
+    expect(menu.menu.items[0].link.values.href).toBe("https://shop.test");
+    expect(social.icons.icons[0].url).toBe("https://shop.test");
+    expect(JSON.stringify(design)).not.toContain("[object Object]");
   });
 
   it("takes an Email, a Page or a Document, which the builder edits", () => {

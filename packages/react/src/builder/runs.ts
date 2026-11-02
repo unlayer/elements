@@ -4,7 +4,7 @@
  * keeps it (a paragraph around it, `<strong>` for a bold span), so two HTMLs are the same text when their runs are.
  * Markup no run holds (an image, a list, a style no run takes) is left out and said: nothing is dropped quietly.
  */
-import type { Child, Json, Node } from "@unlayer-internal/elements-core";
+import { linkParts, type Child, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
 
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const cssPx = (n: number) => `${Math.round(n * 100) / 100}px`;
@@ -39,7 +39,8 @@ export function runsHtml(node: Node): string {
           // The builder has no page numbers: a token in their place, read back as one.
           return child.props?.total ? "{{page_count}}" : "{{page_number}}";
         case "Link":
-          return `<a href="${escapeHtml(String(child.props?.href ?? ""))}" target="_blank"${style}>${runsHtml(child)}</a>`;
+          const { href, target } = linkParts(child.props?.href as LinkValue);
+          return `<a href="${escapeHtml(href)}" target="${target ?? "_blank"}"${style}>${runsHtml(child)}</a>`;
         default:
           return `<span${style}>${runsHtml(child)}</span>`;
       }
