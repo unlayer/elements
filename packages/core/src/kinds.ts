@@ -575,7 +575,8 @@ export function fontFaces(): Kind<FontFaceInput[], FontFace[]> {
       out.format = input.format as FontFormat;
     }
     if (input.weight !== undefined) {
-      const range = typeof input.weight === "string" ? /^\s*(\d+)\s+(\d+)\s*$/.exec(input.weight) : null;
+      // A range as written ("100 900"), or as parsed ([100, 900]): a font is checked again once it's been read.
+      const range = typeof input.weight === "string" ? /^\s*(\d+)\s+(\d+)\s*$/.exec(input.weight) : Array.isArray(input.weight) && input.weight.length === 2 && input.weight.every(Number.isInteger) ? [null, ...input.weight] : null;
       const weight = input.weight === "normal" ? 400 : input.weight === "bold" ? 700 : input.weight;
       if (range && Number(range[1]) >= 1 && Number(range[2]) <= 1000 && Number(range[1]) <= Number(range[2])) out.weight = [Number(range[1]), Number(range[2])];
       else if (typeof weight === "number" && Number.isInteger(weight) && weight >= 1 && weight <= 1000) out.weight = weight;

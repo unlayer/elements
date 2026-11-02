@@ -98,6 +98,12 @@ describe("fonts", () => {
       { family: "Inter Variable", src: "data:font/woff2;base64,AAAA", weight: [100, 900] },
     ]);
   });
+  it("reads a variable font's weight range again as it read it (a template's fonts are checked more than once)", () => {
+    const once = value(fontFaces(), [{ family: "Inter Variable", src: "https://fonts.example.com/inter.woff2", weight: "100 900" }]);
+    expect(value(fontFaces(), once)).toEqual(once);
+    rejects(fontFaces(), [{ family: "Inter", src: "https://x.test/a.woff2", weight: [900, 100] }]);
+  });
+
   it("rejects what would break out of CSS", () => {
     rejects(fontFamily(), "Arial; } body { color: red");
     rejects(fontFaces(), [{ family: "Inter", src: "javascript:alert(1)" }]);
