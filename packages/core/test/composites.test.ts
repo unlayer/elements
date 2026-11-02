@@ -71,5 +71,16 @@ describe("Menu", () => {
     const row = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS } }))).document.root.children![0] as Node;
     expect((row.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
   });
+
+  it("keeps its separator in a Document, which has no phones to hide it on (hiding on phones isn't allowed there)", () => {
+    const menu = () => parseDocument({ root: { type: "Document", children: [{ type: "Menu", props: { items: ITEMS, separator: "|" } }] } });
+    expect(resolveDocument(menu()).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    const row = expandDocument(menu()).document.root.children![0] as Node;
+    expect((row.children as Node[]).map((child) => [child.type, child.hidden ?? null])).toEqual([
+      ["Link", null],
+      ["Text", null],
+      ["Link", null],
+    ]);
+  });
 });
 

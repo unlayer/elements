@@ -47,7 +47,7 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
     let raw: unknown;
     try {
       const style = { ...(definition.defaultStyle as Record<string, Json> | undefined), ...node.style } as Record<string, Json>;
-      raw = definition.expand(propsWithDefaults(definition, node.props) as never, { register: (custom) => registry.add(custom), style });
+      raw = definition.expand(propsWithDefaults(definition, node.props) as never, { register: (custom) => registry.add(custom), style, responsive });
     } catch (error) {
       d.error("custom/render", `${node.type} failed to render: ${error instanceof Error ? error.message : String(error)}`, path, node.id);
       return undefined;

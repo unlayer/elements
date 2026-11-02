@@ -110,7 +110,7 @@ export const Menu = defineComposite({
       { title: "Spacing", paths: ["style.padding"] },
     ],
   },
-  expand: ({ items: links, separator, layout }, { style }) => {
+  expand: ({ items: links, separator, layout }, { style, responsive }) => {
     const padding = style.padding as Sides;
     const text = Object.fromEntries(MENU_TEXT.filter((key) => style[key] !== undefined).map((key) => [key, style[key]]));
     const link = (item: { text: string; href: LinkValue }) => ({
@@ -122,7 +122,8 @@ export const Menu = defineComposite({
     if (layout === "vertical") {
       return { type: "Column", style: { ...text, gap: padding.top + padding.bottom, padding, alignItems: style.justifyContent }, children: links.map(link) };
     }
-    const between = { type: "Text", hidden: { mobile: true }, style: { flex: "none", color: style.separatorColor }, children: [separator] };
+    // Separators are left out on phones, where a template has phones (a Document or a Canvas has none).
+    const between = { type: "Text", ...(responsive ? { hidden: { mobile: true } } : {}), style: { flex: "none", color: style.separatorColor }, children: [separator] };
     return {
       type: "Row",
       props: { stackOnMobile: false },

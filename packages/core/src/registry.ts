@@ -28,6 +28,8 @@ export interface ExpandContext {
   register(definition: CustomDefinition<any>): void;
   /** The node's style, with its definition's defaults: a built-in made of primitives (Social, Menu) styles them by it. */
   style: Record<string, Json>;
+  /** Whether the template has phones (an Email or a Page): what's hidden on phones is only hidden there. */
+  responsive: boolean;
 }
 
 export interface CustomDefinition<P extends PropSpecs = PropSpecs> extends ComponentDefinition<P, typeof placementStyle> {
