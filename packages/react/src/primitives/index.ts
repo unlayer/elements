@@ -87,6 +87,6 @@ export type {
   VideoProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";
-export { prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type ValidationResult } from "./render";
+export { outline, prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type ValidationResult } from "./render";
 export { ElementsError, formatDiagnostics } from "@unlayer-internal/elements-core";
 export type { Diagnostic, Severity } from "@unlayer-internal/elements-core";

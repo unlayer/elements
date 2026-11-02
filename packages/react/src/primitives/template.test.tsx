@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
+import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -235,6 +235,47 @@ describe("render()", () => {
 
   it("says how to use a component rendered outside render()", () => {
     expect(() => renderToStaticMarkup(<Page />)).toThrow(/render\(\)/);
+  });
+});
+
+describe("outline()", () => {
+  it("lays the template out as text: each block under what holds it, its width, its words and links", () => {
+    expect(outline(welcome)).toBe(
+      [
+        "Page 640px: background #f4f4f4",
+        "  Section 640px: background #111111",
+        "    Image 120px [Logo] https://example.com/logo.png",
+        "  Heading h2 640px \"Welcome\"",
+        "  Paragraph 640px \"Hi {{first_name}}, read the docs (https://example.com/docs).\"",
+        "  Row 640px: 2 side by side, stacked on phones",
+        "    Column 256px",
+        "      Text 256px \"Left\"",
+        "    Column 364px",
+        "      Button: background #0879a1 \"Get started\" → https://example.com",
+        "  Divider 640px",
+      ].join("\n")
+    );
+  });
+
+  it("says which blocks show on one only, and lays a Grid out as its rows, side by side on phones where it says so", () => {
+    const lines = outline(
+      <Email>
+        <Text hidden={{ mobile: true }}>Wide screens</Text>
+        <Grid columns={3} stackOnMobile={false}>
+          <Text>a</Text>
+          <Text>b</Text>
+          <Text>c</Text>
+        </Grid>
+      </Email>
+    ).split("\n");
+    expect(lines[1]).toBe('  Text 600px: desktop only "Wide screens"');
+    expect(lines.slice(2, 4)).toEqual(["  Column 600px", "    Row 600px: 3 side by side"]);
+  });
+
+  it("throws the template's problems, as render() does", () => {
+    // @ts-expect-error a Button needs an href
+    const invalid = <Button>Go</Button>;
+    expect(() => outline(<Email>{invalid}</Email>)).toThrow(ElementsError);
   });
 });
 

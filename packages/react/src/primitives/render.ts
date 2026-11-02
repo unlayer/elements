@@ -2,6 +2,7 @@ import React from "react";
 import { ElementsError, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { collectTemplate } from "./collect";
+import { outlineOf } from "./outline";
 
 function template(element: unknown, call: string) {
   if (!React.isValidElement(element)) {
@@ -44,6 +45,18 @@ export function validate(element: React.ReactElement): ValidationResult {
   const { document, diagnostics, components } = template(element, "validate");
   const all = [...diagnostics, ...(document && !diagnostics.some((d) => d.severity === "error") ? validateTemplate(document, { components }).diagnostics : [])];
   return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
+}
+
+/**
+ * A template laid out, as text: each block on a line under what holds it, with its width on desktop and what it
+ * shows (a heading's words, a link's URL, an image's alt text), and whether a Row stacks on phones. To check a
+ * template's layout without reading its HTML. Throws an `ElementsError` listing the problems if it has errors.
+ */
+export function outline(element: React.ReactElement): string {
+  const { document, diagnostics, components } = template(element, "outline");
+  const root = document && !diagnostics.some((d) => d.severity === "error") ? prepareTemplate(document, { components }).resolved?.root : null;
+  if (!root) throw new ElementsError(diagnostics);
+  return outlineOf(root);
 }
 
 /**
