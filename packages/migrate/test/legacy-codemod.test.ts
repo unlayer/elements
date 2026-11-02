@@ -5,7 +5,9 @@
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
+import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 import { inlineHtml } from "../src/legacy/html";
 import { migrateElements } from "../src/legacy/codemod";
@@ -15,6 +17,19 @@ const migrate = (body: string, imports = "Email, Row, Column, ColumnLayouts, Hea
   migrateElements(`import { ${imports} } from "@unlayer/react-elements";\n${body}`);
 /** The code without its spacing, to look for a piece of it whatever the formatting. */
 const squash = (code: string) => code.replace(/\s+/g, "");
+
+const elements = createRequire(createRequire(import.meta.url).resolve("@unlayer/react-elements/package.json"));
+const React = elements("react");
+const primitives = elements("@unlayer/react-elements/primitives");
+
+/** The errors validate() finds in a migrated module's component `T`, run with React and the new components. */
+function errors(code: string, props: Record<string, unknown> = {}): unknown[] {
+  const js = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const exports: { T?: unknown } = {};
+  const modules: Record<string, unknown> = { react: React, "@unlayer/react-elements/primitives": primitives };
+  new Function("require", "exports", "React", js)((name: string) => modules[name], exports, React);
+  return primitives.validate(React.createElement(exports.T, props)).diagnostics.filter((d: { severity: string }) => d.severity === "error");
+}
 
 describe("migrateElements", () => {
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
@@ -223,6 +238,58 @@ export const Nav = () => <Link href="/">Home</Link>;`);
     const { code, report } = await migrate(`export const T = () => <Email><Row><Column><Html html="<table></table>" /></Column></Row></Email>;`);
     expect(code).toContain("@unlayer/migrate: <Html> isn't migrated");
     expect(report.join("\n")).toMatch(/<Html> has no new component yet/);
+  });
+
+  it("leaves a component with no new one out where an expression goes as null, so the template still renders", async () => {
+    const { code, report } = await migrate(
+      `function Legal() { return <Html html="<b>Terms</b>" />; }
+export const T = ({ show }: { show: boolean }) => <Email>{show && <Html html="<b>x</b>" />}{show ? <Video /> : null}<Legal /></Email>;`,
+      "Email, Html, Video"
+    );
+    expect(code).toMatch(/show && \/\* @unlayer\/migrate: <Html> isn't migrated: [^*]*\*\/ null/);
+    expect(code).toMatch(/return \/\* @unlayer\/migrate: <Html> isn't migrated: [^*]*\*\/ null;/);
+    expect(squash(code)).toContain("{show?null:null}");
+    expect(report).toHaveLength(3);
+    expect(errors(code, { show: true })).toEqual([]);
+  });
+
+  it("writes font weights and a Menu's link targets as the new components take them, so the template validates", async () => {
+    const { code, report } = await migrate(`const MORE = [{ text: "Blog", href: "/blog", target: "_blank" }];
+export const T = () => (
+  <Email>
+    <Heading fontWeight="700">Title</Heading>
+    <Paragraph html={'<span style="font-weight:600">Bold</span> and <span style="font-weight:bolder">more</span>'} />
+    <Button href="#" fontWeight="650">Go</Button>
+    <Menu items={[{ text: "Home", href: "/", target: "_self" }, { text: "Top", href: "/top", target: "_top" }, { text: "Docs", href: "/docs" }]} />
+    <Menu items={MORE} />
+  </Email>
+);`);
+    const squashed = squash(code);
+    expect(squashed).toContain("fontWeight:700,lineHeight");
+    expect(squashed).toContain('<Spanstyle={{fontWeight:600}}>Bold</Span>{"and"}<Spanstyle={{fontWeight:700}}>more</Span>');
+    expect(squashed).toContain('{text:"Home",href:{href:"/",target:"_self"}},{text:"Top",href:"/top"},{text:"Docs",href:"/docs"},]');
+    expect(squashed).toContain('items={[{text:"Blog",href:{href:"/blog",target:"_blank"}}]}');
+    expect(report.filter((line) => !line.includes("today's Menu puts a space"))).toEqual([
+      "line 7: its fontWeight 650 is 700: the new components take 100 to 900 in hundreds",
+      'line 8: a Menu item\'s target "_top" is left out: a link opens in a new window ("_blank") or in its own ("_self")',
+      "line 9: MORE's items are written here, each target part of its link",
+    ]);
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("says a computed font weight and computed Menu items are kept as they are, with what the new components take", async () => {
+    const { code, report } = await migrate(`export const T = ({ weight, links }: { weight: "700"; links: Array<{ text: string; href: string; target?: string }> }) => (
+  <Email>
+    <Heading fontWeight={weight}>Title</Heading>
+    <Menu items={links} />
+  </Email>
+);`);
+    expect(squash(code)).toContain("fontWeight:weight");
+    expect(squash(code)).toContain("items={links}");
+    expect(report.filter((line) => !line.includes("today's Menu puts a space"))).toEqual([
+      'line 4: its fontWeight is computed (weight): it\'s kept as it is, and the new components take a number from 100 to 900 in hundreds, "normal" or "bold", not a string of digits ("700")',
+      "line 5: this Menu's items are computed (links): they're kept as they are, and an item's target is part of its link now ({ text, href: { href, target } }), not a field of its own",
+    ]);
   });
 
   it("leaves modules that don't import today's components as they are", async () => {

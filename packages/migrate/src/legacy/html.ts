@@ -22,6 +22,9 @@ const RUN_STYLES: Record<string, string> = {
   "text-transform": "textTransform",
 };
 
+/** Font weights by name, as the new components take them. */
+const WEIGHTS: Record<string, number | string> = { normal: "normal", bold: "bold", bolder: 700, lighter: 100 };
+
 function attributes(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const match of text.matchAll(ATTRIBUTE)) out[match[1].toLowerCase()] = decodeHtmlEntities(match[2] ?? match[3] ?? "");
@@ -38,6 +41,13 @@ function runStyle(css: string | undefined, expression: (value: string) => string
     if (!property?.trim() || !value) continue;
     const key = RUN_STYLES[property.trim().toLowerCase()];
     if (!key) return undefined;
+    if (key === "fontWeight" && !HOLE.test(value)) {
+      // 100 to 900 in hundreds, normal or bold, as the new components take it (bolder and lighter as beside normal text).
+      const weight = WEIGHTS[value.toLowerCase()] ?? (/^\d+$/.test(value) ? Math.min(900, Math.max(100, Math.round(Number(value) / 100) * 100)) : undefined);
+      if (weight === undefined) return undefined;
+      entries.push(`${key}: ${JSON.stringify(weight)}`);
+      continue;
+    }
     entries.push(`${key}: ${expression(key === "textDecoration" ? value.split(/\s+/)[0] : value)}`);
   }
   return entries.length ? `{ ${entries.join(", ")} }` : null;

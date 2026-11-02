@@ -597,12 +597,34 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     ], textChildren(node, props, node));
   }
 
+  /** Today's font weight (a number, a numeric string, normal, bold, lighter or bolder) as the new one's: 100 to 900 in hundreds, normal or bold. */
+  function fontWeight(value: Value | undefined, at: ts.Node): Value | undefined {
+    if (value && !isLiteral(value)) {
+      report.push(`${where(at)}: its fontWeight is computed (${value.code}): it's kept as it is, and the new components take a number from 100 to 900 in hundreds, "normal" or "bold", not a string of digits ("700")`);
+      return value;
+    }
+    if (!isLiteral(value) || value.literal === "normal" || value.literal === "bold") return value;
+    if (value.literal === "lighter" || value.literal === "bolder") {
+      const weight = value.literal === "bolder" ? 700 : 100;
+      report.push(`${where(at)}: its fontWeight ${value.literal} is ${weight}, what it is beside normal text (the new components have no weight relative to the text around it)`);
+      return lit(weight);
+    }
+    const number = typeof value.literal === "number" ? value.literal : typeof value.literal === "string" && value.literal.trim() ? Number(value.literal) : NaN;
+    if (!Number.isFinite(number)) {
+      report.push(`${where(at)}: its fontWeight ${JSON.stringify(value.literal)} can't be read: it's left out`);
+      return undefined;
+    }
+    const weight = Math.min(900, Math.max(100, Math.round(number / 100) * 100));
+    if (weight !== number) report.push(`${where(at)}: its fontWeight ${value.literal} is ${weight}: the new components take 100 to 900 in hundreds`);
+    return lit(weight);
+  }
+
   function textStyle(props: Props, fontSize: Value | undefined, weight: string | undefined, lineHeight: string, at: ts.Node): Array<[string, Value | undefined]> {
     return [
       ["padding", n(padding(props))],
       ["fontFamily", font(props)],
       ["fontSize", n(fontSize)],
-      ["fontWeight", given(props, "fontWeight", weight === undefined ? undefined : Number(weight))],
+      ["fontWeight", fontWeight(given(props, "fontWeight", weight === undefined ? undefined : Number(weight)), at)],
       ["color", color(props, "color")],
       ["textAlign", props.get("textAlign")],
       ["lineHeight", given(props, "lineHeight", lineHeight)],
@@ -629,7 +651,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["color", color(props, "color")],
         ["fontFamily", font(props)],
         ["fontSize", n(fontSize)],
-        ["fontWeight", props.get("fontWeight")],
+        ["fontWeight", fontWeight(props.get("fontWeight"), node)],
         ["lineHeight", props.get("lineHeight")],
         ["letterSpacing", letterSpacing(props, fontSize, node)],
         ["padding", n(props.get("padding"))],
@@ -754,8 +776,28 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return wrapped(props, block, undefined, node);
   }
 
+  /** Today's Menu items (`{ text, href, target }`) as the new ones: a target is part of the link (`{ href, target }`). */
+  function menuItems(items: Value | undefined, at: ts.Node): Value | undefined {
+    const targeted = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && "target" in item;
+    if (items && !isLiteral(items)) {
+      report.push(`${where(at)}: this Menu's items are computed (${items.code}): they're kept as they are, and an item's target is part of its link now ({ text, href: { href, target } }), not a field of its own`);
+      return items;
+    }
+    if (!isLiteral(items) || !Array.isArray(items.literal) || !items.literal.some(targeted)) return items;
+    if (items.code) report.push(`${where(at)}: ${items.code}'s items are written here, each target part of its link`);
+    return lit(
+      items.literal.map((item: unknown) => {
+        if (!targeted(item)) return item;
+        const { target, ...rest } = item;
+        if (target === "_blank" || target === "_self") return { ...rest, href: { href: rest.href, target } };
+        report.push(`${where(at)}: a Menu item's target ${JSON.stringify(target)} is left out: a link opens in a new window ("_blank") or in its own ("_self")`);
+        return rest;
+      })
+    );
+  }
+
   function menu(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
-    const items = props.get("items");
+    const items = menuItems(props.get("items"), node);
     const fontSize = given(props, "fontSize", "14px");
     const m = phone(props, node);
     const block = element("Menu", [
@@ -767,7 +809,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["separatorColor", color(props, "textColor")],
         ["fontFamily", font(props)],
         ["fontSize", n(fontSize)],
-        ["fontWeight", props.get("fontWeight")],
+        ["fontWeight", fontWeight(props.get("fontWeight"), node)],
         ["letterSpacing", letterSpacing(props, fontSize, node)],
         ["padding", n(props.get("padding"))],
         ["justifyContent", alignOf(props.get("align"))],
@@ -867,6 +909,9 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
   }
 
+  /** Converted JSX where an expression goes (`show && <Html />`, `return <Html />`): a placeholder there is a comment and `null`, nothing is `null`. */
+  const asExpression = (out: string) => (out === "" ? "null" : out.startsWith("{/*") ? `${out.slice(1, -1)} null` : out);
+
   /** Source text with today's JSX inside it rewritten. */
   function rewrite(node: ts.Node): string {
     const edits: Array<{ start: number; end: number; text: string }> = [];
@@ -878,12 +923,14 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         return;
       }
       if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && todays(n)) {
-        edits.push({ start: n.getStart(), end: n.getEnd(), text: convert(n) });
+        const among = ts.isJsxElement(n.parent) || ts.isJsxFragment(n.parent);
+        edits.push({ start: n.getStart(), end: n.getEnd(), text: among ? convert(n) : asExpression(convert(n)) });
         return;
       }
       ts.forEachChild(n, visit);
     };
-    if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && todays(node)) return convert(node);
+    // Called on an expression (a prop's value, `{...}` in JSX, a template literal's hole): what it's converted to goes there.
+    if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && todays(node)) return asExpression(convert(node));
     const cells = layoutCells(node);
     if (cells) return `{ cells: ${JSON.stringify(cells)} }`;
     ts.forEachChild(node, visit);
