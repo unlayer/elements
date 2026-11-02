@@ -279,7 +279,7 @@ describe("renderPdf", () => {
     // What the writer builds is data: the same after a round trip through JSON (its date aside).
     const { root } = prepare(invoice);
     const pages = writeDocument(root!, { families: new Set(), fonts: [], image: (src) => src, date: new Date(0) });
-    expect(JSON.parse(JSON.stringify({ ...pages, date: undefined }))).toEqual(JSON.parse(JSON.stringify({ ...pages, date: undefined })));
+    expect(JSON.parse(JSON.stringify({ ...pages, date: undefined }))).toEqual({ ...pages, date: undefined });
     // A4 in points, on each page.
     expect(new Set(pages.pages.map((page) => `${page.width}x${page.height}`))).toEqual(new Set(["595.275x841.89"]));
   });
