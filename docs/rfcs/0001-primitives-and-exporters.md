@@ -114,7 +114,7 @@ use instead.
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
 | `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter: `toDesign(<Email>…</Email>)` to the builder's design JSON, `fromDesign(design)` back to the new components, as an element and as JSX source |
-| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes |
+| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes |
 
 PDF and image output stay out of the main package, its size budget and its Content-Security-Policy
@@ -366,7 +366,7 @@ JSX ──collect──▶ tree ──check──▶ expand custom components �
 | email | `Email` | classic Outlook (Word), Outlook on the web, Gmail, Apple Mail and other WebKit clients | tables (below) |
 | web | `Page` | browsers | one element per node, its styles inline, flexbox; semantic tags (`main`, `section`, `h1`–`h6`, `p`, `ul`/`ol`, `table`, `a`, `img`); a small stylesheet for phones and hover |
 | print (later) | `Document` | Chromium's print | as web, plus `@page` size and margins and page breaks; one section per `Document.Page` |
-| pdf (later) | `Document` | `@react-pdf/renderer` | react-pdf's views; headers and footers fixed, page numbers rendered per page |
+| pdf | `Document` | `@react-pdf/renderer`, behind an adapter | pages as plain data (boxes, text, images, links, drawings; `packages/pdf/src/model.ts`), drawn by react-pdf's adapter (`react-pdf.tsx`, the only file that imports it); each page cut where it ends, page numbers per page |
 | image (later) | `Canvas` | Satori, then resvg | Satori's flex elements; fonts and images passed as data |
 
 Web, print, PDF and images are all drawn by flexbox engines, so `Row` and `Column` mean the same in
