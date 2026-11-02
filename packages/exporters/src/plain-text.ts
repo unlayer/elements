@@ -91,9 +91,25 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
       .filter((child): child is ResolvedNode => typeof child !== "string" && shown(child))
       .map((item, index) => {
         const marker = node.props.type === "number" ? `${Number(node.props.start) + index}. ` : "- ";
-        const text = tidy(inline({ ...item, children: item.children.filter((c) => typeof c === "string" || c.type !== "List") }));
-        const nested = item.children.filter((c): c is ResolvedNode => typeof c !== "string" && c.type === "List" && shown(c)).map((c) => list(c, `${indent}  `));
-        return [`${indent}${marker}${text}`, ...nested].join("\n");
+        // The item's text and the Lists in it, in their order: text after a List goes under it, lined up with the first.
+        const lines: string[] = [];
+        let run: ResolvedNode["children"] = [];
+        const flush = () => {
+          const text = tidy(inline({ ...item, children: run }));
+          if (text) lines.push(`${indent}${lines.length ? " ".repeat(marker.length) : marker}${text}`);
+          run = [];
+        };
+        for (const child of item.children) {
+          if (typeof child === "string" || child.type !== "List") {
+            run.push(child);
+            continue;
+          }
+          flush();
+          if (!lines.length) lines.push(`${indent}${marker}`.trimEnd());
+          if (shown(child)) lines.push(list(child, `${indent}  `));
+        }
+        flush();
+        return (lines.length ? lines : [`${indent}${marker}`.trimEnd()]).join("\n");
       })
       .join("\n");
 
