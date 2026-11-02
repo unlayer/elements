@@ -2,11 +2,12 @@
  * PDFs read back with pdf.js: their pages (how many, their paper), the words on each and where the first sits, and
  * that nothing is fetched (an image it isn't given is an error, not a request).
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { isValidElement, type ReactElement, type ReactNode } from "react";
+import type { ReactElement } from "react";
 import { COMPONENTS } from "@unlayer-internal/elements-core";
 import {
   Button,
@@ -271,6 +272,18 @@ describe("renderPdf", () => {
     expect(tinted).not.toMatch(/#ffffff|255,255,255/i);
   });
 
+  it("depends on its engine in one file: the writer builds pages as plain data, which react-pdf's adapter draws", () => {
+    const sources = readdirSync(join(dirname(fileURLToPath(import.meta.url)), "../src"));
+    const importing = sources.filter((file) => /from "@react-pdf\//.test(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src", file), "utf8")));
+    expect(importing).toEqual(["react-pdf.tsx"]);
+    // What the writer builds is data: the same after a round trip through JSON (its date aside).
+    const { root } = prepare(invoice);
+    const pages = writeDocument(root!, { families: new Set(), fonts: [], image: (src) => src, date: new Date(0) });
+    expect(JSON.parse(JSON.stringify({ ...pages, date: undefined }))).toEqual(JSON.parse(JSON.stringify({ ...pages, date: undefined })));
+    // A4 in points, on each page.
+    expect(new Set(pages.pages.map((page) => `${page.width}x${page.height}`))).toEqual(new Set(["595.275x841.89"]));
+  });
+
   describe("every block a Document takes", () => {
     /** A sample of each, with the words it draws. */
     const SAMPLES: Record<string, [ReactElement, string]> = {
@@ -317,10 +330,13 @@ describe("renderPdf", () => {
       Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
       Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
     };
-    const words = (node: ReactNode): string => {
-      if (typeof node === "string" || typeof node === "number") return String(node);
-      if (Array.isArray(node)) return node.map(words).join("");
-      return isValidElement(node) ? words((node.props as { children?: ReactNode }).children) : "";
+    /** The words in the pages the writer builds, in their order. */
+    const words = (item: unknown): string => {
+      if (typeof item === "string") return item;
+      if (Array.isArray(item)) return item.map(words).join("");
+      if (!item || typeof item !== "object") return "";
+      const { pages, header, content, footer, runs, children } = item as Record<string, unknown>;
+      return pages ? words(pages) : content ? words([header, content, footer]) : words(runs ?? children ?? []);
     };
 
     it("has a sample of each (a new block needs its case in the writer, and one here)", () => {
@@ -332,7 +348,7 @@ describe("renderPdf", () => {
     it.each(Object.entries(SAMPLES))("draws a %s with its words", (_, [sample, drawn]) => {
       const { root, diagnostics } = prepare(<Document>{sample}</Document>);
       expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-      expect(words(writeDocument(root!, { fonts: new Map(), image: (src) => src, date: new Date(0) }))).toBe(drawn);
+      expect(words(writeDocument(root!, { families: new Set(), fonts: [], image: (src) => src, date: new Date(0) }))).toBe(drawn);
     });
 
     it("paints a Table row's background", async () => {

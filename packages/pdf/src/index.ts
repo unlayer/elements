@@ -1,6 +1,8 @@
 /**
- * PDF output for Elements: a `<Document>` written as a PDF on the server, by react-pdf, without a browser or the
- * network. Its pages, header and footer and page numbers are the print HTML's, laid out at the same widths.
+ * PDF output for Elements: a `<Document>` written as a PDF on the server, without a browser or the network. Its
+ * pages, header and footer and page numbers are the print HTML's, laid out at the same widths. The writer builds the
+ * pages as plain data (model.ts); an engine's adapter draws them (react-pdf's, react-pdf.tsx, the only file that
+ * imports one), so the engine can change without the writer changing.
  *
  *   const { pdf } = await renderPdf(<Invoice />, { fonts: [{ family: "Inter", src: interRegular }] });
  *
@@ -8,11 +10,11 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so.
  */
-import { createHash } from "node:crypto";
-import { Font, renderToBuffer } from "@react-pdf/renderer";
 import { assetParts, type Asset, type FontFace } from "@unlayer-internal/elements-core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
 import type { ReactElement } from "react";
+import type { Font } from "./model";
+import { reactPdf } from "./react-pdf";
 import { writeDocument } from "./write";
 
 export interface PdfFont {
@@ -51,44 +53,28 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
     throw new ElementsError([...diagnostics, { code: "pdf/root", severity: "error", message: `PDF output is a Document's: this template is a ${root.type}`, path: "root" }]);
   }
   const found: Diagnostic[] = [];
-  const fonts = registerFonts(root, options.fonts ?? [], found);
+  const fonts = fontFiles(root, options.fonts ?? [], found);
   const images = imageSources(root, options.images ?? {}, found);
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
-  const bytes = await renderToBuffer(writeDocument(root, { fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE }));
-  return { pdf: new Uint8Array(bytes), diagnostics: [...diagnostics, ...found] };
+  const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
+  return { pdf: await reactPdf(pages), diagnostics: [...diagnostics, ...found] };
 }
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
-
-/** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
-const registered = new Set<string>();
 
 function base64(bytes: Uint8Array | ArrayBuffer): string {
   return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
 }
 
-/**
- * The families given, each registered with react-pdf under a name made from its files (so a render draws a family
- * from the files it was given, never from ones another render gave under the same name, and the same files are
- * registered once): by the family the template names, lowercased. A web font not given, noted.
- */
-function registerFonts(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Map<string, string> {
-  const byFamily = new Map<string, Array<{ data: string; weight: number; style: "normal" | "italic" }>>();
-  for (const font of given) {
-    const family = font.family.toLowerCase();
-    byFamily.set(family, [...(byFamily.get(family) ?? []), { data: base64(font.src), weight: font.weight ?? 400, style: font.style ?? "normal" }]);
-  }
-  const families = new Map<string, string>();
-  for (const [family, files] of byFamily) {
-    const hash = createHash("sha256");
-    for (const file of files) hash.update(`${file.weight}|${file.style}|${file.data}\n`);
-    const name = `elements-${hash.digest("hex").slice(0, 32)}`;
-    if (!registered.has(name)) {
-      for (const file of files) Font.register({ family: name, src: `data:font/ttf;base64,${file.data}`, fontWeight: file.weight, fontStyle: file.style });
-      registered.add(name);
-    }
-    families.set(family, name);
-  }
+/** The font files given, by the family the template names (lowercased); a web font not given, noted. */
+function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Font[] {
+  const fonts: Font[] = given.map((font) => ({
+    family: font.family.toLowerCase(),
+    data: font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src,
+    weight: font.weight ?? 400,
+    style: font.style ?? "normal",
+  }));
+  const families = new Set(fonts.map((font) => font.family));
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
     if (families.has(face.family.toLowerCase())) continue;
     found.push({
@@ -98,12 +84,12 @@ function registerFonts(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]
       path: "root.props.fonts",
     });
   }
-  return families;
+  return fonts;
 }
 
 // ─── Images ────────────────────────────────────────────────────────────────
 
-/** What an image file is, from its first bytes: a format react-pdf draws, or undefined. */
+/** What an image file is, from its first bytes: a format a PDF draws, or undefined. */
 function mime(bytes: Uint8Array): string | undefined {
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
@@ -114,7 +100,7 @@ function mime(bytes: Uint8Array): string | undefined {
 
 const DRAWN = /^data:image\/(png|jpeg|jpg|svg\+xml)[;,]/;
 
-/** Each image's source as react-pdf loads it without the network: a data URI; an image without one, an error. */
+/** Each image's source as the pages hold it, without the network: a data URI; an image without one, an error. */
 function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | ArrayBuffer>, found: Diagnostic[]): Map<string, string> {
   const out = new Map<string, string>();
   const resolve = (src: string): string | undefined => {

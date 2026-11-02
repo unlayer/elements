@@ -7,17 +7,19 @@
  */
 import * as primitives from "@unlayer/react-elements/primitives";
 import { prepare } from "@unlayer/react-elements/primitives";
-import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { createElement, type ReactElement } from "react";
 import { generate, misplaced, toElement, words } from "../../react/src/primitives/testing/templates";
 import { writeDocument } from "../src/write";
 
 const SEEDS = Number(process.env.CONTENT_SEEDS ?? 120);
 
-/** The words in the writer's elements, in their order. */
-const text = (node: ReactNode): string => {
-  if (typeof node === "string" || typeof node === "number") return `${node} `;
-  if (Array.isArray(node)) return node.map(text).join("");
-  return isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : "";
+/** The words in the pages the writer builds, in their order (each with a space after it). */
+const text = (item: unknown): string => {
+  if (typeof item === "string") return `${item} `;
+  if (Array.isArray(item)) return item.map(text).join("");
+  if (!item || typeof item !== "object") return "";
+  const { pages, header, content, footer, runs, children } = item as Record<string, unknown>;
+  return pages ? text(pages) : content ? text([header, content, footer]) : text(runs ?? children ?? []);
 };
 
 it(`writes a Document's words in its order, and its header's and footer's (${SEEDS} Documents)`, () => {
@@ -29,7 +31,7 @@ it(`writes a Document's words in its order, and its header's and footer's (${SEE
       failures.push(`seed ${seed}: the template isn't valid: ${diagnostics.map((d) => d.message).join("; ")}`);
       continue;
     }
-    const written = text(writeDocument(root, { fonts: new Map(), image: (src) => src, date: new Date(0) }));
+    const written = text(writeDocument(root, { families: new Set(), fonts: [], image: (src) => src, date: new Date(0) }));
     const { content, margins } = words(tree);
     const problems = [...misplaced(written, content), ...margins.filter((word) => !written.includes(word)).map((word) => `${word} (header or footer) missing`)];
     if (problems.length) failures.push(`seed ${seed}: ${problems.join(", ")}\n  ${JSON.stringify(tree)}`);
