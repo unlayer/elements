@@ -1,17 +1,18 @@
 /**
- * Image output for Elements: a `<Canvas>` written as PNG or SVG on the server, by Satori (layout and text as paths)
- * and resvg (pixels), without a browser or the network. Its content is laid out at the widths every output uses.
+ * Image output for Elements: a `<Canvas>` written as PNG or SVG on the server, without a browser or the network. Its
+ * content is laid out at the widths every output uses, written as a canvas any engine can draw (model.ts), and drawn
+ * by Satori (layout and text as paths) and resvg (pixels), whose adapter (satori.ts) is the only file naming them.
  *
  *   const { image } = await renderImage(<SocialCard />, { fonts: [{ family: "Inter", src: interRegular }] });
  *
  * Nothing is fetched: fonts are given (`fonts`, or the Canvas's `fonts` as data: URIs), and so are images (`images`
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  */
-import { Resvg } from "@resvg/resvg-js";
 import { assetParts, fontStack, type Asset, type FontFace } from "@unlayer-internal/elements-core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
-import type { ReactElement, ReactNode } from "react";
-import satori from "satori";
+import type { ReactElement } from "react";
+import type { Font } from "./model";
+import { satoriResvg } from "./satori";
 import { writeCanvas } from "./write";
 
 export interface ImageFont {
@@ -59,34 +60,31 @@ export async function renderImage(element: ReactElement, options: ImageOptions =
   found.push(...missingFaces(root, fonts));
   const width = Number(root.props.width);
   const height = Number(root.props.height);
-  const families = new Set(fonts.map((font) => font.name.toLowerCase()));
-  const tree = writeCanvas(root, { fonts: families, fallback: fonts[0]?.name ?? "", image: (src) => images.get(src) });
-  const svg = await satori(tree as ReactNode as ReactElement, { width, height, fonts });
+  const families = new Set(fonts.map((font) => font.family.toLowerCase()));
+  const canvas = writeCanvas(root, { families, fallback: fonts[0]?.family ?? "", fonts, image: (src) => images.get(src) });
   const scale = options.scale ?? 1;
-  if (options.format === "svg") return { image: new TextEncoder().encode(svg), width, height, diagnostics: [...diagnostics, ...found] };
-  const png = new Resvg(svg, { fitTo: { mode: "width", value: Math.round(width * scale) }, font: { loadSystemFonts: false } }).render().asPng();
-  return { image: new Uint8Array(png), width: Math.round(width * scale), height: Math.round(height * scale), diagnostics: [...diagnostics, ...found] };
+  if (options.format === "svg") return { image: await satoriResvg(canvas, { format: "svg", scale }), width, height, diagnostics: [...diagnostics, ...found] };
+  const image = await satoriResvg(canvas, { format: "png", scale });
+  return { image, width: Math.round(width * scale), height: Math.round(height * scale), diagnostics: [...diagnostics, ...found] };
 }
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
-
-type SatoriFont = { name: string; data: ArrayBuffer; weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900; style?: "normal" | "italic" };
 
 const buffer = (bytes: Uint8Array | ArrayBuffer): ArrayBuffer => {
   if (bytes instanceof ArrayBuffer) return bytes;
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 };
-const weight = (value: number | undefined) => (Math.min(900, Math.max(100, Math.round((value ?? 400) / 100) * 100)) as SatoriFont["weight"]);
+const weight = (value: number | undefined) => (Math.min(900, Math.max(100, Math.round((value ?? 400) / 100) * 100)) as Font["weight"]);
 
-/** The fonts Satori draws with: those given, and the Canvas's own given as data: URIs. None is an error. */
-function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[]): SatoriFont[] {
-  const out: SatoriFont[] = given.map((font) => ({ name: font.family, data: buffer(font.src), weight: weight(font.weight), style: font.style ?? "normal" }));
-  const named = new Set(out.map((font) => font.name.toLowerCase()));
+/** The fonts the image is drawn with: those given, and the Canvas's own given as data: URIs. None is an error. */
+function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[]): Font[] {
+  const out: Font[] = given.map((font) => ({ family: font.family, data: buffer(font.src), weight: weight(font.weight), style: font.style ?? "normal" }));
+  const named = new Set(out.map((font) => font.family.toLowerCase()));
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
     if (named.has(face.family.toLowerCase())) continue;
     const data = /^data:[^,]*;base64,(.*)$/.exec(face.src)?.[1];
     if (data) {
-      out.push({ name: face.family, data: buffer(Uint8Array.from(Buffer.from(data, "base64"))), weight: weight(Array.isArray(face.weight) ? face.weight[0] : face.weight), style: face.style ?? "normal" });
+      out.push({ family: face.family, data: buffer(Uint8Array.from(Buffer.from(data, "base64"))), weight: weight(Array.isArray(face.weight) ? face.weight[0] : face.weight), style: face.style ?? "normal" });
       continue;
     }
     found.push({ code: "image/font", severity: "warning", message: `Image output loads no fonts: give ${face.family}'s file in renderImage's fonts option. Its text is drawn in another font meanwhile`, path: "root.props.fonts" });
@@ -98,15 +96,15 @@ function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[]): S
 }
 
 /** Text in a weight or style of a family that isn't given: drawn in the nearest given (a browser would fake it). */
-function missingFaces(root: ResolvedNode, fonts: SatoriFont[]): Diagnostic[] {
+function missingFaces(root: ResolvedNode, fonts: Font[]): Diagnostic[] {
   const out = new Map<string, Diagnostic>();
-  const given = new Map<string, SatoriFont[]>();
-  for (const font of fonts) given.set(font.name.toLowerCase(), [...(given.get(font.name.toLowerCase()) ?? []), font]);
+  const given = new Map<string, Font[]>();
+  for (const font of fonts) given.set(font.family.toLowerCase(), [...(given.get(font.family.toLowerCase()) ?? []), font]);
   const visit = (node: ResolvedNode) => {
     if (node.hidden?.desktop) return;
     if (node.children.some((child) => typeof child === "string" && child.trim())) {
       const stack = fontStack(String(node.text.fontFamily));
-      const family = stack.find((name) => given.has(name.toLowerCase())) ?? fonts[0]?.name;
+      const family = stack.find((name) => given.has(name.toLowerCase())) ?? fonts[0]?.family;
       const faces = family ? given.get(family.toLowerCase()) ?? [] : [];
       const weight = node.text.fontWeight;
       const style = node.text.fontStyle;
@@ -149,7 +147,7 @@ function mime(bytes: Uint8Array): string | undefined {
 
 const DRAWN = /^data:image\/(png|jpeg|jpg|gif|svg\+xml)[;,]/;
 
-/** Each image's source as Satori loads it without the network: a data URI; an image without one, an error. */
+/** Each image's source as an engine loads it without the network: a data URI; an image without one, an error. */
 function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | ArrayBuffer>, found: Diagnostic[]): Map<string, string> {
   const out = new Map<string, string>();
   const visit = (node: ResolvedNode) => {

@@ -7,17 +7,19 @@
  */
 import * as primitives from "@unlayer/react-elements/primitives";
 import { prepare } from "@unlayer/react-elements/primitives";
-import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
+import { createElement, type ReactElement } from "react";
 import { generate, misplaced, toElement, words } from "../../react/src/primitives/testing/templates";
 import { writeCanvas } from "../src/write";
 
 const SEEDS = Number(process.env.CONTENT_SEEDS ?? 120);
 
-/** The words in the writer's elements, in their order. */
-const text = (node: ReactNode): string => {
-  if (typeof node === "string" || typeof node === "number") return `${node} `;
-  if (Array.isArray(node)) return node.map(text).join("");
-  return isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : "";
+/** The words in the canvas the writer builds, in their order. */
+const text = (item: unknown): string => {
+  if (typeof item === "string") return `${item} `;
+  if (Array.isArray(item)) return item.map(text).join("");
+  if (!item || typeof item !== "object") return "";
+  const { runs, children } = item as Record<string, unknown>;
+  return text(runs ?? children ?? []);
 };
 
 it(`writes a Canvas's words in its order (${SEEDS} Canvases)`, () => {
@@ -29,7 +31,7 @@ it(`writes a Canvas's words in its order (${SEEDS} Canvases)`, () => {
       failures.push(`seed ${seed}: the template isn't valid: ${diagnostics.map((d) => d.message).join("; ")}`);
       continue;
     }
-    const written = text(writeCanvas(root, { fonts: new Set(["liberation sans"]), fallback: "Liberation Sans", image: (src) => src }));
+    const written = text(writeCanvas(root, { families: new Set(["liberation sans"]), fallback: "Liberation Sans", fonts: [], image: (src) => src }));
     const { content } = words(tree);
     const problems = misplaced(written, content);
     if (problems.length) failures.push(`seed ${seed}: ${problems.join(", ")}\n  ${JSON.stringify(tree)}`);

@@ -2,9 +2,10 @@
  * Images written from a Canvas: their size, the same bytes for the same template, and what's needed and not fetched
  * (a font always, an image's file).
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { COMPONENTS } from "@unlayer-internal/elements-core";
 import {
   Button,
@@ -34,7 +35,7 @@ import {
   Text,
   Video,
 } from "@unlayer/react-elements/primitives";
-import { isValidElement, type ReactElement, type ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { renderImage } from "../src";
 import { writeCanvas } from "../src/write";
 
@@ -106,6 +107,17 @@ describe("renderImage", () => {
     expect(size((await renderImage(photo, { fonts, images: { "https://cdn.acme.test/photo.png": PNG } })).image)).toEqual([200, 100]);
   });
 
+  it("depends on its engine in one file: the writer builds a canvas as plain data, which Satori's and resvg's adapter draws", () => {
+    const src = join(dirname(fileURLToPath(import.meta.url)), "../src");
+    const importing = readdirSync(src).filter((file) => /from "(satori|@resvg\/)/.test(readFileSync(join(src, file), "utf8")));
+    expect(importing).toEqual(["satori.ts"]);
+    // What the writer builds is data: the same after a round trip through JSON.
+    const { root } = prepare(card);
+    const canvas = writeCanvas(root!, { families: new Set(["liberation sans"]), fallback: "Liberation Sans", fonts: [], image: (src) => src });
+    expect(JSON.parse(JSON.stringify(canvas))).toEqual(canvas);
+    expect([canvas.width, canvas.height, canvas.children.length]).toEqual([600, 315, 3]);
+  });
+
   describe("every block a Canvas takes", () => {
     /** A sample of each, with the words it draws. */
     const SAMPLES: Record<string, [ReactElement, string]> = {
@@ -152,10 +164,12 @@ describe("renderImage", () => {
       Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
       Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
     };
-    const words = (node: ReactNode): string => {
-      if (typeof node === "string" || typeof node === "number") return String(node);
-      if (Array.isArray(node)) return node.map(words).join("");
-      return isValidElement(node) ? words((node.props as { children?: ReactNode }).children) : "";
+    const words = (item: unknown): string => {
+      if (typeof item === "string") return item;
+      if (Array.isArray(item)) return item.map(words).join("");
+      if (!item || typeof item !== "object") return "";
+      const { runs, children } = item as Record<string, unknown>;
+      return words(runs ?? children ?? []);
     };
     const canvas = (children: ReactNode) => <Canvas width={600} height={600} style={{ fontFamily: "Liberation Sans" }}>{children}</Canvas>;
 
@@ -168,7 +182,7 @@ describe("renderImage", () => {
     it.each(Object.entries(SAMPLES))("draws a %s with its words", (_, [sample, drawn]) => {
       const { root, diagnostics } = prepare(canvas(sample));
       expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-      expect(words(writeCanvas(root!, { fonts: new Set(["liberation sans"]), fallback: "Liberation Sans", image: (src) => src }))).toBe(drawn);
+      expect(words(writeCanvas(root!, { families: new Set(["liberation sans"]), fallback: "Liberation Sans", fonts: [], image: (src) => src }))).toBe(drawn);
     });
 
     it("writes the text blocks as Satori draws them", async () => {
