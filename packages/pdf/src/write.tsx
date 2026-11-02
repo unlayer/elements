@@ -134,13 +134,18 @@ class Writer {
         return this.video(node, placed, key);
       case "Svg":
         return this.svg(node, placed, key);
-      default:
-        // A stack: a Section, a Column, a page's header or footer.
+      case "Section":
+      case "Column":
+      case "PageHeader":
+      case "PageFooter":
         return (
           <View key={key} style={{ ...boxStyle(node), ...placed, flexDirection: "column", ...gap(node), justifyContent: flex(node.style.justifyContent) }}>
             {nodes(node).map((child, i) => this.block(child, node, i))}
           </View>
         );
+      default:
+        // Every block a Document takes is a case above (a test checks): one without a case fails rather than disappears.
+        throw new Error(`[Elements] The PDF writer draws no ${node.type}`);
     }
   }
 

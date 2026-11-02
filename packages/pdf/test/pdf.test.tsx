@@ -3,9 +3,43 @@
  * that nothing is fetched (an image it isn't given is an error, not a request).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import type { ReactElement } from "react";
-import { Button, Circle, Column, Document, Email, Heading, Image, Link, Menu, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { COMPONENTS } from "@unlayer-internal/elements-core";
+import {
+  Button,
+  Circle,
+  Column,
+  Divider,
+  Document,
+  Email,
+  Grid,
+  Heading,
+  Image,
+  Layer,
+  Link,
+  List,
+  ListItem,
+  Menu,
+  PageBreak,
+  PageFooter,
+  PageHeader,
+  PageNumber,
+  Paragraph,
+  prepare,
+  Rect,
+  Row,
+  Section,
+  Social,
+  Span,
+  Svg,
+  Table,
+  TableCell,
+  TableRow,
+  Text,
+  Video,
+} from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
+import { writeDocument } from "../src/write";
 
 /** A 1×1 PNG. */
 const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
@@ -213,6 +247,70 @@ describe("renderPdf", () => {
     );
     expect(tinted).toMatch(/fef3c7|254,243,199/i);
     expect(tinted).not.toMatch(/#ffffff|255,255,255/i);
+  });
+
+  describe("every block a Document takes", () => {
+    /** A sample of each, with the words it draws. */
+    const SAMPLES: Record<string, [ReactElement, string]> = {
+      Section: [<Section key="s"><Text>In a section</Text></Section>, "In a section"],
+      Row: [<Row key="r"><Column><Text>In a row</Text></Column></Row>, "In a row"],
+      Column: [<Column key="c"><Text>In a column</Text></Column>, "In a column"],
+      Grid: [<Grid key="g" columns={2}><Text>Left</Text><Text>Right</Text></Grid>, "LeftRight"],
+      Layer: [<Layer key="l"><Text>Under</Text><Text>Over</Text></Layer>, "UnderOver"],
+      Text: [<Text key="t">A text</Text>, "A text"],
+      Paragraph: [<Paragraph key="p">A paragraph</Paragraph>, "A paragraph"],
+      Heading: [<Heading key="h">A heading</Heading>, "A heading"],
+      Link: [<Link key="a" href="https://acme.test">A link</Link>, "A link"],
+      Button: [<Button key="b" href="https://acme.test">A button</Button>, "A button"],
+      Image: [<Image key="i" src={{ src: PNG_URI, width: 1, height: 1 }} alt="" />, ""],
+      Divider: [<Divider key="d" />, ""],
+      List: [
+        <List key="ul" type="number">
+          <ListItem>First</ListItem>
+          <ListItem>
+            Second
+            <List>
+              <ListItem>Inside</ListItem>
+            </List>
+          </ListItem>
+        </List>,
+        "1.First2.Second•Inside",
+      ],
+      Table: [
+        <Table key="tb">
+          <TableRow header>
+            <TableCell>Plan</TableCell>
+            <TableCell>Price</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Pro</TableCell>
+            <TableCell>$20</TableCell>
+          </TableRow>
+        </Table>,
+        "PlanPricePro$20",
+      ],
+      Video: [<Video key="v" src="https://vimeo.com/76979871" title="Our launch" />, "Our launch"],
+      Svg: [<Svg key="svg" width={10} height={10}><Rect width={10} height={10} /></Svg>, ""],
+      Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
+      Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
+    };
+    const words = (node: ReactNode): string => {
+      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (Array.isArray(node)) return node.map(words).join("");
+      return isValidElement(node) ? words((node.props as { children?: ReactNode }).children) : "";
+    };
+
+    it("has a sample of each (a new block needs its case in the writer, and one here)", () => {
+      const takes = new Set(COMPONENTS.Document.children.categories);
+      const blocks = Object.values(COMPONENTS).filter((definition) => definition.categories.some((category) => takes.has(category)));
+      expect(Object.keys(SAMPLES).sort()).toEqual(blocks.map((definition) => definition.type).sort());
+    });
+
+    it.each(Object.entries(SAMPLES))("draws a %s with its words", (_, [sample, drawn]) => {
+      const { root, diagnostics } = prepare(<Document>{sample}</Document>);
+      expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      expect(words(writeDocument(root!, { fonts: new Set(), image: (src) => src, date: new Date(0) }))).toBe(drawn);
+    });
   });
 
   it("writes a Document only", async () => {
