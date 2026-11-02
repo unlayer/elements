@@ -17,10 +17,11 @@ export interface TextOptions {
 export function renderText(resolved: ResolvedDocument, options: TextOptions = {}): string {
   const tag = options.mergeTag ?? ((name: string) => `{{${name}}}`);
 
-  const inline = (node: ResolvedNode): string =>
+  // `upper`: a large heading's words in capitals. Only its words: a merge tag or a URL in it is written as it is.
+  const inline = (node: ResolvedNode, upper = false): string =>
     node.children
       .map((child) => {
-        if (typeof child === "string") return child;
+        if (typeof child === "string") return upper ? child.toUpperCase() : child;
         if (child.hidden?.mobile && child.hidden?.desktop) return "";
         switch (child.type) {
           case "LineBreak":
@@ -28,41 +29,40 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           case "MergeTag":
             return tag(child.props.name as string);
           case "Link":
-            return withHref(inline(child), child);
+            return withHref(child, upper);
           case "Image":
-            return image(child);
+            return image(child, upper);
           default:
-            return inline(child);
+            return inline(child, upper);
         }
       })
       .join("");
 
-  const withHref = (text: string, node: ResolvedNode): string => {
+  /** A link as "text (url)", or its URL alone where that's its text. */
+  const withHref = (node: ResolvedNode, upper = false): string => {
     const { href } = linkParts(node.props.href as LinkValue);
-    const clean = tidy(text);
-    return !clean || clean === href ? href : `${clean} (${href})`;
+    const clean = tidy(inline(node));
+    return !clean || clean === href ? href : `${upper ? tidy(inline(node, true)) : clean} (${href})`;
   };
 
-  const image = (node: ResolvedNode): string => {
+  const image = (node: ResolvedNode, upper = false): string => {
     const alt = (node.props.alt as string | undefined)?.trim();
-    return alt ? `[${alt}]` : "";
+    return alt ? `[${upper ? alt.toUpperCase() : alt}]` : "";
   };
 
   const blocks = (node: ResolvedNode): string[] =>
     node.children.flatMap((child): string[] => {
       if (typeof child === "string" || (child.hidden?.mobile && child.hidden?.desktop)) return [];
       switch (child.type) {
-        case "Heading": {
-          const text = tidy(inline(child));
-          return [Number(child.props.level) <= 2 ? text.toUpperCase() : text];
-        }
+        case "Heading":
+          return [tidy(inline(child, Number(child.props.level) <= 2))];
         case "Text":
         case "Paragraph":
           return [tidy(inline(child))];
         case "Button":
-          return [withHref(inline(child), child)];
+          return [withHref(child)];
         case "Link":
-          return [withHref(inline(child), child)];
+          return [withHref(child)];
         case "Image":
           return [image(child)];
         case "Divider":

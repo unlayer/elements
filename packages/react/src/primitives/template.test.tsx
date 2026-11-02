@@ -43,6 +43,25 @@ describe("render()", () => {
     expect(text).toBe("[Logo]\n\nWELCOME\n\nHi {{first_name}}, read the docs (https://example.com/docs).\n\nLeft\n\nGet started (https://example.com)\n\n---");
   });
 
+  it("writes a large heading's words in capitals in plain text, its merge tags and its links' URLs as written", async () => {
+    const { text } = await render(
+      <Email>
+        <Heading level={1}>
+          Thanks, <MergeTag name="first_name" />: <Link href="https://example.com/Orders/AbC">your order</Link>
+        </Heading>
+        <Heading level={2}>
+          <Link href="https://example.com/Docs">https://example.com/Docs</Link>
+        </Heading>
+        <Heading level={1}>
+          <Link href="https://example.com/Home">
+            <Image src={{ src: "https://example.com/logo.png", width: 120, height: 40 }} alt="Acme logo" />
+          </Link>
+        </Heading>
+      </Email>
+    );
+    expect(text).toBe("THANKS, {{first_name}}: YOUR ORDER (https://example.com/Orders/AbC)\n\nhttps://example.com/Docs\n\n[ACME LOGO] (https://example.com/Home)");
+  });
+
   it("rejects with the template's problems", async () => {
     // @ts-expect-error a Button needs an href
     const missing = <Page><Button>Go</Button></Page>;
