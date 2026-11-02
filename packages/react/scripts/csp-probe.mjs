@@ -84,9 +84,34 @@ try {
   }
   renderToPlainText(tree);
 
+  // The new components (/primitives) in each of their roots, and the builder's design (/builder) both ways.
+  const p = await import('../dist/primitives.js');
+  const { toDesign, fromDesign } = await import('../dist/builder.js');
+  const h = React.createElement;
+  const content = () => [
+    h(p.Heading, { key: 'h' }, 'Heading'),
+    h(p.Paragraph, { key: 'p' }, 'Words ', h(p.Link, { href: 'https://example.com' }, 'a link'), h(p.MergeTag, { name: 'first_name' })),
+    h(p.Row, { key: 'r' }, h(p.Column, null, h(p.Text, null, 'Left')), h(p.Column, null, h(p.Text, null, 'Right'))),
+    h(p.List, { key: 'l' }, h(p.ListItem, null, 'An item')),
+    h(p.Table, { key: 't' }, h(p.TableRow, null, h(p.TableCell, null, 'A cell'))),
+    h(p.Button, { key: 'b', href: 'https://example.com' }, 'Button'),
+    h(p.Menu, { key: 'm', items: [{ text: 'Home', href: 'https://example.com' }] }),
+    h(p.Social, { key: 's', icons: [{ name: 'Facebook', href: 'https://example.com' }] }),
+    h(p.Video, { key: 'v', src: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }),
+  ];
+  for (const root of [h(p.Email, null, content()), h(p.Page, null, content()), h(p.Document, null, content()), h(p.Canvas, { width: 600, height: 900 }, content())]) {
+    const { html, text } = await p.render(root);
+    if (!html || !text) {
+      console.error('CSP_FAIL: the new components rendered no output');
+      process.exit(2);
+    }
+  }
+  fromDesign(toDesign(h(p.Email, null, content())).design);
+
   console.info(
     `CSP_OK: @unlayer/react-elements imports + renders every component (web / ` +
-      `email / document / plaintext) under strict CSP — no eval / new Function`,
+      `email / document / plaintext), and the new components in every root and to the builder and back, under ` +
+      `strict CSP — no eval / new Function`,
   );
 } catch (err) {
   const message = String((err && err.message) || err);
