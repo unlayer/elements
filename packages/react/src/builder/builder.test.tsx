@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToHtml } from "../index";
-import { Column, Document, Email, Grid, Heading, Image, Layer, Page, Paragraph, Section, Text } from "../primitives";
+import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Page, Paragraph, Row, Section, Text } from "../primitives";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import * as brew from "../primitives/codemod/MorningBrewDigest";
@@ -47,6 +47,27 @@ describe("toDesign", () => {
       </Page>
     );
     expect(design.body.rows.map((row: { cells: number[] }) => row.cells.length)).toEqual([3, 3]);
+  });
+
+  it("writes a Button's hover colors and border to the builder's button, and a Row hidden on phones in a Section stays hidden", () => {
+    const { design } = toDesign(
+      <Email>
+        <Section style={{ backgroundColor: "#eeeeee" }}>
+          <Row hidden={{ mobile: true }}>
+            <Column>
+              <Button href="https://example.com" hover={{ color: "#ffffff", backgroundColor: "#000000" }} style={{ border: { top: "2px solid #ff0000", right: "2px solid #ff0000", bottom: "2px solid #ff0000", left: "2px solid #ff0000" } }}>
+                Go
+              </Button>
+            </Column>
+          </Row>
+        </Section>
+      </Email>
+    );
+    const row = design.body.rows[0];
+    const button = row.columns[0].contents[0].values;
+    expect(button.buttonColors).toMatchObject({ hoverColor: "#ffffff", hoverBackgroundColor: "#000000" });
+    expect(button.border).toMatchObject({ borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: "#ff0000", borderLeftWidth: "2px" });
+    expect(row.values._override?.mobile?.hideMobile).toBe(true);
   });
 
   it("takes an Email or a Page, which the builder edits", () => {

@@ -131,6 +131,9 @@ export function raise(element: React.ReactElement): Raised {
             {...textProps()}
             textAlign={alignIn(parent)}
             backgroundColor={style.backgroundColor as string | undefined}
+            hoverColor={own.hover?.color as string | undefined}
+            hoverBackgroundColor={own.hover?.backgroundColor as string | undefined}
+            {...legacyBorder((style.border as Lines | undefined) ?? {})}
             padding={sidesCss(padding(own))}
             borderRadius={typeof style.borderRadius === "number" ? px(style.borderRadius) : undefined}
             width={style.width !== undefined ? ((typeof style.width === "number" ? px(style.width) : String(style.width)) as Length) : undefined}
@@ -342,7 +345,7 @@ export function raise(element: React.ReactElement): Raised {
       flushLoose();
       const own = at(path);
       const sectionChildren = (child.children ?? []).map((c, i) => ({ child: c, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
-      body.push(...rows(sectionChildren, own, { backgroundColor: own.style.backgroundColor, hideOnMobile: child.hidden?.mobile || undefined, hideOnDesktop: child.hidden?.desktop || undefined }, padding(child), path));
+      body.push(...rows(sectionChildren, own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path));
     } else loose.push({ child, path });
   }
   flushLoose();
