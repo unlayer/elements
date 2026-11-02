@@ -39,10 +39,17 @@ function unchanged(key: string, was: unknown, now: unknown): boolean {
   if (was === null || typeof was !== "object") return was === now || (was === "" && now === undefined);
   if (now === null || typeof now !== "object") return false;
   if (Array.isArray(was)) return Array.isArray(now) && was.length === now.length && was.every((item, i) => unchanged("", item, now[i]));
-  // Written empty (a border the template has none of): anything the builder put in it is a change.
-  if (!Object.keys(was).length) return !meaningful(now);
+  // Written empty (a border the template has none of): anything the builder put in it is a change, but a border
+  // every side of which is 0 wide (the builder's own default), which draws nothing.
+  if (!Object.keys(was).length) return !meaningful(now) || noBorder(now);
   return Object.entries(was).every(([k, v]) => unchanged(k, v, (now as Values)[k]));
 }
+
+/** A border the builder writes with every side 0 wide: none. */
+const noBorder = (value: unknown) => {
+  const widths = value && typeof value === "object" ? Object.entries(value).filter(([key]) => key.endsWith("Width")) : [];
+  return widths.length > 0 && widths.every(([, width]) => !parseFloat(String(width)));
+};
 
 /** A value the builder sets on a block made in it that says something (not empty, not off). */
 const meaningful = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false && !(typeof value === "object" && !Object.keys(value as object).length);

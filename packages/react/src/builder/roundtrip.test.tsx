@@ -8,7 +8,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
+import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, Menu, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import { collectTemplate } from "../primitives/collect";
 import * as luma from "../primitives/codemod/LumaEventInvite";
@@ -660,6 +660,35 @@ describe("what the builder writes, read back", () => {
     const back = row.type === "Row" ? (row.children![0] as Node) : row;
     expect(back.style?.border).toEqual({ top: { width: 2, style: "dashed", color: "#ff0000" }, bottom: { width: 1, style: "solid", color: "#000000" } });
     expect((back.children![0] as Node).style?.border).toEqual({ left: { width: 3, style: "solid", color: "#00ff00" } });
+    // The builder's own default, every side 0 wide, where none was written: no border, no change.
+    column.values.border = { borderTopWidth: "0px", borderTopStyle: "solid", borderTopColor: "#000000" };
+    column.contents[0].values.border = {};
+    const unedited = tree(fromDesign(design).element).children![0] as Node;
+    expect(JSON.stringify(unedited)).not.toContain("border");
+  });
+
+  it("keeps each Menu item's and Social icon's link with it when the builder moves, adds or deletes them", () => {
+    const design = designOf(
+      <Email>
+        <Menu items={[{ text: "Home", href: { href: "/", target: "_self" } }, { text: "Blog", href: "/blog" }, { text: "Docs", href: { href: "/docs", target: "_blank" } }]} />
+        <Social icons={[{ name: "Facebook", href: { href: "https://facebook.com/acme", target: "_blank" } }, { name: "X", href: { href: "https://x.com/acme", target: "_self" } }]} />
+      </Email>
+    );
+    const [menu, social] = blocks(design);
+    // Docs moved first, Blog deleted, a new item at the end.
+    const items = menu.values.menu.items;
+    menu.values.menu.items = [items[2], items[0], { key: "9", text: "New", link: { name: "web", values: { href: "/new", target: "_blank" } } }];
+    social.values.icons.icons = [...social.values.icons.icons].reverse();
+    const [menuBack, socialBack] = tree(fromDesign(design).element).children as Node[];
+    expect(menuBack.props?.items).toEqual([
+      { text: "Docs", href: { href: "/docs", target: "_blank" } },
+      { text: "Home", href: { href: "/", target: "_self" } },
+      { text: "New", href: { href: "/new", target: "_blank" } },
+    ]);
+    expect(socialBack.props?.icons).toEqual([
+      { name: "X", href: { href: "https://x.com/acme", target: "_self" } },
+      { name: "Facebook", href: { href: "https://facebook.com/acme", target: "_blank" } },
+    ]);
   });
 
   it("makes a video the builder made from its id (YouTube or Vimeo), and leaves out one with no URL, saying so", () => {

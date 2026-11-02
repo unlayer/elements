@@ -48,14 +48,22 @@ const style = (key: string, read: (now: any) => Json | undefined = (now) => now)
 /**
  * A list the builder edits item by item (a Menu's links, a Social's icons): an item it didn't change is the
  * template's as it was, with what the builder doesn't hold (a link's target); one it changed is read from its
- * values, with what the builder doesn't hold taken from the item that was in its place. `seen` is what of an item
- * the builder shows, to tell whether it changed it.
+ * values, with what the builder doesn't hold taken from the item it was. An item is known by `id` (a Menu item's
+ * key, an icon's name), else by what the builder shows of it (`seen`), wherever it moved; one not known is new.
  */
-function merged<T>(before: readonly T[] | undefined, written: readonly unknown[] | undefined, now: readonly unknown[], seen: (item: any) => unknown, read: (item: any, was: T | undefined, written: any) => T): T[] {
-  return now.map((item, i) => {
-    const old = before?.[i];
-    if (old !== undefined && written?.[i] !== undefined && JSON.stringify(seen(written[i])) === JSON.stringify(seen(item))) return old;
-    return read(item, old, written?.[i]);
+function merged<T>(before: readonly T[] | undefined, written: readonly any[] | undefined, now: readonly unknown[], seen: (item: any) => unknown, read: (item: any, was: T | undefined, written: any) => T, id?: (item: any) => unknown): T[] {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const used = new Set<number>();
+  const find = (test: (entry: any) => boolean) => {
+    const at = (written ?? []).findIndex((entry, i) => !used.has(i) && before?.[i] !== undefined && test(entry));
+    if (at >= 0) used.add(at);
+    return at;
+  };
+  return now.map((item) => {
+    let at = id && id(item) !== undefined ? find((entry) => id(entry) === id(item)) : -1;
+    if (at < 0) at = find((entry) => same(seen(entry), seen(item)));
+    if (at < 0) return read(item, undefined, undefined);
+    return same(seen(written![at]), seen(item)) ? before![at] : read(item, before![at], written![at]);
   });
 }
 
@@ -253,7 +261,8 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
           // The target the builder has, where it changed it; else the template's.
           const target = written && link(written).target === link(item).target && old ? linkParts(old.href).target : link(item).target;
           return { text: String(item.text ?? ""), href: linkTo(String(link(item).href ?? ""), target) as LinkValue };
-        }
+        },
+        (item) => item?.key
       );
       setProp(node, "items", items as unknown as Json);
     },
@@ -276,7 +285,8 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
         was?.icons,
         now?.icons ?? [],
         (icon) => [icon?.name, icon?.url],
-        (icon, old) => ({ name: String(icon.name), href: linkTo(String(icon.url ?? ""), old ? linkParts(old.href).target : undefined) as LinkValue })
+        (icon, old) => ({ name: String(icon.name), href: linkTo(String(icon.url ?? ""), old ? linkParts(old.href).target : undefined) as LinkValue }),
+        (icon) => icon?.name
       );
       setProp(node, "icons", icons as unknown as Json);
       setProp(node, "iconType", now?.iconType === "circle" ? undefined : now?.iconType);
