@@ -94,10 +94,10 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     expect(squash(code)).toContain('style={{width:"100%",maxWidth:504}}');
   });
 
-  it("rewrites today's JSX inside expressions (a map, a condition) in place", async () => {
+  it("rewrites today's JSX inside expressions (a map, a condition) in place, an element's key kept", async () => {
     const { code } = await migrate(`export const T = ({ items, footer }: { items: string[]; footer: boolean }) => <Email>{items.map((item) => <Row key={item}><Column><Paragraph>{item}</Paragraph></Column></Row>)}{footer && <Row><Column><Divider /></Column></Row>}</Email>;`);
     const flat = squash(code);
-    expect(flat).toContain("{items.map((item)=>(<Section><Paragraph");
+    expect(flat).toContain("{items.map((item)=>(<Sectionkey={item}><Paragraph");
     expect(flat).toContain('{footer&&(<Section><Dividerstyle={{borderTop:"1pxsolid#BBBBBB",padding:10}}/></Section>)}');
   });
 
@@ -118,6 +118,105 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     const flat = squash(code);
     expect(flat).toContain('mobile={{padding:"24px20px"}}');
     expect(flat).toContain('mobile={{padding:"4px0",fontSize:30,textAlign:"center"}}');
+  });
+
+  it("keeps today's types, and a namespace used for more than its components; the components through it are migrated", async () => {
+    const { code, report } = await migrateElements(`import type { EmailProps } from "@unlayer/react-elements";
+import { type RowProps, Email } from "@unlayer/react-elements";
+import * as E from "@unlayer/react-elements/legacy";
+export const html = E.renderToHtml;
+export const T = (_: EmailProps & RowProps) => <Email><E.Row><E.Column><E.Paragraph>Hi</E.Paragraph></E.Column></E.Row></Email>;`);
+    expect(code).toContain('import type { EmailProps } from "@unlayer/react-elements";');
+    expect(code).toContain('import { type RowProps } from "@unlayer/react-elements";');
+    expect(code).toContain('import * as E from "@unlayer/react-elements/legacy";');
+    expect(squash(code)).toContain('<Emailwidth={500}style={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Section><Paragraph');
+    expect(report).toEqual(["line 3: E stays imported from @unlayer/react-elements/legacy for today's API used through it; its components are migrated"]);
+    // A namespace used only for components goes.
+    const only = await migrateElements(`import * as E from "@unlayer/react-elements";\nexport const T = () => <E.Email><E.Row layout={E.ColumnLayouts.TwoEqual}><E.Column /><E.Column /></E.Row></E.Email>;`);
+    expect(only.code).not.toContain("import * as E");
+    expect(squash(only.code)).toContain('<Columnstyle={{width:"50%"}}');
+  });
+
+  it("keeps an import the module uses other than as an element, and leaves alone a name the module declares again", async () => {
+    const { code, report } = await migrateElements(`import * as E from "@unlayer/react-elements";
+import { Email, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
+const Alias = E.Row;
+const Plain = Row;
+export const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+export const Mine = ({ E }: { E: { Row: () => null } }) => <E.Row />;
+export const Other = (Row: () => null) => <Row />;`);
+    expect(code).toContain('import * as E from "@unlayer/react-elements";');
+    expect(code).toContain('import { Row } from "@unlayer/react-elements/legacy";');
+    expect(code).toContain("const Alias = E.Row;");
+    expect(code).toContain("const Plain = Row;");
+    expect(squash(code)).toContain("<Section><Paragraph");
+    // The module's own E and Row, declared again where they're used, aren't today's.
+    expect(code).toContain("<E.Row />");
+    expect(code).toContain("export const Other = (Row: () => null) => <Row />;");
+    expect(report).toEqual([
+      "line 1: E stays imported from @unlayer/react-elements for today's API used through it; its components are migrated",
+      "line 2: Row stays imported from @unlayer/react-elements/legacy: it's used other than as an element (<Row>), which is all that's migrated",
+    ]);
+  });
+
+  it("writes one of today's layouts outside a Row's props as its cells, so nothing is left using today's ColumnLayouts", async () => {
+    const { code, report } = await migrate(`const layout = ColumnLayouts.TwoWideNarrow;
+export const T = () => <Email><Row layout={layout}><Column /><Column /></Row></Email>;`);
+    expect(code).not.toContain("ColumnLayouts");
+    expect(squash(code)).toContain("constlayout={cells:[2,1]};");
+    expect(squash(code)).toContain('<Columnstyle={{width:"66.67%"}}');
+    expect(report).toEqual([]);
+    // Used other ways, it stays imported, and the Row it can't read is reported.
+    const kept = await migrate(`export const T = ({ name }: { name: "TwoEqual" }) => <Email><Row layout={ColumnLayouts[name]}><Column /><Column /></Row></Email>;`);
+    expect(kept.code).toContain('import { ColumnLayouts } from "@unlayer/react-elements";');
+    expect(kept.report.join("\n")).toMatch(/ColumnLayouts stays imported/);
+    expect(kept.report.join("\n")).toMatch(/this Row's layout can't be read \(ColumnLayouts\[name\]\)/);
+  });
+
+  it("gives each Column its share of every one of today's layouts", async () => {
+    const shares = async (layout: string, columns: number) =>
+      [...squash((await migrate(`export const T = () => <Email><Row layout={ColumnLayouts.${layout}}>${"<Column />".repeat(columns)}</Row></Email>;`)).code).matchAll(/width:"([\d.]+%)"/g)].map((m) => m[1]);
+    expect(await shares("ThreeNarrowWideNarrow", 3)).toEqual(["25%", "50%", "25%"]);
+    expect(await shares("FiveEqual", 5)).toEqual(["20%", "20%", "20%", "20%", "20%"]);
+  });
+
+  it("imports a new component under another name where the template has one of its own by that name", async () => {
+    const { code } = await migrateElements(`import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+import Link from "next/link";
+function Section({ title }: { title: string }) { return <h2>{title}</h2>; }
+export const T = () => <Email><Row><Column><Paragraph html={'See <a href="https://example.com">the docs</a>'} /></Column></Row></Email>;
+export const Nav = () => <Link href="/">Home</Link>;`);
+    expect(code).toMatch(/import \{\s*Email,\s*Link as ElementsLink,\s*Paragraph,\s*Section as ElementsSection,?\s*\} from "@unlayer\/react-elements\/primitives";/);
+    expect(squash(code)).toContain('<ElementsSection><Paragraphstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>{"See"}<ElementsLinkhref="https://example.com">thedocs</ElementsLink></Paragraph></ElementsSection>');
+    // The template's own are left as they were.
+    expect(code).toContain('<Link href="/">Home</Link>');
+    expect(code).toContain("return <h2>{title}</h2>;");
+  });
+
+  it("links an Image as today's action does, writes a text direction as dir, and reports a prop it has nothing for", async () => {
+    const { code, report } = await migrate(`export const T = () => <Email textDirection="rtl"><Row><Column>
+      <Image src="https://example.com/a.png" action="https://example.com/sale" />
+      <Image src="https://example.com/b.png" action={{ name: "web", values: { href: "https://example.com/b", target: "_self" } }} />
+      <Paragraph textDirection="ltr" values={{ textJson: "{}" }}>Hi</Paragraph>
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(flat).toContain('<Emailwidth={500}dir="rtl"');
+    expect(flat).toContain('<Linkhref={{href:"https://example.com/sale",target:"_blank"}}><Imagesrc="https://example.com/a.png"');
+    expect(flat).toContain('<Linkhref={{href:"https://example.com/b",target:"_self"}}><Imagesrc="https://example.com/b.png"');
+    expect(flat).toContain('<Paragraphdir="ltr"');
+    expect(report).toEqual(["line 5: <Paragraph>'s values isn't migrated: it's left out (the new components have nothing it becomes)"]);
+  });
+
+  it("reports an Image's or a Button's alignment on phones, which the new components don't have, and writes none", async () => {
+    const { code, report } = await migrate(`export const T = () => <Email><Row><Column>
+      <Image src="https://example.com/a.png" textAlign="left" mobile={{ textAlign: "center" }} />
+      <Button href="https://example.com" mobile={{ textAlign: "left" }}>Go</Button>
+    </Column></Row></Email>;`);
+    expect(squash(code)).not.toMatch(/mobile=\{\{[^}]*alignItems/);
+    expect(report).toEqual([
+      "line 3: its alignment on phones (mobile textAlign) is left out: the new components place a block on phones where it is on desktop",
+      "line 4: its alignment on phones (mobile textAlign) is left out: the new components place a block on phones where it is on desktop",
+    ]);
   });
 
   it("leaves a component with no new one out, loudly: a comment where it was and a line in the report", async () => {

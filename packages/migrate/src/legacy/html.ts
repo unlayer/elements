@@ -58,9 +58,10 @@ type Frame = { tag: string; open: string; children: string[] };
 
 /**
  * The markup as children's JSX source and the components they use; undefined (with why) for markup that isn't inline.
- * `holes` are the expressions of a template literal the markup came from, each where its hole() is.
+ * `holes` are the expressions of a template literal the markup came from, each where its hole() is; `name` is the name
+ * a component is written as (another where the template has one of its own by that name).
  */
-export function inlineHtml(html: string, holes: string[] = []): { jsx: string; used: Set<string> } | { unsupported: string } {
+export function inlineHtml(html: string, holes: string[] = [], name = (component: string) => component): { jsx: string; used: Set<string> } | { unsupported: string } {
   const used = new Set<string>();
   const text = (value: string) => value.split(HOLES).map((part, index) => (index % 2 ? `{${holes[Number(part)]}}` : plain(part))).join("");
   /** A value as an expression: a string, or the template literal's expression (or a template literal) where it holds one. */
@@ -87,7 +88,7 @@ export function inlineHtml(html: string, holes: string[] = []): { jsx: string; u
     if (tag === "br") {
       if (!closing) {
         used.add("LineBreak");
-        stack[stack.length - 1].children.push("<LineBreak />");
+        stack[stack.length - 1].children.push(`<${name("LineBreak")} />`);
       }
       continue;
     }
@@ -105,13 +106,14 @@ export function inlineHtml(html: string, holes: string[] = []): { jsx: string; u
       return all.length ? ` style={{ ${all.join(", ")} }}` : "";
     };
     let open: string;
-    if (tag === "b" || tag === "strong") open = `<Span${styled(["fontWeight: 700"])}>`;
-    else if (tag === "i" || tag === "em") open = `<Span${styled(['fontStyle: "italic"'])}>`;
-    else if (tag === "u") open = `<Span${styled(['textDecoration: "underline"'])}>`;
-    else if (tag === "span") open = `<Span${styled([])}>`;
-    else if (tag === "a" && attrs.href) open = `<Link href=${value(attrs.href)}${styled([])}>`;
+    const span = name("Span");
+    if (tag === "b" || tag === "strong") open = `<${span}${styled(["fontWeight: 700"])}>`;
+    else if (tag === "i" || tag === "em") open = `<${span}${styled(['fontStyle: "italic"'])}>`;
+    else if (tag === "u") open = `<${span}${styled(['textDecoration: "underline"'])}>`;
+    else if (tag === "span") open = `<${span}${styled([])}>`;
+    else if (tag === "a" && attrs.href) open = `<${name("Link")} href=${value(attrs.href)}${styled([])}>`;
     else return { unsupported: `<${tag}>, which isn't inline text` };
-    used.add(open.startsWith("<Link") ? "Link" : "Span");
+    used.add(tag === "a" ? "Link" : "Span");
     stack.push({ tag, open, children: [] });
   }
   pushText(html.slice(at));

@@ -2,6 +2,7 @@
 // Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @unlayer/migrate test legacy-examples
 //
 // What the codemod reported:
+// - line 37: <Email>'s linkStyle isn't migrated: it's left out (the new components have nothing it becomes)
 // - line 246: today's Menu puts a space between its links on top of their padding (a few px); the new one spaces them by their padding alone
 import {
   Column,

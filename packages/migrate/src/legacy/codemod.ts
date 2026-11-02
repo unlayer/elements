@@ -39,15 +39,30 @@ const LAYOUTS: Record<string, number[]> = {
   TwoWideNarrow: [2, 1],
   TwoNarrowWide: [1, 2],
   ThreeEqual: [1, 1, 1],
+  ThreeNarrowWideNarrow: [1, 2, 1],
   FourEqual: [1, 1, 1, 1],
+  FiveEqual: [1, 1, 1, 1, 1],
 };
+const isLayout = (name: string) => Object.prototype.hasOwnProperty.call(LAYOUTS, name);
 
 /**
  * A prop's value: one known from the source (a literal, or a constant whose name is kept as `code`), or its source as
  * it is (an expression, its node kept for the html it may build).
  */
 type Value = { literal: unknown; code?: string } | { code: string; node?: ts.Expression };
-type Props = Map<string, Value>;
+
+/** A component's props, and which of them its new JSX used: the others are reported, never dropped quietly. */
+class Props extends Map<string, Value> {
+  readonly used = new Set<string>();
+  override get(name: string): Value | undefined {
+    this.used.add(name);
+    return super.get(name);
+  }
+  /** The props given that nothing used. */
+  unused(): string[] {
+    return [...this.keys()].filter((name) => !this.used.has(name));
+  }
+}
 
 const isLiteral = (value: Value | undefined): value is { literal: unknown; code?: string } => !!value && "literal" in value;
 const code = (value: Value): string => value.code ?? JSON.stringify((value as { literal: unknown }).literal);
@@ -98,24 +113,124 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const used = new Set<string>();
   const where = (node: ts.Node) => `line ${file.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
 
-  // Today's components and layouts, by the name they're imported as.
+  /** Whether a name is declared again where it's used (a parameter, a local): there, it isn't the import. */
+  const shadowed = (name: ts.Identifier): boolean => {
+    const declares = (binding: ts.Node | undefined): boolean =>
+      !!binding && (ts.isIdentifier(binding) ? binding.text === name.text : (ts.isObjectBindingPattern(binding) || ts.isArrayBindingPattern(binding)) && binding.elements.some((element) => !ts.isOmittedExpression(element) && declares(element.name)));
+    const declaredIn = (list: ts.VariableDeclarationList) => list.declarations.some((declaration) => declares(declaration.name));
+    for (let scope: ts.Node = name.parent; scope && !ts.isSourceFile(scope); scope = scope.parent) {
+      if (ts.isFunctionLike(scope) && scope.parameters.some((parameter) => declares(parameter.name))) return true;
+      if (ts.isBlock(scope) || ts.isCaseClause(scope) || ts.isDefaultClause(scope)) {
+        for (const statement of scope.statements) {
+          if (ts.isVariableStatement(statement) && declaredIn(statement.declarationList)) return true;
+          if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name?.text === name.text) return true;
+        }
+      }
+      if ((ts.isForStatement(scope) || ts.isForOfStatement(scope) || ts.isForInStatement(scope)) && scope.initializer && ts.isVariableDeclarationList(scope.initializer) && declaredIn(scope.initializer)) return true;
+      if (ts.isCatchClause(scope) && declares(scope.variableDeclaration?.name)) return true;
+    }
+    return false;
+  };
+  /** Whether every use of an imported name (but its import, and where the name is another's) is one `ok` takes. */
+  const onlyUsedAs = (name: ts.Identifier, ok: (use: ts.Identifier) => boolean) => {
+    let only = true;
+    const visit = (n: ts.Node): void => {
+      const parent = n.parent;
+      const named = parent && ((ts.isPropertyAccessExpression(parent) && parent.name === n) || (ts.isPropertyAssignment(parent) && parent.name === n));
+      if (ts.isIdentifier(n) && n.text === name.text && n !== name && !named && !shadowed(n) && !ok(n)) only = false;
+      ts.forEachChild(n, visit);
+    };
+    visit(file);
+    return only;
+  };
+  /** Whether an expression is an element's tag (`<Row>`, `<E.Row>`, or its closing tag). */
+  const isTag = (expression: ts.Node) => {
+    const parent = expression.parent;
+    return (ts.isJsxOpeningElement(parent) || ts.isJsxSelfClosingElement(parent) || ts.isJsxClosingElement(parent)) && parent.tagName === expression;
+  };
+  /** The name an expression starts with (`E` in `E.ColumnLayouts`). */
+  const leftmost = (expression: ts.Node): ts.Identifier => {
+    while (ts.isPropertyAccessExpression(expression)) expression = expression.expression;
+    return expression as ts.Identifier;
+  };
+  /** Whether an expression is followed by one of today's layout names (`ColumnLayouts.TwoEqual`). */
+  const beforeLayout = (expression: ts.Node) => ts.isPropertyAccessExpression(expression.parent) && expression.parent.expression === expression && isLayout(expression.parent.name.text);
+
+  // Today's components and layouts, by the name they're imported as (through a namespace, `E.Button`); the imports of
+  // today's package, each with what stays imported from it (today's other API, and its types).
   const local = new Map<string, string>();
-  const imports: ts.ImportDeclaration[] = [];
-  const kept: string[] = [];
+  const imports: Array<{ statement: ts.ImportDeclaration; kept: string[] }> = [];
+  /** Names the migrated module no longer declares: today's components, its layouts and their namespace where only they used it. */
+  const freed: string[] = [];
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || !from.has(statement.moduleSpecifier.text)) continue;
-    imports.push(statement);
-    const named = statement.importClause?.namedBindings;
-    if (!named || !ts.isNamedImports(named)) continue;
-    for (const element of named.elements) {
+    const clause = statement.importClause;
+    // `import type` stays as it is: today's types are still exported.
+    if (!clause || clause.isTypeOnly) continue;
+    const specifier = statement.moduleSpecifier.text;
+    const named = clause.namedBindings;
+    if (named && ts.isNamespaceImport(named)) {
+      const ns = named.name.text;
+      for (const name of [...COMPONENTS, "ColumnLayouts"]) local.set(`${ns}.${name}`, name);
+      // The namespace goes where it's only used for today's components and layouts, which are rewritten.
+      const migrated = onlyUsedAs(named.name, (use) => ts.isPropertyAccessExpression(use.parent) && use.parent.expression === use && ((COMPONENTS.has(use.parent.name.text) && isTag(use.parent)) || (use.parent.name.text === "ColumnLayouts" && beforeLayout(use.parent))));
+      if (migrated && !clause.name) {
+        imports.push({ statement, kept: [] });
+        freed.push(ns);
+      } else report.push(`${where(statement)}: ${ns} stays imported from ${specifier} for today's API used through it; its components are migrated`);
+      continue;
+    }
+    const kept: string[] = clause.name ? [clause.name.text] : [];
+    const specifiers: string[] = [];
+    for (const element of named && ts.isNamedImports(named) ? named.elements : []) {
       const name = (element.propertyName ?? element.name).text;
-      if (COMPONENTS.has(name) || name === "ColumnLayouts") local.set(element.name.text, name);
-      else if (!element.isTypeOnly && !statement.importClause?.isTypeOnly) {
-        kept.push(element.getText());
-        report.push(`${where(element)}: ${name} is today's API and stays imported from ${statement.moduleSpecifier.text}; it doesn't take the new components (render them with render() from the new entry)`);
+      if (element.isTypeOnly) specifiers.push(element.getText());
+      else if (COMPONENTS.has(name)) {
+        local.set(element.name.text, name);
+        if (onlyUsedAs(element.name, isTag)) freed.push(element.name.text);
+        else {
+          specifiers.push(element.getText());
+          report.push(`${where(element)}: ${name} stays imported from ${specifier}: it's used other than as an element (<${element.name.text}>), which is all that's migrated`);
+        }
+      } else if (name === "ColumnLayouts") {
+        local.set(element.name.text, name);
+        if (onlyUsedAs(element.name, beforeLayout)) freed.push(element.name.text);
+        else {
+          specifiers.push(element.getText());
+          report.push(`${where(element)}: ${name} stays imported from ${specifier}: it's used other than as a layout's name (${element.name.text}.TwoEqual), which is all that's rewritten`);
+        }
+      } else {
+        specifiers.push(element.getText());
+        report.push(`${where(element)}: ${name} is today's API and stays imported from ${specifier}; it doesn't take the new components (render them with render() from the new entry)`);
       }
     }
+    if (specifiers.length) kept.push(`{ ${specifiers.join(", ")} }`);
+    imports.push({ statement, kept });
   }
+
+  // The names the module declares itself (a component of its own called Section, Next's Link): a new component whose
+  // name is one of them is imported as another.
+  const declared = new Map<string, number>();
+  const declare = (n: ts.Node): void => {
+    const name = (n as { name?: ts.Node }).name;
+    const declaration =
+      ts.isVariableDeclaration(n) || ts.isFunctionDeclaration(n) || ts.isClassDeclaration(n) || ts.isParameter(n) || ts.isBindingElement(n) || ts.isImportSpecifier(n) || ts.isImportClause(n) || ts.isNamespaceImport(n) || ts.isImportEqualsDeclaration(n) || ts.isTypeAliasDeclaration(n) || ts.isInterfaceDeclaration(n) || ts.isEnumDeclaration(n);
+    if (declaration && name && ts.isIdentifier(name)) declared.set(name.text, (declared.get(name.text) ?? 0) + 1);
+    ts.forEachChild(n, declare);
+  };
+  declare(file);
+  for (const name of freed) declared.set(name, declared.get(name)! - 1);
+  const names = new Map<string, string>();
+  /** The name a new component is written as. */
+  const nameOf = (component: string): string => {
+    let name = names.get(component);
+    if (!name) {
+      name = component;
+      for (let n = 1; declared.get(name); n++) name = `Elements${component}${n > 1 ? n : ""}`;
+      names.set(component, name);
+    }
+    return name;
+  };
 
   const bare = (expression: ts.Expression): ts.Expression => {
     while (ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isSatisfiesExpression(expression)) expression = expression.expression;
@@ -163,19 +278,23 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       const value = init && literal(init, depth + 1);
       return value && { value: value.value, code: expression.text };
     }
-    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) && local.get(expression.expression.text) === "ColumnLayouts") {
-      const cells = LAYOUTS[expression.name.text];
-      return cells ? { value: { cells } } : undefined;
-    }
-    return undefined;
+    const cells = layoutCells(expression);
+    return cells && { value: { cells } };
   };
+  /** The cells of one of today's layouts (`ColumnLayouts.TwoEqual`), or undefined where it isn't one. */
+  function layoutCells(expression: ts.Node): number[] | undefined {
+    return ts.isPropertyAccessExpression(expression) && local.get(expression.expression.getText()) === "ColumnLayouts" && !shadowed(leftmost(expression.expression)) && isLayout(expression.name.text) ? LAYOUTS[expression.name.text] : undefined;
+  }
 
   const valueOf = (expression: ts.Expression): Value => {
     const value = literal(expression);
     return value ? { literal: value.value, code: value.code } : { code: rewrite(expression), node: expression };
   };
+  const read = new Map<ts.JsxOpeningLikeElement, Props>();
   const propsOf = (element: ts.JsxOpeningLikeElement): Props => {
-    const out: Props = new Map();
+    if (read.has(element)) return read.get(element)!;
+    const out = new Props();
+    read.set(element, out);
     for (const attribute of element.attributes.properties) {
       if (ts.isJsxSpreadAttribute(attribute)) {
         // A spread of an object literal (or a constant for one): its props, each read as a prop given here.
@@ -202,8 +321,9 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   // ─── Writing the new JSX ───────────────────────────────────────────────────
 
-  const element = (tag: string, attributes: Array<string | false | undefined>, children: string[] = []) => {
-    used.add(tag);
+  const element = (component: string, attributes: Array<string | false | undefined>, children: string[] = []) => {
+    used.add(component);
+    const tag = nameOf(component);
     const attrs = attributes.filter(Boolean).join(" ");
     return children.length ? `<${tag}${attrs ? ` ${attrs}` : ""}>${children.join("")}</${tag}>` : `<${tag}${attrs ? ` ${attrs}` : ""} />`;
   };
@@ -254,9 +374,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return lit(px(value.literal));
   };
   /** Today's `mobile` prop, setting by setting (none where it can't be read, which is reported). */
-  const phone = (props: Props, at: ts.Node): Map<string, Value> => {
+  const phones = new Map<Props, { at: ts.Node; settings: Props }>();
+  const phone = (props: Props, at: ts.Node): Props => {
+    if (phones.has(props)) return phones.get(props)!.settings;
     const value = props.get("mobile");
-    const out = new Map<string, Value>();
+    const out = new Props();
+    phones.set(props, { at, settings: out });
     if (!value) return out;
     const node = !isLiteral(value) && value.node ? bare(value.node) : undefined;
     if (isLiteral(value) && value.literal && typeof value.literal === "object") {
@@ -287,7 +410,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         report.push(`${where(at)}: its html comes from an expression (${code(html)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
         return [`{${code(html)}}`];
       }
-      const parsed = inlineHtml(markup, holes);
+      const parsed = inlineHtml(markup, holes, nameOf);
       if ("unsupported" in parsed) {
         report.push(`${where(at)}: its html holds ${parsed.unsupported}: it's written as text; rewrite it with Span, Link and LineBreak`);
         return [isLiteral(html) ? `{${JSON.stringify(markup.replace(/<[^>]+>/g, ""))}}` : `{${code(html)}}`];
@@ -310,11 +433,21 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** A block today's components pad (an Image, a Button, ...) in a Column the new one sits in, with that padding. */
   const wrapped = (props: Props, block: string, alignment: Value | undefined, at: ts.Node) => {
     const m = phone(props, at);
+    // A block sits on phones where it does on desktop: the new components have no phone alignment for one.
+    const phoneAlign = alignOf(m.get("textAlign"));
+    if (phoneAlign && (!alignment || code(phoneAlign) !== code(alignment))) report.push(`${where(at)}: its alignment on phones (mobile textAlign) is left out: the new components place a block on phones where it is on desktop`);
     return element("Column", [
       styleAttr([["padding", n(padding(props))], ["alignItems", alignment]]),
-      mobileAttr([["padding", n(m.get("containerPadding"))], ["alignItems", alignOf(m.get("textAlign"))]]),
+      mobileAttr([["padding", n(m.get("containerPadding"))]]),
       hidden(props),
     ], [block]);
+  };
+  /** Today's text direction (ltr, rtl or auto; anything else today's leave out) as the new `dir`. */
+  const dir = (props: Props) => {
+    const value = props.get("textDirection");
+    if (!isLiteral(value)) return attr("dir", value);
+    const direction = String(value.literal).trim().toLowerCase();
+    return ["ltr", "rtl", "auto"].includes(direction) && `dir="${direction}"`;
   };
 
   // ─── Each of today's components ────────────────────────────────────────────
@@ -324,6 +457,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return element(type, [
       `width={${width ? (isLiteral(width) && px(width.literal) !== undefined ? px(width.literal) : code(width)) : 500}}`,
       type === "Email" && attr("previewText", props.get("previewText")),
+      dir(props),
       styleAttr([
         ["backgroundColor", color(props, "backgroundColor")],
         ["color", given(props, "textColor", "#000000")],
@@ -334,6 +468,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function row(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, body: number | undefined) {
     const layout = props.get("layout");
+    if (layout && !isLiteral(layout)) report.push(`${where(node)}: this Row's layout can't be read (${layout.code}): its Columns are written one under another (give it as ColumnLayouts.TwoEqual or the like)`);
     const cells: number[] = (isLiteral(layout) && (layout.literal as { cells?: number[] })?.cells) || (isLiteral(props.get("cells")) && (props.get("cells") as { literal: number[] }).literal) || [1];
     const pad = props.get("padding");
     const p = isLiteral(pad) ? sides(pad.literal) : undefined;
@@ -341,7 +476,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const total = cells.reduce((sum, cell) => sum + cell, 0) || 1;
     const rowWidth = body !== undefined && (p || !pad) ? body - (p ? p[1] + p[3] : 0) : undefined;
     const columns = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && !c.text.trim())) : [];
-    const isColumn = (c: ts.JsxChild): c is ts.JsxElement | ts.JsxSelfClosingElement => (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && local.get(tagName(c)) === "Column";
+    const isColumn = (c: ts.JsxChild): c is ts.JsxElement | ts.JsxSelfClosingElement => (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && todays(c) === "Column";
     const columnProps = columns.map((c) => (isColumn(c) ? propsOf(opening(c)) : undefined));
     const stacks = !(isLiteral(props.get("noStackMobile")) && (props.get("noStackMobile") as { literal: unknown }).literal);
     // Today's stretch a Row's Columns to its height, so a line along the top or the bottom of each is one line across
@@ -455,6 +590,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const fontSize = given(props, "fontSize", "22px");
     return element("Heading", [
       level !== 1 && `level={${level}}`,
+      dir(props),
       styleAttr(textStyle(props, fontSize, "400", "140%", node)),
       textPhone(props, node),
       hidden(props),
@@ -477,7 +613,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function paragraph(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, tag: "Paragraph" | "Text") {
     const fontSize = given(props, "fontSize", "14px");
-    return element(tag, [styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], textChildren(node, props, node));
+    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], textChildren(node, props, node));
   }
 
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
@@ -531,7 +667,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const full = (): Array<[string, Value | undefined]> => (place.outside && place.column !== undefined ? [["width", lit("100%")], ["maxWidth", lit(round(place.column))]] : []);
     // Today's take the first width given (width, maxWidth, then the source's maxWidth and width) as the one to draw.
     const srcMax = isLiteral(src) && src.literal && typeof src.literal === "object" ? (src.literal as Record<string, unknown>).maxWidth : undefined;
-    const width = props.get("width") ?? props.get("maxWidth") ?? (srcMax === undefined ? undefined : lit(srcMax)) ?? (natural === undefined ? undefined : lit(natural));
+    const [givenWidth, givenMax] = [props.get("width"), props.get("maxWidth")];
+    const width = givenWidth ?? givenMax ?? (srcMax === undefined ? undefined : lit(srcMax)) ?? (natural === undefined ? undefined : lit(natural));
     let size: Array<[string, Value | undefined]> = [];
     const w = isLiteral(width) ? width.literal : undefined;
     const percentGiven = typeof w === "string" && /^\s*[\d.]+%\s*$/.test(w);
@@ -565,7 +702,26 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ? [["width", lit("100%")], ["maxWidth", typeof natural === "number" ? lit(natural) : size.some(([key]) => key === "maxWidth") ? lit("100%") : undefined]]
         : [["width", n(m.get("width"))], ["maxWidth", n(m.get("maxWidth"))]];
     const block = element("Image", [attr("src", source), attr("alt", props.get("altText") ?? props.get("alt")), styleAttr(size), mobileAttr(phoneSize)]);
-    return wrapped(props, block, align(props, "textAlign", "center"), at);
+    const href = actionHref(props.get("action"), at);
+    return wrapped(props, href ? element("Link", [attr("href", href)], [block]) : block, align(props, "textAlign", "center"), at);
+  }
+
+  /**
+   * Today's image action as a link: a URL (which today's open in a new tab), or `{ name: "web", values: { href,
+   * target } }`; anything else (an expression, an email or phone action) is reported and left out.
+   */
+  function actionHref(action: Value | undefined, at: ts.Node): Value | undefined {
+    if (!action) return undefined;
+    const value = isLiteral(action) ? action.literal : undefined;
+    if (typeof value === "string" && value) return lit({ href: value, target: "_blank" });
+    if (value && typeof value === "object" && (value as { name?: unknown }).name === "web") {
+      const { values = {}, attrs = {} } = value as { values?: Record<string, unknown>; attrs?: Record<string, unknown> };
+      const href = values.href ?? attrs.href;
+      const target = values.target ?? attrs.target;
+      if (typeof href === "string" && href) return lit(typeof target === "string" && target ? { href, target } : href);
+    }
+    report.push(`${where(at)}: this Image's action can't be read as a web link: its link is left out (put the Image in a Link)`);
+    return undefined;
   }
 
   function divider(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
@@ -625,6 +781,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   function video(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
     const src = props.get("videoUrl") ?? props.get("url");
     if (!src) {
+      props.forEach((_, prop) => props.used.add(prop));
       report.push(`${where(node)}: this Video's link can't be read (give it videoUrl): it's left out`);
       return "";
     }
@@ -633,6 +790,11 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   // ─── The walk ──────────────────────────────────────────────────────────────
 
+  /** Today's component an element is, or undefined (another component, or a name declared again where it's used). */
+  function todays(node: ts.JsxElement | ts.JsxSelfClosingElement): string | undefined {
+    const name = local.get(tagName(node));
+    return name && !shadowed(leftmost(opening(node).tagName)) ? name : undefined;
+  }
   function tagName(node: ts.JsxElement | ts.JsxSelfClosingElement): string {
     return opening(node).tagName.getText();
   }
@@ -653,9 +815,19 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   let rowSides = 0;
   /** One of today's elements as the new JSX; another element as it is, today's elements inside it rewritten. */
   function convert(node: ts.JsxElement | ts.JsxSelfClosingElement, place: Place = {}): string {
-    const name = local.get(tagName(node));
+    const name = todays(node);
     if (!name) return rewrite(node);
     const props = propsOf(opening(node));
+    const out = written(name, node, props, place);
+    // An element of a list (`items.map(...)`): its key the new element's.
+    const key = props.get("key");
+    if (!key) return out;
+    if (/^<[A-Z]/.test(out)) return out.replace(/^<[\w.]+/, (tag) => `${tag} key={${code(key)}}`);
+    report.push(`${where(node)}: its key is left out: it's migrated to no element of its own`);
+    return out;
+  }
+
+  function written(name: string, node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, place: Place): string {
     const children = () => (ts.isJsxElement(node) ? node.children.map((c) => child(c, place)).filter(Boolean) : []);
     switch (name) {
       case "Email":
@@ -689,6 +861,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       case "Video":
         return video(node, props);
       default:
+        props.forEach((_, prop) => props.used.add(prop));
         report.push(`${where(node)}: <${name}> has no new component yet: it's left out (write it with the new components, or keep this template on today's API)`);
         return `{/* @unlayer/migrate: <${name}> isn't migrated: ${node.getText().replace(/\*\//g, "* /").slice(0, 120)}… */}`;
     }
@@ -698,13 +871,21 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   function rewrite(node: ts.Node): string {
     const edits: Array<{ start: number; end: number; text: string }> = [];
     const visit = (n: ts.Node) => {
-      if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && local.has(tagName(n))) {
+      // One of today's layouts (a constant for a Row's layout): its cells, as the Row reads them.
+      const cells = layoutCells(n);
+      if (cells) {
+        edits.push({ start: n.getStart(), end: n.getEnd(), text: `{ cells: ${JSON.stringify(cells)} }` });
+        return;
+      }
+      if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && todays(n)) {
         edits.push({ start: n.getStart(), end: n.getEnd(), text: convert(n) });
         return;
       }
       ts.forEachChild(n, visit);
     };
-    if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && local.has(tagName(node))) return convert(node);
+    if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && todays(node)) return convert(node);
+    const cells = layoutCells(node);
+    if (cells) return `{ cells: ${JSON.stringify(cells)} }`;
     ts.forEachChild(node, visit);
     let text = node.getText();
     const start = node.getStart();
@@ -715,22 +896,31 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   // The module: its imports of today's components replaced, its JSX rewritten.
   const edits: Array<{ start: number; end: number; text: string }> = [];
   for (const statement of file.statements) {
-    if (imports.includes(statement as ts.ImportDeclaration)) continue;
+    if (imports.some((entry) => entry.statement === statement)) continue;
     const text = rewrite(statement);
     if (text !== statement.getText()) edits.push({ start: statement.getStart(), end: statement.getEnd(), text });
   }
-  const names = [...used].sort();
+  // What today's components had that the new JSX doesn't use.
+  for (const [opening, props] of read) {
+    const component = `<${local.get(opening.tagName.getText()) ?? opening.tagName.getText()}>`;
+    const settings = phones.get(props)?.settings;
+    const left = [...props.unused().filter((name) => name !== "key"), ...(settings?.unused().map((name) => `mobile.${name}`) ?? [])];
+    if (left.length) report.push(`${where(opening)}: ${component}'s ${left.join(", ")} ${left.length > 1 ? "aren't migrated: they're" : "isn't migrated: it's"} left out (the new components have nothing ${left.length > 1 ? "they become" : "it becomes"})`);
+  }
+  // In the order of the lines (a stable sort: lines of one place stay in the order they were found).
+  const lineOf = (entry: string) => Number(/^line (\d+):/.exec(entry)?.[1] ?? 0);
+  report.sort((a, b) => lineOf(a) - lineOf(b));
+
   const to = options.to ?? DEFAULT_TO;
-  imports.forEach((statement, index) =>
-    edits.push({
-      start: statement.getStart(),
-      end: statement.getEnd(),
-      text:
-        index === 0
-          ? [names.length ? `import { ${names.join(", ")} } from ${JSON.stringify(to)};` : "", kept.length ? `import { ${kept.join(", ")} } from ${JSON.stringify((statement.moduleSpecifier as ts.StringLiteral).text)};` : ""].filter(Boolean).join("\n")
-          : "",
-    })
-  );
+  const imported = [...used].sort().map((component) => (nameOf(component) === component ? component : `${component} as ${nameOf(component)}`));
+  const added = imported.length ? `import { ${imported.join(", ")} } from ${JSON.stringify(to)};` : "";
+  imports.forEach(({ statement, kept }, index) => {
+    const rest = kept.length ? `import ${kept.join(", ")} from ${JSON.stringify((statement.moduleSpecifier as ts.StringLiteral).text)};` : "";
+    edits.push({ start: statement.getStart(), end: statement.getEnd(), text: [index === 0 ? added : "", rest].filter(Boolean).join("\n") });
+  });
+  // Today's imports all stay (a namespace used for more than its components): the new import goes before them.
+  const first = file.statements.find((statement) => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && from.has(statement.moduleSpecifier.text));
+  if (!imports.length && added && first) edits.push({ start: first.getStart(), end: first.getStart(), text: `${added}\n` });
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
   return { code: await formatTsx(out), report };
