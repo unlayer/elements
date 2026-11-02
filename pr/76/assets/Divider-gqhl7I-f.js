@@ -1,1 +1,0 @@
-import{c as r,m as i,l as p,R as s}from"./create-component-DKageO4i.js";const e={...p},t=r({name:"Divider",defaultValues:e,propMapper:a=>i(a,e,"Divider"),displayName:"Divider",exporters:s});export{t as D};
