@@ -1,37 +1,49 @@
 /**
- * The docs an author or an agent reads first: PRIMITIVES.md is what the definitions write (UPDATE_REFERENCE=1
- * rewrites it), it has a section for every component the entry exports, and the README's template is
- * readme-example.tsx, which renders with no errors or warnings.
+ * The docs an author or an agent reads first: PRIMITIVES.md (the guide) and PRIMITIVES-REFERENCE.md are what the
+ * definitions write (UPDATE_REFERENCE=1 rewrites them), each has every component the entry exports, and the
+ * README's template, which the guide shows too, is readme-example.tsx, which renders with no errors or warnings.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as entry from "./index";
 import Receipt from "./readme-example";
-import { primitivesReference } from "./reference";
+import { primitivesGuide, primitivesReference } from "./reference";
 
 const root = join(__dirname, "../..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
 
-describe("PRIMITIVES.md", () => {
-  it("is the reference the component definitions write", () => {
-    const written = primitivesReference();
-    if (process.env.UPDATE_REFERENCE) writeFileSync(join(root, "PRIMITIVES.md"), written);
-    expect(read("PRIMITIVES.md")).toBe(written);
+const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements/primitives";');
+const components = Object.entries(entry).filter(([name, value]) => typeof value === "function" && (value as { displayName?: string }).displayName === name);
+
+describe("PRIMITIVES.md and PRIMITIVES-REFERENCE.md", () => {
+  it.each([
+    ["PRIMITIVES.md", () => primitivesGuide(example())],
+    ["PRIMITIVES-REFERENCE.md", () => primitivesReference()],
+  ])("%s is what the component definitions write", (file, write) => {
+    const written = write();
+    if (process.env.UPDATE_REFERENCE) writeFileSync(join(root, file), written);
+    expect(read(file)).toBe(written);
   });
 
-  it("has a section for every component the entry exports", () => {
-    const reference = read("PRIMITIVES.md");
-    const components = Object.entries(entry).filter(([name, value]) => typeof value === "function" && (value as { displayName?: string }).displayName === name);
+  it("each has every component the entry exports", () => {
     expect(components.length).toBeGreaterThan(30);
-    for (const [name] of components) expect(reference, name).toContain(`### ${name}\n`);
-    expect(reference).toContain("### Document.Page\n");
+    const guide = read("PRIMITIVES.md");
+    const reference = read("PRIMITIVES-REFERENCE.md");
+    for (const [name] of [...components, ["Document.Page"]]) {
+      expect(guide, name).toContain(`- **${name}**: `);
+      expect(reference, name).toContain(`### ${name}\n`);
+    }
+  });
+
+  it("keeps the guide short enough to read whole before writing a template", () => {
+    expect(read("PRIMITIVES.md").length).toBeLessThan(20_000);
   });
 });
 
 describe("the README's template", () => {
   it("is readme-example.tsx, as an author imports it", () => {
-    const example = read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements/primitives";');
-    expect(read("README.md")).toContain(example.trim());
+    expect(read("README.md")).toContain(example().trim());
+    expect(read("PRIMITIVES.md")).toContain(example().trim());
   });
 
   it("renders with no errors or warnings (notes about Outlook are fine)", async () => {

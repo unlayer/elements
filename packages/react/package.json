@@ -67,6 +67,7 @@
     "dist",
     "README.md",
     "PRIMITIVES.md",
+    "PRIMITIVES-REFERENCE.md",
     "LICENSE"
   ],
   "publishConfig": {

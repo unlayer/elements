@@ -1,8 +1,10 @@
 /**
- * The components' reference, written from their definitions (`describeComponents()`): what each one is, what it
- * holds, which outputs draw it, and every prop and style with the values it takes. It's the package's PRIMITIVES.md,
- * for the people and agents who write templates; nothing in it is written by hand, so it can't fall behind (a test
- * checks the file is what this writes).
+ * The docs the package ships for writing templates, from the components' definitions (`describeComponents()`), so
+ * they can't fall behind (a test checks the files are what this writes):
+ *
+ * - PRIMITIVES.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
+ *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
+ * - PRIMITIVES-REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
  */
 import { describeComponents, type ComponentDescription, type PropertyDescription } from "@unlayer-internal/elements-core";
 
@@ -33,6 +35,8 @@ function glossary(all: ComponentDescription[]): Map<string, string> {
 }
 
 const code = (value: unknown) => `\`${JSON.stringify(value)}\``;
+
+const GENERATED = "<!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->";
 
 function property(p: PropertyDescription, named: Map<string, string>): string {
   const key = p.path.slice(p.path.indexOf(".") + 1);
@@ -76,9 +80,9 @@ export function primitivesReference(): string {
   return [
     "# Components reference (`@unlayer/react-elements/primitives`)",
     "",
-    "<!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->",
+    GENERATED,
     "",
-    "Every component, what it holds, and every prop and style it takes. The [README](./README.md#new-components-unlayerreact-elementsprimitives) shows how a template is written; `validate()` checks one against what's here.",
+    "Every component, what it holds, and every prop and style it takes, with its default and what it does. [PRIMITIVES.md](./PRIMITIVES.md) shows how a template is written; `validate()` checks one against what's here.",
     "",
     "Every component also takes:",
     "",
@@ -95,6 +99,103 @@ export function primitivesReference(): string {
     ...[...named].map(([kind, accepts]) => `- *${kind}*: ${accepts}`),
     "",
     sections.join("\n\n"),
+    "",
+  ].join("\n");
+}
+
+// ─── The guide ─────────────────────────────────────────────────────────────
+
+/** Styles most components share, named as a group on a component's line. */
+const TEXT = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"];
+const BOX = ["width", "maxWidth", "padding", "backgroundColor", "border", "borderRadius"];
+const CATEGORY: Record<string, string> = { section: "sections", layout: "layout", block: "blocks", inline: "inline", shape: "shapes" };
+
+/** A value as short as it can be said: an enum's options, else its kind. */
+function short(p: PropertyDescription): string {
+  const options = /^one of (.*)$/.exec(p.accepts)?.[1];
+  return options ? options.replace(/"/g, "").split(", ").join("|") : p.kind;
+}
+
+/** Keys, with the shared groups named where all of a group's keys are there. */
+function keys(found: string[], describe: (key: string) => string = (key) => key): string {
+  const out: string[] = [];
+  let rest = found;
+  for (const [group, members] of [["text", TEXT], ["box", BOX]] as const) {
+    if (members.every((key) => rest.includes(key))) {
+      out.push(group);
+      rest = rest.filter((key) => !members.includes(key));
+    }
+  }
+  return [...out, ...rest.map(describe)].join(", ");
+}
+
+function line(c: ComponentDescription): string {
+  const of = (prefix: string) => c.properties.filter((p) => p.path.startsWith(prefix));
+  const byKey = new Map(c.properties.map((p) => [p.path, p]));
+  const enumOf = (prefix: string) => (key: string) => {
+    const p = byKey.get(`${prefix}${key}`)!;
+    return /^one of /.test(p.accepts) ? `${key} (${short(p)})` : key;
+  };
+  const props = of("props.").map((p) => `${p.path.slice(6)}${p.required ? "*" : ""} (${short(p)})`);
+  const style = of("style.").map((p) => p.path.slice(6));
+  const hover = of("hover.").map((p) => p.path.slice(6));
+  const phone = of("style.").filter((p) => p.mobile).map((p) => p.path.slice(6));
+  const holds = [c.children.text ? "text" : "", ...c.children.categories.map((category) => CATEGORY[category] ?? category), ...c.children.types.map(name)].filter(Boolean);
+  const parts = [
+    `${c.description.replace(/\.$/, "")}.`,
+    holds.length ? `Holds ${holds.join(", ")}.` : "",
+    props.length ? `Props: ${props.join(", ")}.` : "",
+    style.length ? `Style: ${keys(style, enumOf("style."))}.` : "",
+    hover.length ? `Hover: ${hover.join(", ")}.` : "",
+    phone.length ? `Phones: ${keys(phone)}.` : "",
+  ].filter(Boolean);
+  return `- **${name(c.type)}**: ${parts.join(" ")}`;
+}
+
+/** PRIMITIVES.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
+export function primitivesGuide(example: string): string {
+  const all = describeComponents();
+  const named = glossary(all);
+  const placed = new Set<string>();
+  const sections = GROUPS.map((group) => {
+    const members = all.filter((c) => !placed.has(c.type) && group.has(c));
+    for (const c of members) placed.add(c.type);
+    return [`### ${group.title}`, "", ...members.map((c) => line(c))].join("\n");
+  });
+  return [
+    "# Writing templates with the new components (`@unlayer/react-elements/primitives`)",
+    "",
+    GENERATED,
+    "",
+    "Everything needed to write a template, in short. Every prop's and style's details: [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md).",
+    "",
+    "## How a template is written",
+    "",
+    "- Import from `@unlayer/react-elements/primitives`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
+    "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
+    "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
+    "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
+    "- Text is components, not HTML: `Heading level={1}`, `Paragraph` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
+    "- `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.",
+    "- Lists: `<List type=\"number\">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.",
+    "- Phones: `mobile={{ fontSize: 20 }}` (the styles listed under \"Phones\"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: \"#374151\" }}` (those under \"Hover\").",
+    "- `await render(element)` gives `{ html, text, diagnostics }`; a template with errors throws an `ElementsError` whose `diagnostics` give each problem's `code`, `message` and `path`. `validate(element)` runs the same checks without rendering. `outline(element)` prints the laid-out template (each block, its width, its text), to check the layout without reading the HTML.",
+    "",
+    "## A whole template",
+    "",
+    "```tsx",
+    example.trim(),
+    "```",
+    "",
+    "## Components",
+    "",
+    `\\* required. *text* styles: ${TEXT.join(", ")}. *box* styles: ${BOX.join(", ")}.`,
+    "",
+    sections.join("\n\n"),
+    "",
+    "## Values",
+    "",
+    ...[...named].map(([kind, accepts]) => `- *${kind}*: ${accepts}`),
     "",
   ].join("\n");
 }

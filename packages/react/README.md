@@ -62,24 +62,14 @@ export default function Receipt() {
 ```
 
 ```tsx
-import { render, validate } from "@unlayer/react-elements/primitives";
+import { outline, render, validate } from "@unlayer/react-elements/primitives";
 
 const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
 const { valid } = validate(<Receipt />); // the same checks, without rendering
+console.log(outline(<Receipt />)); // the laid-out template as text: each block, its width, its words
 ```
 
-How they differ from the components below:
-
-- **Styles go in `style`, not in props:** `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px, and `padding` takes `16`, `[12, 24]` or `"12px 24px"`. Text styles (color, font, size, alignment) are inherited by what a box holds.
-- **No layout presets.** A root, a `Section` and a `Column` stack their children, and `gap` spaces them. A `Row` puts its children side by side, each `Column` at its `style.width` or an equal share of what's left, and stacks them on phones (`stackOnMobile={false}` keeps them side by side). `Grid columns={3}` lays its children out in rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card. There's no `ColumnLayouts` and no `layout` prop.
-- **Text is components, not HTML.** `Heading level={1}`, `Paragraph` and `Text` hold text. Inside them, `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes your sending service's merge tag. There's no `html` prop and no raw HTML (`<b>`, `<br>`, `<div>`): `validate()` reports it.
-- **Images take their file's size:** `src={{ src, width, height }}` in the file's px, `alt`, and `style.width` for the size shown. Without the file's size, Outlook shows the image at its file's own size.
-- **Lists and tables:** `<List type="number">` holds `ListItem`s. A `Table` holds `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in its `style`.
-- **Phones and hover:** `mobile={{ fontSize: 20 }}` overrides styles on phones, `hidden={{ mobile: true }}` hides a block there, and `hover={{ backgroundColor: "#374151" }}` sets a Button's or a Link's colors on hover.
-- **Other outputs:** `Page` is a web page. `Document` holds `Document.Page`s, with `PageHeader`, `PageFooter` and `PageNumber`; `renderPdf()` in `@unlayer/elements-pdf` writes its PDF. `Canvas` is an image of a fixed size; `renderImage()` in `@unlayer/elements-image` writes its PNG or SVG.
-- **Problems are reported, not guessed at.** `render()` and `validate()` give each problem a `code`, a `severity`, a `message` and the `path` to it (`root.children[1].style.colour`), and `formatDiagnostics()` prints them.
-
-**Every component, and every prop and style it takes: [PRIMITIVES.md](./PRIMITIVES.md)**, in this package, written from the components' definitions. To move templates from the components below, see the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and `npx @unlayer/migrate --from elements`.
+**To write one, read [PRIMITIVES.md](./PRIMITIVES.md)** in this package: how a template is written, how the new components differ from the ones below, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions. To move templates from the components below, see the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and `npx @unlayer/migrate --from elements`.
 
 ## Quick Start
 
@@ -132,7 +122,7 @@ npx skills add unlayer/unlayer-skills
 
 This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
 
-The skill teaches the main import's components. For the [new components](#new-components-unlayerreact-elementsprimitives), give your agent [PRIMITIVES.md](./PRIMITIVES.md) from this package: every component, prop and style, with the values each takes.
+The skill teaches the main import's components. For the [new components](#new-components-unlayerreact-elementsprimitives), give your agent [PRIMITIVES.md](./PRIMITIVES.md) from this package: how a template is written and every component, short enough to read whole.
 
 Agents can also preview Elements code without installing anything through the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/):
 
