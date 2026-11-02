@@ -1,0 +1,10 @@
+import{j as n}from"./jsx-runtime-QsmT_p7L.js";import{B as a}from"./Body-Bk29oTHc.js";function e(o){return n.jsx(a,{...o,mode:"web"})}e.displayName="Page";e.__docgenInfo={description:`Page - Renders with div/flexbox for responsive web display.
+
+Thin wrapper around Body with mode locked to "web".
+
+@example
+\`\`\`tsx
+<Page backgroundColor="#ffffff" contentWidth="960px">
+  <Row><Column><Paragraph text="Hello" /></Column></Row>
+</Page>
+\`\`\``,methods:[],displayName:"Page"};export{e as P};
