@@ -197,7 +197,7 @@ export function raise(element: React.ReactElement): Raised {
           <Menu
             key={path}
             {...hidden}
-            items={((node.props?.items as Array<{ text: string; href: LinkValue }>) ?? []).map(({ text, href }) => ({ text, href: linkParts(href).href }))}
+            items={((node.props?.items as Array<{ text: string; href: LinkValue }>) ?? []).map(({ text, href }) => ({ text, ...linkParts(href) }))}
             separator={(node.props?.separator as string | undefined) ?? ""}
             layout={(node.props?.layout as "horizontal" | "vertical" | undefined) ?? "horizontal"}
             linkColor={style.color as string}

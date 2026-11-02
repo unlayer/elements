@@ -6,7 +6,7 @@
  * A value that's the sum of the node's own and its place (a block's spacing is its padding and its stack's gap) moves
  * the node's own by the change. A change the node can't hold (a block's own alignment, which a stack sets) is said.
  */
-import type { Json, Node } from "@unlayer-internal/elements-core";
+import { linkParts, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
 import { heldByHtml, parseRuns } from "./runs";
 
 export interface Change {
@@ -44,6 +44,23 @@ function setProp(node: Node, key: string, value: Json | undefined) {
 }
 
 const style = (key: string, read: (now: any) => Json | undefined = (now) => now): Setter => ({ node, now }) => setStyle(node, key, read(now));
+
+/**
+ * A list the builder edits item by item (a Menu's links, a Social's icons): an item it didn't change is the
+ * template's as it was, with what the builder doesn't hold (a link's target); one it changed is read from its
+ * values, with what the builder doesn't hold taken from the item that was in its place. `seen` is what of an item
+ * the builder shows, to tell whether it changed it.
+ */
+function merged<T>(before: readonly T[] | undefined, written: readonly unknown[] | undefined, now: readonly unknown[], seen: (item: any) => unknown, read: (item: any, was: T | undefined, written: any) => T): T[] {
+  return now.map((item, i) => {
+    const old = before?.[i];
+    if (old !== undefined && written?.[i] !== undefined && JSON.stringify(seen(written[i])) === JSON.stringify(seen(item))) return old;
+    return read(item, old, written?.[i]);
+  });
+}
+
+/** A link with a target, where it opens one ("_blank" or "_self"); else its URL alone. */
+const linkTo = (href: string, target: unknown): Json => (target === "_blank" || target === "_self" ? { href, target } : href);
 const pxStyle = (key: string) => style(key, (now) => num(now));
 
 /** Padding moved by the change in the builder's value (it holds the padding and the place's spacing). */
@@ -225,7 +242,21 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
     ...common,
   },
   menu: {
-    menu: ({ node, now }) => setProp(node, "items", (now?.items ?? []).map((item: any) => ({ text: String(item.text ?? ""), href: String(item.link?.values?.href ?? "") }))),
+    menu: ({ node, now, was }) => {
+      const link = (item: any) => item?.link?.values ?? {};
+      const items = merged(
+        node.props?.items as Array<{ text: string; href: LinkValue }> | undefined,
+        was?.items,
+        now?.items ?? [],
+        (item) => [item?.text, link(item).href, link(item).target],
+        (item, old, written) => {
+          // The target the builder has, where it changed it; else the template's.
+          const target = written && link(written).target === link(item).target && old ? linkParts(old.href).target : link(item).target;
+          return { text: String(item.text ?? ""), href: linkTo(String(link(item).href ?? ""), target) as LinkValue };
+        }
+      );
+      setProp(node, "items", items as unknown as Json);
+    },
     separator: ({ node, now }) => setProp(node, "separator", now),
     layout: ({ node, now }) => setProp(node, "layout", now === "horizontal" ? undefined : now),
     linkColor: style("color"),
@@ -238,8 +269,16 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
     ...common,
   },
   social: {
-    icons: ({ node, now }) => {
-      setProp(node, "icons", (now?.icons ?? []).map((icon: any) => ({ name: String(icon.name), href: String(icon.url ?? "") })));
+    icons: ({ node, now, was }) => {
+      // The builder's icons have no target: an icon keeps the one it had.
+      const icons = merged(
+        node.props?.icons as Array<{ name: string; href: LinkValue }> | undefined,
+        was?.icons,
+        now?.icons ?? [],
+        (icon) => [icon?.name, icon?.url],
+        (icon, old) => ({ name: String(icon.name), href: linkTo(String(icon.url ?? ""), old ? linkParts(old.href).target : undefined) as LinkValue })
+      );
+      setProp(node, "icons", icons as unknown as Json);
       setProp(node, "iconType", now?.iconType === "circle" ? undefined : now?.iconType);
     },
     iconSize: ({ node, now }) => setProp(node, "size", num(now) === 32 ? undefined : num(now)),
