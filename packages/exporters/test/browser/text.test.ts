@@ -34,3 +34,28 @@ for (const root of ["Page", "Email"] as const) {
     expect(lowered).toBe(plain);
   });
 }
+
+it("keeps what a stacking Row's child holds with no text size of its own readable: a Video's link, an Image's alternate text (Email)", async () => {
+  const video = { type: "Video", id: "video", props: { src: "https://vimeo.com/76979871", title: "Our launch" } };
+  const image = { type: "Image", id: "image", props: { src: "https://missing.test/photo.png", alt: "Our team" } };
+  const email = {
+    root: {
+      type: "Email",
+      props: { width: 600 },
+      style: { fontSize: 18 },
+      mobile: { fontSize: 15 },
+      children: [{ type: "Row", children: [{ type: "Column", children: [video] }, { type: "Column", children: [image] }] }],
+    },
+  };
+  const page = await browser.newPage();
+  await page.setContent(renderTemplate(email).html);
+  const sizes = () => page.evaluate(() => ["video", "image"].map((id) => getComputedStyle(document.getElementById(id)!).fontSize));
+  const desktop = await sizes();
+  const width = await page.evaluate(() => document.getElementById("video")!.getBoundingClientRect().width);
+  await page.setViewportSize({ width: 400, height: 800 });
+  const phone = await sizes();
+  await page.close();
+  expect(desktop).toEqual(["18px", "18px"]);
+  expect(width).toBeGreaterThan(0);
+  expect(phone).toEqual(["15px", "15px"]);
+});

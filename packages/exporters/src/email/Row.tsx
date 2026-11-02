@@ -62,6 +62,9 @@ function fluidHybrid(props: Props): Html {
   const valign = valignOf(props);
   const children = node.children.filter(isNode).filter(shown);
   const gaps = gapsBefore(children);
+  // The cell's text is 0px (no line boxes between the children): each child gets the Row's size back, for what it
+  // holds that sets no size of its own (a Video's link, an Image's alternate text).
+  const phoneSize = props.phoneText.filter(([property]) => property === "font-size");
   return (
     <Merged>
       <Outlook>
@@ -72,7 +75,7 @@ function fluidHybrid(props: Props): Html {
         const width = child.width ?? undefined;
         const hidden = hiding(child, "inline-block");
         const column = (
-          <div class={hidden.class} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width }, hidden.style]}>
+          <div class={hidden.class} phone={phoneSize} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width, fontSize: node.text.fontSize }, hidden.style]}>
             {render(child, { fill: width !== undefined })}
           </div>
         );

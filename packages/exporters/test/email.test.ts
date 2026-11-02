@@ -71,7 +71,7 @@ describe("email HTML", () => {
         "</td></tr></table>"
     );
     const others = notOutlook(body);
-    expect(others.match(/<div style="display:inline-block;vertical-align:middle;width:100%;max-width:(\d+)px">/g)).toHaveLength(3);
+    expect(others.match(/<div style="display:inline-block;vertical-align:middle;width:100%;max-width:(\d+)px;font-size:16px">/g)).toHaveLength(3);
     expect(others).toContain("max-width:240px");
     expect(others).toContain("max-width:80px");
     // Spacers between them, only outside Outlook, as tall as the gap on phones.
