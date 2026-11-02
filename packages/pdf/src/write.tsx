@@ -97,12 +97,15 @@ class Writer {
         return this.button(node, placed, key);
       case "Image":
         return this.image(node, placed, key);
-      case "Link":
+      case "Link": {
+        // A Link of words (a Menu's links too) is a run of text; one holding an Image, that image.
+        const words = node.children.some((child) => typeof child === "string" || child.definition.categories.includes("inline"));
         return (
           <PdfLink key={key} src={linkParts(node.props.href as LinkValue).href} style={{ ...placed, textDecoration: "none" }}>
-            {nodes(node).map((child, i) => this.block(child, node, i))}
+            {words ? <PdfText style={textStyle(node, this.context.fonts)}>{this.runs(node)}</PdfText> : nodes(node).map((child, i) => this.block(child, node, i))}
           </PdfLink>
         );
+      }
       case "Divider": {
         const line = node.style.borderTop as BorderSide | undefined;
         return (

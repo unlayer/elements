@@ -4,7 +4,7 @@
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Button, Circle, Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
+import { Button, Circle, Column, Document, Email, Heading, Image, Link, Menu, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
 
 /** A 1×1 PNG. */
@@ -151,6 +151,25 @@ describe("renderPdf", () => {
     const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
     const urls = (await (await document.getPage(1)).getAnnotations()).map((annotation: { url?: string }) => annotation.url);
     expect(urls).toEqual(["https://a.test/go", "https://b.test/more", "https://c.test/x"]);
+  });
+
+  it("writes the words of a Link on its own and of a Menu's links, each linked", async () => {
+    const { pdf } = await renderPdf(
+      <Document>
+        <Link href="https://acme.test/report">Read the report</Link>
+        <Menu
+          items={[
+            { text: "Home", href: "https://acme.test/" },
+            { text: "Blog", href: "https://acme.test/blog" },
+          ]}
+          separator="|"
+        />
+      </Document>
+    );
+    expect((await read(pdf)).pages[0].words).toBe("Read the report Home | Blog");
+    const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
+    const urls = (await (await document.getPage(1)).getAnnotations()).map((annotation: { url?: string }) => annotation.url);
+    expect(urls).toEqual(["https://acme.test/report", "https://acme.test/", "https://acme.test/blog"]);
   });
 
   it("paints each page white unless it has a background of its own (a viewer may show a transparent page as black)", async () => {
