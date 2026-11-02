@@ -11,6 +11,7 @@ import * as digest from "../primitives/codemod/ProductDigest";
 import * as spotify from "../primitives/codemod/SpotifyWelcome";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as warby from "../primitives/codemod/WarbyOrderShipped";
+import { fromDesign, toDesign } from "./index";
 import { raise } from "./raise";
 
 const meta: Meta<Args> = {
@@ -21,15 +22,15 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "Templates in the new components, as the builder draws them after `toDesign()` (left: today's components, which write the builder's design JSON, rendered as the builder renders them) and as the new engine draws them (right). The comparison gate checks the two draw the same.",
+          "Templates in the new components, as the builder draws them after `toDesign()` (left: today's components, which write the builder's design JSON, rendered as the builder renders them), and as the new engine draws the template `fromDesign()` brings back from that JSON (right). The comparison gate checks the two draw the same.",
       },
     },
   },
 };
 export default meta;
 
-/** A template next to what the builder draws of it. */
-const builder = (template: ReactElement, allowance?: { x?: number; y?: number }) => compare({ main: raise(template).element!, next: template, allowance });
+/** What the builder draws of a template, next to the template that comes back from the builder's design JSON. */
+const builder = (template: ReactElement, allowance?: { x?: number; y?: number }) => compare({ main: raise(template).element!, next: fromDesign(toDesign(template).design).element, allowance });
 
 // main's examples as the codemod migrated them: the builder gets back what main had.
 export const StripeReceipt = builder(<stripe.StripeReceipt />);
