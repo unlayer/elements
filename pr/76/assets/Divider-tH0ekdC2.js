@@ -1,0 +1,1 @@
+import{c as r,m as i,g as p,R as s}from"./create-component-BvL4lEG8.js";const e={...p},t=r({name:"Divider",defaultValues:e,propMapper:a=>i(a,e,"Divider"),displayName:"Divider",exporters:s});export{t as D};
