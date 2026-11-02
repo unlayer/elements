@@ -10,7 +10,80 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
+## New components (`@unlayer/react-elements/primitives`)
+
+A preview of the next major version, at its own entry: new components with typed `style` props, one template for an email, a web page, a printed document or an image, and `validate()` to check a template before it's sent. The components further down (the main import) are unchanged and don't mix with these: a template uses one set or the other.
+
+```tsx
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
+
+export default function Receipt() {
+  return (
+    <Email previewText="Your Acme receipt" style={{ backgroundColor: "#f4f4f5", fontFamily: "Inter, Arial, sans-serif", gap: 16 }}>
+      <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
+      <Column style={{ backgroundColor: "#ffffff", padding: 32, gap: 16, borderRadius: 8 }}>
+        <Heading level={1} style={{ fontSize: 24 }} mobile={{ fontSize: 20 }}>
+          Thanks for your order, <MergeTag name="first_name" />
+        </Heading>
+        <Paragraph>
+          Order <Span style={{ fontWeight: 700 }}>#10482</Span> ships tomorrow. <Link href="https://example.com/orders/10482">Track it</Link>.
+        </Paragraph>
+        <Table style={{ cellPadding: [8, 0], rowBorder: "1px solid #e4e4e7" }}>
+          <TableRow header>
+            <TableCell>Item</TableCell>
+            <TableCell style={{ textAlign: "right" }}>Price</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Linen shirt</TableCell>
+            <TableCell style={{ textAlign: "right" }}>$48.00</TableCell>
+          </TableRow>
+        </Table>
+        <Row style={{ gap: 16 }}>
+          <Column>
+            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
+            <Text>Ada Lovelace, London</Text>
+          </Column>
+          <Column>
+            <Text style={{ fontWeight: 700 }}>Next steps</Text>
+            <List type="number">
+              <ListItem>We pack it</ListItem>
+              <ListItem>You track it</ListItem>
+            </List>
+          </Column>
+        </Row>
+        <Button href="https://example.com/orders/10482" style={{ backgroundColor: "#111827", borderRadius: 6 }} hover={{ backgroundColor: "#374151" }}>
+          View your order
+        </Button>
+      </Column>
+      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
+    </Email>
+  );
+}
+```
+
+```tsx
+import { render, validate } from "@unlayer/react-elements/primitives";
+
+const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
+const { valid } = validate(<Receipt />); // the same checks, without rendering
+```
+
+How they differ from the components below:
+
+- **Styles go in `style`, not in props:** `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px, and `padding` takes `16`, `[12, 24]` or `"12px 24px"`. Text styles (color, font, size, alignment) are inherited by what a box holds.
+- **No layout presets.** A root, a `Section` and a `Column` stack their children, and `gap` spaces them. A `Row` puts its children side by side, each `Column` at its `style.width` or an equal share of what's left, and stacks them on phones (`stackOnMobile={false}` keeps them side by side). `Grid columns={3}` lays its children out in rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card. There's no `ColumnLayouts` and no `layout` prop.
+- **Text is components, not HTML.** `Heading level={1}`, `Paragraph` and `Text` hold text. Inside them, `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes your sending service's merge tag. There's no `html` prop and no raw HTML (`<b>`, `<br>`, `<div>`): `validate()` reports it.
+- **Images take their file's size:** `src={{ src, width, height }}` in the file's px, `alt`, and `style.width` for the size shown. Without the file's size, Outlook shows the image at its file's own size.
+- **Lists and tables:** `<List type="number">` holds `ListItem`s. A `Table` holds `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in its `style`.
+- **Phones and hover:** `mobile={{ fontSize: 20 }}` overrides styles on phones, `hidden={{ mobile: true }}` hides a block there, and `hover={{ backgroundColor: "#374151" }}` sets a Button's or a Link's colors on hover.
+- **Other outputs:** `Page` is a web page. `Document` holds `Document.Page`s, with `PageHeader`, `PageFooter` and `PageNumber`; `renderPdf()` in `@unlayer/elements-pdf` writes its PDF. `Canvas` is an image of a fixed size; `renderImage()` in `@unlayer/elements-image` writes its PNG or SVG.
+- **Problems are reported, not guessed at.** `render()` and `validate()` give each problem a `code`, a `severity`, a `message` and the `path` to it (`root.children[1].style.colour`), and `formatDiagnostics()` prints them.
+
+**Every component, and every prop and style it takes: [PRIMITIVES.md](./PRIMITIVES.md)**, in this package, written from the components' definitions. To move templates from the components below, see the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and `npx @unlayer/migrate --from elements`.
+
 ## Quick Start
+
+The rest of this README is about the main import, today's components. For the new ones, see [New components](#new-components-unlayerreact-elementsprimitives).
 
 ```tsx
 import { Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button } from '@unlayer/react-elements';
@@ -58,6 +131,8 @@ npx skills add unlayer/unlayer-skills
 ```
 
 This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
+
+The skill teaches the main import's components. For the [new components](#new-components-unlayerreact-elementsprimitives), give your agent [PRIMITIVES.md](./PRIMITIVES.md) from this package: every component, prop and style, with the values each takes.
 
 Agents can also preview Elements code without installing anything through the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/):
 
