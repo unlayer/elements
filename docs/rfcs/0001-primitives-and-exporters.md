@@ -501,6 +501,16 @@ added inside a page ends it there, and what follows is a page of its own.
 - **Props without a builder field** are closed over time in the builder: first a hidden option it
   stores and renders, then an editor. Each step changes one mapping (`builder/fields.ts`); the format
   doesn't change. Every conversion reports what's kept with no editor, and what's an HTML block.
+- **A change where the template has no node of its own** comes back as one that holds it: a row of
+  blocks, or a column around a Row's block, the builder changed (padding, background, hiding) is a Row
+  or Column; a Grid's row it changed is a Row of its own; a row given its own background is a Section
+  of its own (in a header or footer, a Column). A row added between rows of a Section or on a page is
+  in it. An image link set in the builder is a Link around the Image.
+- **Known limits:** a Grid re-flows its children when a row of it holds more or fewer than its
+  columns; a heading whose level alone changes takes that level's size; deleting or duplicating the
+  page break between two pages isn't read; an empty Grid isn't kept; a template's own components
+  need passing to `fromDesign()` to render. A text edit drops what the builder's HTML can't hold (a
+  link's hover), and says so.
 - **Builder-only data** (display conditions and the like) goes back out unchanged (`compat.builder`).
 - **Tested** with unit tests (main's 10 examples back as they went; text rewritten by the builder;
   changes; rows moved, deleted and duplicated; blocks made in the builder; the printed source run back
