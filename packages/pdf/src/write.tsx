@@ -62,7 +62,11 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): ReactE
             {/* The page's box inside its margins, which nothing leaves: what doesn't fit is cut, as in print HTML, not moved on. */}
             <View wrap={false} style={{ height: pt(box.contentHeight), overflow: "hidden", flexDirection: "column" }}>
               {header && write.block(header, root)}
-              <View style={{ flexGrow: 1, flexShrink: 1, flexDirection: "column", overflow: "hidden", ...gap(content) }}>{children.filter(shown).map((child, i) => write.block(child, content, i))}</View>
+              {/* The page's content, laid out at its own height and cut where the page ends: react-pdf squeezes text into a
+                  box's height (lines drawn over each other), not into one placed on its own. */}
+              <View style={{ flexGrow: 1, flexShrink: 1, overflow: "hidden", position: "relative" }}>
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, flexDirection: "column", ...gap(content) }}>{children.filter(shown).map((child, i) => write.block(child, content, i))}</View>
+              </View>
               {footer && write.block(footer, root)}
             </View>
           </PdfPage>

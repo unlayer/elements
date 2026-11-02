@@ -172,6 +172,27 @@ describe("renderPdf", () => {
     expect(urls).toEqual(["https://acme.test/report", "https://acme.test/", "https://acme.test/blog"]);
   });
 
+  it("cuts a page's content where the page ends, its lines as far apart as laid out (not drawn over each other)", async () => {
+    const lines = Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`);
+    const { pdf } = await renderPdf(
+      <Document size="A4" margin={48}>
+        {lines.map((line) => (
+          <Text key={line} style={{ fontSize: 12, lineHeight: 1.5 }}>
+            {line}
+          </Text>
+        ))}
+      </Document>
+    );
+    const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+    expect(document.numPages).toBe(1);
+    const items = (await (await document.getPage(1)).getTextContent()).items as Array<{ str?: string; transform: number[] }>;
+    const baselines = items.filter((item) => item.str?.startsWith("Line")).map((item) => item.transform[5]);
+    // A 12px line at 1.5 is 18px: 13.5 points, from each line to the next.
+    expect(baselines.slice(1).map((y, i) => baselines[i] - y).filter((gap) => Math.abs(gap - 13.5) > 0.05)).toEqual([]);
+    expect(baselines.length).toBeGreaterThan(40);
+    expect(baselines.length).toBeLessThan(lines.length);
+  });
+
   it("paints each page white unless it has a background of its own (a viewer may show a transparent page as black)", async () => {
     const fills = async (template: ReactElement) => {
       const { pdf } = await renderPdf(template);
