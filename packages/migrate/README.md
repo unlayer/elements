@@ -66,7 +66,7 @@ Renders both with the original's `PreviewProps`, then with each true/false prop 
 ## After migrating
 
 ```bash
-npm install @unlayer/react-elements@^0.2.0
+npm install @unlayer/react-elements@^0.3.0
 ```
 
 The migrated templates import `@unlayer/react-elements`: until it's installed, they don't compile. When a run writes them where it isn't installed, it ends with this command, for the project's package manager (by its lockfile: npm, pnpm, yarn or bun).

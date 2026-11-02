@@ -31,10 +31,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "@resvg/resvg-js": ">=2.6.2",
-    "@unlayer/react-elements": ">=0.2.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "@unlayer/react-elements": "^0.3.0",
     "react": ">=18",
-    "satori": ">=0.33.5"
+    "satori": "^0.33.5"
   },
   "devDependencies": {
     "@resvg/resvg-js": "2.6.2",

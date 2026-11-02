@@ -31,8 +31,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "peerDependencies": {
-    "@react-pdf/renderer": ">=4.9.0",
-    "@unlayer/react-elements": ">=0.2.0",
+    "@react-pdf/renderer": "^4.9.0",
+    "@unlayer/react-elements": "^0.3.0",
     "react": ">=18"
   },
   "devDependencies": {

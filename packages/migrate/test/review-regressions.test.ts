@@ -1944,7 +1944,7 @@ describe("installing Elements, which the migrated templates import", () => {
       const app = outside({ "package.json": "{}", ...(lockfile ? { [lockfile]: "" } : {}) });
       const out = io(dir);
       expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(0);
-      expect(out.out, command).toContain(`\nInstall Elements in ${path.relative(dir, app)}: ${command} "@unlayer/react-elements@^0.2.0"\n`);
+      expect(out.out, command).toContain(`\nInstall Elements in ${path.relative(dir, app)}: ${command} "@unlayer/react-elements@^0.3.0"\n`);
       // A dry run writes nothing: nothing to install yet.
       const dry = io(app);
       fs.mkdirSync(path.join(app, "drafts"));
@@ -1963,8 +1963,8 @@ describe("installing Elements, which the migrated templates import", () => {
     });
     const out = io(dir);
     expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(1);
-    expect(out.err).toContain("needs @unlayer/react-elements ^0.2.0, but this project has 0.1.22");
-    expect(out.err).toContain('yarn add "@unlayer/react-elements@^0.2.0"');
+    expect(out.err).toContain("needs @unlayer/react-elements ^0.3.0, but this project has 0.1.22");
+    expect(out.err).toContain('yarn add "@unlayer/react-elements@^0.3.0"');
     expect(fs.existsSync(path.join(app, "emails"))).toBe(false);
   });
 });
