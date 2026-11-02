@@ -634,10 +634,19 @@ describe("email HTML", () => {
     expect(() => render(email([{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { cx: 20, cy: 20, r: 10 } }] }]))).toThrow("A Svg can't be rendered to email: Gmail and classic Outlook don't show inline SVG; use an Image of it (a PNG) instead");
   });
 
-  it("warns before Gmail clips a message", () => {
+  it("warns before Gmail clips a message, counting its size in UTF-8 without TextEncoder (Jest's jsdom has none)", () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
-    expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");
-    expect(render(email(many.slice(0, 10))).diagnostics.map((d) => d.code)).not.toContain("email/size");
+    // Two-byte letters: under the limit counted as characters, over it in bytes.
+    const wide = [{ type: "Paragraph", children: ["é".repeat(60_000)] }];
+    const encoder = globalThis.TextEncoder;
+    try {
+      delete (globalThis as { TextEncoder?: unknown }).TextEncoder;
+      expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");
+      expect(render(email(many.slice(0, 10))).diagnostics.map((d) => d.code)).not.toContain("email/size");
+      expect(render(email(wide)).diagnostics.map((d) => d.code)).toContain("email/size");
+    } finally {
+      globalThis.TextEncoder = encoder;
+    }
   });
 
   it("writes the plain-text version, without the preview text", () => {

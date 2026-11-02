@@ -27,6 +27,7 @@
  */
 import { Diagnostics, type Diagnostic, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { Fragment, h, raw, withStylesheet, type Html } from "../jsx";
+import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
@@ -196,11 +197,11 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
     `<!DOCTYPE html><html${attrs({ lang, dir, xmlns: "http://www.w3.org/1999/xhtml", "xmlns:o": "urn:schemas-microsoft-com:office:office" })}>` +
     `<head>${head}</head><body${styleAttr([["margin", "0"], ["padding", "0"], ["background-color", background]])}>${body}</body></html>`;
 
-  const bytes = new TextEncoder().encode(html).length;
+  const bytes = utf8Bytes(html);
   if (bytes > GMAIL_CLIP_BYTES) {
     d.warning("email/size", `The email is ${Math.round(bytes / 1024)} KB; Gmail clips a message after ${GMAIL_CLIP_BYTES / 1024} KB ("[Message clipped]")`, "root");
   }
-  const styleBytes = new TextEncoder().encode(stylesheet).length;
+  const styleBytes = utf8Bytes(stylesheet);
   if (styleBytes > GMAIL_STYLE_BYTES) {
     d.warning("email/style-size", `The stylesheet is ${Math.round(styleBytes / 1024)} KB; Gmail reads ${GMAIL_STYLE_BYTES / 1024} KB of a <style>`, "root");
   }
