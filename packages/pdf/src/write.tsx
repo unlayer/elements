@@ -225,16 +225,35 @@ class Writer {
         {items.map((item, i) => (
           <View key={i} style={{ flexDirection: "row" }}>
             <PdfText style={{ ...textStyle(item, this.context.fonts), width: pt(indent), textAlign: "left" }}>{node.props.type === "number" ? `${start + i}.` : "•"}</PdfText>
-            <View style={{ flexGrow: 1, flexShrink: 1, flexDirection: "column" }}>
-              <PdfText style={textStyle(item, this.context.fonts)}>{this.runs({ ...item, children: item.children.filter((c) => typeof c === "string" || c.type !== "List") })}</PdfText>
-              {nodes(item)
-                .filter((c) => c.type === "List")
-                .map((nested, j) => this.list(nested, {}, j))}
-            </View>
+            <View style={{ flexGrow: 1, flexShrink: 1, flexDirection: "column" }}>{this.itemParts(item)}</View>
           </View>
         ))}
       </View>
     );
+  }
+
+  /** A list item's text and the Lists in it, in their order: each run of text a paragraph, each List under it. */
+  itemParts(item: ResolvedNode): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let text: ResolvedNode["children"] = [];
+    const flush = () => {
+      if (text.some((child) => typeof child !== "string" || child.trim() !== "")) {
+        parts.push(
+          <PdfText key={parts.length} style={textStyle(item, this.context.fonts)}>
+            {this.runs({ ...item, children: text })}
+          </PdfText>
+        );
+      }
+      text = [];
+    };
+    for (const child of item.children) {
+      if (typeof child !== "string" && child.type === "List") {
+        flush();
+        if (shown(child)) parts.push(this.list(child, {}, parts.length));
+      } else text.push(child);
+    }
+    flush();
+    return parts;
   }
 
   table(node: ResolvedNode, placed: PdfStyle, key?: number): ReactNode {
@@ -247,7 +266,7 @@ class Writer {
         {rows.map((row, r) => {
           let column = 0;
           return (
-            <View key={r} style={{ flexDirection: "row", ...(r < rows.length - 1 && rowBorder ? borderStyle({ bottom: rowBorder }) : {}) }}>
+            <View key={r} style={{ flexDirection: "row", ...boxStyle(row), ...(r < rows.length - 1 && rowBorder ? borderStyle({ bottom: rowBorder }) : {}) }}>
               {nodes(row).map((cell, c) => {
                 const span = Math.max(1, Number(cell.props.colSpan ?? 1));
                 const width = columns ? columns.slice(column, column + span).reduce((sum, w) => sum + w, 0) : undefined;

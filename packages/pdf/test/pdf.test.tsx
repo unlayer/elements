@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { COMPONENTS } from "@unlayer-internal/elements-core";
 import {
@@ -294,13 +294,14 @@ describe("renderPdf", () => {
             <List>
               <ListItem>Inside</ListItem>
             </List>
+            After
           </ListItem>
         </List>,
-        "1.First2.Second•Inside",
+        "1.First2.Second•InsideAfter",
       ],
       Table: [
         <Table key="tb">
-          <TableRow header>
+          <TableRow header style={{ backgroundColor: "#ff0000" }}>
             <TableCell>Plan</TableCell>
             <TableCell>Price</TableCell>
           </TableRow>
@@ -332,6 +333,15 @@ describe("renderPdf", () => {
       const { root, diagnostics } = prepare(<Document>{sample}</Document>);
       expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
       expect(words(writeDocument(root!, { fonts: new Map(), image: (src) => src, date: new Date(0) }))).toBe(drawn);
+    });
+
+    it("paints a Table row's background", async () => {
+      // The fill colors the page sets, as pdf.js reads its drawing operators: the header row's red among them.
+      const { pdf } = await renderPdf(<Document>{SAMPLES.Table[0]}</Document>);
+      const page = await (await getDocument({ data: pdf.slice(), verbosity: 0 }).promise).getPage(1);
+      const { fnArray, argsArray } = await page.getOperatorList();
+      const fills = fnArray.flatMap((fn, i) => (fn === OPS.setFillRGBColor ? [String(argsArray[i])] : []));
+      expect(fills).toContain("#ff0000");
     });
   });
 
