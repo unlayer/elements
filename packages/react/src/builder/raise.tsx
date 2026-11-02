@@ -82,6 +82,7 @@ export function raise(element: React.ReactElement): Raised {
   /** Where a node can't be a tool: the new engine's own markup for it, in an HTML block. */
   const locked = (node: Node, path: string, why: string, around: Sides, wraps: Group[] = []): React.ReactElement => {
     report.push(`${path}: ${why}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`);
+    notePageNumbers(node, path);
     const own = at(path);
     const html = renderSubtree(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components);
     return tag(<Html key={path} html={html} containerPadding={sidesCss(around)} />, { node, locked: true, ...wrapped(wraps) });
@@ -92,8 +93,12 @@ export function raise(element: React.ReactElement): Raised {
     const made = tool(node, path, parent, around, wraps);
     if (Array.isArray(made) || payloads.has(made)) return made;
     noteKept(node, path);
-    if (JSON.stringify(node.children ?? []).includes('"type":"PageNumber"')) report.push(`${path}: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}`);
+    notePageNumbers(node, path);
     return tag(made, { node, ...wrapped(wraps) });
+  };
+
+  const notePageNumbers = (node: Node, path: string) => {
+    if (JSON.stringify(node.children ?? []).includes('"type":"PageNumber"')) report.push(`${path}: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}`);
   };
 
   /** The tool a block is in the builder. */
@@ -494,7 +499,11 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // Drawn at its width in a page at least as wide as a root can be (a Document's block as a page's), the root's text
   // styles around it.
   const drawn = Math.round(width);
-  const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn) }, style: root.style, children: [drawn < 200 ? { type: "Column", style: { width: drawn }, children: [node] } : node] };
+  // A Document's page numbers as the builder's tokens, which a Page can hold.
+  const tokens = (node: Node): Node =>
+    node.type === "PageNumber" ? { type: "MergeTag", props: { name: node.props?.total ? "page_count" : "page_number" } } : node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : tokens(child))) } : node;
+  const own = tokens(node);
+  const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn) }, style: root.style, children: [drawn < 200 ? { type: "Column", style: { width: drawn }, children: [own] } : own] };
   const { head, body } = renderTemplate({ root: page }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   return style + body;

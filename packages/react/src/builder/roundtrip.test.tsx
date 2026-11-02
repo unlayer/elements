@@ -247,6 +247,28 @@ describe("fromDesign(toDesign())", () => {
     expect(tree(back.element)).toEqual({ ...expected, children: [expected.children![0], ...expected.children!.slice(1, -1), expected.children![expected.children!.length - 1]] });
   });
 
+  it("writes page numbers in a block it draws itself (a boxed Column in a footer) as the builder's tokens", () => {
+    const template = (
+      <Document>
+        <Text>Body</Text>
+        <PageFooter>
+          <Column style={{ border: "1px solid #e5e7eb", padding: 8 }}>
+            <Text>
+              Page <PageNumber /> of <PageNumber total />
+            </Text>
+          </Column>
+        </PageFooter>
+      </Document>
+    );
+    const { design, report } = toDesign(template);
+    const footer = (design.body as unknown as { footers: Design["body"]["rows"] }).footers.flatMap((row) => row.columns.flatMap((column) => column.contents));
+    expect(footer.map((content) => content.type)).toEqual(["html"]);
+    expect(String(footer[0].values.html)).toContain("Page {{page_number}} of {{page_count}}");
+    expect(report).toContain("root.children[1].children[0]: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}");
+    // The block keeps its node, so its page numbers come back as they were.
+    expect(tree(fromDesign(JSON.parse(JSON.stringify(design))).element)).toEqual(tree(template));
+  });
+
   it("takes a Document's page settings from the builder, and a page break added in a page splits it", () => {
     const design = designOf(invoice);
     design.body.values.documentSize = "Letter";
