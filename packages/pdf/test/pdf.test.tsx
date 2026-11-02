@@ -3,6 +3,7 @@
  * that nothing is fetched (an image it isn't given is an error, not a request).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import type { ReactElement } from "react";
 import { Circle, Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
 
@@ -136,6 +137,28 @@ describe("renderPdf", () => {
     // 48px margin + 60px drawing = 81pt down, then the line of text below it.
     expect(pages[0].first?.str).toBe("Below the drawing");
     expect(pages[0].first!.y).toBeGreaterThan(36 + 45);
+  });
+
+  it("paints each page white unless it has a background of its own (a viewer may show a transparent page as black)", async () => {
+    const fills = async (template: ReactElement) => {
+      const { pdf } = await renderPdf(template);
+      const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
+      return JSON.stringify((await (await document.getPage(1)).getOperatorList()).argsArray);
+    };
+    expect(
+      await fills(
+        <Document>
+          <Text style={{ color: "#111827" }}>Plain paper</Text>
+        </Document>
+      )
+    ).toMatch(/#ffffff|255,255,255/i);
+    const tinted = await fills(
+      <Document style={{ backgroundColor: "#fef3c7" }}>
+        <Text style={{ color: "#111827" }}>Tinted paper</Text>
+      </Document>
+    );
+    expect(tinted).toMatch(/fef3c7|254,243,199/i);
+    expect(tinted).not.toMatch(/#ffffff|255,255,255/i);
   });
 
   it("writes a Document only", async () => {

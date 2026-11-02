@@ -53,7 +53,9 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): ReactE
               paddingRight: pt(box.margin.right),
               paddingBottom: pt(box.margin.bottom),
               paddingLeft: pt(box.margin.left),
-              backgroundColor: (page?.style.backgroundColor ?? root.style.backgroundColor) as string | undefined,
+              // Paper is white: a page with no background of its own paints one, as a viewer may show a page left
+              // transparent as black (in dark mode), under text that's dark.
+              backgroundColor: (page?.style.backgroundColor ?? root.style.backgroundColor ?? "#ffffff") as string,
               flexDirection: "column",
             }}
           >
