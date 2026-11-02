@@ -1,17 +1,17 @@
 /**
- * The builder adapter (RFC 0001, step 11): a template in the new components as the Unlayer builder's design JSON,
- * through today's components (`raise`), whose design JSON the builder has opened for years. Each item keeps the node
- * it was made from in its values, so what the builder has no editor for yet stays in the design (the builder keeps
- * it, and shows no editor for it).
+ * The builder adapter (RFC 0001, step 11): a template in the new components as the Unlayer builder's design JSON, and
+ * back. To the builder, it goes through today's components (`raise`), whose design JSON the builder has opened for
+ * years; each item keeps the node it was made from in its values, so what the builder has no editor for yet stays in
+ * the design (the builder keeps it, and shows no editor for it). Back from the builder, the template is those nodes
+ * with the builder's changes applied; what was made in the builder comes from its values.
  */
 import type React from "react";
 import { renderToJson } from "../index";
 import { FIELDS } from "./fields";
+import { lower, type Design } from "./lower";
 import { PAYLOAD_KEY, written, type Payload } from "./payload";
+import { printTemplate, toElement } from "./print";
 import { raise } from "./raise";
-
-type Values = Record<string, unknown>;
-type Design = { body: { values: Values; rows: Array<{ values: Values; columns: Array<{ values: Values; contents: Array<{ type: string; values: Values }> }> }> } };
 
 export { raise, type Raised } from "./raise";
 
@@ -29,6 +29,29 @@ export function toDesign(element: React.ReactElement): DesignResult {
   const design = renderToJson(raised);
   keep(raised, design as unknown as Design, payloads);
   return { design, report };
+}
+
+export interface TemplateResult {
+  /** The template, to render. */
+  element: React.ReactElement;
+  /** The template as JSX source in the new components. */
+  code: string;
+  /** What the builder changed that the template can't hold, and what was left out: one line each. */
+  report: string[];
+}
+
+export interface FromDesignOptions {
+  /** Components of the template's own (made with component()), by name, for `element`. */
+  components?: Record<string, React.ComponentType<any>>;
+  /** The name of the component in `code`. */
+  name?: string;
+}
+
+/** The builder's design JSON as a template in the new components: one made with toDesign() as it was, with the builder's changes. */
+export function fromDesign(design: object, options: FromDesignOptions = {}): TemplateResult {
+  const report: string[] = [];
+  const root = lower(design as Design, report);
+  return { element: toElement(root, options.components), code: printTemplate(root, options.name), report };
 }
 
 /** The elements raise() made, in the order renderToJson() writes them (arrays flattened, as React does). */
