@@ -16,7 +16,7 @@ type Values = Record<string, any>;
 type Content = { type: string; values: Values };
 type Column = { contents: Content[]; values: Values };
 type Row = { cells: number[]; columns: Column[]; values: Values };
-export type Design = { body: { rows: Row[]; values: Values } };
+export type Design = { body: { rows: Row[]; values: Values; headers?: Row[]; footers?: Row[] } };
 
 /**
  * Builder data with no Elements meaning that a template keeps where the builder set it (a display condition). The
@@ -78,7 +78,7 @@ export function lower(design: Design, report: string[]): Node {
         i = j;
         continue;
       }
-      const made = block(contents[i].content, `${where}.contents[${i}]`);
+      const made = contents[i].content.type === "page_break" && payloadOf(contents[i].content.values)?.implied ? null : block(contents[i].content, `${where}.contents[${i}]`);
       if (made) out.push(made);
       i++;
     }
@@ -127,52 +127,112 @@ export function lower(design: Design, report: string[]): Node {
     return children;
   };
 
-  const top: Child[] = [];
-  let section: { key: string; node: Node } | null = null;
-  let grid: { key: string; node: Node } | null = null;
-  const seen = new Set<string>();
-  const into = () => (section ? section.node.children! : top);
+  /** A page break is the Document's: one in a column (beside other blocks in a row) is left out. */
+  const noBreaks = (children: Child[], where: string) =>
+    children.filter((child) => {
+      if (typeof child === "string" || child.type !== "PageBreak") return true;
+      say(where)("a page break in a column of a row: a page break is the document's, between its pages: left out");
+      return false;
+    });
 
-  body.rows.forEach((row, r) => {
-    const where = `rows[${r}]`;
-    const payload = payloadOf(row.values);
-    // The Section it's a row of (a new one where its rows were moved apart).
-    if (payload?.sec?.key !== section?.key) {
+  /** Rows as the template's children: each row in its Section (or page, header, footer), Grid or Row, or its blocks. */
+  const place = (rows: Row[], prefix: string): Child[] => {
+    const top: Child[] = [];
+    let section: { key: string; node: Node; base: Node } | null = null;
+    let grid: { key: string; node: Node } | null = null;
+    const seen = new Set<string>();
+    const split = new Set<string>();
+    /** A page a page break ended, which goes on after it (made when something goes in it). */
+    let reopen: { key: string; base: Node } | null = null;
+    const open = (key: string, base: Node) => {
+      section = { key, base, node: { ...copy(base), children: [] } };
+      top.push(section.node);
+    };
+    const into = () => {
+      if (!section && reopen) {
+        open(reopen.key, reopen.base);
+        reopen = null;
+      }
+      return section ? section.node.children! : top;
+    };
+
+    rows.forEach((row, r) => {
+      const where = `${prefix}[${r}]`;
+      const payload = payloadOf(row.values);
+      // The Section it's a row of (a new one where its rows were moved apart).
+      if (payload?.sec?.key !== section?.key) {
+        grid = null;
+        section = null;
+        reopen = null;
+        if (payload?.sec) {
+          const type = payload.sec.node.type;
+          if (seen.has(payload.sec.key) && !split.has(payload.sec.key)) say(where)(`rows of a ${type} were moved apart in the builder: each part is a ${type} of its own`);
+          seen.add(payload.sec.key);
+          open(payload.sec.key, payload.sec.node);
+        }
+      }
+      // The row's band (its background, its hiding) is its Section's; a Row's own values are its own.
+      const band = (key: string) => key === "backgroundColor" || key === "hideDesktop" || key === "_override";
+      if (section) apply("row", section.node, row.values, payload, where, (key) => band(key) && key !== "backgroundColor");
+      if (section) apply("section", section.node, row.values, payload, where, (key) => key === "backgroundColor");
+      else if (payload && !unchanged("backgroundColor", payload.w?.backgroundColor, row.values.backgroundColor)) say(where)("its background changed in the builder: a background across the width is a Section's");
+
+      if (payload?.grid) {
+        if (grid?.key !== payload.grid.key) {
+          grid = { key: payload.grid.key, node: { ...copy(payload.grid.node), children: [] } };
+          into().push(grid.node);
+        }
+        for (const [c, column] of row.columns.entries()) grid.node.children!.push(...noBreaks(columnBlocks(column, `${where}.columns[${c}]`), where));
+        return;
+      }
       grid = null;
-      section = null;
-      if (payload?.sec) {
-        if (seen.has(payload.sec.key)) say(where)("rows of a Section were moved apart in the builder: each part is a Section");
-        seen.add(payload.sec.key);
-        section = { key: payload.sec.key, node: { ...copy(payload.sec.node), children: [] } };
-        top.push(section.node);
+      if (payload?.run || (!payload && row.columns.length === 1 && row.columns[0].contents.some((content) => content.type === "page_break"))) {
+        for (const [c, column] of row.columns.entries()) {
+          for (const made of columnBlocks(column, `${where}.columns[${c}]`)) {
+            if (typeof made !== "string" && made.type === "PageBreak") {
+              // A page break ends the page it's in: what follows is a page of its own.
+              if (section) {
+                say(where)(`a page break inside a ${section.node.type}: it ends it there, and what follows is one of its own`);
+                split.add(section.key);
+                reopen = { key: section.key, base: section.base };
+                section = null;
+              }
+              top.push(made);
+            } else into().push(made);
+          }
+        }
+        return;
       }
-    }
-    // The row's band (its background, its hiding) is its Section's; a Row's own values are its own.
-    const band = (key: string) => key === "backgroundColor" || key === "hideDesktop" || key === "_override";
-    if (section) apply("row", section.node, row.values, payload, where, (key) => band(key) && key !== "backgroundColor");
-    if (section) apply("section", section.node, row.values, payload, where, (key) => key === "backgroundColor");
-    else if (payload && !unchanged("backgroundColor", payload.w?.backgroundColor, row.values.backgroundColor)) say(where)("its background changed in the builder: a background across the width is a Section's");
+      const node: Node = payload?.node ? copy(payload.node) : { type: "Row" };
+      apply("row", node, row.values, payload, where, (key) => !band(key) || (!section && key !== "backgroundColor"));
+      if (!payload && meaningful(row.values.backgroundColor)) node.style = { ...node.style, backgroundColor: row.values.backgroundColor };
+      into().push({ ...node, children: noBreaks(rowChildren(row, payload, where), where) });
+    });
+    return top;
+  };
 
-    if (payload?.grid) {
-      if (grid?.key !== payload.grid.key) {
-        grid = { key: payload.grid.key, node: { ...copy(payload.grid.node), children: [] } };
-        into().push(grid.node);
-      }
-      for (const [c, column] of row.columns.entries()) grid.node.children!.push(...columnBlocks(column, `${where}.columns[${c}]`));
-      return;
-    }
-    grid = null;
-    if (payload?.run) {
-      for (const [c, column] of row.columns.entries()) into().push(...columnBlocks(column, `${where}.columns[${c}]`));
-      return;
-    }
-    const node: Node = payload?.node ? copy(payload.node) : { type: "Row" };
-    apply("row", node, row.values, payload, where, (key) => !band(key) || (!section && key !== "backgroundColor"));
-    if (!payload && meaningful(row.values.backgroundColor)) node.style = { ...node.style, backgroundColor: row.values.backgroundColor };
-    into().push({ ...node, children: rowChildren(row, payload, where) });
-  });
+  const top = place(body.rows, "rows");
+  if (root.type === "Document") {
+    /** A header's or footer's rows as one PageHeader or PageFooter (rows made in the builder in it too). */
+    const part = (children: Child[], type: string): Child[] => {
+      if (!children.length) return [];
+      const own = children.find((child): child is Node => typeof child !== "string" && child.type === type);
+      return [{ ...(own ? { ...own } : { type }), children: children.flatMap((child) => (typeof child !== "string" && child.type === type ? (child.children ?? []) : [child])) }];
+    };
+    top.unshift(...part(place(body.headers ?? [], "headers"), "PageHeader"));
+    top.push(...part(place(body.footers ?? [], "footers"), "PageFooter"));
+  } else pageNumbersAsMergeTags(top);
 
   return uniqueIds({ ...root, children: top });
+}
+
+/** Outside a Document, the page number tokens are the merge tags they look like. */
+function pageNumbersAsMergeTags(children: Child[]) {
+  children.forEach((child, i) => {
+    if (typeof child === "string") return;
+    if (child.type === "PageNumber") children[i] = { type: "MergeTag", props: { name: child.props?.total ? "page_count" : "page_number" } };
+    else if (child.children) pageNumbersAsMergeTags(child.children);
+  });
 }
 
 /** Ids made unique: a block duplicated in the builder keeps its id once, the others get a number after it. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToHtml } from "../index";
-import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Page, Paragraph, Row, Section, Text } from "../primitives";
+import { Button, Canvas, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Row, Section, Text } from "../primitives";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import * as brew from "../primitives/codemod/MorningBrewDigest";
@@ -88,13 +88,13 @@ describe("toDesign", () => {
     ]);
   });
 
-  it("takes an Email or a Page, which the builder edits", () => {
+  it("takes an Email, a Page or a Document, which the builder edits", () => {
     expect(() =>
       toDesign(
-        <Document>
+        <Canvas width={600} height={315}>
           <Text>Hi</Text>
-        </Document>
+        </Canvas>
       )
-    ).toThrow("the builder edits an Email or a Page, not a Document");
+    ).toThrow("the builder edits an Email, a Page or a Document, not a Canvas");
   });
 });

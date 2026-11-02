@@ -55,7 +55,9 @@ function words(text: string, into: Child[]) {
   let last = 0;
   for (const match of text.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/g)) {
     if (match.index! > last) into.push(text.slice(last, match.index));
-    into.push({ type: "MergeTag", props: { name: match[1] } });
+    // A Document's page number, as toDesign() writes it (outside a Document, fromDesign() makes it a merge tag again).
+    if (match[1] === "page_number" || match[1] === "page_count") into.push({ type: "PageNumber", ...(match[1] === "page_count" ? { props: { total: true } } : {}) });
+    else into.push({ type: "MergeTag", props: { name: match[1] } });
     last = match.index! + match[0].length;
   }
   if (last < text.length) into.push(text.slice(last));

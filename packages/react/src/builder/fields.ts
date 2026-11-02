@@ -121,11 +121,24 @@ const videoUrl = (video: { type?: string; videoId?: string; url?: string } | und
 /** The builder's values that come from a template, by the item they're on (a tool's type for a block). */
 export const FIELDS: Record<string, Record<string, Setter>> = {
   body: {
-    contentWidth: ({ node, now }) => setProp(node, "width", num(now)),
+    contentWidth: ({ node, now, was, say }) => {
+      if (node.type !== "Document") setProp(node, "width", num(now));
+      else if (was !== undefined) say("its content width changed in the builder: a Document's is its page's, less its margins");
+    },
     backgroundColor: style("backgroundColor"),
     textColor: style("color"),
     fontFamily: style("fontFamily", (now) => now?.value),
-    preheaderText: ({ node, now }) => setProp(node, "previewText", now),
+    preheaderText: ({ node, now }) => {
+      if (node.type === "Email") setProp(node, "previewText", now);
+    },
+    documentSize: ({ node, now }) => setProp(node, "size", now === "A4" ? undefined : now),
+    documentOrientation: ({ node, now }) => setProp(node, "orientation", now === "portrait" ? undefined : now),
+    // One margin for every side: a number of px, or the builder's preset for the size ("auto").
+    documentMargin: ({ node, now }) => {
+      const preset = (node.props?.size ?? "A4") === "A5" ? 48 : 96;
+      const margin = now === "auto" ? preset : num(now);
+      setProp(node, "margin", Number.isNaN(margin) ? undefined : { top: margin, right: margin, bottom: margin, left: margin });
+    },
   },
   row: {
     padding: ({ node, now, was }) => {
@@ -226,6 +239,8 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
     containerPadding: placedByStack("spacing"),
     ...common,
   },
+  /** A page break has nothing of a template's but its place. */
+  page_break: { containerPadding: () => undefined },
   html: {
     html: ({ say }) => say("its HTML changed in the builder, which a block of the template's own markup doesn't take back"),
     containerPadding: placedByStack("spacing"),
@@ -234,13 +249,14 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
 };
 
 /** The Elements type a block made in the builder is, by its tool. */
-export const NEW_BLOCK: Record<string, string> = { heading: "Heading", text: "Paragraph", button: "Button", image: "Image", divider: "Divider", menu: "Menu", social: "Social", video: "Video" };
+export const NEW_BLOCK: Record<string, string> = { heading: "Heading", text: "Paragraph", button: "Button", image: "Image", divider: "Divider", menu: "Menu", social: "Social", video: "Video", page_break: "PageBreak" };
 
 const TEXT_EDITED = ["style.fontFamily", "style.fontSize", "style.fontWeight", "style.color", "style.lineHeight", "style.letterSpacing", "style.textTransform", "style.textAlign", "style.padding"];
 
 /** What of each component the builder has an editor for, as `props.x`, `style.x` or `hover.x`. */
 const EDITED: Record<string, string[]> = {
   Email: ["props.width", "props.previewText", "style.backgroundColor", "style.color", "style.fontFamily"],
+  Document: ["props.size", "props.orientation", "props.margin", "style.backgroundColor", "style.color", "style.fontFamily"],
   Page: ["props.width", "style.backgroundColor", "style.color", "style.fontFamily"],
   Section: ["style.backgroundColor", "style.padding", "style.gap"],
   // A Row's border is its columns' in the builder; on phones, theirs.

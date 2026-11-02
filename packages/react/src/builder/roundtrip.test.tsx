@@ -8,7 +8,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, Email, Grid, Heading, Image, Layer, Link, Paragraph, Row, Section, Span, Text } from "../primitives";
+import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Span, Text } from "../primitives";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import { collectTemplate } from "../primitives/collect";
 import * as luma from "../primitives/codemod/LumaEventInvite";
@@ -158,7 +158,7 @@ describe("fromDesign(toDesign())", () => {
       ["Paragraph", undefined],
     ]);
     expect(((root.children![2] as Node).children![0] as Node).type).toBe("Row");
-    expect(back.report).toEqual(["rows[2]: rows of a Section were moved apart in the builder: each part is a Section"]);
+    expect(back.report).toEqual(["rows[2]: rows of a Section were moved apart in the builder: each part is a Section of its own"]);
   });
 
   it("makes blocks made in the builder from their values, and says what Elements has no component for", () => {
@@ -199,5 +199,69 @@ describe("fromDesign(toDesign())", () => {
       new Function("require", "module", "exports", js)((name: string) => modules[name], module, module.exports);
       expect(tree(module.exports.default())).toEqual(tree(template));
     }
+  });
+
+  const invoice = (
+    <Document size="A5" orientation="landscape" margin={40}>
+      <PageHeader>
+        <Text>Acme Inc.</Text>
+      </PageHeader>
+      <Document.Page>
+        <Heading>Invoice</Heading>
+        <Paragraph>
+          Page <PageNumber /> of <PageNumber total />
+        </Paragraph>
+      </Document.Page>
+      <Document.Page style={{ backgroundColor: "#fafafa" }}>
+        <Text>Terms</Text>
+      </Document.Page>
+      <Text>Notes</Text>
+      <PageBreak />
+      <Text>Appendix</Text>
+      <PageFooter>
+        <Text>Thank you</Text>
+      </PageFooter>
+    </Document>
+  );
+
+  it("brings a Document back as it went: its pages, page breaks, header, footer and page numbers", () => {
+    const { design, report } = toDesign(invoice);
+    const values = design.body.values;
+    expect([values.documentSize, values.documentOrientation, values.documentMargin]).toEqual(["A5", "landscape", "40px"]);
+    expect(design.schemaVersion).toBeGreaterThanOrEqual(28);
+    const body = design.body as unknown as Design["body"] & { headers: Design["body"]["rows"]; footers: Design["body"]["rows"] };
+    expect([body.headers.length, body.footers.length]).toEqual([1, 1]);
+    expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
+    // A page break before the second page (only where it starts), and the template's own.
+    expect(blocks(design as unknown as Design).map((content) => content.type)).toEqual(["heading", "text", "page_break", "text", "text", "page_break", "text"]);
+    expect(String(blocks(design as unknown as Design)[1].values.text)).toBe("Page {{page_number}} of {{page_count}}");
+    expect(report).toEqual([
+      "root.children[1].children[1]: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}",
+      "root.children[2]: kept in the design, with no editor in the builder yet: style.backgroundColor",
+    ]);
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const expected = tree(invoice);
+    // The header first and the footer last, as the builder holds them.
+    expect(tree(back.element)).toEqual({ ...expected, children: [expected.children![0], ...expected.children!.slice(1, -1), expected.children![expected.children!.length - 1]] });
+  });
+
+  it("takes a Document's page settings from the builder, and a page break added in a page splits it", () => {
+    const design = designOf(invoice);
+    design.body.values.documentSize = "Letter";
+    design.body.values.documentMargin = "auto";
+    // A page break added after the first page's heading.
+    design.body.rows[0].columns[0].contents.splice(1, 0, { type: "page_break", values: { color: "#6b7280", containerPadding: "10px" } });
+    const back = fromDesign(design);
+    const root = tree(back.element);
+    expect(root.props).toEqual({ size: "Letter", orientation: "landscape", margin: { top: 96, right: 96, bottom: 96, left: 96 } });
+    expect(root.children!.map((child) => (child as Node).type)).toEqual(["PageHeader", "DocumentPage", "PageBreak", "DocumentPage", "DocumentPage", "Text", "PageBreak", "Text", "PageFooter"]);
+    expect(back.report).toEqual(["rows[0]: a page break inside a DocumentPage: it ends it there, and what follows is one of its own"]);
+  });
+
+  it("makes a page number token outside a Document the merge tag it looks like", () => {
+    const design = designOf(<Email>{[<Text key="a">Hi</Text>]}</Email>);
+    blocks(design)[0].values.text = "<p>Page {{page_number}}</p>";
+    expect(tree(fromDesign(design).element).children).toEqual([{ type: "Text", children: ["Page ", { type: "MergeTag", props: { name: "page_number" } }] }]);
   });
 });

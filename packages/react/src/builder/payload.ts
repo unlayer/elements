@@ -28,7 +28,7 @@ export interface Payload {
   node?: Node;
   /** The values written, by key: a value that isn't the same now was changed in the builder. */
   w?: Record<string, Json>;
-  /** A row: the Section it's part of. */
+  /** A row: the Section it's part of (or a Document's page, header or footer). */
   sec?: Group;
   /** A row: the Grid it's a row of (its columns its cells). */
   grid?: Group;
@@ -40,6 +40,8 @@ export interface Payload {
   wrap?: Group[];
   /** A block the builder shows as HTML: it can be moved, not edited. */
   locked?: true;
+  /** A page break that's only where a Document's page starts (not a PageBreak of the template's). */
+  implied?: true;
 }
 
 /** Values the builder sets for itself, or rebuilds: not written by a template, so not compared. */

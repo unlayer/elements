@@ -10,7 +10,7 @@
 import { Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { prepareTemplate, renderTemplate } from "@unlayer-internal/elements-exporters";
 import React from "react";
-import { Button, Column, Divider, Email, Heading, Html, Image, Menu, Page, Paragraph, Row, Social, Video } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
 import { collectTemplate } from "../primitives/collect";
 import { kept } from "./fields";
 import { bare, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
@@ -25,6 +25,9 @@ export interface Raised {
   report: string[];
   /** What each element (the root, a row, a column, a block) was made from. */
   payloads: WeakMap<object, Payload>;
+  /** A Document's header and footer, as rows of their own (the builder's `headers` and `footers`). */
+  headers?: React.ReactElement[];
+  footers?: React.ReactElement[];
 }
 
 /** A row's place in the template: the Section, and the Grid, it's a row of. */
@@ -67,6 +70,9 @@ function runsHtml(node: Node): string {
           return "<br>";
         case "MergeTag":
           return `{{${child.props?.name}}}`;
+        case "PageNumber":
+          // The builder has no page numbers: a token in their place, read back as one.
+          return child.props?.total ? "{{page_count}}" : "{{page_number}}";
         case "Link":
           return `<a href="${escapeHtml(String(child.props?.href ?? ""))}" target="_blank"${style}>${runsHtml(child)}</a>`;
         default:
@@ -85,8 +91,8 @@ export function raise(element: React.ReactElement): Raised {
   if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), payloads };
   const root = document.root;
   const resolvedRoot = prepared.resolved.root;
-  if (root.type !== "Email" && root.type !== "Page") {
-    return { element: null, report: [`root: the builder edits an Email or a Page, not a ${root.type}`], payloads };
+  if (root.type !== "Email" && root.type !== "Page" && root.type !== "Document") {
+    return { element: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`], payloads };
   }
   /** The element, paired with what it was made from. */
   const tag = (made: React.ReactElement, payload: Omit<Payload, "v">): React.ReactElement => {
@@ -124,6 +130,7 @@ export function raise(element: React.ReactElement): Raised {
     const made = tool(node, path, parent, around, wraps);
     if (Array.isArray(made) || payloads.has(made)) return made;
     noteKept(node, path);
+    if (JSON.stringify(node.children ?? []).includes('"type":"PageNumber"')) report.push(`${path}: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}`);
     return tag(made, { node, ...wrapped(wraps) });
   };
 
@@ -379,38 +386,61 @@ export function raise(element: React.ReactElement): Raised {
 
   const sections = (root.children ?? []).map((child, i) => ({ child, path: `root.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
   const body: React.ReactElement[] = [];
+  const headers: React.ReactElement[] = [];
+  const footers: React.ReactElement[] = [];
   let loose: Array<{ child: Node; path: string }> = [];
   const flushLoose = () => {
     if (loose.length) body.push(...rows(loose, resolvedRoot, {}, ZERO, `root.loose${body.length}`));
     loose = [];
   };
+  const childrenOf = (node: Node, path: string) => (node.children ?? []).map((c, i) => ({ child: c, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
+  /** A page break of the builder's, in a row of its own: one of the template's, or one that's only where a page starts. */
+  const pageBreak = (path: string, node: Node, implied: boolean) =>
+    tag(<Row key={`${path}.break`} cells={[1]} padding="0px">{tag(<Column padding="0px">{tag(<PageBreak key={path} />, { node, ...(implied ? { implied: true } : {}) })}</Column>, { run: true })}</Row>, { run: true });
   for (const { child, path } of sections) {
     if (child.type === "Section") {
       flushLoose();
       const own = at(path);
       noteKept(bare(child), path);
-      const sectionChildren = (child.children ?? []).map((c, i) => ({ child: c, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
-      body.push(...rows(sectionChildren, own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path, { sec: { key: path, node: bare(child) } }));
+      body.push(...rows(childrenOf(child, path), own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path, { sec: { key: path, node: bare(child) } }));
+    } else if (child.type === "DocumentPage") {
+      // A page is its rows, a page break before it where something comes before it.
+      flushLoose();
+      if (body.length) body.push(pageBreak(path, { type: "PageBreak" }, true));
+      noteKept(bare(child), path);
+      body.push(...rows(childrenOf(child, path), at(path), {}, ZERO, path, { sec: { key: path, node: bare(child) } }));
+    } else if (child.type === "PageBreak") {
+      flushLoose();
+      body.push(pageBreak(path, child, false));
+    } else if (child.type === "PageHeader" || child.type === "PageFooter") {
+      noteKept(bare(child), path);
+      (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), {}, ZERO, path, { sec: { key: path, node: bare(child) } }));
     } else loose.push({ child, path });
   }
   flushLoose();
 
   noteKept(bare(root), "root");
-  const Root = root.type === "Email" ? Email : Page;
   const style = resolvedRoot.style;
   const text = resolvedRoot.text;
-  const raised = tag(
-    <Root
-      contentWidth={px(Number(resolvedRoot.width)) as never}
-      backgroundColor={style.backgroundColor as string | undefined}
-      textColor={text.color}
-      fontFamily={{ label: String(text.fontFamily).split(",")[0].replace(/["']/g, "").trim(), value: String(text.fontFamily) }}
-      {...(root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {})}
-    >
-      {body}
-    </Root>,
-    { node: bare(root) }
-  );
+  const common = {
+    contentWidth: px(Number(resolvedRoot.width)) as never,
+    backgroundColor: style.backgroundColor as string | undefined,
+    textColor: text.color,
+    fontFamily: { label: String(text.fontFamily).split(",")[0].replace(/["']/g, "").trim(), value: String(text.fontFamily) },
+  };
+  const raised =
+    root.type === "Document"
+      ? tag(
+          <Document {...common} documentSize={(root.props?.size as never) ?? "A4"} documentOrientation={(root.props?.orientation as never) ?? "portrait"}>
+            {body}
+          </Document>,
+          { node: bare(root) }
+        )
+      : tag(
+          React.createElement(root.type === "Email" ? Email : Page, { ...common, ...(root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {}) }, body),
+          { node: bare(root) }
+        );
+  if (root.type === "Document") return { element: raised, report, payloads, headers, footers };
   return { element: raised, report, payloads };
 }
 
