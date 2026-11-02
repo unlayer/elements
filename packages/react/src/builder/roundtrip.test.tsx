@@ -641,3 +641,90 @@ describe("fromDesign(toDesign())", () => {
     });
   });
 });
+
+describe("what the builder writes, read back", () => {
+  it("reads a column's and a button's border the builder sets, side by side", () => {
+    const design = designOf(
+      <Email>
+        <Row>
+          <Column>
+            <Button href="#">Go</Button>
+          </Column>
+        </Row>
+      </Email>
+    );
+    const column = design.body.rows[0].columns[0];
+    column.values.border = { borderTopWidth: "2px", borderTopStyle: "dashed", borderTopColor: "#ff0000", borderBottomWidth: "1px" };
+    column.contents[0].values.border = { borderLeftWidth: "3px", borderLeftColor: "#00ff00" };
+    const row = tree(fromDesign(design).element).children![0] as Node;
+    const back = row.type === "Row" ? (row.children![0] as Node) : row;
+    expect(back.style?.border).toEqual({ top: { width: 2, style: "dashed", color: "#ff0000" }, bottom: { width: 1, style: "solid", color: "#000000" } });
+    expect((back.children![0] as Node).style?.border).toEqual({ left: { width: 3, style: "solid", color: "#00ff00" } });
+  });
+
+  it("makes a video the builder made from its id (YouTube or Vimeo), and leaves out one with no URL, saying so", () => {
+    const design = designOf(<Email>{[<Text key="a">Before</Text>]}</Email>);
+    design.body.rows[0].columns[0].contents.push(
+      { type: "video", values: { video: { type: "vimeo", videoId: "76979871" } } },
+      { type: "video", values: { video: { type: "youtube", videoId: "dQw4w9WgXcQ" } } },
+      { type: "video", values: { video: {} } }
+    );
+    const back = fromDesign(design);
+    expect((tree(back.element).children as Node[]).slice(1).map((node) => node.props?.src)).toEqual(["https://vimeo.com/76979871", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]);
+    expect(back.report).toEqual(["rows[0].columns[0].contents[3]: a video with no URL in the builder: left out"]);
+  });
+
+  it("takes an image's link the builder changes or clears, around the template's own Image", () => {
+    const linked = (
+      <Email>
+        <Link href="https://a.test">
+          <Image src={{ src: "https://example.com/a.png", width: 600, height: 300 }} alt="A" />
+        </Link>
+      </Email>
+    );
+    const changed = designOf(linked);
+    blocks(changed)[0].values.action = { name: "web", values: { href: "https://b.test", target: "_blank" } };
+    expect((tree(fromDesign(changed).element).children![0] as Node).props?.href).toBe("https://b.test");
+    const cleared = designOf(linked);
+    blocks(cleared)[0].values.action = { name: "web", values: { href: "", target: "_blank" } };
+    expect((tree(fromDesign(cleared).element).children![0] as Node).type).toBe("Image");
+  });
+
+  it("leaves out a page break the builder put in a column beside other blocks, saying so", () => {
+    const design = designOf(
+      <Document>
+        <Row>
+          <Column>
+            <Text>A</Text>
+          </Column>
+          <Column>
+            <Text>B</Text>
+          </Column>
+        </Row>
+      </Document>
+    );
+    design.body.rows[0].columns[0].contents.push({ type: "page_break", values: {} });
+    const back = fromDesign(design);
+    expect(JSON.stringify(tree(back.element))).not.toContain("PageBreak");
+    expect(back.report).toContain("rows[0].columns[0]: a page break in a column of a row: a page break is the document's, between its pages: left out");
+  });
+
+  it("writes a run's size, spacing and font into the builder's text, and reads the builder's styles and entities back", () => {
+    const design = designOf(
+      <Email>
+        <Text>
+          <Span style={{ fontSize: 18, letterSpacing: 1, fontFamily: '"Times New Roman", serif' }}>styled</Span>
+        </Text>
+      </Email>
+    );
+    expect(blocks(design)[0].values.text).toContain("font-size:18px;letter-spacing:1px;font-family:'Times New Roman', serif");
+    blocks(design)[0].values.text =
+      '<p>It&#39;s &#x41; <span style="font-style:italic;text-decoration:underline solid;text-transform:uppercase;font-family:Georgia;font-size:20px;letter-spacing:2px;line-height:2;border:1px solid">styled</span><span></span></p>';
+    const back = fromDesign(design);
+    expect((tree(back.element).children![0] as Node).children).toEqual([
+      "It's A ",
+      { type: "Span", style: { fontStyle: "italic", textDecoration: "underline", textTransform: "uppercase", fontFamily: "Georgia", fontSize: 20, letterSpacing: 2 }, children: ["styled"] },
+    ]);
+    expect(back.report.join("\n")).toContain("border: 1px solid");
+  });
+});

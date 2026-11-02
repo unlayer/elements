@@ -39,6 +39,8 @@ function unchanged(key: string, was: unknown, now: unknown): boolean {
   if (was === null || typeof was !== "object") return was === now || (was === "" && now === undefined);
   if (now === null || typeof now !== "object") return false;
   if (Array.isArray(was)) return Array.isArray(now) && was.length === now.length && was.every((item, i) => unchanged("", item, now[i]));
+  // Written empty (a border the template has none of): anything the builder put in it is a change.
+  if (!Object.keys(was).length) return !meaningful(now);
   return Object.entries(was).every(([k, v]) => unchanged(k, v, (now as Values)[k]));
 }
 
