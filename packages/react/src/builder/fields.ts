@@ -7,7 +7,7 @@
  * the node's own by the change. A change the node can't hold (a block's own alignment, which a stack sets) is said.
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
-import { parseRuns } from "./runs";
+import { heldByHtml, parseRuns } from "./runs";
 
 export interface Change {
   node: Node;
@@ -70,8 +70,9 @@ function lines(border: Record<string, string> | undefined): Json | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
-const text: Setter = ({ node, now, say }) => {
+const text: Setter = ({ node, now, was, say }) => {
   const { children, left } = parseRuns(String(now ?? ""));
+  if (was !== undefined && !heldByHtml(node)) say("its text was edited in the builder: what its HTML can't hold (a link's hover or title, a run's own size) is left out");
   node.children = children;
   if (left.length) say(`its text has markup a text block doesn't hold, left out: ${[...new Set(left)].join(", ")}`);
 };
@@ -131,10 +132,16 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
     preheaderText: ({ node, now }) => {
       if (node.type === "Email") setProp(node, "previewText", now);
     },
-    documentSize: ({ node, now }) => setProp(node, "size", now === "A4" ? undefined : now),
-    documentOrientation: ({ node, now }) => setProp(node, "orientation", now === "portrait" ? undefined : now),
+    // A Document's page settings (the builder writes them for every design; an Email or Page has none).
+    documentSize: ({ node, now }) => {
+      if (node.type === "Document") setProp(node, "size", now === "A4" ? undefined : now);
+    },
+    documentOrientation: ({ node, now }) => {
+      if (node.type === "Document") setProp(node, "orientation", now === "portrait" ? undefined : now);
+    },
     // One margin for every side: a number of px, or the builder's preset for the size ("auto").
     documentMargin: ({ node, now }) => {
+      if (node.type !== "Document") return;
       const preset = (node.props?.size ?? "A4") === "A5" ? 48 : 96;
       const margin = now === "auto" ? preset : num(now);
       setProp(node, "margin", Number.isNaN(margin) ? undefined : { top: margin, right: margin, bottom: margin, left: margin });
@@ -149,6 +156,8 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
     },
     columnsBackgroundColor: style("backgroundColor"),
     noStackMobile: ({ node, now }) => setProp(node, "stackOnMobile", now === true ? false : undefined),
+    // Its columns' widths: their Columns' (fromDesign reads them with its columns).
+    cells: () => undefined,
     ...common,
   },
   /** A Section's band: the background of each of its rows. */
@@ -172,7 +181,12 @@ export const FIELDS: Record<string, Record<string, Setter>> = {
   button: {
     text,
     ...textStyle,
-    href: ({ node, now }) => setProp(node, "href", now?.values?.href ?? ""),
+    href: ({ node, now, say }) => {
+      const href = String(now?.values?.href ?? "");
+      // A Button is a link: one the builder left empty is "#" until it's set.
+      if (!href) say("its link is empty in the builder: it's \"#\" until one is set");
+      setProp(node, "href", href || "#");
+    },
     buttonColors: ({ node, now, was }) => {
       if (now?.color !== was?.color) setStyle(node, "color", now?.color);
       if (now?.backgroundColor !== was?.backgroundColor) setStyle(node, "backgroundColor", now?.backgroundColor);
@@ -267,6 +281,7 @@ const EDITED: Record<string, string[]> = {
   Text: TEXT_EDITED,
   Button: ["props.href", ...TEXT_EDITED, "style.backgroundColor", "style.width", "style.border", "style.borderRadius", "hover.color", "hover.backgroundColor"],
   Image: ["props.src", "props.alt", "style.width", "style.maxWidth"],
+  Link: ["props.href"],
   Divider: ["style.borderTop", "style.width", "style.padding"],
   Menu: ["props.items", "props.separator", "props.layout", "style.color", "style.separatorColor", "style.fontFamily", "style.fontSize", "style.padding", "style.justifyContent"],
   Social: ["props.icons", "props.iconType", "props.size", "style.gap", "style.justifyContent"],

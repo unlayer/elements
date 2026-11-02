@@ -6,6 +6,47 @@
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
 
+const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const cssPx = (n: number) => `${Math.round(n * 100) / 100}px`;
+
+/** A run's style as CSS (a Span's, a Link's). */
+function runCss(style: Record<string, Json> | undefined): string {
+  if (!style) return "";
+  const out: string[] = [];
+  const map: Record<string, string> = { color: "color", backgroundColor: "background-color", fontWeight: "font-weight", fontStyle: "font-style", textDecoration: "text-decoration", textTransform: "text-transform" };
+  for (const [key, value] of Object.entries(style)) {
+    if (value === undefined || value === null) continue;
+    if (map[key]) out.push(`${map[key]}:${value}`);
+    else if (key === "fontSize" || key === "letterSpacing") out.push(`${key === "fontSize" ? "font-size" : "letter-spacing"}:${cssPx(Number(value))}`);
+    else if (key === "fontFamily") out.push(`font-family:${String(value).replace(/"/g, "'")}`);
+  }
+  return out.join(";");
+}
+
+/** A text block's runs as the HTML today's text tools (and the builder) take. */
+export function runsHtml(node: Node): string {
+  return (node.children ?? [])
+    .map((child) => {
+      if (typeof child === "string") return escapeHtml(child);
+      const css = runCss(child.style);
+      const style = css ? ` style="${css}"` : "";
+      switch (child.type) {
+        case "LineBreak":
+          return "<br>";
+        case "MergeTag":
+          return `{{${child.props?.name}}}`;
+        case "PageNumber":
+          // The builder has no page numbers: a token in their place, read back as one.
+          return child.props?.total ? "{{page_count}}" : "{{page_number}}";
+        case "Link":
+          return `<a href="${escapeHtml(String(child.props?.href ?? ""))}" target="_blank"${style}>${runsHtml(child)}</a>`;
+        default:
+          return `<span${style}>${runsHtml(child)}</span>`;
+      }
+    })
+    .join("");
+}
+
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*?)\/?\s*>/g;
 const ATTRIBUTE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'" };
@@ -23,6 +64,11 @@ function attributes(text: string): Record<string, string> {
   return out;
 }
 
+/** A color as hex where the builder wrote it as rgb() (its editor does), so the same color reads the same. */
+const hex = (value: string) => {
+  const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*1(?:\.0+)?\s*)?\)$/i.exec(value);
+  return rgb ? `#${rgb.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, "0")).join("")}` : value;
+};
 const px = (value: string) => (/^-?[\d.]+px$/.test(value.trim()) ? parseFloat(value) : undefined);
 
 /** A `style` attribute as a run's style: the properties a Span or a Link takes. */
@@ -33,8 +79,8 @@ function runStyle(css: string | undefined, left: string[]): Record<string, Json>
     const name = property?.trim().toLowerCase();
     const value = rest.join(":").trim();
     if (!name || !value) continue;
-    if (name === "color") out.color = value;
-    else if (name === "background-color") out.backgroundColor = value;
+    if (name === "color") out.color = hex(value);
+    else if (name === "background-color") out.backgroundColor = hex(value);
     else if (name === "font-weight") out.fontWeight = value === "bold" ? 700 : value === "normal" ? 400 : Number(value) || value;
     else if (name === "font-style") out.fontStyle = value;
     else if (name === "text-decoration" || name === "text-decoration-line") out.textDecoration = value.split(/\s+/)[0];
@@ -89,6 +135,7 @@ export function parseRuns(html: string): { children: Child[]; left: string[] } {
     if (tag === "p" || tag === "div") {
       // Paragraphs one under another (the builder sets no space between them): a line break between each.
       if (!closing && paragraphs++ > 0) top().children.push({ type: "LineBreak" });
+      if (!closing && /text-align\s*:/i.test(attributes(match[3]).style ?? "")) left.push("a paragraph's own alignment");
       continue;
     }
     if (closing) {
@@ -140,8 +187,15 @@ function tidy(children: Child[]): Child[] {
   return out;
 }
 
-/** Whether two HTMLs are the same text (the same runs). */
+/** Whether two HTMLs are the same text: the same runs, and the same markup no run holds (an image added is a change). */
 export function sameText(a: unknown, b: unknown): boolean {
   if (typeof a !== "string" || typeof b !== "string") return a === b;
-  return a === b || JSON.stringify(parseRuns(a).children) === JSON.stringify(parseRuns(b).children);
+  if (a === b) return true;
+  const [x, y] = [parseRuns(a), parseRuns(b)];
+  return JSON.stringify(x.children) === JSON.stringify(y.children) && JSON.stringify([...new Set(x.left)].sort()) === JSON.stringify([...new Set(y.left)].sort());
+}
+
+/** Whether a node's runs are all its HTML holds (else editing its text in the builder loses the rest: a link's hover). */
+export function heldByHtml(node: Node): boolean {
+  return JSON.stringify(parseRuns(runsHtml(node)).children) === JSON.stringify(tidy(node.children ?? []));
 }

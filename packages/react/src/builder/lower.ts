@@ -5,7 +5,9 @@
  *
  * The builder's order is the template's: rows of one Section next to each other are that Section again (rows of it
  * moved apart are a Section each), rows of a Grid are its children in order, a one-column row of blocks is those blocks
- * in its Section or the root, and blocks of a box that was flattened into a column are that box again.
+ * in its Section or the root, and blocks of a box that was flattened into a column are that box again. A row or column
+ * the builder changed where the template has no node of its own (a row of blocks, a Grid's row) comes back as one that
+ * holds the change; a row added in the builder between rows of one Section (or page) is in it.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
@@ -42,28 +44,54 @@ function unchanged(key: string, was: unknown, now: unknown): boolean {
 /** A value the builder sets on a block made in it that says something (not empty, not off). */
 const meaningful = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false && !(typeof value === "object" && !Object.keys(value as object).length);
 
+/** A row holding only page breaks (where a Document's page ends). */
+const breakRow = (row: Row) => row.columns.length === 1 && row.columns[0].contents.length > 0 && row.columns[0].contents.every((content) => content.type === "page_break");
+
+/** A row's band (the background across the width) is a Section's in Elements. */
+const BAND = "backgroundColor";
+const notBand = (key: string) => key !== BAND;
+
 export function lower(design: Design, report: string[]): Node {
   const say = (where: string) => (message: string) => report.push(`${where}: ${message}`);
+
+  /** The keys of an item's values the builder changed (or, made in the builder, set) that the template holds. */
+  const changes = (kind: string, values: Values, payload: Payload | undefined, only?: (key: string) => boolean): string[] => {
+    const fields = FIELDS[kind] ?? {};
+    const w = payload?.w;
+    return Object.keys({ ...w, ...values }).filter((key) => {
+      if (BUILDER_OWN.has(key) || (only && !only(key))) return false;
+      if (w && key in w ? unchanged(key, w[key], values[key]) : !meaningful(values[key])) return false;
+      return Boolean(fields[key]) || Boolean(w && key in w) || BUILDER_DATA.has(key);
+    });
+  };
 
   /** The builder's changes to an item applied to its node; the builder's own data on it kept in `compat.builder`. */
   const apply = (kind: string, node: Node, values: Values, payload: Payload | undefined, where: string, only?: (key: string) => boolean) => {
     const fields = FIELDS[kind] ?? {};
     const w = payload?.w;
-    for (const key of Object.keys({ ...w, ...values })) {
-      if (BUILDER_OWN.has(key) || (only && !only(key))) continue;
-      const now = values[key];
-      const was = w?.[key];
-      if (w && key in w ? unchanged(key, was, now) : !meaningful(now)) continue;
+    for (const key of changes(kind, values, payload, only)) {
       const set = fields[key];
-      if (set) set({ node, now, was: w ? was : undefined, say: say(where) });
-      else if ((w && key in w) || BUILDER_DATA.has(key)) node.compat = { ...node.compat, builder: { ...(node.compat?.builder as Values), [key]: now as Json } };
+      if (set) set({ node, now: values[key], was: w ? w[key] : undefined, say: say(where) });
+      else {
+        if (w && key in w && !BUILDER_DATA.has(key)) say(where)(`its ${key} changed in the builder: kept for the builder, which Elements doesn't draw`);
+        // A value the builder removed is no longer the builder's data.
+        const builder = { ...(node.compat?.builder as Values) };
+        if (values[key] === undefined) delete builder[key];
+        else builder[key] = values[key] as Json;
+        const { builder: _builder, ...rest } = node.compat ?? {};
+        node.compat = Object.keys(builder).length ? { ...rest, builder } : Object.keys(rest).length ? rest : undefined;
+        if (!node.compat) delete node.compat;
+      }
     }
   };
 
   const body = design.body;
   const bodyPayload = payloadOf(body.values);
-  const root: Node = bodyPayload?.node ? copy(bodyPayload.node) : { type: "Email" };
+  // A design made in the builder is an Email, or a Document where it has a document's parts (a header, a page break).
+  const printed = Boolean(body.headers?.length || body.footers?.length) || body.rows.some((row) => row.columns.some((column) => column.contents.some((content) => content.type === "page_break")));
+  const root: Node = bodyPayload?.node ? copy(bodyPayload.node) : { type: printed ? "Document" : "Email" };
   apply("body", root, body.values, bodyPayload, "body");
+  const isDocument = root.type === "Document";
 
   /** A column's blocks, the boxes flattened into it put back around theirs. */
   const blocks = (contents: Array<{ content: Content; wraps: Group[] }>, where: string): Child[] => {
@@ -86,11 +114,26 @@ export function lower(design: Design, report: string[]): Node {
   };
   const columnBlocks = (column: Column, where: string) => blocks(column.contents.map((content) => ({ content, wraps: payloadOf(content.values)?.wrap ?? [] })), where);
 
+  /** An image with the builder's link: a Link around it (the template's own, or one the builder set). */
+  const linkedImage = (node: Node, values: Values, payload: Payload | undefined, where: string): Node => {
+    const image = node.type === "Link" ? (node.children ?? []).find((child): child is Node => typeof child !== "string" && child.type === "Image")! : node;
+    apply("image", image, values, payload, where, (key) => key !== "action");
+    const href = String(values.action?.values?.href ?? "");
+    if (payload && href === String(payload.w?.action?.values?.href ?? "")) return node;
+    if (node.type === "Link") {
+      if (!href) return image;
+      node.props = { ...node.props, href };
+      return node;
+    }
+    return href ? { type: "Link", props: { href }, children: [image] } : image;
+  };
+
   const block = (content: Content, where: string): Node | null => {
     const payload = payloadOf(content.values);
     if (payload?.node) {
       const node = copy(payload.node);
       if (payload.locked) apply("html", node, content.values, payload, where, (key) => key !== "containerPadding");
+      else if (content.type === "image") return linkedImage(node, content.values, payload, where);
       else apply(content.type, node, content.values, payload, where);
       return node;
     }
@@ -99,18 +142,35 @@ export function lower(design: Design, report: string[]): Node {
       say(where)(`a ${content.type} block of the builder's has no component in Elements yet: left out`);
       return null;
     }
+    if (content.type === "page_break" && !isDocument) {
+      say(where)("a page break is a Document's: left out");
+      return null;
+    }
+    if (content.type === "image") return linkedImage({ type }, content.values, undefined, where);
     const node: Node = { type };
     apply(content.type, node, content.values, undefined, where);
+    if (type === "Video" && !node.props?.src) {
+      say(where)("a video with no URL in the builder: left out");
+      return null;
+    }
     return node;
   };
 
-  /** A Row's children from its columns, and their widths where the builder's changed. */
+  /** A page break is the Document's: one in a column (beside other blocks in a row) is left out. */
+  const noBreaks = (children: Child[], where: string) =>
+    children.filter((child) => {
+      if (typeof child === "string" || child.type !== "PageBreak") return true;
+      say(where)("a page break in a column of a row: a page break is the document's, between its pages: left out");
+      return false;
+    });
+
+  /** A Row's children from its columns (a column the builder changed holding its change), and their widths where the builder's changed. */
   const rowChildren = (row: Row, rowPayload: Payload | undefined, where: string): Child[] => {
     const children = row.columns.map((column, c): Node => {
       const at = `${where}.columns[${c}]`;
       const payload = payloadOf(column.values);
-      const inner = columnBlocks(column, at);
-      if (payload?.direct && inner.length === 1 && typeof inner[0] !== "string") return inner[0];
+      const inner = noBreaks(columnBlocks(column, at), at);
+      if (payload?.direct && inner.length === 1 && typeof inner[0] !== "string" && !changes("column", column.values, payload).length) return inner[0];
       const node: Node = payload?.node ? copy(payload.node) : { type: "Column" };
       apply("column", node, column.values, payload, at);
       return { ...node, children: inner };
@@ -124,16 +184,10 @@ export function lower(design: Design, report: string[]): Node {
           child.style = { ...child.style, width: `${Math.round((row.cells[c] / total) * 10000) / 100}%` };
         });
     }
+    // Its children the builder has no column for, back in their places.
+    for (const { index, node } of rowPayload?.kept ?? []) children.splice(Math.min(index, children.length), 0, copy(node));
     return children;
   };
-
-  /** A page break is the Document's: one in a column (beside other blocks in a row) is left out. */
-  const noBreaks = (children: Child[], where: string) =>
-    children.filter((child) => {
-      if (typeof child === "string" || child.type !== "PageBreak") return true;
-      say(where)("a page break in a column of a row: a page break is the document's, between its pages: left out");
-      return false;
-    });
 
   /** Rows as the template's children: each row in its Section (or page, header, footer), Grid or Row, or its blocks. */
   const place = (rows: Row[], prefix: string): Child[] => {
@@ -155,64 +209,134 @@ export function lower(design: Design, report: string[]): Node {
       }
       return section ? section.node.children! : top;
     };
+    const payloads = rows.map((row) => payloadOf(row.values));
+    /** The Section (or page) a row is in: its own, or for a row made in the builder, the one around it. */
+    const groupOf = (r: number): Group | undefined => {
+      if (payloads[r]) return payloads[r]!.sec;
+      let p = r - 1;
+      while (p >= 0 && !payloads[p]) p--;
+      let n = r + 1;
+      while (n < rows.length && !payloads[n]) n++;
+      const before = p >= 0 ? payloads[p]?.sec : undefined;
+      const after = n < rows.length ? payloads[n]?.sec : undefined;
+      if (before && after?.key === before.key) return before;
+      // On a page in the builder from the page break that starts it to the one that ends it.
+      if (before?.node.type === "DocumentPage" && (n >= rows.length || breakRow(rows[n]))) return before;
+      if (after?.node.type === "DocumentPage" && (p < 0 || breakRow(rows[p]))) return after;
+      return undefined;
+    };
 
     rows.forEach((row, r) => {
       const where = `${prefix}[${r}]`;
-      const payload = payloadOf(row.values);
-      // The Section it's a row of (a new one where its rows were moved apart).
-      if (payload?.sec?.key !== section?.key) {
+      const payload = payloads[r];
+      const group = groupOf(r);
+      const w = payload?.w;
+      // The row's band changed in the builder (or a row made there has one): a Section's background in Elements. A
+      // band cleared there is no background.
+      const bandChanged = w && BAND in w ? !unchanged(BAND, w[BAND], row.values[BAND]) : !payload && meaningful(row.values[BAND]);
+      const band = meaningful(row.values[BAND]) ? (row.values[BAND] as string) : undefined;
+      const ownSection = bandChanged && group?.node.type === "Section";
+
+      // The Section it's a row of (a new one where its rows were moved apart, or its band is its own now).
+      if (ownSection || group?.key !== section?.key) {
         grid = null;
         section = null;
         reopen = null;
-        if (payload?.sec) {
-          const type = payload.sec.node.type;
-          if (seen.has(payload.sec.key) && !split.has(payload.sec.key)) say(where)(`rows of a ${type} were moved apart in the builder: each part is a ${type} of its own`);
-          seen.add(payload.sec.key);
-          open(payload.sec.key, payload.sec.node);
+        if (group) {
+          const type = group.node.type;
+          if (ownSection) {
+            say(where)("its background changed in the builder: a band across the width is a Section's in Elements, so this row is a Section of its own");
+            split.add(group.key);
+          } else if (seen.has(group.key) && !split.has(group.key)) say(where)(`rows of a ${type} were moved apart in the builder: each part is a ${type} of its own`);
+          seen.add(group.key);
+          open(group.key, group.node);
+          if (ownSection) {
+            const { backgroundColor: _cleared, ...rest } = section!.node.style ?? {};
+            section!.node.style = band ? { ...rest, backgroundColor: band } : rest;
+            if (!Object.keys(section!.node.style).length) delete section!.node.style;
+            section!.key = `${group.key}#${r}`;
+          }
         }
       }
-      // The row's band (its background, its hiding) is its Section's; a Row's own values are its own.
-      const band = (key: string) => key === "backgroundColor" || key === "hideDesktop" || key === "_override";
-      if (section) apply("row", section.node, row.values, payload, where, (key) => band(key) && key !== "backgroundColor");
-      if (section) apply("section", section.node, row.values, payload, where, (key) => key === "backgroundColor");
-      else if (payload && !unchanged("backgroundColor", payload.w?.backgroundColor, row.values.backgroundColor)) say(where)("its background changed in the builder: a background across the width is a Section's");
+      /** Where the row's content goes: its Section, or a new one holding the band the builder gave it. */
+      const target = (): Child[] => {
+        if (!bandChanged || ownSection || !band) return into();
+        // A Section's band, or in a header or footer (which hold no Section) a Column's background.
+        const holder: Node = { type: group && group.node.type !== "Section" && group.node.type !== "DocumentPage" ? "Column" : "Section", style: { backgroundColor: band }, children: [] };
+        into().push(holder);
+        return holder.children!;
+      };
 
       if (payload?.grid) {
-        if (grid?.key !== payload.grid.key) {
-          grid = { key: payload.grid.key, node: { ...copy(payload.grid.node), children: [] } };
-          into().push(grid.node);
+        // A Grid's row the builder changed is a Row of its own; the rest of the Grid goes on as it was.
+        const changed = changes("row", row.values, payload, notBand).length > 0 || row.columns.some((column) => changes("column", column.values, payloadOf(column.values)).length > 0) || JSON.stringify(w?.cells) !== JSON.stringify(row.cells);
+        if (!changed && !bandChanged) {
+          if (grid?.key !== payload.grid.key) {
+            grid = { key: payload.grid.key, node: { ...copy(payload.grid.node), children: [] } };
+            into().push(grid.node);
+          }
+          for (const [c, column] of row.columns.entries()) grid.node.children!.push(...noBreaks(columnBlocks(column, `${where}.columns[${c}]`), where));
+          return;
         }
-        for (const [c, column] of row.columns.entries()) grid.node.children!.push(...noBreaks(columnBlocks(column, `${where}.columns[${c}]`), where));
+        say(where)("a row of a Grid changed in the builder: it's a Row of its own");
+        grid = null;
+        const node: Node = { type: "Row" };
+        apply("row", node, row.values, payload, where, notBand);
+        target().push({ ...node, children: rowChildren(row, payload, where) });
         return;
       }
       grid = null;
+
       if (payload?.run || (!payload && row.columns.length === 1 && row.columns[0].contents.some((content) => content.type === "page_break"))) {
-        for (const [c, column] of row.columns.entries()) {
-          for (const made of columnBlocks(column, `${where}.columns[${c}]`)) {
-            if (typeof made !== "string" && made.type === "PageBreak") {
-              // A page break ends the page it's in: what follows is a page of its own.
-              if (section) {
-                say(where)(`a page break inside a ${section.node.type}: it ends it there, and what follows is one of its own`);
-                split.add(section.key);
-                reopen = { key: section.key, base: section.base };
-                section = null;
-              }
-              top.push(made);
-            } else into().push(made);
-          }
+        const column = row.columns[0];
+        const columnPayload = payloadOf(column?.values);
+        const rowChanged = payload ? changes("row", row.values, payload, notBand) : [];
+        const columnChanged = payload && column ? changes("column", column.values, columnPayload) : [];
+        const made = row.columns.flatMap((c, i) => columnBlocks(c, `${where}.columns[${i}]`));
+        // Blocks whose row or column the builder changed: a Row and Column of their own holding the change (between
+        // the page breaks in it, which are the Document's).
+        const wrap = rowChanged.length > 0 || columnChanged.length > 0;
+        let holder: Child[] | null = null;
+        let run: Child[] = [];
+        const flush = () => {
+          if (!run.length) return;
+          holder ??= target();
+          if (wrap) {
+            const rowNode: Node = { type: "Row" };
+            apply("row", rowNode, row.values, payload, where, notBand);
+            const columnNode: Node = { type: "Column" };
+            if (column) apply("column", columnNode, column.values, columnPayload, `${where}.columns[0]`);
+            holder.push({ ...rowNode, children: [{ ...columnNode, children: run }] });
+          } else holder.push(...run);
+          run = [];
+        };
+        for (const child of made) {
+          if (typeof child !== "string" && child.type === "PageBreak") {
+            flush();
+            // A page break ends the page it's in: what follows is a page of its own.
+            if (section) {
+              say(where)(`a page break inside a ${section.node.type}: it ends it there, and what follows is one of its own`);
+              split.add(section.key);
+              reopen = { key: section.key, base: section.base };
+              section = null;
+            }
+            top.push(child);
+            holder = null;
+          } else run.push(child);
         }
+        flush();
         return;
       }
+
       const node: Node = payload?.node ? copy(payload.node) : { type: "Row" };
-      apply("row", node, row.values, payload, where, (key) => !band(key) || (!section && key !== "backgroundColor"));
-      if (!payload && meaningful(row.values.backgroundColor)) node.style = { ...node.style, backgroundColor: row.values.backgroundColor };
-      into().push({ ...node, children: noBreaks(rowChildren(row, payload, where), where) });
+      apply("row", node, row.values, payload, where, notBand);
+      target().push({ ...node, children: rowChildren(row, payload, where) });
     });
     return top;
   };
 
   const top = place(body.rows, "rows");
-  if (root.type === "Document") {
+  if (isDocument) {
     /** A header's or footer's rows as one PageHeader or PageFooter (rows made in the builder in it too). */
     const part = (children: Child[], type: string): Child[] => {
       if (!children.length) return [];
@@ -235,15 +359,25 @@ function pageNumbersAsMergeTags(children: Child[]) {
   });
 }
 
-/** Ids made unique: a block duplicated in the builder keeps its id once, the others get a number after it. */
+/** Ids made unique: a block duplicated in the builder keeps its id once, the others get the first free number after it. */
 function uniqueIds(root: Node): Node {
-  const seen = new Map<string, number>();
+  const taken = new Set<string>();
+  const collect = (node: Node) => {
+    if (node.id !== undefined) taken.add(node.id);
+    for (const child of node.children ?? []) if (typeof child !== "string") collect(child);
+  };
+  collect(root);
+  const seen = new Set<string>();
   const visit = (node: Node): Node => {
     let id = node.id;
     if (id !== undefined) {
-      const count = seen.get(id) ?? 0;
-      seen.set(id, count + 1);
-      if (count) id = `${id}-${count + 1}`;
+      if (seen.has(id)) {
+        let n = 2;
+        while (taken.has(`${id}-${n}`)) n++;
+        id = `${id}-${n}`;
+        taken.add(id);
+      }
+      seen.add(id);
     }
     return { ...node, ...(id !== undefined ? { id } : {}), ...(node.children ? { children: node.children.map((child) => (typeof child === "string" ? child : visit(child))) } : {}) };
   };

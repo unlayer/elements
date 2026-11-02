@@ -8,7 +8,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Span, Text } from "../primitives";
+import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import { collectTemplate } from "../primitives/collect";
 import * as luma from "../primitives/codemod/LumaEventInvite";
@@ -232,8 +232,9 @@ describe("fromDesign(toDesign())", () => {
     const body = design.body as unknown as Design["body"] & { headers: Design["body"]["rows"]; footers: Design["body"]["rows"] };
     expect([body.headers.length, body.footers.length]).toEqual([1, 1]);
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
-    // A page break before the second page (only where it starts), and the template's own.
-    expect(blocks(design as unknown as Design).map((content) => content.type)).toEqual(["heading", "text", "page_break", "text", "text", "page_break", "text"]);
+    // A page break where a page starts or ends (before the second page, after it before the loose text), and the
+    // template's own.
+    expect(blocks(design as unknown as Design).map((content) => content.type)).toEqual(["heading", "text", "page_break", "text", "page_break", "text", "page_break", "text"]);
     expect(String(blocks(design as unknown as Design)[1].values.text)).toBe("Page {{page_number}} of {{page_count}}");
     expect(report).toEqual([
       "root.children[1].children[1]: the builder has no page numbers yet: they're written as {{page_number}} and {{page_count}}",
@@ -263,5 +264,308 @@ describe("fromDesign(toDesign())", () => {
     const design = designOf(<Email>{[<Text key="a">Hi</Text>]}</Email>);
     blocks(design)[0].values.text = "<p>Page {{page_number}}</p>";
     expect(tree(fromDesign(design).element).children).toEqual([{ type: "Text", children: ["Page ", { type: "MergeTag", props: { name: "page_number" } }] }]);
+  });
+
+  describe("what the builder changes where the template has no node of its own", () => {
+    it("takes a row of blocks' padding, hiding and column background as a Row and Column holding them", () => {
+      const design = designOf(<Email>{[<Text key="a">A</Text>]}</Email>);
+      const [row] = design.body.rows;
+      row.values.padding = "30px 0px 20px 0px";
+      row.values.hideDesktop = true;
+      row.columns[0].values.backgroundColor = "#ffeeee";
+      expect(tree(fromDesign(design).element).children).toEqual([
+        { type: "Row", style: { padding: { top: 30, right: 0, bottom: 20, left: 0 } }, hidden: { desktop: true }, children: [{ type: "Column", style: { backgroundColor: "#ffeeee" }, children: [{ type: "Text", children: ["A"] }] }] },
+      ]);
+    });
+
+    it("takes a column the builder changed around a Row's block as a Column, and a Grid row changed as a Row of its own", () => {
+      const design = designOf(
+        <Email>
+          <Row>
+            <Text>A</Text>
+            <Text>B</Text>
+          </Row>
+          <Grid columns={2}>
+            <Text>a</Text>
+            <Text>b</Text>
+            <Text>c</Text>
+          </Grid>
+        </Email>
+      );
+      design.body.rows[0].columns[0].values.backgroundColor = "#ff0000";
+      design.body.rows[2].cells = [2, 1];
+      const back = fromDesign(design);
+      const [row, grid, gridRow] = tree(back.element).children as Node[];
+      expect(row.children![0]).toEqual({ type: "Column", style: { backgroundColor: "#ff0000" }, children: [{ type: "Text", children: ["A"] }] });
+      expect([grid.type, grid.children!.length]).toEqual(["Grid", 2]);
+      expect([gridRow.type, (gridRow.children as Node[]).map((child) => child.style?.width)]).toEqual(["Row", ["66.67%", "33.33%"]]);
+      expect(back.report).toEqual(["rows[2]: a row of a Grid changed in the builder: it's a Row of its own", "rows[2]: its columns' widths changed in the builder: each takes its share of the row"]);
+    });
+
+    it("hides the row the builder hid, not its Section; a row the builder recolored is a Section of its own", () => {
+      const template = (
+        <Email>
+          <Section style={{ backgroundColor: "#eeeeee" }}>
+            <Text>Intro</Text>
+            <Row>
+              <Column>
+                <Text>A</Text>
+              </Column>
+            </Row>
+            <Row>
+              <Column>
+                <Text>B</Text>
+              </Column>
+            </Row>
+          </Section>
+        </Email>
+      );
+      const design = designOf(template);
+      design.body.rows[1].values._override = { mobile: { hideMobile: true } };
+      design.body.rows[2].values.backgroundColor = "#ff0000";
+      const back = fromDesign(design);
+      const sections = tree(back.element).children as Node[];
+      expect(sections.map((section) => [section.style?.backgroundColor, section.hidden, (section.children as Node[]).map((child) => [child.type, child.hidden])])).toEqual([
+        ["#eeeeee", undefined, [["Text", undefined], ["Row", { mobile: true }]]],
+        ["#ff0000", undefined, [["Row", undefined]]],
+      ]);
+      expect(back.report).toEqual(["rows[2]: its background changed in the builder: a band across the width is a Section's in Elements, so this row is a Section of its own"]);
+    });
+
+    it("puts a row added in the builder between rows of a Section in it, and one added at the end of a page on that page", () => {
+      const email = designOf(
+        <Email>
+          <Section>
+            <Text>a</Text>
+            <Row>
+              <Column>
+                <Text>b</Text>
+              </Column>
+            </Row>
+          </Section>
+        </Email>
+      );
+      const made = { cells: [1], columns: [{ values: {}, contents: [{ type: "text", values: { text: "<p>new</p>" } }] }], values: {} };
+      email.body.rows.splice(1, 0, made);
+      expect((tree(fromDesign(email).element).children as Node[]).map((child) => [child.type, (child.children as Node[]).length])).toEqual([["Section", 3]]);
+      // Before the page break that ends the first page, and after it (where the second starts).
+      for (const at of [1, 2]) {
+        const doc = designOf(invoice);
+        doc.body.rows.splice(at, 0, made);
+        const children = tree(fromDesign(doc).element).children as Node[];
+        expect(children.map((child) => child.type)).toEqual(["PageHeader", "DocumentPage", "DocumentPage", "Text", "PageBreak", "Text", "PageFooter"]);
+        expect((children[at].children as Node[]).map((child) => child.type)).toEqual(at === 1 ? ["Heading", "Paragraph", "Row"] : ["Row", "Text"]);
+      }
+    });
+  });
+
+  describe("what the builder can't hold", () => {
+    it("brings back a column hidden on desktop, which the builder has no column for", () => {
+      const template = (
+        <Email>
+          <Row>
+            <Column>
+              <Text>desk</Text>
+            </Column>
+            <Column hidden={{ desktop: true }}>
+              <Text>phone only</Text>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const { design, report } = toDesign(template);
+      expect(report).toEqual(["root.children[0]: a Column hidden on desktop has no column of its own in the builder: kept in the design, not shown there"]);
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+    });
+
+    it("writes a Button's merge tags to the builder, and says what a text edit leaves out", () => {
+      const template = (
+        <Email>
+          <Button href="https://example.com">
+            Hi <MergeTag name="first_name" />
+          </Button>
+          <Paragraph>
+            Read{" "}
+            <Link href="https://x.test" hover={{ color: "#ff0000" }}>
+              more
+            </Link>
+          </Paragraph>
+        </Email>
+      );
+      const design = designOf(template);
+      const [button, paragraph] = blocks(design);
+      expect(button.values.text).toBe("Hi {{first_name}}");
+      paragraph.values.text = '<p>Read <a href="https://x.test">more</a> now<img src="x.png"></p>';
+      expect(fromDesign(design).report).toEqual([
+        "rows[0].columns[0].contents[1]: its text was edited in the builder: what its HTML can't hold (a link's hover or title, a run's own size) is left out",
+        "rows[0].columns[0].contents[1]: its text has markup a text block doesn't hold, left out: <img>",
+      ]);
+    });
+
+    it("takes an image link: the builder's as a Link around the Image, the template's as the builder's", () => {
+      const linked = (
+        <Email>
+          <Link href="https://shop.test">
+            <Image src={{ src: "https://example.com/a.png", width: 600, height: 300 }} alt="Shop" />
+          </Link>
+        </Email>
+      );
+      const design = designOf(linked);
+      expect(blocks(design)[0].values.action).toEqual({ name: "web", values: { href: "https://shop.test", target: "_blank" } });
+      expect(tree(fromDesign(design).element)).toEqual(tree(linked));
+      const plain = designOf(<Email>{[<Image key="i" src={{ src: "https://example.com/a.png", width: 600, height: 300 }} alt="" />]}</Email>);
+      blocks(plain)[0].values.action = { name: "web", values: { href: "https://new.test", target: "_blank" } };
+      expect((tree(fromDesign(plain).element).children![0] as Node).type).toBe("Link");
+    });
+  });
+
+  describe("a template that's valid when it comes back", () => {
+    it("takes a design made in the builder, without the template's nodes, as a valid Email", () => {
+      const design = JSON.parse(JSON.stringify(toDesign(sample).design), (key, value) => (key === "_elements" ? undefined : value));
+      expect(validate(fromDesign(design).element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    });
+
+    it("drops a builder value the builder removed, and makes a Button with an empty link a link to #", () => {
+      const design = designOf(sample);
+      delete blocks(design)[0].values.linkStyle;
+      blocks(design)[0].values.displayCondition = { type: "x" };
+      const button = blocks(design)[3];
+      button.values.href = { name: "web", values: { href: "", target: "_blank" } };
+      const back = fromDesign(design);
+      expect(validate(back.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      expect(back.report).toContain('rows[1].columns[1].contents[0]: its link is empty in the builder: it\'s "#" until one is set');
+    });
+
+    it("numbers a duplicated block's id with the first number no other block has", () => {
+      const design = designOf(
+        <Email>
+          <Text id="a">x</Text>
+          <Text id="a-2">y</Text>
+        </Email>
+      );
+      const column = design.body.rows[0].columns[0];
+      column.contents.push(JSON.parse(JSON.stringify(column.contents[0])));
+      expect((tree(fromDesign(design).element).children as Node[]).map((child) => child.id)).toEqual(["a", "a-2", "a-3"]);
+    });
+  });
+
+  describe("what the targeted check found in the fixes", () => {
+    it("takes a row's background the builder cleared, in a Section", () => {
+      const design = designOf(
+        <Email>
+          <Section style={{ backgroundColor: "#eeeeee" }}>
+            <Text>a</Text>
+            <Row>
+              <Column>
+                <Text>b</Text>
+              </Column>
+            </Row>
+          </Section>
+        </Email>
+      );
+      for (const cleared of [undefined, ""]) {
+        const edited = JSON.parse(JSON.stringify(design));
+        if (cleared === undefined) delete edited.body.rows[1].values.backgroundColor;
+        else edited.body.rows[1].values.backgroundColor = cleared;
+        const back = fromDesign(edited);
+        expect(validate(back.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+        expect((tree(back.element).children as Node[]).map((section) => section.style?.backgroundColor)).toEqual(["#eeeeee", undefined]);
+      }
+    });
+
+    it("keeps a page break whose row the builder changed", () => {
+      const design = designOf(
+        <Document>
+          <Text>A</Text>
+          <PageBreak />
+          <Text>B</Text>
+        </Document>
+      );
+      design.body.rows[1].values.padding = "10px 0px 0px 0px";
+      expect((tree(fromDesign(design).element).children as Node[]).map((child) => child.type)).toEqual(["Text", "PageBreak", "Text"]);
+    });
+  });
+
+  describe("more of what the builder does", () => {
+    it("gives a header row's background to a Column (a header holds no Section), and keeps an empty Section", () => {
+      const design = designOf(
+        <Document>
+          <PageHeader>
+            <Text>h</Text>
+          </PageHeader>
+          <Text>body</Text>
+        </Document>
+      );
+      (design.body as unknown as { headers: Design["body"]["rows"] }).headers[0].values.backgroundColor = "#ff0000";
+      expect((tree(fromDesign(design).element).children![0] as Node).children).toEqual([{ type: "Column", style: { backgroundColor: "#ff0000" }, children: [{ type: "Text", children: ["h"] }] }]);
+      const spacer = <Email>{[<Section key="s" style={{ backgroundColor: "#f00", padding: 40 }} />]}</Email>;
+      expect(tree(fromDesign(toDesign(spacer).design).element)).toEqual(tree(spacer));
+    });
+
+    it("takes a document made in the builder as a Document, and leaves out a page break in an Email", () => {
+      const document = JSON.parse(JSON.stringify(toDesign(invoice).design), (key, value) => (key === "_elements" ? undefined : value));
+      const back = fromDesign(document);
+      expect(tree(back.element).type).toBe("Document");
+      expect(validate(back.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      const email = designOf(<Email>{[<Text key="a">A</Text>]}</Email>);
+      email.body.rows[0].columns[0].contents.push({ type: "page_break", values: {} });
+      expect(fromDesign(email).report).toEqual(["rows[0].columns[0].contents[1]: a page break is a Document's: left out"]);
+    });
+
+    it("says what it keeps for the builder that Elements doesn't draw, and a paragraph's own alignment", () => {
+      const design = designOf(sample);
+      design.body.rows[0].values.backgroundImage = { url: "https://example.com/bg.png", fullWidth: true, repeat: "no-repeat", size: "cover", position: "center" };
+      blocks(design)[1].values.text = '<p style="text-align: center;">Hello</p>';
+      expect(fromDesign(design).report).toEqual([
+        "rows[0].columns[0].contents[1]: its text was edited in the builder: what its HTML can't hold (a link's hover or title, a run's own size) is left out",
+        "rows[0].columns[0].contents[1]: its text has markup a text block doesn't hold, left out: a paragraph's own alignment",
+        "rows[0]: its backgroundImage changed in the builder: kept for the builder, which Elements doesn't draw",
+      ]);
+    });
+
+    it("prints text with spaces at its ends so they stay", () => {
+      const spaced = <Email>{[<Text key="a">{" sep "}</Text>]}</Email>;
+      const { code } = fromDesign(toDesign(spaced).design);
+      expect(code).toContain('<Text>{" sep "}</Text>');
+    });
+  });
+
+  describe("Documents and HTML blocks the builder takes", () => {
+    it("writes a Document's or a narrow column's HTML block, and brings it back", () => {
+      const table = (
+        <Table>
+          <TableRow>
+            <TableCell>a</TableCell>
+          </TableRow>
+        </Table>
+      );
+      const document = <Document>{table}</Document>;
+      const narrow = (
+        <Email>
+          <Row>
+            {[0, 1, 2, 3].map((i) => (
+              <Column key={i}>{table}</Column>
+            ))}
+          </Row>
+        </Email>
+      );
+      for (const template of [document, narrow]) expect(tree(fromDesign(toDesign(template).design).element)).toEqual(tree(template));
+    });
+
+    it("writes one page break before a page that follows the template's own, and keeps a blank page", () => {
+      const template = (
+        <Document>
+          <Text>A</Text>
+          <PageBreak />
+          <Document.Page>
+            <Text>B</Text>
+          </Document.Page>
+          <Document.Page style={{ backgroundColor: "#ff0000" }} />
+        </Document>
+      );
+      const design = designOf(template);
+      expect(blocks(design).map((content) => content.type)).toEqual(["text", "page_break", "text", "page_break"]);
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+    });
   });
 });

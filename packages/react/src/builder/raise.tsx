@@ -13,6 +13,7 @@ import React from "react";
 import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
 import { collectTemplate } from "../primitives/collect";
 import { kept } from "./fields";
+import { runsHtml } from "./runs";
 import { bare, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
@@ -38,49 +39,10 @@ const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
 const sidesCss = (s: Sides) => `${px(s.top)} ${px(s.right)} ${px(s.bottom)} ${px(s.left)}`;
 const add = (a: Sides, b: Partial<Sides>): Sides => ({ top: a.top + (b.top ?? 0), right: a.right + (b.right ?? 0), bottom: a.bottom + (b.bottom ?? 0), left: a.left + (b.left ?? 0) });
 const padding = (node: Node | ResolvedNode): Sides => (node.style?.padding as Sides | undefined) ?? ZERO;
-const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 type TextAlign = "left" | "center" | "right" | "justify";
 type Length = `${number}px`;
 const ALIGN: Record<string, TextAlign> = { start: "left", center: "center", end: "right", stretch: "left" };
 const STACKS = new Set(["Section", "Column", "DocumentPage"]);
-
-/** A run's style as CSS (a Span's, a Link's). */
-function runCss(style: Record<string, Json> | undefined): string {
-  if (!style) return "";
-  const out: string[] = [];
-  const map: Record<string, string> = { color: "color", backgroundColor: "background-color", fontWeight: "font-weight", fontStyle: "font-style", textDecoration: "text-decoration", textTransform: "text-transform" };
-  for (const [key, value] of Object.entries(style)) {
-    if (value === undefined || value === null) continue;
-    if (map[key]) out.push(`${map[key]}:${value}`);
-    else if (key === "fontSize" || key === "letterSpacing") out.push(`${key === "fontSize" ? "font-size" : "letter-spacing"}:${px(Number(value))}`);
-    else if (key === "fontFamily") out.push(`font-family:${String(value).replace(/"/g, "'")}`);
-  }
-  return out.join(";");
-}
-
-/** A text block's children as the HTML today's text tools take. */
-function runsHtml(node: Node): string {
-  return (node.children ?? [])
-    .map((child) => {
-      if (typeof child === "string") return escapeHtml(child);
-      const css = runCss(child.style);
-      const style = css ? ` style="${css}"` : "";
-      switch (child.type) {
-        case "LineBreak":
-          return "<br>";
-        case "MergeTag":
-          return `{{${child.props?.name}}}`;
-        case "PageNumber":
-          // The builder has no page numbers: a token in their place, read back as one.
-          return child.props?.total ? "{{page_count}}" : "{{page_number}}";
-        case "Link":
-          return `<a href="${escapeHtml(String(child.props?.href ?? ""))}" target="_blank"${style}>${runsHtml(child)}</a>`;
-        default:
-          return `<span${style}>${runsHtml(child)}</span>`;
-      }
-    })
-    .join("");
-}
 
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
@@ -174,24 +136,33 @@ export function raise(element: React.ReactElement): Raised {
             borderRadius={typeof style.borderRadius === "number" ? px(style.borderRadius) : undefined}
             width={style.width !== undefined ? ((typeof style.width === "number" ? px(style.width) : String(style.width)) as Length) : undefined}
             containerPadding={sidesCss(around)}
-          >
-            {(node.children ?? []).filter((c): c is string => typeof c === "string").join("")}
-          </Button>
+            text={runsHtml(node)}
+          />
         );
       }
-      case "Image": {
-        const src = own.props.src as string | { src: string; width?: number; height?: number };
+      case "Image":
+      case "Link": {
+        // A Link holding only an Image is the builder's image with its link (`action`).
+        const linked = node.type === "Link";
+        const image = linked ? (node.children ?? []).filter((c): c is Node => typeof c !== "string") : [];
+        if (linked && (image.length !== 1 || image[0].type !== "Image" || (node.children ?? []).some((c) => typeof c === "string" && c.trim()))) {
+          return locked(node, path, "a Link isn't a tool of the builder's", around, wraps);
+        }
+        const img = linked ? at(`${path}.children[${(node.children ?? []).indexOf(image[0])}]`) : own;
+        const src = img.props.src as string | { src: string; width?: number; height?: number };
         const parts = typeof src === "string" ? { src } : src;
+        const imageOwn = img;
         return (
           <Image
             key={path}
             {...hidden}
+            action={{ name: "web", values: { href: linked ? String(own.props.href ?? "") : "", target: "_blank" } }}
             src={{ url: parts.src, ...(parts.width ? { width: parts.width } : {}), ...(parts.height ? { height: parts.height } : {}) }}
-            alt={String(own.props.alt ?? "")}
+            alt={String(imageOwn.props.alt ?? "")}
             // Its width on desktop as a px pin (today's draw it as their share of the column, as the new engine
             // does); on phones, its share of the column (all of it, or the percentage it says).
-            width={own.width !== null ? px(own.width) : undefined}
-            mobile={phoneImage(own)}
+            width={imageOwn.width !== null ? px(imageOwn.width) : undefined}
+            mobile={phoneImage(imageOwn)}
             textAlign={alignIn(parent)}
             containerPadding={sidesCss(around)}
           />
@@ -279,7 +250,11 @@ export function raise(element: React.ReactElement): Raised {
     const own = at(path);
     const gap = typeof own.style.gap === "number" ? own.style.gap : 0;
     const rowPad = add(padding(node), outer);
-    const children = (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string" && !c.child.hidden?.desktop);
+    const all = (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is { child: Node; path: string } => typeof c.child !== "string");
+    const children = all.filter((c) => !c.child.hidden?.desktop);
+    // A child hidden on desktop has no column of the builder's (its columns show on every device): kept, at its place.
+    const hiddenOnDesktop = all.flatMap((c, index) => (c.child.hidden?.desktop ? [{ index, node: c.child }] : []));
+    for (const { node: child } of hiddenOnDesktop) report.push(`${path}: a ${child.type} hidden on desktop has no column of its own in the builder: kept in the design, not shown there`);
     const n = children.length;
     if (!cellsOf) noteKept(bare(node), path);
     const columns = children.map(({ child, path: childPath }, i) => {
@@ -325,7 +300,7 @@ export function raise(element: React.ReactElement): Raised {
       <Row key={path} cells={columns.map((c) => Math.max(1, Math.round(c.share)))} padding={`${px(rowPad.top)} 0px ${px(rowPad.bottom)} 0px`} noStackMobile={node.props?.stackOnMobile === false || undefined} columnsBackgroundColor={own.style.backgroundColor as string | undefined} hideOnMobile={node.hidden?.mobile || undefined} hideOnDesktop={node.hidden?.desktop || undefined} {...band}>
         {columns.map((c) => c.element)}
       </Row>,
-      { ...(cellsOf ? {} : { node: bare(node) }), ...group }
+      { ...(cellsOf ? {} : { node: bare(node) }), ...group, ...(hiddenOnDesktop.length ? { kept: hiddenOnDesktop } : {}) }
     );
   };
 
@@ -397,25 +372,46 @@ export function raise(element: React.ReactElement): Raised {
   /** A page break of the builder's, in a row of its own: one of the template's, or one that's only where a page starts. */
   const pageBreak = (path: string, node: Node, implied: boolean) =>
     tag(<Row key={`${path}.break`} cells={[1]} padding="0px">{tag(<Column padding="0px">{tag(<PageBreak key={path} />, { node, ...(implied ? { implied: true } : {}) })}</Column>, { run: true })}</Row>, { run: true });
-  for (const { child, path } of sections) {
+  // In a Document, a page break goes where a page starts or ends (the builder breaks at each, the template's own too).
+  let last: "page" | "break" | "other" | null = null;
+  const breakBefore = (path: string) => {
+    if (last && last !== "break") body.push(pageBreak(path, { type: "PageBreak" }, true));
+  };
+  for (const [i, { child, path }] of sections.entries()) {
     if (child.type === "Section") {
       flushLoose();
+      if (last === "page") breakBefore(path);
+      last = "other";
       const own = at(path);
       noteKept(bare(child), path);
-      body.push(...rows(childrenOf(child, path), own, { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) }, padding(child), path, { sec: { key: path, node: bare(child) } }));
+      const band = { backgroundColor: own.style.backgroundColor, ...(child.hidden?.mobile ? { hideOnMobile: true } : {}), ...(child.hidden?.desktop ? { hideOnDesktop: true } : {}) };
+      const group = { sec: { key: path, node: bare(child) } };
+      const sectionRows = rows(childrenOf(child, path), own, band, padding(child), path, group);
+      // An empty Section (a band of space) is a row with nothing in it.
+      body.push(...(sectionRows.length ? sectionRows : [oneColumn([], own, band, padding(child), `${path}.empty`, group)]));
     } else if (child.type === "DocumentPage") {
-      // A page is its rows, a page break before it where something comes before it.
+      // A page is its rows (a blank one, a row with nothing in it), a page break before it where something comes before it.
       flushLoose();
-      if (body.length) body.push(pageBreak(path, { type: "PageBreak" }, true));
+      breakBefore(path);
+      last = "page";
       noteKept(bare(child), path);
-      body.push(...rows(childrenOf(child, path), at(path), {}, ZERO, path, { sec: { key: path, node: bare(child) } }));
+      const group = { sec: { key: path, node: bare(child) } };
+      const pageRows = rows(childrenOf(child, path), at(path), {}, ZERO, path, group);
+      body.push(...(pageRows.length ? pageRows : [oneColumn([], at(path), {}, ZERO, `${path}.blank`, group)]));
     } else if (child.type === "PageBreak") {
       flushLoose();
+      const content = sections.slice(i + 1).some((c) => c.child.type !== "PageHeader" && c.child.type !== "PageFooter" && c.child.type !== "PageBreak");
+      if (last === null || !content) report.push(`${path}: a page break with nothing before or after it is no page in Elements, and a blank page in the builder`);
       body.push(pageBreak(path, child, false));
+      last = "break";
     } else if (child.type === "PageHeader" || child.type === "PageFooter") {
       noteKept(bare(child), path);
       (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), {}, ZERO, path, { sec: { key: path, node: bare(child) } }));
-    } else loose.push({ child, path });
+    } else {
+      if (last === "page") breakBefore(path);
+      last = "other";
+      loose.push({ child, path });
+    }
   }
   flushLoose();
 
@@ -495,7 +491,11 @@ function nodeOf(node: ResolvedNode): Node {
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
 function renderSubtree(node: Node, width: number, root: Node, components: unknown): string {
-  const { head, body } = renderTemplate({ root: { type: root.type, props: { width: Math.round(width) }, style: root.style, children: [node] } }, { components: components as never });
+  // Drawn at its width in a page at least as wide as a root can be (a Document's block as a page's), the root's text
+  // styles around it.
+  const drawn = Math.round(width);
+  const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn) }, style: root.style, children: [drawn < 200 ? { type: "Column", style: { width: drawn }, children: [node] } : node] };
+  const { head, body } = renderTemplate({ root: page }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   return style + body;
 }

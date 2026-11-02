@@ -59,11 +59,11 @@ function attribute(name: string, value: unknown): string {
 }
 
 /**
- * Text as JSX children: as it is where JSX keeps it so, else a string expression. On a line of its own JSX drops the
- * spaces at its ends; among runs on one line it keeps them.
+ * Text as JSX children: as it is where JSX keeps it so, else a string expression (spaces at its ends, which JSX can
+ * drop; braces, angle brackets, line breaks).
  */
 function text(value: string, flat: boolean): string {
-  const kept = /^[^{}<>&\n]+$/.test(value) && (flat ? /\S/.test(value) : !/^\s|\s$/.test(value) && !/\s{2,}/.test(value));
+  const kept = /^[^{}<>&\n\u2028\u2029]+$/.test(value) && !/^\s|\s$/.test(value) && (flat || !/\s{2,}/.test(value));
   return kept ? value : `{${JSON.stringify(value)}}`;
 }
 
