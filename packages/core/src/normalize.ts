@@ -79,11 +79,46 @@ function allowedIn(parent: ComponentDefinition, child: ComponentDefinition): boo
   return !!rule.types?.includes(child.type) || child.categories.some((category) => rule.categories?.includes(category));
 }
 
+/** Where each component's props and styles are listed: the guide the package ships. */
+const GUIDE = "@unlayer/react-elements/PRIMITIVES.md";
+/** A message, then where to look the component up. */
+const seeing = (message: string, type: string) => `${message}${/[?.]$/.test(message) ? "" : "."} See ${type} in ${GUIDE}`;
+const a = (type: string) => `${/^[AEIOU]/.test(type) ? "An" : "A"} ${type}`;
+
+/** The name meant, where one is a typo away (a letter or two, or its case): "colour" is "color". */
+function nearest(key: string, names: readonly string[]): string | undefined {
+  const lower = key.toLowerCase();
+  let best: { name: string; distance: number } | undefined;
+  for (const name of names) {
+    const distance = name.toLowerCase() === lower ? 0 : editDistance(lower, name.toLowerCase());
+    if (distance <= (key.length > 4 ? 2 : 1) && (!best || distance < best.distance)) best = { name, distance };
+  }
+  return best?.name;
+}
+
+function editDistance(from: string, to: string): number {
+  let row = Array.from({ length: to.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= from.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= to.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (from[i - 1] === to[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[to.length];
+}
+
+/** What's wrong with a prop the component doesn't have, and what to write instead. */
+function unknownProp(definition: ComponentDefinition, key: string): string {
+  if (Object.prototype.hasOwnProperty.call(definition.style, key)) return `${a(definition.type)} has no prop "${key}": it's a style, style={{ ${key}: … }}`;
+  const known = Object.keys(definition.props);
+  const meant = nearest(key, known);
+  return seeing(`${a(definition.type)} has no prop "${key}"${meant ? `: did you mean "${meant}"?` : known.length ? ` (it has ${known.join(", ")})` : ""}`, definition.type);
+}
+
 function placementMessage(parent: ComponentDefinition, child: ComponentDefinition): string {
   if (child.categories.includes("section")) return `A ${child.type} goes directly in an Email or Page, not in a ${parent.type}`;
   if (child.categories.includes("root")) return `A ${child.type} is a root: it can't be inside a ${parent.type}`;
   const takes = [...(parent.children.text ? ["text"] : []), ...(parent.children.categories ?? []).map((c) => `${c} components`), ...(parent.children.types ?? [])];
-  return takes.length ? `A ${parent.type} takes ${takes.join(", ")}; a ${child.type} can't go in it` : `A ${parent.type} has no children`;
+  return takes.length ? seeing(`A ${parent.type} takes ${takes.join(", ")}; a ${child.type} can't go in it`, parent.type) : `A ${parent.type} has no children`;
 }
 
 function readNode(input: unknown, path: string, parent: ComponentDefinition | null, context: Context): Node | null {
@@ -141,20 +176,20 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
   const props = readProps(input.props, definition, `${path}.props`, id, d);
   if (props) node.props = props;
 
-  const style = readStyles(input.style, definition.style, `${path}.style`, id, d, "style", () => true);
+  const style = readStyles(input.style, definition.type, definition.style, `${path}.style`, id, d, "style", () => true);
   if (style) node.style = style;
 
   if (input.mobile !== undefined) {
     if (!context.responsive) d.error("mobile/not-supported", "Phone styles are for an Email or a Page, which have a phone width", `${path}.mobile`, id);
     else {
-      const mobile = readStyles(input.mobile, definition.style, `${path}.mobile`, id, d, "mobile", (spec) => !!spec.mobile);
+      const mobile = readStyles(input.mobile, definition.type, definition.style, `${path}.mobile`, id, d, "mobile", (spec) => !!spec.mobile);
       if (mobile) node.mobile = mobile;
     }
   }
 
   if (input.hover !== undefined) {
     const allowed = new Set<string>(definition.hover ?? []);
-    const hover = readStyles(input.hover, definition.style, `${path}.hover`, id, d, "hover", (_, key) => allowed.has(key));
+    const hover = readStyles(input.hover, definition.type, definition.style, `${path}.hover`, id, d, "hover", (_, key) => allowed.has(key));
     if (hover) node.hover = hover;
   }
 
@@ -183,8 +218,7 @@ function readProps(input: unknown, definition: ComponentDefinition, path: string
     if (value === undefined) continue;
     const spec = Object.prototype.hasOwnProperty.call(definition.props, key) ? definition.props[key] : undefined;
     if (!spec) {
-      const known = Object.keys(definition.props);
-      d.error("prop/unknown", `A ${definition.type} has no prop "${key}"${known.length ? ` (it has ${known.join(", ")})` : ""}`, `${path}.${key}`, id);
+      d.error("prop/unknown", unknownProp(definition, key), `${path}.${key}`, id);
       continue;
     }
     const parsed = spec.kind.parse(value);
@@ -219,6 +253,7 @@ const UNSUPPORTED_CSS: Record<string, string> = {
 
 function readStyles(
   input: unknown,
+  type: string,
   specs: StyleSpecs,
   path: string,
   id: string | undefined,
@@ -236,8 +271,9 @@ function readStyles(
     if (value === undefined) continue;
     const spec = Object.prototype.hasOwnProperty.call(specs, key) ? specs[key] : undefined;
     if (!spec) {
-      const hint = UNSUPPORTED_CSS[key];
-      d.error("style/unknown", `"${key}" isn't a style this component takes${hint ? `: ${hint}` : ""}`, `${path}.${key}`, id);
+      const meant = nearest(key, Object.keys(specs));
+      const hint = UNSUPPORTED_CSS[key] ?? (meant ? `did you mean "${meant}"?` : undefined);
+      d.error("style/unknown", seeing(`"${key}" isn't a style ${a(type).replace(/^A/, "a")} takes${hint ? `: ${hint}` : ""}`, type), `${path}.${key}`, id);
       continue;
     }
     if (!allowed(spec, key)) {

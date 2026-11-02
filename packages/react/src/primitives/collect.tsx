@@ -138,7 +138,7 @@ function read(html: string, collection: PrimitiveCollection, diagnostics: Diagno
       diagnostics.push({
         code: "jsx/markup",
         severity: "error",
-        message: `HTML ${where} isn't part of an Elements document: use the primitives (Text, Link, Image, …) instead of ${JSON.stringify(between.slice(0, 60))}`,
+        message: `HTML ${where} isn't part of an Elements document: use the primitives (Text, Link, Image, …) instead of ${JSON.stringify(between.slice(0, 60))}. Every component: @unlayer/react-elements/PRIMITIVES.md`,
         path: "jsx",
       });
       return;

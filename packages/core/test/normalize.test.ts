@@ -103,6 +103,27 @@ describe("checkDocument", () => {
     expect(diagnostics[0].message).toMatch(/gap/);
   });
 
+  it("says what to write instead of a prop or style a component doesn't take, and where the component is listed", () => {
+    const messages = checkDocument(
+      doc({
+        type: "Email",
+        props: { backgroundColor: "#ffffff" },
+        children: [
+          { type: "Heading", props: { levle: 2 }, style: { colour: "red", fontsize: 20, zzz: 1 }, children: ["Hi"] },
+          { type: "Row", children: [{ type: "ListItem" }] },
+        ],
+      })
+    ).diagnostics.map((d) => d.message);
+    expect(messages).toEqual([
+      'An Email has no prop "backgroundColor": it\'s a style, style={{ backgroundColor: … }}',
+      'A Heading has no prop "levle": did you mean "level"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
+      '"colour" isn\'t a style a Heading takes: did you mean "color"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
+      '"fontsize" isn\'t a style a Heading takes: did you mean "fontSize"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
+      '"zzz" isn\'t a style a Heading takes. See Heading in @unlayer/react-elements/PRIMITIVES.md',
+      "A Row takes layout components, block components; a ListItem can't go in it. See Row in @unlayer/react-elements/PRIMITIVES.md",
+    ]);
+  });
+
   it("allows phone styles and hiding under an Email or Page only, for the properties that take them", () => {
     expect(codes(doc({ type: "Email", children: [{ type: "Text", mobile: { fontSize: 14, color: "#000" }, hidden: { desktop: true } }] }))).toEqual([
       "mobile/not-allowed",
@@ -152,12 +173,12 @@ describe("checkDocument", () => {
       },
     }).diagnostics.map((d) => d.message);
     expect(messages).toEqual([
-      '"align" isn\'t a style this component takes: it\'s alignItems now',
-      '"justify" isn\'t a style this component takes: it\'s justifyContent now ("between" is "space-between")',
-      '"wrap" isn\'t a style this component takes: a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web',
-      '"color" isn\'t a style this component takes: a Divider\'s line is its borderTop, with its color',
-      '"thickness" isn\'t a style this component takes: a Divider\'s line is borderTop now: "1px solid #bbbbbb"',
-      '"textDecoration" isn\'t a style this component takes',
+      '"align" isn\'t a style a Row takes: it\'s alignItems now. See Row in @unlayer/react-elements/PRIMITIVES.md',
+      '"justify" isn\'t a style a Row takes: it\'s justifyContent now ("between" is "space-between"). See Row in @unlayer/react-elements/PRIMITIVES.md',
+      '"wrap" isn\'t a style a Row takes: a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web. See Row in @unlayer/react-elements/PRIMITIVES.md',
+      '"color" isn\'t a style a Divider takes: a Divider\'s line is its borderTop, with its color. See Divider in @unlayer/react-elements/PRIMITIVES.md',
+      '"thickness" isn\'t a style a Divider takes: a Divider\'s line is borderTop now: "1px solid #bbbbbb". See Divider in @unlayer/react-elements/PRIMITIVES.md',
+      '"textDecoration" isn\'t a style a Column takes. See Column in @unlayer/react-elements/PRIMITIVES.md',
     ]);
   });
 });

@@ -342,6 +342,7 @@ describe("validate()", () => {
 
   it("reports HTML that isn't a component, and what isn't one root", () => {
     expect(validate(<Page><Text><b>bold</b></Text></Page>).diagnostics.map((d) => d.code)).toEqual(["jsx/markup"]);
+    expect(validate(<Page><Text><b>bold</b></Text></Page>).diagnostics[0].message).toMatch(/use the primitives .*\. Every component: @unlayer\/react-elements\/PRIMITIVES\.md$/);
     expect(validate(<div />).diagnostics.map((d) => d.code)).toEqual(["jsx/markup", "jsx/root"]);
     expect(validate(<><Page /><Page /></>).diagnostics.map((d) => d.code)).toEqual(["jsx/root"]);
   });
