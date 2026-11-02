@@ -3,6 +3,9 @@
  * as a data: URI, which the HTML loads with @font-face and the image reads), rendered both ways and compared pixel by
  * pixel. A pixel counts as different only where no pixel within one of it on the other side has its color, and only a
  * handful may (the edges of letters, which two rasterizers smooth differently).
+ *
+ * Chromium smooths text in grey and leaves glyphs where the font puts them, as the image does: on Linux it otherwise
+ * colors letters' edges (LCD text) and snaps them to whole pixels (hinting), and nearly 3% of this test's pixels differ.
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -19,7 +22,7 @@ const fonts = [{ family: "Liberation", src: `data:font/ttf;base64,${FONT.toStrin
 async function compare(template: ReactElement): Promise<{ differ: number; total: number; size: number[] }> {
   const { html } = await render(template);
   const { image, width, height } = await renderImage(template);
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: ["--disable-lcd-text", "--font-render-hinting=none"] });
   try {
     const page = await browser.newPage({ viewport: { width, height } });
     await page.setContent(html);
