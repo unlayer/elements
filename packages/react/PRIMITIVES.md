@@ -16,6 +16,17 @@ Everything needed to write a template, in short. Every prop's and style's detail
 - Phones: `mobile={{ fontSize: 20 }}` (the styles listed under "Phones"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: "#374151" }}` (those under "Hover").
 - `await render(element)` gives `{ html, text, diagnostics }`; a template with errors throws an `ElementsError` whose `diagnostics` give each problem's `code`, `message` and `path`. `validate(element)` runs the same checks without rendering. `outline(element)` prints the laid-out template (each block, its width, its text), to check the layout without reading the HTML.
 
+## Common mistakes
+
+Each of these made an agent's first try fail:
+
+- `<Email backgroundColor="#fff">` → `<Email style={{ backgroundColor: "#fff" }}>`. Styles never go as props.
+- `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.
+- `items={[{ text: "Home", link: "/" }]}` → `items={[{ text: "Home", href: "/" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.
+- `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.
+- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are the main import's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.
+- `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.
+
 ## A whole template
 
 ```tsx
@@ -71,37 +82,37 @@ export default function Receipt() {
 
 ### Roots
 
-- **Email**: An email. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (length), previewText (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
-- **Page**: A web page. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (length), description (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
+- **Email**: An email. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), previewText (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
+- **Page**: A web page. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), description (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
 - **Document**: A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/elements-pdf. Holds sections, layout, blocks, Document.Page, PageBreak, PageHeader, PageFooter. Props: size (A3|A4|A5|Letter|Legal|Tabloid), orientation (portrait|landscape), margin (insets), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
-- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/elements-image. Holds sections, layout, blocks. Props: width (length), height (length), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
+- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/elements-image. Holds sections, layout, blocks. Props: width (a length (a number of px)), height (a length (a number of px)), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
 
 ### Sections and layout
 
 - **Section**: A band across the whole window, directly in an Email or Page: its background spans the window, its children are stacked at the content width. Holds layout, blocks. Style: text, backgroundColor, padding, border, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, padding, border, gap.
-- **Row**: Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default). Holds layout, blocks. Props: stackOnMobile (boolean). Style: text, box, minWidth, height, overflow (visible|hidden), gap, alignItems (start|center|end|stretch), justifyContent (start|center|end|space-between), flexWrap (nowrap|wrap), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
+- **Row**: Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default). Holds layout, blocks. Props: stackOnMobile (true or false). Style: text, box, minWidth, height, overflow (visible|hidden), gap, alignItems (start|center|end|stretch), justifyContent (start|center|end|space-between), flexWrap (nowrap|wrap), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
 - **Column**: Stacks its children vertically, with its own spacing and box. Holds layout, blocks. Style: text, box, minWidth, height, overflow (visible|hidden), gap, alignItems (start|center|end|stretch), justifyContent (start|center|end|space-between), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
-- **Grid**: Its children in columns of equal width, row after row; on phones, one under another. Holds layout, blocks. Props: columns (number), stackOnMobile (boolean). Style: text, box, minWidth, height, overflow (visible|hidden), gap, rowGap, alignItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap, rowGap.
+- **Grid**: Its children in columns of equal width, row after row; on phones, one under another. Holds layout, blocks. Props: columns (an integer from 1 to 12), stackOnMobile (true or false). Style: text, box, minWidth, height, overflow (visible|hidden), gap, rowGap, alignItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap, rowGap.
 - **Layer**: Its children over each other, in one box as tall as the tallest: an image with words on it. In an email, an Image with one child over it. Holds layout, blocks. Style: text, width, minWidth, maxWidth, backgroundColor, border, borderRadius, height, alignItems (start|center|end|stretch), justifyItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, border.
 
 ### Blocks
 
-- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Holds shapes. Props: width* (number), height* (number), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
+- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
 - **Text**: A block of text with no meaning of its own (a div). Holds text, inline. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Paragraph**: A paragraph of text. Holds text, inline. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text). Style: text, box, textDecoration (none|underline|line-through), flex. Hover: color, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Image**: An image in the content. Without a width it takes its own size, no wider than its parent. Props: src* (asset), alt (text), title (text). Style: width, maxWidth, height, border, borderRadius, flex. Phones: width, maxWidth, border.
 - **Divider**: A horizontal line. Style: borderTop, width, padding. Phones: width, padding.
-- **List**: A bulleted or numbered list of ListItems. Its markers sit in a column of their own (indent) before the items. Holds ListItem. Props: type (bullet|number), start (number). Style: text, width, maxWidth, padding, backgroundColor, border, gap, indent, flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
+- **List**: A bulleted or numbered list of ListItems. Its markers sit in a column of their own (indent) before the items. Holds ListItem. Props: type (bullet|number), start (an integer from 0). Style: text, width, maxWidth, padding, backgroundColor, border, gap, indent, flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
 - **Table**: A table of data: TableRows of TableCells. Columns take their cells' widths; the rest share what's left. Holds TableRow. Style: text, width, maxWidth, backgroundColor, border, cellPadding, rowBorder, flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, border.
 - **Video**: A YouTube or Vimeo video: its player on a page; in an email (which can't play one), its thumbnail, linked to it. Props: src* (video), thumbnail (asset), title (text). Style: width, maxWidth, flex. Phones: width, maxWidth.
-- **Social**: Links to social profiles: a line of the networks' icons, each linked to its profile. Props: icons* (items), iconType (circle|rounded|squared), size (number). Style: gap, justifyContent (start|center|end), flex. Phones: gap.
-- **Menu**: A line of links (a site's sections, a footer's), with a separator between them on desktop; or links down a column. Props: items* (items), separator (text), layout (horizontal|vertical). Style: color, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textTransform (none|uppercase|lowercase|capitalize), separatorColor, padding, justifyContent (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing.
+- **Social**: Links to social profiles: a line of the networks' icons, each linked to its profile. Props: icons* (a list of icons, each { name, href }), iconType (circle|rounded|squared), size (an integer from 1). Style: gap, justifyContent (start|center|end), flex. Phones: gap.
+- **Menu**: A line of links (a site's sections, a footer's), with a separator between them on desktop; or links down a column. Props: items* (a list of items, each { text, href }), separator (text), layout (horizontal|vertical). Style: color, fontFamily, fontSize, fontWeight, lineHeight, letterSpacing, textTransform (none|uppercase|lowercase|capitalize), separatorColor, padding, justifyContent (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing.
 
 ### Inline
 
-- **PageNumber**: In a Document's text: the number of the page it's on, or (total) how many pages there are. Props: total (boolean).
+- **PageNumber**: In a Document's text: the number of the page it's on, or (total) how many pages there are. Props: total (true or false).
 - **Span**: Styled text inside text; raised or lowered (superscript, subscript) with verticalAlign. Holds text, inline. Style: color, fontFamily, fontSize, fontWeight, fontStyle (normal|italic), letterSpacing, textTransform (none|uppercase|lowercase|capitalize), textDecoration (none|underline|line-through), backgroundColor, verticalAlign (baseline|super|sub). Phones: fontSize, letterSpacing.
 - **Link**: A link: text inside text, or around an Image. Holds text, inline, Image. Props: href* (link), title (text), aria-label (text). Style: color, fontFamily, fontSize, fontWeight, fontStyle (normal|italic), letterSpacing, textTransform (none|uppercase|lowercase|capitalize), textDecoration (none|underline|line-through), backgroundColor, flex. Hover: color, textDecoration, backgroundColor. Phones: fontSize, letterSpacing.
 - **LineBreak**: Starts a new line inside text.
@@ -114,15 +125,15 @@ export default function Receipt() {
 - **PageHeader**: In a Document: drawn at the top of every page, inside its margins. Holds layout, blocks. Style: text, padding, backgroundColor, border, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, padding, border, gap.
 - **PageFooter**: In a Document: drawn at the bottom of every page, inside its margins. Holds layout, blocks. Style: text, padding, backgroundColor, border, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, padding, border, gap.
 - **ListItem**: An item of a List: text, and a List of its own to nest one. Holds text, inline, List. Props: dir (ltr|rtl|auto). Style: text, textDecoration (none|underline|line-through). Phones: fontSize, lineHeight, letterSpacing, textAlign.
-- **TableRow**: A row of a Table. A header row's cells are header cells, in bold. Holds TableCell. Props: header (boolean). Style: text, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign.
-- **TableCell**: A cell of a TableRow: text, and images. Its width sets its column's. Holds text, inline, Image. Props: colSpan (number), dir (ltr|rtl|auto). Style: text, textDecoration (none|underline|line-through), padding, backgroundColor, border, width, verticalAlign (top|middle|bottom). Phones: fontSize, lineHeight, letterSpacing, textAlign, padding, border.
+- **TableRow**: A row of a Table. A header row's cells are header cells, in bold. Holds TableCell. Props: header (true or false). Style: text, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign.
+- **TableCell**: A cell of a TableRow: text, and images. Its width sets its column's. Holds text, inline, Image. Props: colSpan (an integer from 1), dir (ltr|rtl|auto). Style: text, textDecoration (none|underline|line-through), padding, backgroundColor, border, width, verticalAlign (top|middle|bottom). Phones: fontSize, lineHeight, letterSpacing, textAlign, padding, border.
 
 ### Shapes
 
-- **Rect**: A rectangle at x, y in its Svg, rounded by rx. Props: x (number), y (number), width* (number), height* (number), rx (number). Style: fill, stroke, strokeWidth, opacity.
-- **Circle**: A circle centered at cx, cy in its Svg. Props: cx (number), cy (number), r* (number). Style: fill, stroke, strokeWidth, opacity.
-- **Ellipse**: An ellipse centered at cx, cy in its Svg. Props: cx (number), cy (number), rx* (number), ry* (number). Style: fill, stroke, strokeWidth, opacity.
-- **Line**: A straight line from x1, y1 to x2, y2 in its Svg (drawn by its stroke). Props: x1 (number), y1 (number), x2 (number), y2 (number). Style: fill, stroke, strokeWidth, opacity.
+- **Rect**: A rectangle at x, y in its Svg, rounded by rx. Props: x (a number), y (a number), width* (a number from 0), height* (a number from 0), rx (a number from 0). Style: fill, stroke, strokeWidth, opacity.
+- **Circle**: A circle centered at cx, cy in its Svg. Props: cx (a number), cy (a number), r* (a number from 0). Style: fill, stroke, strokeWidth, opacity.
+- **Ellipse**: An ellipse centered at cx, cy in its Svg. Props: cx (a number), cy (a number), rx* (a number from 0), ry* (a number from 0). Style: fill, stroke, strokeWidth, opacity.
+- **Line**: A straight line from x1, y1 to x2, y2 in its Svg (drawn by its stroke). Props: x1 (a number), y1 (a number), x2 (a number), y2 (a number). Style: fill, stroke, strokeWidth, opacity.
 - **Polygon**: A closed shape through its points ("0,0 40,0 20,30"), in its Svg. Props: points* (text). Style: fill, stroke, strokeWidth, opacity.
 - **Path**: A shape drawn by an SVG path (d), in its Svg. Props: d* (text). Style: fill, stroke, strokeWidth, opacity.
 

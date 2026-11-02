@@ -35,6 +35,13 @@ describe("PRIMITIVES.md and PRIMITIVES-REFERENCE.md", () => {
     }
   });
 
+  it("says what a list prop's items are, and the mistakes agents made on their first try", () => {
+    const guide = read("PRIMITIVES.md");
+    expect(guide).toContain("items* (a list of items, each { text, href })");
+    expect(guide).toContain("icons* (a list of icons, each { name, href })");
+    expect(guide).toMatch(/## Common mistakes\n[\s\S]*A `Menu`'s items are `\{ text, href \}`[\s\S]*## A whole template/);
+  });
+
   it("keeps the guide short enough to read whole before writing a template", () => {
     expect(read("PRIMITIVES.md").length).toBeLessThan(20_000);
   });

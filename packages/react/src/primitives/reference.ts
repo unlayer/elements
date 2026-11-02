@@ -110,10 +110,14 @@ const TEXT = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lin
 const BOX = ["width", "maxWidth", "padding", "backgroundColor", "border", "borderRadius"];
 const CATEGORY: Record<string, string> = { section: "sections", layout: "layout", block: "blocks", inline: "inline", shape: "shapes" };
 
-/** A value as short as it can be said: an enum's options, else its kind. */
-function short(p: PropertyDescription): string {
+/**
+ * A value as short as it can be said: an enum's options, a kind the Values section names, else what it takes in
+ * full (a Menu's items are `{ text, href }`, a Social's icons `{ name, href }`: the shape is what gets written wrong).
+ */
+function short(p: PropertyDescription, named: Map<string, string>): string {
   const options = /^one of (.*)$/.exec(p.accepts)?.[1];
-  return options ? options.replace(/"/g, "").split(", ").join("|") : p.kind;
+  if (options) return options.replace(/"/g, "").split(", ").join("|");
+  return named.has(p.kind) ? p.kind : p.accepts;
 }
 
 /** Keys, with the shared groups named where all of a group's keys are there. */
@@ -129,14 +133,14 @@ function keys(found: string[], describe: (key: string) => string = (key) => key)
   return [...out, ...rest.map(describe)].join(", ");
 }
 
-function line(c: ComponentDescription): string {
+function line(c: ComponentDescription, named: Map<string, string>): string {
   const of = (prefix: string) => c.properties.filter((p) => p.path.startsWith(prefix));
   const byKey = new Map(c.properties.map((p) => [p.path, p]));
   const enumOf = (prefix: string) => (key: string) => {
     const p = byKey.get(`${prefix}${key}`)!;
-    return /^one of /.test(p.accepts) ? `${key} (${short(p)})` : key;
+    return /^one of /.test(p.accepts) ? `${key} (${short(p, named)})` : key;
   };
-  const props = of("props.").map((p) => `${p.path.slice(6)}${p.required ? "*" : ""} (${short(p)})`);
+  const props = of("props.").map((p) => `${p.path.slice(6)}${p.required ? "*" : ""} (${short(p, named)})`);
   const style = of("style.").map((p) => p.path.slice(6));
   const hover = of("hover.").map((p) => p.path.slice(6));
   const phone = of("style.").filter((p) => p.mobile).map((p) => p.path.slice(6));
@@ -160,7 +164,7 @@ export function primitivesGuide(example: string): string {
   const sections = GROUPS.map((group) => {
     const members = all.filter((c) => !placed.has(c.type) && group.has(c));
     for (const c of members) placed.add(c.type);
-    return [`### ${group.title}`, "", ...members.map((c) => line(c))].join("\n");
+    return [`### ${group.title}`, "", ...members.map((c) => line(c, named))].join("\n");
   });
   return [
     "# Writing templates with the new components (`@unlayer/react-elements/primitives`)",
@@ -180,6 +184,17 @@ export function primitivesGuide(example: string): string {
     "- Lists: `<List type=\"number\">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.",
     "- Phones: `mobile={{ fontSize: 20 }}` (the styles listed under \"Phones\"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: \"#374151\" }}` (those under \"Hover\").",
     "- `await render(element)` gives `{ html, text, diagnostics }`; a template with errors throws an `ElementsError` whose `diagnostics` give each problem's `code`, `message` and `path`. `validate(element)` runs the same checks without rendering. `outline(element)` prints the laid-out template (each block, its width, its text), to check the layout without reading the HTML.",
+    "",
+    "## Common mistakes",
+    "",
+    "Each of these made an agent's first try fail:",
+    "",
+    "- `<Email backgroundColor=\"#fff\">` → `<Email style={{ backgroundColor: \"#fff\" }}>`. Styles never go as props.",
+    "- `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.",
+    "- `items={[{ text: \"Home\", link: \"/\" }]}` → `items={[{ text: \"Home\", href: \"/\" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.",
+    "- `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.",
+    "- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are the main import's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.",
+    "- `<Image src=\"https://example.com/logo.png\">` → `src={{ src: \"https://example.com/logo.png\", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.",
     "",
     "## A whole template",
     "",

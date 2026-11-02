@@ -14,6 +14,14 @@ pnpm add @unlayer/react-elements
 
 A preview of the next major version, at its own entry: new components with typed `style` props, one template for an email, a web page, a printed document or an image, and `validate()` to check a template before it's sent. The components further down (the main import) are unchanged and don't mix with these: a template uses one set or the other.
 
+**With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
+
+```
+@node_modules/@unlayer/react-elements/PRIMITIVES.md
+```
+
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/PRIMITIVES.md."
+
 ```tsx
 import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
 
