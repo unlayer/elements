@@ -89,7 +89,8 @@ export interface FromDesignOptions {
 export function fromDesign(design: object, options: FromDesignOptions = {}): TemplateResult {
   const report: string[] = [];
   const root = lower(design as Design, report);
-  return { element: toElement(root, options.components), code: printTemplate(root, options.name), report };
+  const code = printTemplate(root, options.name, report);
+  return { element: toElement(root, options.components), code, report };
 }
 
 /** The elements raise() made, in the order renderToJson() writes them (arrays flattened, as React does). */

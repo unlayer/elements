@@ -41,6 +41,10 @@ export function toElement(node: Node, components: Record<string, React.Component
 }
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+/** A prop's name JSX can hold as one (`aria-label` too); a design could hold any other text where one goes. */
+const PROP_NAME = /^[A-Za-z_$][\w$]*(?:-[\w$]+)*$/;
+/** A component's name as JSX writes it: a built-in's, or a custom component's (`acme.ProductCard`). */
+const TYPE_NAME = /^(?:[A-Z][\w$]*|[a-z][a-z0-9-]*\.[A-Z][\w$]*)$/;
 
 /** A value as JavaScript source: objects with bare keys where they can be. */
 function js(value: unknown): string {
@@ -70,27 +74,43 @@ function text(value: string, flat: boolean): string {
 /** Whether a node holds a run of text (written on one line). */
 const inline = (node: Node) => (node.children ?? []).some((child) => typeof child === "string" || ["Span", "Link", "LineBreak", "MergeTag"].includes(child.type));
 
-function element(node: Node, indent: string, flat: boolean): string {
+/**
+ * A node as JSX. A name the design holds that isn't one JSX can write (a prop's, a component's) is left out and
+ * said, never written as code: the design's data stays data.
+ */
+function element(node: Node, indent: string, flat: boolean, path: string, report: string[]): string {
+  if (!TYPE_NAME.test(node.type)) {
+    report.push(`${path}: ${JSON.stringify(node.type)} isn't a component's name: it's left out of the code`);
+    return flat ? "" : "{/* left out: not a component's name */}";
+  }
   const name = tagName(node.type);
-  const attributes = Object.entries(propsOf(node)).map(([key, value]) => ` ${attribute(key, value)}`).join("");
+  const attributes = Object.entries(propsOf(node))
+    .filter(([key]) => PROP_NAME.test(key) || (report.push(`${path}: a prop named ${JSON.stringify(key)} isn't one JSX can write: it's left out of the code`), false))
+    .map(([key, value]) => ` ${attribute(key, value)}`)
+    .join("");
   const children: Child[] = node.children ?? [];
+  const child = (c: Child, i: number, inner: string, oneLine: boolean) => (typeof c === "string" ? text(c, oneLine) : element(c, inner, oneLine, `${path}.children[${i}]`, report));
   if (!children.length) return `<${name}${attributes} />`;
-  if (flat || inline(node)) return `<${name}${attributes}>${children.map((child) => (typeof child === "string" ? text(child, true) : element(child, indent, true))).join("")}</${name}>`;
+  if (flat || inline(node)) return `<${name}${attributes}>${children.map((c, i) => child(c, i, indent, true)).join("")}</${name}>`;
   const inner = `${indent}  `;
-  return `<${name}${attributes}>\n${children.map((child) => `${inner}${typeof child === "string" ? text(child, false) : element(child, inner, false)}`).join("\n")}\n${indent}</${name}>`;
+  return `<${name}${attributes}>\n${children.map((c, i) => `${inner}${child(c, i, inner, false)}`).join("\n")}\n${indent}</${name}>`;
 }
 
-/** The tree as a module: the components it uses imported, a component returning it. */
-export function printTemplate(root: Node, name = "Template"): string {
+/** The tree as a module: the components it uses imported, a component returning it. What it leaves out goes in `report`. */
+export function printTemplate(root: Node, name = "Template", report: string[] = []): string {
+  if (!IDENTIFIER.test(name)) {
+    report.push(`the component's name ${JSON.stringify(name)} isn't one JavaScript can write: it's named Template`);
+    name = "Template";
+  }
   const used = new Set<string>();
   const own = new Set<string>();
   const visit = (node: Node) => {
     const base = node.type === "DocumentPage" ? "Document" : node.type;
-    (COMPONENTS.has(node.type) ? used : own).add(base);
+    if (TYPE_NAME.test(node.type)) (COMPONENTS.has(node.type) ? used : own).add(base);
     for (const child of node.children ?? []) if (typeof child !== "string") visit(child);
   };
   visit(root);
   const imports = [`import { ${[...used].sort().join(", ")} } from "@unlayer/react-elements/primitives";`];
   if (own.size) imports.push(`// The template's own components: ${[...own].sort().join(", ")} (import them from where they're defined).`);
-  return `${imports.join("\n")}\n\nexport default function ${name}() {\n  return (\n    ${element(root, "    ", false)}\n  );\n}\n`;
+  return `${imports.join("\n")}\n\nexport default function ${name}() {\n  return (\n    ${element(root, "    ", false, "root", report)}\n  );\n}\n`;
 }

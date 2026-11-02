@@ -201,6 +201,22 @@ describe("fromDesign(toDesign())", () => {
     }
   });
 
+  it("writes no code from a design's data: a prop's name that isn't one is left out and said; a component's throws", () => {
+    const design = designOf(sample);
+    const [heading, paragraph] = blocks(design);
+    heading.values._elements.node.props = { ...heading.values._elements.node.props, "x={globalThis.pwn()} y": 1 };
+    const { code, report } = fromDesign(design, { name: "T(){globalThis.pwn()}; function Back" });
+    expect(code).not.toContain("pwn");
+    expect(report).toEqual(
+      expect.arrayContaining([
+        'root.children[0].children[0]: a prop named "x={globalThis.pwn()} y" isn\'t one JSX can write: it\'s left out of the code',
+        'the component\'s name "T(){globalThis.pwn()}; function Back" isn\'t one JavaScript can write: it\'s named Template',
+      ])
+    );
+    paragraph.values._elements.node.type = "Paragraph onClick={globalThis.pwn()}";
+    expect(() => fromDesign(design)).toThrow("is a component of the template's own");
+  });
+
   const invoice = (
     <Document size="A5" orientation="landscape" margin={40}>
       <PageHeader>
