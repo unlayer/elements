@@ -7,7 +7,7 @@ import type { ComponentDefinition } from "./define";
 import { Diagnostics, type Diagnostic } from "./diagnostics";
 import { isNode, type ElementsDocument, type Json, type Node } from "./model";
 import { checkFragment } from "./normalize";
-import { isCustom, propsWithDefaults, registryOf, type ComponentsOption, type CustomDefinition, type Registry } from "./registry";
+import { CUSTOM_TYPE, isCustom, propsWithDefaults, registryOf, type ComponentsOption, type CustomDefinition, type Registry } from "./registry";
 
 /** How deep custom components may expand into others: deeper is a component that contains itself. */
 const MAX_DEPTH = 32;
@@ -60,9 +60,15 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
     for (const diagnostic of diagnostics) d.list.push(diagnostic);
     if (!expanded) return undefined;
     collectIds(expanded);
-    // The custom node's place in a Row and its visibility go onto what it renders.
+    // The custom node's place in a Row and its visibility go onto what it renders; a built-in's (a Menu's, a
+    // Social's) id and phone styles too. A template's own component's id is only what the ids in it go after.
     if (node.style?.flex !== undefined) expanded.style = { ...expanded.style, flex: node.style.flex };
     if (node.hidden) expanded.hidden = { ...expanded.hidden, ...node.hidden };
+    if (node.id && !expanded.id && !CUSTOM_TYPE.test(node.type)) expanded.id = node.id;
+    for (const [key, value] of Object.entries(node.mobile ?? {})) {
+      if (registry.get(expanded.type)?.style[key]?.mobile) expanded.mobile = { [key]: value, ...expanded.mobile };
+      else d.warning("mobile/not-shown", `${node.type}'s ${key} on phones isn't shown: what it renders (a ${expanded.type}) has no ${key} for phones`, `${path}.mobile.${key}`, node.id);
+    }
     const inner = registry.get(expanded.type)!;
     if (isCustom(inner)) return expandOne(expanded, inner, parent, `${path}(${node.type})`, depth + 1);
     return visit(expanded, `${path}(${node.type})`, depth + 1);

@@ -72,6 +72,17 @@ describe("Menu", () => {
     expect((row.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
   });
 
+  it("gives what it renders its id and its phone styles, as a Social does", () => {
+    const menu = expandDocument(parseDocument(email({ type: "Menu", id: "nav", props: { items: ITEMS }, mobile: { fontSize: 12, lineHeight: 1.5 } })));
+    expect(menu.diagnostics).toEqual([]);
+    const row = menu.document.root.children![0] as Node;
+    expect([row.type, row.id, row.mobile]).toEqual(["Row", "nav", { fontSize: 12, lineHeight: 1.5 }]);
+    const social = expandDocument(parseDocument(email({ type: "Social", id: "follow", props: { icons: ICONS }, mobile: { gap: 2 } })));
+    expect(social.diagnostics).toEqual([]);
+    const icons = social.document.root.children![0] as Node;
+    expect([icons.type, icons.id, icons.mobile]).toEqual(["Row", "follow", { gap: 2 }]);
+  });
+
   it("keeps its separator in a Document, which has no phones to hide it on (hiding on phones isn't allowed there)", () => {
     const menu = () => parseDocument({ root: { type: "Document", children: [{ type: "Menu", props: { items: ITEMS, separator: "|" } }] } });
     expect(resolveDocument(menu()).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
