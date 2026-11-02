@@ -2,6 +2,9 @@
  * PDFs read back with pdf.js: their pages (how many, their paper), the words on each and where the first sits, and
  * that nothing is fetched (an image it isn't given is an error, not a request).
  */
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { COMPONENTS } from "@unlayer-internal/elements-core";
@@ -151,6 +154,25 @@ describe("renderPdf", () => {
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([["pdf/font", "warning"]]);
     expect((await read(pdf)).pages[0].words).toBe("Hello");
+  });
+
+  it("draws each render's fonts from its own files: a family another render gave other files to isn't theirs", async () => {
+    // Liberation Sans (SIL OFL), as pdf.js ships it: two different files given, in turn, as one family.
+    const file = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
+    const brand = (
+      <Document style={{ fontFamily: "Brand" }}>
+        <Text>Hello</Text>
+      </Document>
+    );
+    // A PDF names each font it embeds by the file's own name (after a subset's tag: "ABCDEF+LiberationSans-Bold").
+    const embedded = (pdf: Uint8Array) => [...new Set([...Buffer.from(pdf).toString("latin1").matchAll(/\/BaseFont \/[A-Z]{6}\+([\w-]+)/g)].map((match) => match[1]))];
+    const regular = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Regular.ttf") }] });
+    const bold = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Bold.ttf") }] });
+    const again = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Regular.ttf") }] });
+    expect(embedded(regular.pdf)).toEqual(["LiberationSans"]);
+    expect(embedded(bold.pdf)).toEqual(["LiberationSans-Bold"]);
+    expect(embedded(again.pdf)).toEqual(["LiberationSans"]);
+    expect(Buffer.from(again.pdf).equals(Buffer.from(regular.pdf))).toBe(true);
   });
 
   it("draws an Svg's shapes as vectors, in the drawing's box", async () => {
@@ -309,7 +331,7 @@ describe("renderPdf", () => {
     it.each(Object.entries(SAMPLES))("draws a %s with its words", (_, [sample, drawn]) => {
       const { root, diagnostics } = prepare(<Document>{sample}</Document>);
       expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
-      expect(words(writeDocument(root!, { fonts: new Set(), image: (src) => src, date: new Date(0) }))).toBe(drawn);
+      expect(words(writeDocument(root!, { fonts: new Map(), image: (src) => src, date: new Date(0) }))).toBe(drawn);
     });
   });
 

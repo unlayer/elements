@@ -8,6 +8,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so.
  */
+import { createHash } from "node:crypto";
 import { Font, renderToBuffer } from "@react-pdf/renderer";
 import { assetParts, type Asset, type FontFace } from "@unlayer-internal/elements-core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
@@ -59,25 +60,34 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
 
-/** Fonts registered with react-pdf (whose registry is the process's): by family, weight, style and file. */
+/** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
 const registered = new Set<string>();
 
 function base64(bytes: Uint8Array | ArrayBuffer): string {
   return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
 }
 
-/** The families given registered with react-pdf (lowercased, as the writer looks them up); a web font not given, noted. */
-function registerFonts(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Set<string> {
-  const families = new Set<string>();
+/**
+ * The families given, each registered with react-pdf under a name made from its files (so a render draws a family
+ * from the files it was given, never from ones another render gave under the same name, and the same files are
+ * registered once): by the family the template names, lowercased. A web font not given, noted.
+ */
+function registerFonts(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Map<string, string> {
+  const byFamily = new Map<string, Array<{ data: string; weight: number; style: "normal" | "italic" }>>();
   for (const font of given) {
     const family = font.family.toLowerCase();
-    const data = base64(font.src);
-    const key = `${family}|${font.weight ?? 400}|${font.style ?? "normal"}|${data.length}|${data.slice(0, 64)}`;
-    if (!registered.has(key)) {
-      Font.register({ family, src: `data:font/ttf;base64,${data}`, fontWeight: font.weight ?? 400, fontStyle: font.style ?? "normal" });
-      registered.add(key);
+    byFamily.set(family, [...(byFamily.get(family) ?? []), { data: base64(font.src), weight: font.weight ?? 400, style: font.style ?? "normal" }]);
+  }
+  const families = new Map<string, string>();
+  for (const [family, files] of byFamily) {
+    const hash = createHash("sha256");
+    for (const file of files) hash.update(`${file.weight}|${file.style}|${file.data}\n`);
+    const name = `elements-${hash.digest("hex").slice(0, 32)}`;
+    if (!registered.has(name)) {
+      for (const file of files) Font.register({ family: name, src: `data:font/ttf;base64,${file.data}`, fontWeight: file.weight, fontStyle: file.style });
+      registered.add(name);
     }
-    families.add(family);
+    families.set(family, name);
   }
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
     if (families.has(face.family.toLowerCase())) continue;

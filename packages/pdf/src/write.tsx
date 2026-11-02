@@ -23,8 +23,8 @@ import { createElement, type ReactElement, type ReactNode } from "react";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle, type PdfStyle } from "./styles";
 
 export interface WriteContext {
-  /** Font families registered with react-pdf, lowercased. */
-  fonts: ReadonlySet<string>;
+  /** The name each family given is registered under with react-pdf, by the family (lowercased). */
+  fonts: ReadonlyMap<string, string>;
   /** An image's source as react-pdf loads it without the network (a data URI), or undefined where there's none. */
   image(src: string): string | undefined;
   /** When the PDF says it was made. */

@@ -19,17 +19,17 @@ const STANDARD: Array<[RegExp, string]> = [
   [/^(times|times new roman|georgia|garamond|cambria|serif|ui-serif|palatino)$/i, "Times-Roman"],
 ];
 
-/** The family react-pdf draws a stack in: the first one registered, else the standard font closest to the stack's first. */
-export function pdfFamily(stack: string, registered: ReadonlySet<string>): string {
+/** The family react-pdf draws a stack in: the first one given (by the name it's registered under), else the standard font closest to the stack's first. */
+export function pdfFamily(stack: string, registered: ReadonlyMap<string, string>): string {
   const families = fontStack(stack);
   const known = families.find((family) => registered.has(family.toLowerCase()));
-  if (known) return known.toLowerCase();
+  if (known) return registered.get(known.toLowerCase())!;
   for (const family of families) for (const [pattern, standard] of STANDARD) if (pattern.test(family)) return standard;
   return "Helvetica";
 }
 
 /** A node's text styles, its own as it resolved (inherited ones included). */
-export function textStyle(node: ResolvedNode, registered: ReadonlySet<string>): PdfStyle {
+export function textStyle(node: ResolvedNode, registered: ReadonlyMap<string, string>): PdfStyle {
   const text = node.text;
   return {
     color: text.color,
@@ -46,7 +46,7 @@ export function textStyle(node: ResolvedNode, registered: ReadonlySet<string>): 
 }
 
 /** A run's own styles (a Span's, a Link's), over its text's. */
-export function runStyle(node: ResolvedNode, registered: ReadonlySet<string>): PdfStyle {
+export function runStyle(node: ResolvedNode, registered: ReadonlyMap<string, string>): PdfStyle {
   const style = node.style;
   const out: PdfStyle = { ...textStyle(node, registered), textAlign: undefined };
   if (style.textDecoration !== undefined) out.textDecoration = String(style.textDecoration);
