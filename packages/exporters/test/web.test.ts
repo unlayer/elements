@@ -130,6 +130,12 @@ describe("web HTML", () => {
     expect(web(page([{ type: "Text", children: [{ type: "MergeTag", props: { name: "name" } }] }]), { mergeTag: (name: string) => `*|${name.toUpperCase()}|*` }).body).toContain(
       "*|NAME|*"
     );
+    // The options' syntax as it is, the name in it escaped; the default as text.
+    const tags = page([{ type: "Text", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
+    expect(web(tags, { mergeTag: (name: string) => `<%= ${name} %>` }).body).toContain("<%= first_name %> <%= a&lt;b %>");
+    expect(web(tags).body).toContain("{{first_name}} {{a&lt;b}}");
+    const quoted = page([{ type: "Text", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
+    expect(web(quoted, { mergeTag: (name: string) => `<span data-name="${name}">tag</span>` }).body).toContain('<span data-name="a&quot; onmouseover=&quot;x">tag</span>');
   });
 
   it("writes the root's web fonts as @font-face rules, a face each, its format from its file where not given", () => {

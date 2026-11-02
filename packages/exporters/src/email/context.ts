@@ -9,7 +9,7 @@ import type { Html } from "../jsx";
 import type { Declarations } from "../shared/css";
 
 export interface EmailOptions {
-  /** How a merge tag is written (default `{{name}}`). */
+  /** How a merge tag is written (default `{{name}}`): into the HTML as it is, the name in it escaped. */
   mergeTag?: (name: string) => string;
   /** What every class name in the stylesheet starts with (default "e"). */
   classPrefix?: string;

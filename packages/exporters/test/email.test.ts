@@ -333,6 +333,16 @@ describe("email HTML", () => {
     expect(body).toContain('<a href="https://example.com" style="text-decoration:none"><img src="https://example.com/a.png" alt="A" width="120" border="0"');
   });
 
+  it("writes the options' merge-tag syntax as it is (ERB, Liquid filters), the name in it escaped; the default as text", () => {
+    const tags = email([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
+    expect(render(tags, { mergeTag: (name: string) => `<%= ${name} %>` }).body).toContain("<%= first_name %> <%= a&lt;b %>");
+    expect(render(tags, { mergeTag: (name: string) => `{{ ${name} | default: "you & yours" }}` }).body).toContain('{{ first_name | default: "you & yours" }}');
+    expect(render(tags).body).toContain("{{first_name}} {{a&lt;b}}");
+    // A name in an attribute's value stays inside it.
+    const quoted = email([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
+    expect(render(quoted, { mergeTag: (name: string) => `<span data-name="${name}">tag</span>` }).body).toContain('<span data-name="a&quot; onmouseover=&quot;x">tag</span>');
+  });
+
   it("raises and lowers text as <sup> and <sub>, without pushing its line apart", () => {
     const { body } = render(email([{ type: "Paragraph", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O"] }]));
     expect(body).toContain('>Brand<sup style="line-height:0">®</sup> H<sub style="line-height:0">2</sub>O</p>');
