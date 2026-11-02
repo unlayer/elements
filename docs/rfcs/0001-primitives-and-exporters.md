@@ -3,8 +3,8 @@
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
 every step below is done. Built so far: the API, 38 components, the layout resolver, the email, page
 and print writers, PDF and image output, plain text, custom components, web fonts, validation, support
-data for every output, the codemod from today's components, and the builder adapter for Emails and
-Pages (see [Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
+data for every output, the codemod from today's components, and the builder adapter (see
+[Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
 `@unlayer/react-elements/primitives`, until it becomes the package's main import in a new major
 version.
 
@@ -458,7 +458,7 @@ Last, once the API and components are final. It converts templates to the Unlaye
 JSON for Email, Page and Document, and edited designs back.
 
 **Built so far:** `toDesign(element)` and `fromDesign(design)` from `@unlayer/react-elements/builder`,
-for an Email or a Page. To the builder, a template goes through today's components (`raise`): each
+for an Email, a Page or a Document. To the builder, a template goes through today's components (`raise`): each
 new component becomes the tool the builder edits it with, with the values that draw it as the new
 engine does, and today's `renderToJson` writes the design the builder has opened for years. A Row's gap
 and side padding become its columns' padding and widths (the builder's row padding is outside the
@@ -467,8 +467,15 @@ row's height), an image its desktop width as a px pin and its phone width as an 
 Svg or a box nested in a column is an HTML block of the new engine's own markup. `fromDesign()` gives
 the template back as an element to render and as JSX source. Storybook's "Primitives/Builder" draws
 main's examples (as the codemod migrated them) as the builder draws them and as the template that comes
-back from the design draws, and the comparison gate checks the two match at desktop and phone widths. A
-Document's pages, headers and footers are next.
+back from the design draws, and the comparison gate checks the two match at desktop and phone widths.
+
+A Document goes to the builder's document mode: its size, orientation and margin as the builder's
+page settings (one margin for every side: the widest; the design is written at the schema version whose
+margin is the one written), each page its rows with a page break before it, a `PageBreak` the builder's
+page break, and its `PageHeader` and `PageFooter` the design's `headers` and `footers`, which the
+builder repeats on every page. The builder has no page numbers: a `PageNumber` is written as
+`{{page_number}}` (or `{{page_count}}`), read back as one, and listed. On the way back a page break
+added inside a page ends it there, and what follows is a page of its own.
 
 - **To the builder:** through the tree. A `Section` is a full-width row, a `Row` at the top or in a
   Section is a row with its `Column`s as columns, content directly under the root is a one-column row,
@@ -517,7 +524,7 @@ Each step ends with its tests in CI.
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
-| 11. Builder adapter | done for Email and Page (`toDesign`, `fromDesign`); Document next |
+| 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done |
 
 ## Open questions
 
