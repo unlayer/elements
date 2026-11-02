@@ -272,6 +272,54 @@ describe("outline()", () => {
     expect(lines.slice(2, 4)).toEqual(["  Column 600px", "    Row 600px: 3 side by side"]);
   });
 
+  it("shows a video's title and link, an Svg's shapes, what shows on phones only, and a Document's pages and header", () => {
+    expect(
+      outline(
+        <Page>
+          <Text hidden={{ desktop: true }}>Phones</Text>
+          <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />
+          <Menu items={[{ text: "Home", href: "https://x.test/" }, { text: "Blog", href: "https://x.test/blog" }]} />
+          <Svg width={20} height={10}>
+            <Rect width={20} height={10} />
+            <Circle cx={5} cy={5} r={4} />
+          </Svg>
+        </Page>
+      ).split("\n")
+    ).toEqual([
+      "Page 1200px",
+      '  Text 1200px: phones only "Phones"',
+      '  Video 1200px "Launch" https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      "  Row 1200px: 2 side by side",
+      '    Link "Home" → https://x.test/',
+      '    Link "Blog" → https://x.test/blog',
+      "  Svg 20px (2 shapes)",
+    ]);
+    expect(
+      outline(
+        <Document>
+          <PageHeader>
+            <Text>Acme</Text>
+          </PageHeader>
+          <Document.Page>
+            <Text>One</Text>
+          </Document.Page>
+        </Document>
+      ).split("\n")
+    ).toEqual(["Document 698px", "  PageHeader 698px", '    Text 698px "Acme"', "  Document.Page 698px", '    Text 698px "One"']);
+  });
+
+  it("throws a problem found laying the template out, with what it is", () => {
+    expect(() =>
+      outline(
+        <Email>
+          <Svg width={10} height={10}>
+            <Rect width={10} height={10} />
+          </Svg>
+        </Email>
+      )
+    ).toThrow(/A Svg can't be rendered to email/);
+  });
+
   it("throws the template's problems, as render() does", () => {
     // @ts-expect-error a Button needs an href
     const invalid = <Button>Go</Button>;

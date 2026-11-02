@@ -39,7 +39,7 @@ function describe(node: ResolvedNode): string {
   if (node.width !== null) parts.push(`${Math.round(node.width)}px`);
   const details: string[] = [];
   const children = blocks(node);
-  // A Grid is laid out as its Rows (in a Column), so it shows as those.
+  // A Grid, a Menu and a Social are laid out as Rows (a Menu's and a Social's of Links), so they show as those.
   if (node.type === "Row") details.push(`${children.length} side by side${node.props.stackOnMobile === false ? "" : ", stacked on phones"}`);
   if (typeof node.style.backgroundColor === "string") details.push(`background ${node.style.backgroundColor}`);
   if (node.hidden?.desktop) details.push("phones only");
@@ -53,10 +53,6 @@ function describe(node: ResolvedNode): string {
       return `${head} "${clip(words(node))}" → ${linkParts(node.props.href as LinkValue).href}`;
     case "Video":
       return `${head} "${clip(String(node.props.title ?? ""))}" ${node.props.src}`;
-    case "Menu":
-      return `${head} ${(node.props.items as Array<{ text: string; href: string }>).map((item) => `"${item.text}" → ${item.href}`).join(", ")}`;
-    case "Social":
-      return `${head} ${(node.props.icons as Array<{ name: string }>).map((icon) => icon.name).join(", ")}`;
     case "Svg":
       return `${head} (${children.length} shapes)`;
     default:
@@ -67,7 +63,7 @@ function describe(node: ResolvedNode): string {
 /** The lines of a node and what it holds, indented under it. Text and its inline parts are its line; Lists in it go under it. */
 function lines(node: ResolvedNode, indent: string): string[] {
   const own = `${indent}${describe(node)}`;
-  if (node.type === "Svg" || node.type === "Menu" || node.type === "Social") return [own];
+  if (node.type === "Svg") return [own];
   const under = node.definition.children.text ? blocks(node).filter((child) => child.type === "List") : blocks(node);
   return [own, ...under.flatMap((child) => lines(child, `${indent}  `))];
 }

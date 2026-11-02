@@ -54,8 +54,11 @@ export function validate(element: React.ReactElement): ValidationResult {
  */
 export function outline(element: React.ReactElement): string {
   const { document, diagnostics, components } = template(element, "outline");
-  const root = document && !diagnostics.some((d) => d.severity === "error") ? prepareTemplate(document, { components }).resolved?.root : null;
-  if (!root) throw new ElementsError(diagnostics);
+  if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
+  // Laying it out finds problems of its own (a composite's, an output's): those are the ones it throws.
+  const prepared = prepareTemplate(document, { components });
+  const root = prepared.resolved?.root;
+  if (!root) throw new ElementsError([...diagnostics, ...prepared.diagnostics]);
   return outlineOf(root);
 }
 
