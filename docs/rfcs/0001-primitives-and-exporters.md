@@ -56,7 +56,9 @@ The decisions behind the design, with the date each was taken.
    `width` centers the content); `Section` is a band whose background spans the window.
 4. **JSX only; no public JSON** (2026-11-01): templates are written as JSX. There's no JSON input, no
    published schema and no document format to version. Agents learn the components from their types,
-   a reference generated from the definitions, and `validate()`'s messages.
+   a reference generated from the definitions, and `validate()`'s messages. The one exception is what
+   a template keeps in the builder's design JSON (`values._elements`, see the builder adapter below):
+   saved designs hold it, so it's versioned and, once frozen, read forever. It's experimental till then.
 5. **An internal tree** (2026-11-01): rendering collects the JSX into plain data first, because layout
    needs the whole template before anything is written, and React context isn't available where
    Elements must run (see [Why rendering goes through a tree](#why-rendering-goes-through-a-tree)).
@@ -483,6 +485,10 @@ added inside a page ends it there, and what follows is a page of its own.
   `Button` → button, `Image` → image, `Divider` → divider, `Table` → table). What no tool can show
   (nested layouts, a `Layer`) is a locked block with its HTML: it can be moved, duplicated or deleted,
   not edited.
+- **The format is experimental** till it's frozen as version 1, once: a test sets every field of every
+  tool to another value, to its default, and removes it, each read as a whole copy of what was written
+  reads it; designs saved by the real builder for every tool read back as written; the format's table
+  of defaults is checked against what today's components write; and a review finds nothing new.
 - **What the builder has no editor for stays in the design, and nothing else.** The builder's values
   are the design: what the builder holds (a heading's words, size and color) is written there only.
   Each item (the body, a row, a column, a block) carries, in its `values._elements`, only what the
@@ -519,7 +525,9 @@ added inside a page ends it there, and what follows is a page of its own.
   of its own (in a header or footer, a Column). A row added between rows of a Section or on a page is
   in it. An image link set in the builder is a Link around the Image.
 - **Known limits:** a Grid re-flows its children when a row of it holds more or fewer than its
-  columns; a heading whose level alone changes takes that level's size; deleting or duplicating the
+  columns; a heading whose level alone changes keeps the size the builder shows, and a body's font or
+  text color changed in the builder leaves each block's as the builder shows it (it holds one on each
+  block); deleting or duplicating the
   page break between two pages isn't read; an empty Grid isn't kept; a template's own components
   need passing to `fromDesign()` to render. A text edit drops what the builder's HTML can't hold (a
   link's hover), and says so.
