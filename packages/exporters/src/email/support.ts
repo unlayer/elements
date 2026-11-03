@@ -54,7 +54,8 @@ function structure(node: ResolvedNode, d: Diagnostics): void {
   if (node.type === "Layer") {
     const shape = layerShape(node);
     if ("problem" in shape) d.error("email/layer", shape.problem, shape.path, id);
-    else if (node.style.height === undefined) {
+    // Where its image is hidden on phones, it's as tall as what's over it there, as on a page.
+    else if (node.style.height === undefined && !shape.base.hidden?.mobile) {
       d.add("email/layer-phone", "info", "On phones, the email keeps this Layer's height and cuts its image at the sides (a page scales it): give the Layer a height to draw both the same", `${path}.style.height`, id);
     }
   }

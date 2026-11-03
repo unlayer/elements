@@ -6,7 +6,7 @@
  */
 import { chromium, type Browser, type Page } from "playwright";
 import { resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { emailSupport, renderEmail } from "../../src";
+import { emailSupport, renderEmail, renderTemplate } from "../../src";
 import { template } from "./fixture";
 
 const resolved = resolveDocument(template("Email"));
@@ -82,5 +82,30 @@ describe("email layout in Chromium", () => {
     const measured = await boxes(1280);
     expect(measured["desktop-only"].shown).toBe(true);
     expect(measured["desktop-only"].top).toBe(measured.column_1.top);
+  });
+});
+
+describe("a Layer whose Image is hidden on phones, in Chromium", () => {
+  it("draws the image on desktop, and on phones only what's over it, as tall as that is", async () => {
+    const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 600 };
+    const { html } = renderTemplate({
+      root: {
+        type: "Email",
+        props: { width: 600 },
+        children: [{ type: "Layer", id: "hero", children: [{ type: "Image", props: { src: photo, alt: "Sea" }, style: { width: "100%" }, hidden: { mobile: true } }, { type: "Text", id: "over", children: ["Summer sale"] }] }],
+      },
+    });
+    const measure = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(html);
+      return page.evaluate(() => {
+        const cell = document.querySelector("#hero td[background]")!;
+        return { image: getComputedStyle(cell).backgroundImage, height: Math.round(cell.getBoundingClientRect().height), over: Math.round(document.getElementById("over")!.getBoundingClientRect().height) };
+      });
+    };
+    const desktop = await measure(1280);
+    expect([desktop.image.startsWith("url("), desktop.height]).toEqual([true, 300]);
+    const phone = await measure(375);
+    expect([phone.image, phone.height]).toEqual(["none", phone.over]);
   });
 });

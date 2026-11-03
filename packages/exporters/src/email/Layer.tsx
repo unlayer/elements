@@ -2,13 +2,15 @@
  * A Layer: an Image with one child over it, the email way (anything else is reported before writing, see
  * `layerShape`). The image is the cell's background, covering it (`background` and CSS for the clients that take
  * either, a VML rectangle for classic Outlook, which takes neither); the child is the cell's content, placed by the
- * cell's `valign` and `align`. The cell is the image's height at the Layer's width, or the Layer's height.
+ * cell's `valign` and `align`. The cell is the image's height at the Layer's width, or the Layer's height. A
+ * background has no alternate text: the image's is an empty labelled image's, for screen readers, and the VML's.
  */
 import { assetParts, type Asset, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { close, h, open, Outlook, raw } from "../jsx";
+import { close, h, NotOutlook, open, Outlook, raw } from "../jsx";
 import { isNode, shown, type Component } from "./context";
 import { boxWidth, phoneWidth, VALIGN } from "./layout";
 import { bgcolor, Table } from "./markup";
+import { hiding } from "./styles";
 
 const ALIGN: Record<string, string | undefined> = { start: "left", center: "center", end: "right", stretch: undefined };
 
@@ -38,9 +40,12 @@ export const Layer: Component = ({ node, style, mobile, fill, render }) => {
   const width = node.contentWidth ?? 0;
   const background = bgcolor(style.backgroundColor);
   const box = boxWidth(node, fill);
+  const alt = (base.props.alt as string | undefined) || undefined;
+  // An image hidden on phones leaves the Layer there as tall as what's over it (or its own height), as on a page.
+  const phoneless = !!base.hidden?.mobile;
   const vml = (
     <Outlook>
-      {open(h("v:rect", { "xmlns:v": "urn:schemas-microsoft-com:vml", fill: "true", stroke: "false", style: { width, height } }))}
+      {open(h("v:rect", { "xmlns:v": "urn:schemas-microsoft-com:vml", fill: "true", stroke: "false", alt, style: { width, height } }))}
       {h("v:fill", { type: "frame", src, color: background })}
       {open(h("v:textbox", { inset: "0,0,0,0" }))}
     </Outlook>
@@ -54,7 +59,12 @@ export const Layer: Component = ({ node, style, mobile, fill, render }) => {
           height={height}
           valign={VALIGN[(style.alignItems as string) ?? "start"]}
           align={ALIGN[(style.justifyItems as string) ?? "stretch"]}
-          phone={{ border: mobile.border, backgroundColor: mobile.backgroundColor }}
+          phone={{
+            border: mobile.border,
+            backgroundColor: mobile.backgroundColor,
+            backgroundImage: phoneless ? "none" : undefined,
+            height: phoneless && style.height === undefined ? "auto" : undefined,
+          }}
           style={{
             height,
             backgroundColor: style.backgroundColor,
@@ -69,6 +79,11 @@ export const Layer: Component = ({ node, style, mobile, fill, render }) => {
           }}
         >
           {vml}
+          {alt && (
+            <NotOutlook>
+              <div class={hiding(base, "block").class} role="img" aria-label={alt} />
+            </NotOutlook>
+          )}
           {over && render(over, { fill: style.justifyItems === "stretch" })}
           <Outlook>
             {close("v:textbox")}

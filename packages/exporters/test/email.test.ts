@@ -605,13 +605,31 @@ describe("email HTML", () => {
       const { body, diagnostics } = render(layer([image(), over], { alignItems: "center", justifyItems: "center" }));
       expect(body).toContain('<td background="https://example.com/hero.jpg" height="300" valign="middle" align="center" style="height:300px;background-image:url(&quot;https://example.com/hero.jpg&quot;);background-size:cover;background-position:center;background-repeat:no-repeat">');
       // Outlook takes neither: a VML rectangle the image fills, with the words in its text box.
-      expect(outlookOnly(body)).toContain('<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;height:300px"><v:fill type="frame" src="https://example.com/hero.jpg"></v:fill><v:textbox inset="0,0,0,0">');
+      expect(outlookOnly(body)).toContain('<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" alt="Sea" style="width:600px;height:300px"><v:fill type="frame" src="https://example.com/hero.jpg"></v:fill><v:textbox inset="0,0,0,0">');
       expect(outlookOnly(body)).toContain("</v:textbox></v:rect>");
       expect(body).toContain("Summer sale");
       expect(body).not.toContain("<img");
       // Without a height it keeps the desktop one on phones, which a page doesn't: noted.
       expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([["email/layer-phone", "info", "root.children[0].style.height"]]);
       expect(render(layer([image(), over], { height: 240 })).body).toContain('height="240"');
+    });
+
+    it("reads its Image's alternate text out, and leaves the image out on phones where it's hidden there", () => {
+      const { html, body } = render(layer([image(), over]));
+      // A background has no alt: an empty labelled image for screen readers, and the VML's alt for Outlook.
+      expect(notOutlook(body)).toContain('<div role="img" aria-label="Sea"></div>');
+      expect(outlookOnly(body)).toContain('<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" alt="Sea"');
+      expect(html).not.toContain("background-image:none");
+      const hidden = render(layer([{ ...image(), hidden: { mobile: true } }, over]));
+      const dom = new JSDOM(hidden.html).window.document;
+      const cell = dom.querySelector("td[background]")!;
+      const rules = dom.querySelector("style")!.textContent!;
+      // On phones, no image and no image's height: as tall as the words over it, as on a page.
+      for (const name of cell.className.split(" ")) expect(rules).toContain(`.${name}{`);
+      expect(rules).toMatch(new RegExp(`\\.(${cell.className.split(" ").join("|")})\\{[^}]*background-image:none!important[^}]*height:auto!important`));
+      expect(dom.querySelector('div[role="img"]')!.className).not.toBe("");
+      // Its height on phones is a page's: nothing to note.
+      expect(hidden.diagnostics).toEqual([]);
     });
 
     it("says what an email can't draw: not an Image under one child, an Image narrower than the Layer, a height it can't work out", () => {
