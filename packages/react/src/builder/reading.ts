@@ -17,6 +17,8 @@ export interface Slot {
 /** What a block is read in: the root's text styles (what a block inherits) and where to say what's left out. */
 export interface Context {
   inherited: { color: string; fontFamily: string; fontWeight: number };
+  /** The root's direction, which a block without one of its own takes. */
+  dir: string;
   document: boolean;
   say(message: string): void;
 }

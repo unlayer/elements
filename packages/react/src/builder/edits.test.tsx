@@ -394,6 +394,30 @@ describe("an edit this adapter's review found lost", () => {
     return { design, values: design.body.rows[0].columns[0].contents[0].values as Values };
   };
 
+  /** Rich text as the builder's editor saves it (Lexical's JSON): a paragraph of runs, as its heading and button tools mark theirs where `inline`. */
+  const richText = (runs: Array<{ text: string; format?: number }>, inline = false) =>
+    JSON.stringify({ root: { type: "root", version: 1, children: [{ type: "paragraph", version: 1, format: "", indent: 0, direction: "ltr", ...(inline ? { isInlineTool: true } : {}), children: runs.map(({ text, format = 0 }) => ({ type: "text", version: 1, text, format, style: "", mode: "normal", detail: 0 })) }] } });
+
+  it("reads a text's, a heading's and a button's rich text (textJson), not the older text beside it", () => {
+    const design = designOf(
+      <Email>
+        <Paragraph>Old text</Paragraph>
+        <Heading>Old title</Heading>
+        <Button href="https://x.test">Old label</Button>
+      </Email>
+    );
+    const [text, heading, button] = design.body.rows[0].columns[0].contents.map((content: any) => content.values);
+    text.textJson = richText([{ text: "Total: " }, { text: "123", format: 1 }]);
+    heading.textJson = richText([{ text: "New title" }], true);
+    button.textJson = richText([{ text: "New label" }], true);
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const [t, h, b] = tree(back.element).children as Node[];
+    expect(t.children).toEqual(["Total: ", { type: "Span", style: { fontWeight: 700 }, children: ["123"] }]);
+    expect(h.children).toEqual(["New title"]);
+    expect((b.type === "Button" ? b : (b.children![0] as Node)).children).toEqual(["New label"]);
+  });
+
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
     const { design, values } = one(
       <Email>

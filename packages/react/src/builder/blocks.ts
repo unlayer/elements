@@ -13,7 +13,7 @@ import { color, fontWeight, font, letterSpacing, px, sides, some, type Values } 
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
-import { mergeTags } from "./text";
+import { mergeTags, richText } from "./text";
 import { textTool } from "./text-tool";
 import { readBorder } from "./values";
 
@@ -47,7 +47,7 @@ function button(values: Values, context: Context): Node[] {
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
   const href = link(values.href);
   if (!href) context.say('its link is empty in the builder: it\'s "#" until one is set');
-  const label = parseRuns(typeof values.text === "string" ? values.text : "", { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
+  const label = parseRuns(richText(values, true, str(values.textDirection) ?? context.dir), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
   const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile: { ...phoneText(values), ...phonePadding(values, "padding"), ...hidden.mobile }, hover, children: mergeTags(label.children, false) });
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];

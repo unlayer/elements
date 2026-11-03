@@ -6,6 +6,7 @@
  * What isn't read exactly is said in `left`, and the block is kept as its markup.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
+import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { parseRuns, type Run } from "../compat/runs";
 import { px } from "../compat/values";
 
@@ -71,6 +72,35 @@ export function mergeTags(runs: Run[], pages: boolean): Child[] {
     if (last < run.length) out.push(run.slice(last));
     return out;
   });
+}
+
+/**
+ * A tool's text as the builder draws it: its rich text (`textJson`, what its editor saves) where it has one, as today's
+ * exporters write it, which the design's `text` may be an older copy of; its `text` where it hasn't. A heading's or a
+ * button's lines are each a `<span>` in its direction (its alignment nothing on a span): unwrapped where that's the
+ * block's own.
+ */
+export function richText(values: Record<string, unknown>, inline: boolean, dir: string): string {
+  if (typeof values.textJson !== "string") return typeof values.text === "string" ? values.text : "";
+  const html = generateHtmlFromTextJson(values.textJson);
+  return inline ? unwrapLines(html, dir) : html;
+}
+
+/** Spans each holding a line in the block's direction, their words in a row (as inline spans are drawn); the HTML as it is otherwise. */
+function unwrapLines(html: string, dir: string): string {
+  let out = "";
+  let at = 0;
+  const OPEN = /<span dir="(ltr|rtl|auto)"(?: style="text-align: (?:left|center|right|justify|start|end);")?>/y;
+  while (at < html.length) {
+    OPEN.lastIndex = at;
+    const open = OPEN.exec(html);
+    if (!open || open[1] !== dir) return html;
+    const end = closing(html, "span", OPEN.lastIndex);
+    if (!end) return html;
+    out += html.slice(OPEN.lastIndex, end.start);
+    at = end.end;
+  }
+  return out;
 }
 
 /** Whether the HTML has blocks of its own (a `<p>`, a list) rather than lines. */

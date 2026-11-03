@@ -9,7 +9,7 @@ import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, fontWeight, font, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden } from "./hide";
 import { boxOf, defined, make, obj, phoneText, placed, str, textStyle, ZERO, type Context } from "./reading";
-import { readText } from "./text";
+import { readText, richText } from "./text";
 
 /** A text or heading tool: a Paragraph or Heading (a `<p>`, or a list, each a block of its own). */
 export function textTool(tool: "text" | "heading", values: Values, context: Context): Node[] {
@@ -19,7 +19,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const taken: Record<string, Json> = tool === "heading" ? { ...(HeadingDefinition.defaultStyle as Record<string, Json>), ...(HeadingDefinition.defaultStyleBy!.values as Record<string, Record<string, Json>>)[String(level)] } : {};
   const style = { ...textStyle(values, taken, context), ...hidden.style };
   const mobile = { ...phoneText(values), ...hidden.mobile };
-  const html = typeof values.text === "string" ? values.text : "";
+  const html = richText(values, tool === "heading", str(values.textDirection) ?? context.dir);
   const weight = fontWeight(values.fontWeight) ?? (tool === "heading" ? 700 : context.inherited.fontWeight);
   const fontSize = (style.fontSize as number | undefined) ?? (taken.fontSize as number | undefined) ?? 16;
   const { parts, left } = readText(html, { weight, pages: context.document, fontSize });
@@ -33,7 +33,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
     return [placed(make("Html", { id, props: { html: markup(html, values) } }), containerPadding, undefined, phonePadding, visibility)];
   }
   const boxed = boxOf(hidden);
-  const blockDir = str(values.textDirection) ?? "ltr";
+  const blockDir = str(values.textDirection) ?? context.dir;
   const nodes = parts.map((part, i) => {
     // A list takes the block's text styles; a heading's part beside one is a Paragraph in its styles.
     const own = part.node.type === "List" ? "List" : type;
