@@ -60,6 +60,13 @@ describe("lowerDesign()", () => {
     expect(row).toMatchObject({ type: "Row", props: { stackOnMobile: false } });
   });
 
+  it("keeps the ids authors give rows, columns and blocks", () => {
+    const root = tree(<Email><Row values={{ _meta: { htmlID: "top" } } as never}><Column values={{ _meta: { htmlID: "col" } } as never}><Paragraph values={{ _meta: { htmlID: "intro" } } as never}>A</Paragraph></Column></Row></Email>);
+    const section = (root.children as TreeNode[])[0];
+    const column = ((section.children as TreeNode[])[0].children as TreeNode[])[0];
+    expect([section.id, column.id, (column.children as TreeNode[])[0].id]).toEqual(["top", "col", "intro"]);
+  });
+
   it("says what in a template's frame it can't draw as legacy does", () => {
     const unlowered = (element: React.ReactElement) => (lowered(element) as { unlowered?: string }).unlowered;
     expect(unlowered(<Email><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("background image");
