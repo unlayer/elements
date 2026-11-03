@@ -19,7 +19,7 @@ const ROOTS: Record<DisplayMode, string> = { email: "Email", web: "Page", docume
 /** The page sizes a Document takes. */
 const SIZES = new Set(["A3", "A4", "A5", "Letter", "Legal", "Tabloid"]);
 
-export function readDesign(design: unknown, displayMode: DisplayMode | undefined, report: string[]): Node {
+export function readDesign(design: unknown, displayMode: DisplayMode | undefined, report: string[], toSafeHtml?: (html: string) => string): Node {
   const body = obj(obj(design).body);
   if (!Object.keys(body).length) report.push("the design has no body: an empty template");
   // A value the body doesn't have is the builder's default, as it gives it.
@@ -38,6 +38,7 @@ export function readDesign(design: unknown, displayMode: DisplayMode | undefined
   const context = (where: string): Context => ({
     inherited: { color: (root.style?.color as string | undefined) ?? "#000000", fontFamily: (root.style?.fontFamily as string | undefined) ?? "Arial, Helvetica, sans-serif", fontWeight: (root.style?.fontWeight as number | undefined) ?? 400 },
     dir: (root.props?.dir as string | undefined) ?? "ltr",
+    safe: (html) => (toSafeHtml ? toSafeHtml(html) : html),
     document: mode === "document",
     say: (message) => report.push(`${where}: ${message}`),
   });

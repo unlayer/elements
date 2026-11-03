@@ -19,7 +19,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const taken: Record<string, Json> = tool === "heading" ? { ...(HeadingDefinition.defaultStyle as Record<string, Json>), ...(HeadingDefinition.defaultStyleBy!.values as Record<string, Record<string, Json>>)[String(level)] } : {};
   const style = { ...textStyle(values, taken, context), ...hidden.style };
   const mobile = { ...phoneText(values), ...hidden.mobile };
-  const html = richText(values, tool === "heading", str(values.textDirection) ?? context.dir);
+  const html = context.safe(richText(values, tool === "heading", str(values.textDirection) ?? context.dir));
   const weight = fontWeight(values.fontWeight) ?? (tool === "heading" ? 700 : context.inherited.fontWeight);
   const fontSize = (style.fontSize as number | undefined) ?? (taken.fontSize as number | undefined) ?? 16;
   const { parts, left } = readText(html, { weight, pages: context.document, fontSize });

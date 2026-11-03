@@ -35,12 +35,18 @@ export interface FromDesignOptions {
   displayMode?: DisplayMode;
   /** The name of the component in `code`. */
   name?: string;
+  /**
+   * Your sanitizer for a design's markup, as today's exporters take it in their config: every builder `html` block's
+   * markup, and every text's (before it's read, as theirs is), goes through it. Without one, a design's markup is
+   * kept as it is: give one where a design can hold untrusted content.
+   */
+  toSafeHtml?: (html: string) => string;
 }
 
 /** The builder's design JSON (made by toDesign() or in the builder) as a template in the new components. */
 export function fromDesign(design: unknown, options: FromDesignOptions = {}): TemplateResult {
   const report: string[] = [];
-  const root = checkTemplate(uniqueIds(readDesign(design, options.displayMode, report)), report);
+  const root = checkTemplate(uniqueIds(readDesign(design, options.displayMode, report, options.toSafeHtml)), report);
   const code = printTemplate(root, options.name, report);
   return { element: toElement(root), code, report };
 }

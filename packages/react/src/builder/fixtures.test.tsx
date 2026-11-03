@@ -172,6 +172,19 @@ describe("malformed design JSON", () => {
     expect(((tree(read.social.element).children as Node[])[0].children![0] as Node).props!.icons).toEqual([{ name: "Facebook", href: "#" }, { name: "X", href: "https://x.test" }]);
   });
 
+  it("passes a design's markup through toSafeHtml where one is given: an html block's, a text's, a text kept as markup", async () => {
+    const block = (content: unknown) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [content] }] }] } });
+    const script = "<script>alert(1)</script>";
+    const strip = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, "");
+    for (const content of [{ type: "html", values: { html: `${script}Hi` } }, { type: "text", values: { text: `${script}Hi` } }, { type: "text", values: { text: `<marquee>Hi</marquee>${script}` } }]) {
+      const design = block(content);
+      expect((await render(fromDesign(design).element)).html).toContain(script);
+      const safe = (await render(fromDesign(design, { toSafeHtml: strip }).element)).html;
+      expect(safe).not.toContain("<script");
+      expect(safe).toContain("Hi");
+    }
+  });
+
   it("reads JSON that isn't a design as an empty template, and says so", () => {
     for (const design of [null, "x", 5, [], {}, { body: 5 }, { body: { rows: "x" } }, { body: { rows: [null, 5, { columns: "x" }, { columns: [null, { contents: [null, { type: "constructor", values: 5 }, { type: "__proto__" }] }] }] } }]) {
       const back = fromDesign(design);

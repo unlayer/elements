@@ -14,7 +14,8 @@
   plain text.
 - New, with `/primitives`: `@unlayer/react-elements/builder`, `toDesign()` and `fromDesign()`, a template to the
   Unlayer builder's design JSON and back. What a builder tool has no field for is kept in the design as a hidden
-  property of that tool; what the builder can't arrange comes back with the same look, flatter.
+  property of that tool; what the builder can't arrange comes back with the same look, flatter. `fromDesign()`
+  takes a `toSafeHtml` for a design's markup, as today's exporters do.
 - Types for `/primitives`, `/builder` and `/legacy` resolve under `moduleResolution: "node"` too.
 - The main entry grows from about 31KB to about 96KB gzipped.
 

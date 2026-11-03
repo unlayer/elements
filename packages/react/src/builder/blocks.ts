@@ -55,7 +55,7 @@ function button(values: Values, context: Context): Node[] {
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
   const href = link(values.href, context.say);
   if (!href && webLink(values.href) === null) context.say('its link is empty in the builder: it\'s "#" until one is set');
-  const label = parseRuns(richText(values, true, str(values.textDirection) ?? context.dir), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
+  const label = parseRuns(context.safe(richText(values, true, str(values.textDirection) ?? context.dir)), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
   tagged(richText(values, true, str(values.textDirection) ?? context.dir), "its label", context.say);
   const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile: { ...phoneText(values), ...phonePadding(values, "padding"), ...hidden.mobile }, hover, children: mergeTags(label.children, false) });
@@ -180,7 +180,7 @@ function video(values: Values, context: Context): Node[] {
 
 function html(values: Values, context: Context): Node[] {
   const hidden = readHidden("html", "Html", values, context.say);
-  const node = make("Html", { id: givenId(values), props: { html: typeof values.html === "string" ? values.html : "", ...hidden.props } });
+  const node = make("Html", { id: givenId(values), props: { html: context.safe(typeof values.html === "string" ? values.html : ""), ...hidden.props } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 

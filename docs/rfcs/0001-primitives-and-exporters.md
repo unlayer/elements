@@ -551,8 +551,10 @@ design holds no Elements data (decision 12).
   in text is a Paragraph of its own, with no margins but those its own style gives it (the builder's export
   resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with an email service's tag
   (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder `html` block, is an
-  `Html` block. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`,
-  `"document"` a `Document`); without one, a design with a header, a footer or a page break is a
+  `Html` block. A design's markup (an `html` block's, a text's before it's read) goes through the app's
+  `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as it is. The root
+  is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a `Document`); without
+  one, a design with a header, a footer or a page break is a
   `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, every value checked
   against its component, what can't be read left out and said in `report` (a link Elements won't write, a
   file's or a script's, alone: a Link's words or image kept, a button's, a menu item's or an icon's `#`); the

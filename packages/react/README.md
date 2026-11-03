@@ -87,7 +87,7 @@ const { design, report } = toDesign(<Receipt />); // report: what the builder ca
 const { element, code, report: read } = fromDesign(saved, { displayMode: "email" }); // "web" a Page, "document" a Document
 ```
 
-The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do.
+The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`.
 
 **To write one, read [PRIMITIVES.md](./PRIMITIVES.md)** in this package: how a template is written, how the new components differ from the ones below, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions. To move templates from the components below, see the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and `npx @unlayer/migrate --from elements`.
 
@@ -510,6 +510,7 @@ renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — 
 - Props are the tool's `values` (flat), merged over the definition's defaults; `values={{...}}` works as an escape hatch.
 - Modes fall back like the editor: `document` uses the `web` exporter; an email-only tool renders via its `email` exporter everywhere.
 - **Sanitization:** when your config provides `toSafeHtml`, the tool's HTML output is passed through it (matching editor exports). The default config has no sanitizer — configure one if tool values can contain untrusted content.
+- **Reading designs back:** `fromDesign()` (`/builder`) takes the same sanitizer as an option, `fromDesign(design, { toSafeHtml })`: every builder HTML block's markup, and every text's before it's read, goes through it. Without one, a design's markup is kept as it is — give one if designs can hold untrusted content.
 
 ## UnlayerProvider
 
