@@ -27,6 +27,8 @@ function decode(text: string): string {
 function attributes(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const match of text.matchAll(ATTRIBUTE)) out[match[1].toLowerCase()] = decode(match[2] ?? match[3] ?? "");
+  // An attribute with no value (`hidden`), or one written without quotes, is one too.
+  for (const name of text.replace(ATTRIBUTE, " ").match(/[a-zA-Z][\w:-]*/g) ?? []) out[name.toLowerCase()] ??= "";
   return out;
 }
 

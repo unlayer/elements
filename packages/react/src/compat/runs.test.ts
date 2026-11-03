@@ -39,5 +39,7 @@ describe("parseRuns()", () => {
     expect(parseRuns("<a>A</a>").left).toHaveLength(1);
     expect(parseRuns('<a href="x">A</a>', { links: false }).left).toEqual(["<a>"]);
     expect(parseRuns('<p style="margin: 0px">A</p>').left).toEqual([]);
+    // An attribute with no value is one (a hidden span keeps its legacy HTML).
+    expect(parseRuns("<span hidden>never shown</span>").left).toEqual(["<span>"]);
   });
 });
