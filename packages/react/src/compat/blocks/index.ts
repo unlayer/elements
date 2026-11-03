@@ -8,7 +8,8 @@ import { button } from "./button";
 import { divider } from "./divider";
 import { image } from "./image";
 import { heading, text } from "./text";
+import { video } from "./video";
 
 export type Lowering = (block: DesignBlock, place: Place) => TreeNode | null | undefined;
 
-export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, text };
+export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, text, video };
