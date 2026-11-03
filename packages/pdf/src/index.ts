@@ -15,6 +15,7 @@ import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unl
 import type { ReactElement } from "react";
 import type { Font } from "./model";
 import { reactPdf } from "./react-pdf";
+import { pdfFamily } from "./styles";
 import { writeDocument } from "./write";
 
 export interface PdfFont {
@@ -56,6 +57,7 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
   const fonts = fontFiles(root, options.fonts ?? [], found);
   const images = imageSources(root, options.images ?? {}, found);
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
+  found.push(...missingFaces(root, fonts, options.fonts ?? []));
   const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
   return { pdf: await reactPdf(pages), diagnostics: [...diagnostics, ...found] };
 }
@@ -93,6 +95,38 @@ function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): F
     });
   }
   return drawn.map(({ font, data }) => ({ family: font.family.toLowerCase(), data, weight: font.weight ?? 400, style: font.style ?? "normal" }));
+}
+
+/**
+ * Text in a weight or style of a family whose file for it isn't given: drawn in the nearest given (react-pdf finds the
+ * nearest weight; the adapter, a style), as an image's is.
+ */
+function missingFaces(root: ResolvedNode, fonts: Font[], given: PdfFont[]): Diagnostic[] {
+  const out = new Map<string, Diagnostic>();
+  const families = new Set(fonts.map((font) => font.family));
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    const family = pdfFamily(String(node.text.fontFamily), families);
+    if (families.has(family) && node.children.some((child) => typeof child === "string" && child.trim())) {
+      const faces = fonts.filter((font) => font.family === family);
+      const { fontWeight: weight, fontStyle: style } = node.text;
+      const key = `${family}|${weight}|${style}`;
+      if (!faces.some((face) => face.weight === weight && face.style === style) && !out.has(key)) {
+        const name = given.find((font) => font.family.toLowerCase() === family)?.family ?? family;
+        const has = faces.map((face) => `${face.weight}${face.style === "italic" ? " italic" : ""}`).join(", ");
+        out.set(key, {
+          code: "pdf/font-weight",
+          severity: "warning",
+          message: `Text in ${name} at ${weight}${style === "italic" ? " italic" : ""}, which is given at ${has} only: it's drawn in the nearest. Give that file in renderPdf's fonts option`,
+          path: node.path,
+          ...(node.id ? { nodeId: node.id } : {}),
+        });
+      }
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return [...out.values()];
 }
 
 // ─── Images ────────────────────────────────────────────────────────────────

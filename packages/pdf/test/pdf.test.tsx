@@ -228,6 +228,36 @@ describe("renderPdf", () => {
     expect(glyphs(beside.pdf).every((font) => font.outlined === font.glyphs)).toBe(true);
   });
 
+  it("draws text in a weight or style a family isn't given in the nearest file it is, and says so (as an image does)", async () => {
+    const regular = { family: "Brand", src: liberation("LiberationSans-Regular.ttf") };
+    const template = (
+      <Document style={{ fontFamily: "Brand, sans-serif" }}>
+        <Text>Upright</Text>
+        <Text style={{ fontStyle: "italic" }}>Slanted</Text>
+        <Heading>Bold</Heading>
+        <Table>
+          <TableRow header>
+            <TableCell>Plan</TableCell>
+          </TableRow>
+        </Table>
+      </Document>
+    );
+    // Italic text where only the upright file is given: react-pdf threw ("Could not resolve font for elements-…").
+    const { pdf, diagnostics } = await renderPdf(template, { fonts: [regular] });
+    expect(diagnostics.map((d) => [d.code, d.severity, d.path, d.message])).toEqual([
+      ["pdf/font-weight", "warning", "root.children[1]", "Text in Brand at 400 italic, which is given at 400 only: it's drawn in the nearest. Give that file in renderPdf's fonts option"],
+      ["pdf/font-weight", "warning", "root.children[2]", "Text in Brand at 700, which is given at 400 only: it's drawn in the nearest. Give that file in renderPdf's fonts option"],
+    ]);
+    expect(embedded(pdf)).toEqual(["LiberationSans"]);
+    expect((await read(pdf)).pages[0].words).toBe("Upright Slanted Bold Plan");
+    // Given the italic and bold files, each is drawn in its own, and nothing is said.
+    const all = await renderPdf(template, {
+      fonts: [regular, { family: "Brand", src: liberation("LiberationSans-Italic.ttf"), style: "italic" }, { family: "Brand", src: liberation("LiberationSans-Bold.ttf"), weight: 700 }],
+    });
+    expect(all.diagnostics).toEqual([]);
+    expect(embedded(all.pdf).sort()).toEqual(["LiberationSans", "LiberationSans-Bold", "LiberationSans-Italic"]);
+  });
+
   it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {
     const template = (
       <Document>

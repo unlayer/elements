@@ -16,12 +16,13 @@ const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 /**
  * Each family registered under a name made from its files (so a render draws a family from the files it was given,
- * never from ones another render gave under the same name, and the same files are registered once): by family.
+ * never from ones another render gave under the same name, and the same files are registered once), with the styles
+ * its files are in: by family.
  */
-function register(fonts: readonly FontFile[]): Map<string, string> {
+function register(fonts: readonly FontFile[]): Map<string, { name: string; styles: Set<string> }> {
   const byFamily = new Map<string, Array<{ data: string; weight: number; style: string }>>();
   for (const font of fonts) byFamily.set(font.family, [...(byFamily.get(font.family) ?? []), { data: base64(font.data), weight: font.weight, style: font.style }]);
-  const names = new Map<string, string>();
+  const names = new Map<string, { name: string; styles: Set<string> }>();
   for (const [family, files] of byFamily) {
     const hash = createHash("sha256");
     for (const file of files) hash.update(`${file.weight}|${file.style}|${file.data}\n`);
@@ -30,7 +31,7 @@ function register(fonts: readonly FontFile[]): Map<string, string> {
       for (const file of files) Font.register({ family: name, src: `data:font/ttf;base64,${file.data}`, fontWeight: file.weight, fontStyle: file.style as "normal" | "italic" });
       registered.add(name);
     }
-    names.set(family, name);
+    names.set(family, { name, styles: new Set(files.map((file) => file.style)) });
   }
   return names;
 }
@@ -42,10 +43,13 @@ const el = (type: unknown, props: Record<string, unknown>, ...children: ReactNod
 
 export const reactPdf: Engine = async (document) => {
   const names = register(document.fonts);
-  // A given family by the name it's registered under; a standard PDF font as it is.
+  // A given family by the name it's registered under; a standard PDF font as it is. react-pdf finds the nearest weight
+  // a family is given in, but throws for a style it has no file in: that text is drawn in the style it has.
   const styled = (style: Style): Style => {
     const family = style.fontFamily === undefined ? undefined : names.get(String(style.fontFamily));
-    return family ? { ...style, fontFamily: family } : style;
+    if (!family) return style;
+    const fontStyle = family.styles.has(String(style.fontStyle ?? "normal")) ? style.fontStyle : [...family.styles][0];
+    return { ...style, fontFamily: family.name, fontStyle };
   };
   const run = (item: Run, key: number): ReactNode => {
     if (typeof item === "string") return item;
