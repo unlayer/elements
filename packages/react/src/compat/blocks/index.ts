@@ -6,8 +6,9 @@
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { button } from "./button";
 import { divider } from "./divider";
+import { image } from "./image";
 import { heading, text } from "./text";
 
 export type Lowering = (block: DesignBlock, place: Place) => TreeNode | null | undefined;
 
-export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, text };
+export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, text };
