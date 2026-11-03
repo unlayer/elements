@@ -53,7 +53,7 @@ function checkNode(node: Node, path: string, report: string[]): Node | null {
 }
 
 function checkChildren(children: Child[], path: string, report: string[]): Child[] {
-  return children.flatMap((child, i) => {
+  return children.flatMap((child, i): Child[] => {
     if (typeof child === "string") return [child];
     const checked = checkNode(child, `${path}.children[${i}]`, report);
     return checked ? [checked] : [];

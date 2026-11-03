@@ -84,8 +84,9 @@ try {
   }
   renderToPlainText(tree);
 
-  // The new components (/primitives) in each of their roots.
+  // The new components (/primitives) in each of their roots, and the builder's design (/builder) both ways.
   const p = await import('../dist/primitives.js');
+  const { toDesign, fromDesign } = await import('../dist/builder.js');
   const h = React.createElement;
   const content = () => [
     h(p.Heading, { key: 'h' }, 'Heading'),
@@ -105,10 +106,11 @@ try {
       process.exit(2);
     }
   }
+  fromDesign(toDesign(h(p.Email, null, content())).design);
 
   console.info(
     `CSP_OK: @unlayer/react-elements imports + renders every component (web / ` +
-      `email / document / plaintext), and the new components in every root, under ` +
+      `email / document / plaintext), and the new components in every root and to the builder and back, under ` +
       `strict CSP — no eval / new Function`,
   );
 } catch (err) {

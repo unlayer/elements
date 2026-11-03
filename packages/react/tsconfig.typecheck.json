@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "lib": ["ES2020", "DOM"],
+    "lib": ["ES2020", "ES2022.Object", "DOM"],
     "types": ["react", "react-dom"],
     "noEmit": true
   },

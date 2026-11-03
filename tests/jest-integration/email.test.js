@@ -31,10 +31,12 @@ test("today's API is at /legacy too, unchanged: the same module as the main entr
 });
 
 
-test("renders a template in the new components (/primitives)", async () => {
+test("renders a template in the new components (/primitives), and takes it to the builder's design (/builder)", async () => {
   const { Email, Heading, Text, render } = require("@unlayer/react-elements/primitives");
+  const { toDesign } = require("@unlayer/react-elements/builder");
   const template = h(Email, null, h(Heading, null, "Hello jest"), h(Text, null, "New components"));
   const { html, text } = await render(template);
   expect(html).toContain("Hello jest");
   expect(text).toContain("New components");
+  expect(toDesign(template).design.body.rows.length).toBeGreaterThan(0);
 });
