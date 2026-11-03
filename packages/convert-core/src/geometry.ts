@@ -654,8 +654,13 @@ export function bandedPlacements(doc: StyledDocument): Map<Element, Placement> {
 function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>, flex: boolean): void {
   const widths = items.map((k) => {
     const margin = sides(doc, k, "margin", box.width);
-    // A max-width only caps a box that shrinks to its content: it isn't its width.
-    const w = length(doc.property(k, "width"), box.width) ?? length(attr(k, "width"), box.width) ?? length(doc.property(k, "min-width"), box.width) ?? (flex ? length(doc.property(k, "flex-basis"), box.width) : undefined);
+    // A max-width isn't a width of its own (it caps a box that shrinks to its content), but it caps a width that's
+    // set: `width: 100%; max-width: 250px` is 250px (the new email's columns, side by side).
+    const set = length(doc.property(k, "width"), box.width) ?? length(attr(k, "width"), box.width);
+    const max = set === undefined ? undefined : length(doc.property(k, "max-width"), box.width);
+    const min = length(doc.property(k, "min-width"), box.width);
+    const capped = set === undefined ? undefined : Math.max(max === undefined ? set : Math.min(set, max), min ?? 0);
+    const w = capped ?? min ?? (flex ? length(doc.property(k, "flex-basis"), box.width) : undefined);
     return w === undefined ? undefined : w + margin.left + margin.right;
   });
   // Flex items that grow (`flex: 1`) share what's left equally: they don't shrink to their content.

@@ -25,6 +25,11 @@ describe("where text sits across the page", () => {
     expect(boxes(page(row))).toEqual(["One@50+200:left", "Two@250+400:left"]);
   });
 
+  it("caps an inline-block's set width by its max-width: the new email's columns sit side by side", () => {
+    const column = (text: string) => `<div style="display:inline-block;vertical-align:top;width:100%;max-width:250px;font-size:16px">${text}</div>`;
+    expect(boxes(page(`<div style="width:500px"><div style="font-size:0">${column("Left")}${column("Right")}</div></div>`))).toEqual(["Left@0+250:left", "Right@250+250:left"]);
+  });
+
   it("lines up a button that shrinks to its text by its line's alignment, not its own", () => {
     expect(boxes(page('<div style="text-align:center"><a style="display:inline-block;text-align:left;max-width:100%">Go</a></div>'))[0]).toMatch(/:center$/);
   });
