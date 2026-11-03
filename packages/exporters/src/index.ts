@@ -13,6 +13,7 @@ import {
 } from "@unlayer-internal/elements-core";
 import { renderEmail, type EmailOptions } from "./email";
 import { emailSupport } from "./email/support";
+import { overflow, pagedSupport } from "./shared/paged";
 import { support } from "./shared/support";
 import { renderPage, type PageOptions } from "./page";
 import { renderText } from "./plain-text";
@@ -23,6 +24,7 @@ export { renderPage, PAGE_PHONE_WIDTH, type PageHtml, type PageOptions } from ".
 export { renderText, type TextOptions } from "./plain-text";
 export { emailSupport } from "./email/support";
 export { support } from "./shared/support";
+export { overflow, pagedSupport } from "./shared/paged";
 export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
 
 export interface RenderOptions extends PageOptions, EmailOptions {
@@ -89,6 +91,8 @@ export function prepareTemplate(input: unknown, options: ComponentsOption = {}):
   const resolved = resolveExpanded(expanded.document, registry);
   diagnostics.push(...resolved.diagnostics);
   diagnostics.push(...(output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target)));
+  // A Document's page and a Canvas are a fixed size: content that can't fit is cut off.
+  if (root === "Document" || root === "Canvas") diagnostics.push(...overflow(resolved.root));
   if (root !== "Document") diagnostics.push(...pageNumbersOutside(resolved.root));
   return { resolved: failed() ? null : resolved, target: output.target, diagnostics };
 }
@@ -106,10 +110,15 @@ function pageNumbersOutside(root: ResolvedNode): Diagnostic[] {
   return out;
 }
 
-/** A template's problems, without writing it: errors make it invalid, warnings and notes don't. */
+/**
+ * A template's problems, without writing it: errors make it invalid, warnings and notes don't. A Document's are its
+ * PDF's too, and a Canvas's its image's (what they can't show that its HTML can).
+ */
 export function validateTemplate(input: unknown, options: ComponentsOption = {}): { valid: boolean; diagnostics: Diagnostic[] } {
-  const { diagnostics } = prepareTemplate(input, options);
-  return { valid: !diagnostics.some((d) => d.severity === "error"), diagnostics };
+  const { diagnostics, resolved } = prepareTemplate(input, options);
+  const root = resolved?.root;
+  const all = [...diagnostics, ...(root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [])];
+  return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
 }
 
 /**

@@ -77,12 +77,21 @@ const buffer = (bytes: Uint8Array | ArrayBuffer): ArrayBuffer => {
 const weight = (value: number | undefined) => (Math.min(900, Math.max(100, Math.round((value ?? 400) / 100) * 100)) as Font["weight"]);
 
 /** The fonts the image is drawn with: those given, and the Canvas's own given as data: URIs. None is an error. */
+/** A WOFF2 file, by its first bytes: an image draws TTF, OTF and WOFF files, not these. */
+const woff2 = (bytes: ArrayBuffer | Uint8Array) => String.fromCharCode(...new Uint8Array(buffer(bytes)).subarray(0, 4)) === "wOF2";
+
 function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[]): Font[] {
-  const out: Font[] = given.map((font) => ({ family: font.family, data: buffer(font.src), weight: weight(font.weight), style: font.style ?? "normal" }));
+  const drawn = (family: string, bytes: ArrayBuffer | Uint8Array) => {
+    if (!woff2(bytes)) return true;
+    found.push({ code: "image/font", severity: "warning", message: `${family}'s file is WOFF2: an image draws TTF, OTF and WOFF files. Its text is drawn in another font meanwhile`, path: "root.props.fonts" });
+    return false;
+  };
+  const out: Font[] = given.filter((font) => drawn(font.family, font.src)).map((font) => ({ family: font.family, data: buffer(font.src), weight: weight(font.weight), style: font.style ?? "normal" }));
   const named = new Set(out.map((font) => font.family.toLowerCase()));
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
     if (named.has(face.family.toLowerCase())) continue;
     const data = /^data:[^,]*;base64,(.*)$/.exec(face.src)?.[1];
+    if (data && !drawn(face.family, Uint8Array.from(Buffer.from(data, "base64")))) continue;
     if (data) {
       out.push({ family: face.family, data: buffer(Uint8Array.from(Buffer.from(data, "base64"))), weight: weight(Array.isArray(face.weight) ? face.weight[0] : face.weight), style: face.style ?? "normal" });
       continue;

@@ -33,6 +33,7 @@ import {
   TableCell,
   TableRow,
   Text,
+  validate,
   Video,
 } from "@unlayer/react-elements/primitives";
 import type { ReactElement, ReactNode } from "react";
@@ -94,6 +95,43 @@ describe("renderImage", () => {
       </Canvas>
     );
     expect((await renderImage(own)).diagnostics).toEqual([]);
+  });
+
+  it("says a font file that's WOFF2 isn't drawn (an image draws TTF, OTF and WOFF), given or the Canvas's own", async () => {
+    const woff2 = Uint8Array.from([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0]);
+    const own = (
+      <Canvas width={200} height={100} fonts={[{ family: "Packed", src: `data:font/woff2;base64,${Buffer.from(woff2).toString("base64")}` }]} style={{ fontFamily: "Liberation Sans" }}>
+        <Text>Hi</Text>
+      </Canvas>
+    );
+    const { diagnostics } = await renderImage(own, { fonts: [...fonts, { family: "Other", src: woff2 }] });
+    expect(diagnostics.filter((d) => d.message.includes("WOFF2")).map((d) => [d.code, d.message.split(":")[0]])).toEqual([
+      ["image/font", "Other's file is WOFF2"],
+      ["image/font", "Packed's file is WOFF2"],
+    ]);
+  });
+
+  it("says what an image can't show that its HTML can (a hover, a Video), and content that can't fit the Canvas (and validate() says both)", async () => {
+    const template = (
+      <Canvas width={300} height={120} style={{ fontFamily: "Liberation Sans", gap: 8 }}>
+        <Button href="https://x.test" hover={{ backgroundColor: "#333333" }}>
+          Go
+        </Button>
+        <Video src="https://vimeo.com/76979871" title="Our launch" />
+        {Array.from({ length: 12 }, (_, i) => (
+          <Text key={i}>Line {i + 1} of more than a 120px Canvas can hold</Text>
+        ))}
+      </Canvas>
+    );
+    const said = (diagnostics: Array<{ code: string; message: string }>) => diagnostics.filter((d) => /^(image|canvas)\//.test(d.code) && d.code !== "image/font").map((d) => [d.code, d.message.split(":")[0].split(" (")[0]]);
+    const expected = [
+      ["canvas/overflow", "The Canvas's content looks about"],
+      ["image/unsupported", "A hover isn't possible in an image"],
+      ["image/unsupported", "A Video isn't possible in an image"],
+    ];
+    const tidy = (list: string[][]) => list.map(([code, message]) => [code, message.replace(/ \d+%.*/, "")]).sort();
+    expect(tidy(said((await renderImage(template, { fonts })).diagnostics))).toEqual(tidy(expected));
+    expect(tidy(said(validate(template).diagnostics))).toEqual(tidy(expected));
   });
 
   it("needs a font, and fetches nothing: an image it isn't given is an error; given by its URL, it's drawn", async () => {

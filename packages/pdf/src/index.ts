@@ -66,14 +66,23 @@ function base64(bytes: Uint8Array | ArrayBuffer): string {
   return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
 }
 
+/** A compressed font file's format, by its first bytes: a PDF draws TTF and OTF files, not these. */
+function compressed(bytes: Uint8Array): string | undefined {
+  const tag = String.fromCharCode(...bytes.subarray(0, 4));
+  return tag === "wOFF" ? "WOFF" : tag === "wOF2" ? "WOFF2" : undefined;
+}
+
 /** The font files given, by the family the template names (lowercased); a web font not given, noted. */
 function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Font[] {
-  const fonts: Font[] = given.map((font) => ({
-    family: font.family.toLowerCase(),
-    data: font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src,
-    weight: font.weight ?? 400,
-    style: font.style ?? "normal",
-  }));
+  const fonts: Font[] = given.flatMap((font) => {
+    const data = font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src;
+    const format = compressed(data);
+    if (format) {
+      found.push({ code: "pdf/font", severity: "warning", message: `${font.family}'s file is ${format}: a PDF draws TTF and OTF files. Its text is drawn in a standard PDF font meanwhile`, path: "root.props.fonts" });
+      return [];
+    }
+    return [{ family: font.family.toLowerCase(), data, weight: font.weight ?? 400, style: font.style ?? "normal" }];
+  });
   const families = new Set(fonts.map((font) => font.family));
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
     if (families.has(face.family.toLowerCase())) continue;

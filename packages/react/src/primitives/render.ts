@@ -1,6 +1,6 @@
 import React from "react";
 import { ElementsError, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
+import { pagedSupport, prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { collectTemplate } from "./collect";
 import { outlineOf } from "./outline";
 
@@ -71,7 +71,10 @@ export function prepare(element: React.ReactElement): { root: ResolvedNode | nul
   const { document, diagnostics, components } = template(element, "prepare");
   if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics };
   const prepared = prepareTemplate(document, { components });
-  return { root: prepared.resolved?.root ?? null, diagnostics: [...diagnostics, ...prepared.diagnostics] };
+  const root = prepared.resolved?.root ?? null;
+  // A Document is prepared for its PDF and a Canvas for its image: what they can't show that the HTML can.
+  const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
+  return { root, diagnostics: [...diagnostics, ...prepared.diagnostics, ...paged] };
 }
 
 export type { RenderOptions, RenderResult, ResolvedNode };

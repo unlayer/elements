@@ -40,6 +40,7 @@ import {
   TableCell,
   TableRow,
   Text,
+  validate,
   Video,
 } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
@@ -155,6 +156,67 @@ describe("renderPdf", () => {
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([["pdf/font", "warning"]]);
     expect((await read(pdf)).pages[0].words).toBe("Hello");
+  });
+
+  it("says a font file it's given that's WOFF or WOFF2 isn't drawn (a PDF draws TTF and OTF), and draws its text in a standard font", async () => {
+    const woff2 = Uint8Array.from([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0]);
+    const { diagnostics, pdf } = await renderPdf(
+      <Document fonts={[{ family: "Inter", src: "https://fonts.acme.test/inter.woff2" }]} style={{ fontFamily: "Inter, sans-serif" }}>
+        <Text>Hello</Text>
+      </Document>,
+      { fonts: [{ family: "Inter", src: woff2 }] }
+    );
+    expect(diagnostics.find((d) => d.message.includes("WOFF2"))).toMatchObject({ code: "pdf/font", severity: "warning" });
+    expect((await read(pdf)).pages[0].words).toBe("Hello");
+  });
+
+  it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {
+    const template = (
+      <Document>
+        <Button href="https://x.test" hover={{ backgroundColor: "#333333" }}>
+          Go
+        </Button>
+        <Video src="https://vimeo.com/76979871" title="Our launch" />
+      </Document>
+    );
+    const said = (diagnostics: Array<{ code: string; message: string }>) => diagnostics.filter((d) => d.code.startsWith("pdf/")).map((d) => [d.code, d.message.split(":")[0]]);
+    const expected = [
+      ["pdf/unsupported", "A hover isn't possible in a PDF"],
+      ["pdf/unsupported", "A Video isn't possible in a PDF"],
+    ];
+    expect(said((await renderPdf(template)).diagnostics)).toEqual(expected);
+    expect(said(validate(template).diagnostics)).toEqual(expected);
+    // An email shows both: neither is said.
+    expect(validate(<Email><Button href="https://x.test" hover={{ backgroundColor: "#333333" }}>Go</Button></Email>).diagnostics.filter((d) => d.code.startsWith("pdf/"))).toEqual([]);
+  });
+
+  it("says a page whose content can't fit is cut off, an estimate till text is measured (and validate() says it too)", async () => {
+    const long = (
+      <Document>
+        {Array.from({ length: 120 }, (_, i) => (
+          <Paragraph key={i}>Paragraph {i + 1} of a page that goes on for longer than an A4 page can hold.</Paragraph>
+        ))}
+      </Document>
+    );
+    const { diagnostics } = await renderPdf(long);
+    const overflow = diagnostics.find((d) => d.code === "document/overflow");
+    expect(overflow).toMatchObject({ severity: "warning" });
+    expect(overflow?.message).toMatch(/^Page 1's content \(split it with a PageBreak, or into pages\) looks about \d+% as tall as its room \(an estimate: text isn't measured yet\)\. What doesn't fit is cut off$/);
+    expect(validate(long).diagnostics.map((d) => d.code)).toContain("document/overflow");
+    // A page that fits says nothing, nor does each page of the same content split into pages.
+    expect((await renderPdf(<Document><Paragraph>One paragraph.</Paragraph></Document>)).diagnostics).toEqual([]);
+    const split = (
+      <Document>
+        {Array.from({ length: 4 }, (_, page) => (
+          <Document.Page key={page}>
+            {Array.from({ length: 30 }, (_, i) => (
+              <Paragraph key={i}>Paragraph {i + 1} of a page that holds a quarter of it.</Paragraph>
+            ))}
+          </Document.Page>
+        ))}
+      </Document>
+    );
+    expect((await renderPdf(split)).diagnostics.map((d) => d.code)).not.toContain("document/overflow");
   });
 
   it("draws each render's fonts from its own files: a family another render gave other files to isn't theirs", async () => {
