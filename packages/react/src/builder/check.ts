@@ -16,6 +16,11 @@ function checkNode(node: Node, path: string, report: string[]): Node | null {
     return null;
   }
   const out: Node = { ...node };
+  // An id a template takes (the builder's can hold any text).
+  if (out.id !== undefined && !/^[A-Za-z][\w-]*$/.test(out.id)) {
+    report.push(`${path}: its id ${JSON.stringify(out.id)} isn't one a template takes: left out`);
+    delete out.id;
+  }
   for (const part of ["props", "style", "mobile", "hover"] as const) {
     const values = node[part];
     if (!values) continue;
