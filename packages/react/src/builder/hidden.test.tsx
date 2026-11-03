@@ -96,7 +96,7 @@ describe("hidden properties", () => {
         }
       }
     }
-    expect(HIDDEN.button.find((entry) => entry.prefixed)).toMatchObject({ path: "style.textAlign", key: "innerTextAlign" });
+    expect(HIDDEN.button.find((entry) => entry.prefixed)).toMatchObject({ path: "style.textAlign", key: "buttonTextAlign" });
   });
 
   it("are written as the builder's editors write values: lengths and sides in px, borders side by side", () => {
@@ -114,7 +114,7 @@ describe("hidden properties", () => {
     });
     expect(paragraph._override.mobile).toEqual({ maxWidth: "200px" });
     const button = written.find((item) => item.tool === "button")!.values;
-    expect(button).toMatchObject({ innerTextAlign: "left", textAlign: "left", title: "Go there", "aria-label": "Go to x", size: { autoWidth: false, width: "300px" } });
+    expect(button).toMatchObject({ buttonTextAlign: "left", textAlign: "left", title: "Go there", "aria-label": "Go to x", size: { autoWidth: false, width: "300px" } });
     expect(written.find((item) => item.tool === "body")!.values).toMatchObject({ title: "Welcome", lang: "en", fonts: [{ family: "Inter", src: "https://fonts.test/inter.woff2", format: "woff2", weight: 400 }] });
   });
 
@@ -152,7 +152,7 @@ describe("hidden properties", () => {
     expect([row.padding, row.backgroundColor, paragraph.containerPadding, button.containerPadding]).toEqual(["0px", "#eeeeee", "24px 24px 4px", "10px 20px 20px"]);
     expect([paragraph.color, paragraph.textAlign, button.textAlign]).toEqual(["#333333", "center", "center"]);
     // The Section's own values aren't hidden on its row, nor the blocks' padding beside their spacing.
-    for (const key of ["gap", "color", "textAlign", "border"]) expect([key, row[key]]).toEqual([key, undefined]);
+    for (const key of ["gap", "color", "textAlign", "sectionBorder"]) expect([key, row[key]]).toEqual([key, undefined]);
     expect(Object.keys(paragraph)).not.toContain("padding");
     expect(button.padding).toBe("12px");
     expect(button.size).toEqual({ autoWidth: false, width: "200px" });

@@ -127,7 +127,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       const phone: Values = phoneText({ ...node, mobile: { ...node.mobile, textAlign: undefined } as never });
       if (node.mobile?.padding) phone._override = merge(phone._override ?? {}, { mobile: { padding: cssSides(node.mobile.padding as Sides) } })._override ?? phone._override;
       // Its label's alignment, where it isn't a button's own (centered).
-      const inner = own.style.textAlign !== undefined && own.style.textAlign !== "center" ? { innerTextAlign: own.style.textAlign } : {};
+      const inner = own.style.textAlign !== undefined && own.style.textAlign !== "center" ? { buttonTextAlign: own.style.textAlign } : {};
       return place.put(<Button key={path} {...hiding} />, merge(merge(values, phone), { ...hiddenOf("button", node, ["style.textAlign"], inheritedHidden(own)), ...inner }));
     }
     case "Image":

@@ -25,15 +25,21 @@ const TEXT_BOX = own("style.fontStyle", "style.textTransform", "style.textDecora
 export const HIDDEN: Readonly<Record<string, readonly Hidden[]>> = {
   body: own("props.title", "props.lang", "props.fonts", "props.description", "props.margin"),
   // A Section's border, the part of it around this row; the rest of a Row's box.
-  row: own("style.border", "style.borderRadius", "style.width", "style.minWidth", "style.maxWidth", "style.height", "style.overflow", "style.justifyContent", "style.flexWrap"),
+  row: [
+    { path: "style.border", key: "sectionBorder", prefixed: "today's image writer takes a row's border as room its columns lose; a Section's is around its band" },
+    ...own("style.borderRadius", "style.width", "style.minWidth", "style.maxWidth", "style.height", "style.overflow", "style.justifyContent", "style.flexWrap"),
+  ],
   column: [...own("style.justifyContent", "style.minWidth", "style.maxWidth", "style.height", "style.overflow"), { path: "hidden.desktop", key: "hideDesktop" }, { path: "hidden.mobile", key: "hideMobile" }],
   text: TEXT_BOX,
   heading: TEXT_BOX,
   button: [
-    { path: "style.textAlign", key: "innerTextAlign", prefixed: "the button's textAlign places the button; the Button's aligns its label" },
+    { path: "style.textAlign", key: "buttonTextAlign", prefixed: "the button's textAlign places the button; the Button's aligns its label" },
     ...own("style.fontStyle", "style.textTransform", "style.textDecoration", "style.maxWidth", "props.title", "props.aria-label"),
   ],
-  image: own("props.title", "style.maxWidth", "style.height", "style.border", "style.borderRadius"),
+  image: [
+    { path: "style.border", key: "imageBorder", prefixed: "today's image writer takes an image's border as room the image loses, and draws none" },
+    ...own("props.title", "style.maxWidth", "style.height", "style.borderRadius"),
+  ],
   divider: [],
   menu: own("style.lineHeight", "style.textTransform"),
   social: [],
@@ -56,12 +62,15 @@ export const BUILDER_KEYS: Readonly<Record<string, readonly string[]>> = {
   row: [
     "displayCondition", "columns", "_styleGuide", "backgroundColor", "columnsBackgroundColor", "backgroundImage", "padding", "anchor", "noStackMobile", "alignItems", "_meta", "selectable", "draggable",
     "duplicatable", "deletable", "hideable", "locked", "hideDesktop", "hideMobile", "_override", "cells", "sync",
+    // Not a field, but today's image writer reads it (see sectionBorder).
+    "border",
   ],
   column: ["backgroundColor", "padding", "border", "borderRadius", "_meta", "deletable", "locked", "_override"],
   text: [...CONTENT, "text", "textJson", "color", "textAlign", "fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing", "linkStyle", "textDirection"],
   heading: [...CONTENT, "text", "textJson", "color", "textAlign", "fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing", "linkStyle", "textDirection", "headingType"],
   button: [...CONTENT, "text", "textJson", "href", "size", "fontFamily", "fontWeight", "buttonColors", "fontSize", "lineHeight", "letterSpacing", "border", "padding", "textAlign", "borderRadius", "textDirection"],
-  image: [...CONTENT, "src", "textAlign", "altText", "action"],
+  // An image's border isn't a field, but today's image writer reads it (see imageBorder).
+  image: [...CONTENT, "src", "textAlign", "altText", "action", "border"],
   divider: [...CONTENT, "width", "border", "textAlign"],
   menu: [...CONTENT, "menu", "linkColor", "padding", "fontFamily", "fontWeight", "textColor", "fontSize", "letterSpacing", "layout", "align", "separator"],
   social: [...CONTENT, "icons", "spacing", "align", "iconSize"],

@@ -232,7 +232,7 @@ export function raise(element: React.ReactElement): Raised {
     const bandHidden = (r: number): Values => {
       const lines = { left: border.left, right: border.right, ...(r === 0 ? { top: border.top } : {}), ...(r === count - 1 ? { bottom: border.bottom } : {}) };
       const own = Object.fromEntries(Object.entries(lines).filter(([, line]) => line !== undefined));
-      return Object.keys(own).length ? { border: builderBorder(own as never) } : {};
+      return Object.keys(own).length ? { sectionBorder: builderBorder(own as never) } : {};
     };
     const flush = (last: boolean) => {
       if (!run.length) return;

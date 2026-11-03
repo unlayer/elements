@@ -167,7 +167,7 @@ describe("toDesign", () => {
     );
     const rows = design.body.rows.map((row) => row.values);
     expect(rows.map((row) => row.backgroundColor)).toEqual(["#eeeeee", "#eeeeee", "#eeeeee"]);
-    expect(rows.map((row) => Object.keys(row.border ?? {}).filter((key) => key.endsWith("Width")).map((key) => key.slice(6, -5)).sort())).toEqual([["Left", "Right", "Top"], ["Left", "Right"], ["Bottom", "Left", "Right"]]);
+    expect(rows.map((row) => Object.keys(row.sectionBorder ?? {}).filter((key) => key.endsWith("Width")).map((key) => key.slice(6, -5)).sort())).toEqual([["Left", "Right", "Top"], ["Left", "Right"], ["Bottom", "Left", "Right"]]);
     expect(rows.map((row) => row._override?.mobile?.hideMobile)).toEqual([true, true, true]);
   });
 });
