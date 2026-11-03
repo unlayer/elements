@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateSync } from "node:zlib";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
 import { COMPONENTS } from "@unlayer-internal/elements-core";
@@ -51,6 +52,30 @@ import { toWoff, toWoff2 } from "./woff";
 const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
 /** The fonts a PDF embeds, each named by its file's own name (after a subset's tag: "ABCDEF+LiberationSans-Bold"). */
 const embedded = (pdf: Uint8Array) => [...new Set([...Buffer.from(pdf).toString("latin1").matchAll(/\/BaseFont \/[A-Z]{6}\+([\w-]+)/g)].map((match) => match[1]))];
+
+/** fontkit, as react-pdf's pdfkit reads fonts with it (test-only: it reads back the fonts a PDF embeds). */
+const fontkit = createRequire(createRequire(createRequire(import.meta.url).resolve("@react-pdf/renderer/package.json")).resolve("pdfkit"))("fontkit") as {
+  create(data: Buffer): { numGlyphs: number; getGlyph(id: number): { path: { commands: unknown[] } } };
+};
+/** Each font file a PDF embeds: its glyphs (.notdef aside), and how many have an outline (a letter drawn, not blank). */
+function glyphs(pdf: Uint8Array): Array<{ glyphs: number; outlined: number }> {
+  const text = Buffer.from(pdf).toString("latin1");
+  return [...text.matchAll(/\/FontFile2 (\d+) 0 R/g)].map(([, id]) => {
+    const object = new RegExp(`\\n${id} 0 obj\\s*<<([\\s\\S]*?)>>\\s*stream\\r?\\n`).exec(text)!;
+    const start = object.index + object[0].length;
+    const data = Buffer.from(pdf.subarray(start, start + Number(/\/Length (\d+)/.exec(object[1])![1])));
+    const font = fontkit.create(/FlateDecode/.test(object[1]) ? inflateSync(data) : data);
+    const ids = Array.from({ length: font.numGlyphs - 1 }, (_, i) => i + 1);
+    const outlined = (id: number) => {
+      try {
+        return font.getGlyph(id).path.commands.length > 0;
+      } catch {
+        return false;
+      }
+    };
+    return { glyphs: ids.length, outlined: ids.filter(outlined).length };
+  });
+}
 
 /** A 1×1 PNG. */
 const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
@@ -164,19 +189,43 @@ describe("renderPdf", () => {
     expect((await read(pdf)).pages[0].words).toBe("Hello");
   });
 
-  it("draws a font file it's given that's WOFF or WOFF2 as it draws a TTF, and says nothing", async () => {
+  it("draws a font file it's given that's WOFF as it draws a TTF, each letter's outline embedded, and says nothing", async () => {
     const ttf = liberation("LiberationSans-Regular.ttf");
     const template = (
-      <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff2" }]} style={{ fontFamily: "Brand, sans-serif" }}>
+      <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff" }]} style={{ fontFamily: "Brand, sans-serif" }}>
         <Text>Hello</Text>
       </Document>
     );
-    for (const src of [toWoff(ttf), toWoff2(ttf)]) {
+    for (const src of [ttf, toWoff(ttf)]) {
       const { diagnostics, pdf } = await renderPdf(template, { fonts: [{ family: "Brand", src }] });
       expect(diagnostics).toEqual([]);
       expect(embedded(pdf)).toEqual(["LiberationSans"]);
+      // H, e, l and o.
+      expect(glyphs(pdf)).toEqual([{ glyphs: 4, outlined: 4 }]);
       expect((await read(pdf)).pages[0].words).toBe("Hello");
     }
+  });
+
+  it("says a font file that's WOFF2 isn't drawn (react-pdf would embed its letters blank), and draws its text as for a font not given", async () => {
+    const regular = liberation("LiberationSans-Regular.ttf");
+    const template = (
+      <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff2" }]} style={{ fontFamily: "Brand, sans-serif" }}>
+        <Text>Hello</Text>
+        <Text style={{ fontWeight: 700 }}>Bold</Text>
+      </Document>
+    );
+    // A WOFF2 as Google Fonts' are (glyf and loca transformed: test/woff.ts), alone or beside the family's TTF.
+    const alone = await renderPdf(template, { fonts: [{ family: "Brand", src: toWoff2(regular) }] });
+    expect(alone.diagnostics.map((d) => [d.code, d.severity, d.message])).toEqual([
+      ["pdf/font", "warning", "Brand's file is WOFF2: a PDF draws TTF, OTF and WOFF files. Its text is drawn in a standard PDF font meanwhile"],
+    ]);
+    expect(glyphs(alone.pdf)).toEqual([]);
+    expect((await read(alone.pdf)).pages[0].words).toBe("Hello Bold");
+    const beside = await renderPdf(template, { fonts: [{ family: "Brand", src: regular }, { family: "Brand", src: toWoff2(liberation("LiberationSans-Bold.ttf")), weight: 700 }] });
+    expect(beside.diagnostics.find((d) => d.message.includes("WOFF2"))?.message).toBe("Brand's file is WOFF2: a PDF draws TTF, OTF and WOFF files. Its text is drawn in Brand's other files meanwhile");
+    // Every letter embedded is drawn: the bold text in the regular file.
+    expect(embedded(beside.pdf)).toEqual(["LiberationSans"]);
+    expect(glyphs(beside.pdf).every((font) => font.outlined === font.glyphs)).toBe(true);
   });
 
   it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {

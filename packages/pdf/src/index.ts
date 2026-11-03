@@ -20,7 +20,7 @@ import { writeDocument } from "./write";
 export interface PdfFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
   family: string;
-  /** The font file (TTF, OTF, WOFF or WOFF2). */
+  /** The font file (TTF, OTF or WOFF; not WOFF2). */
   src: Uint8Array | ArrayBuffer;
   weight?: number;
   style?: "normal" | "italic";
@@ -66,18 +66,25 @@ function base64(bytes: Uint8Array | ArrayBuffer): string {
   return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
 }
 
-/** The font files given, by the family the template names (lowercased); a web font not given, noted. */
+/** A WOFF2 file, by its first bytes: a PDF draws TTF, OTF and WOFF files, not these. */
+const woff2 = (bytes: Uint8Array) => String.fromCharCode(...bytes.subarray(0, 4)) === "wOF2";
+
+/** The font files given, by the family the template names (lowercased); a file a PDF can't draw, or a web font not given, noted. */
 function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Font[] {
-  // react-pdf draws each format a file comes in (fontkit reads WOFF and WOFF2 as it does TTF and OTF).
-  const fonts: Font[] = given.map((font) => ({
-    family: font.family.toLowerCase(),
-    data: font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src,
-    weight: font.weight ?? 400,
-    style: font.style ?? "normal",
-  }));
-  const families = new Set(fonts.map((font) => font.family));
+  const files = given.map((font) => ({ font, data: font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src }));
+  // react-pdf embeds the glyphs a PDF draws as the file stores them (fontkit unpacks a WOFF's). A WOFF2 stores its
+  // outlines transformed (Google Fonts' and most others do), and its letters come out blank, with no error.
+  const drawn = files.filter(({ data }) => !woff2(data));
+  const families = new Set(drawn.map(({ font }) => font.family.toLowerCase()));
+  for (const { font, data } of files) {
+    if (!woff2(data)) continue;
+    const meanwhile = families.has(font.family.toLowerCase()) ? `${font.family}'s other files` : "a standard PDF font";
+    found.push({ code: "pdf/font", severity: "warning", message: `${font.family}'s file is WOFF2: a PDF draws TTF, OTF and WOFF files. Its text is drawn in ${meanwhile} meanwhile`, path: "root.props.fonts" });
+  }
+  // A family given only as WOFF2 is said above, not as one not given.
+  const named = new Set(given.map((font) => font.family.toLowerCase()));
   for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
-    if (families.has(face.family.toLowerCase())) continue;
+    if (named.has(face.family.toLowerCase())) continue;
     found.push({
       code: "pdf/font",
       severity: "warning",
@@ -85,7 +92,7 @@ function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): F
       path: "root.props.fonts",
     });
   }
-  return fonts;
+  return drawn.map(({ font, data }) => ({ family: font.family.toLowerCase(), data, weight: font.weight ?? 400, style: font.style ?? "normal" }));
 }
 
 // ─── Images ────────────────────────────────────────────────────────────────
