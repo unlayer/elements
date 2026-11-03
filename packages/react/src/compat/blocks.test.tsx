@@ -65,6 +65,13 @@ describe("a button block", () => {
     }
   });
 
+  it("keeps its legacy HTML on a page or in a printed document where it has a width: legacy puts its padding on top", () => {
+    const button = <Button href="https://example.com" width="300px" padding="10px 20px">Go</Button>;
+    expect(lowered(button, Page)?.type).toBe("Raw");
+    expect(lowered(button, Document)?.type).toBe("Raw");
+    expect((lowered(button)?.children as TreeNode[])[0]).toMatchObject({ type: "Button", style: { width: 300 } });
+  });
+
   it("keeps its legacy HTML where it has no link (legacy's href=\"\")", () => {
     expect(lowered(<Button>Go</Button>)?.type).toBe("Raw");
   });

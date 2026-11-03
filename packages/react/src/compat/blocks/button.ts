@@ -42,6 +42,9 @@ export function button(block: DesignBlock, place: Place): TreeNode | undefined {
   if (!href || size === undefined || height === undefined || spacing === undefined || !padding || radius === undefined || !blockPadding || !phoneValues) return undefined;
   if ((values.fontWeight !== undefined && values.fontWeight !== "" && weight === undefined) || (width !== undefined && !/^\d*\.?\d+(px|%)$/.test(String(width)))) return undefined;
   if (values.textAlign !== undefined && !ALIGN[values.textAlign]) return undefined;
+  // A width on a page or in a printed document: legacy's is its label's, its padding on top (300px draws 340px wide),
+  // where the new Button's holds its padding; it keeps its legacy HTML.
+  if (width !== undefined && place.mode !== "email") return undefined;
   // Its label as stored (legacy's exporter unescapes it, after the props escape it once: the stored HTML).
   const html = typeof values.text === "string" ? values.text : "";
   const { children, left } = parseRuns(place.config.toSafeHtml ? place.config.toSafeHtml(html) : html, { weight: weight ?? 400, links: false });
