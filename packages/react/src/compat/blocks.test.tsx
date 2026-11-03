@@ -77,10 +77,20 @@ describe("an image block", () => {
     expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
   });
 
-  it("puts a linked image's size on a box around its link", () => {
-    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />, Page);
-    const box = (node?.children as TreeNode[])[0];
-    expect(box).toMatchObject({ type: "Column", style: { width: "40%" }, children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", style: { width: "100%" } }] }] });
+  it("keeps its legacy HTML where it links somewhere: legacy's link holds it at the size its place gives it", () => {
+    const linked = <Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
+    for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
+  });
+
+  it("caps an email image on phones at legacy's maximum where that's past its width on desktop (a stacked column is wider)", () => {
+    const image = (Root: Root) => {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+      return find(result.tree.root);
+    };
+    // A 500px email's half is 250px: legacy's image is at most that, drawn 230px wide in its padding on desktop.
+    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, mobile: { maxWidth: 250 } });
+    expect(image(Page)?.mobile).toBeUndefined();
   });
 });
 

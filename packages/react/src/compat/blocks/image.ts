@@ -42,8 +42,10 @@ export function image(block: DesignBlock, place: Place): TreeNode | undefined {
   const padding = sides(values.containerPadding ?? "10px");
   // A dynamic image's URL is resized by legacy; a full-width one sits past the column's padding.
   if (typeof src.url !== "string" || !src.url || src.dynamic || values.fullWidth || !padding || (values.textAlign !== undefined && !ALIGN[values.textAlign])) return undefined;
+  // A linked image keeps its legacy HTML: legacy's link holds the image at the size its place gives it (on a page a
+  // link the new engine draws shrinks to its image's own size; in an email a share of the place isn't one on phones).
   const href = webLink(values.action);
-  if (href === undefined) return undefined;
+  if (href !== null) return undefined;
   const ownBorder = values.border && typeof values.border === "object" ? values.border : {};
   const borders = ["Left", "Right"].map((side) => parseFloat(String(ownBorder[`border${side}Width`] ?? 0)) || 0);
   const room =
@@ -75,19 +77,25 @@ export function image(block: DesignBlock, place: Place): TreeNode | undefined {
   const alt = typeof values.altText === "string" ? values.altText : "";
   const asset: Record<string, Json> = { src: src.url };
   for (const side of ["width", "height"] as const) if (typeof src[side] === "number" && src[side] > 0) asset[side] = src[side];
+  // In an email, legacy's maximum is the image's own on phones too, where a stacked column is wider than on desktop: the
+  // new email's caps an image at the width it's drawn at on desktop, so a maximum past that (legacy's place leaves the
+  // block's padding in) is the image's on phones, in a row of columns that stack (a row's only column is no wider there).
+  const slot =
+    contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" }) -
+    borders[0] -
+    borders[1];
+  const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
+  const stacks = place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
+  if (place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5) imagePhone.maxWidth = size.maxWidth;
   const sized = { style: { width: size.width, maxWidth: size.maxWidth }, ...(Object.keys(imagePhone).length ? { mobile: imagePhone } : {}) };
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
-  // A linked image's width is a share of its place: a box of that size holds the link, which the image fills (a link's
-  // own width is its content's, of which a share would be circular).
-  const linked: TreeNode = href
-    ? { type: "Column", ...sized, children: [{ type: "Link", props: { href }, children: [{ type: "Image", props, style: { width: "100%", ...imageBox(values) } }] }] }
-    : { type: "Image", props, ...sized, style: { ...sized.style, ...imageBox(values) } };
+  const drawn: TreeNode = { type: "Image", props, ...sized, style: { ...sized.style, ...imageBox(values) } };
   return {
     type: "Column",
     style: { ...(some(padding) ? { padding } : {}), alignItems: ALIGN[values.textAlign ?? "center"] },
     ...(Object.keys(columnPhone).length ? { mobile: columnPhone } : {}),
-    children: [place.mode === "email" ? { ...linked, textAs: imageText(src, alt, href) } : linked],
+    children: [place.mode === "email" ? { ...drawn, textAs: imageText(src, alt) } : drawn],
   };
 }
 
@@ -95,12 +103,10 @@ export function image(block: DesignBlock, place: Place): TreeNode | undefined {
  * An email image as legacy's plain text reads it: legacy writes a second image for classic Outlook (in a conditional
  * comment, which the plain text reads too) where it knows the image's height, so its alternate text is there twice.
  */
-function imageText(src: Values, alt: string, href: Json | null): TreeNode {
+function imageText(src: Values, alt: string): TreeNode {
   const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   const img = `<img alt="${escape(alt)}">`;
-  const images = img.repeat(outlookCopy(src) ? 2 : 1);
-  const url = href && typeof href === "object" ? (href as { href: string }).href : href;
-  return { type: "Raw", props: { html: url ? `<a href="${escape(String(url))}">${images}</a>` : images } };
+  return { type: "Raw", props: { html: img.repeat(outlookCopy(src) ? 2 : 1) } };
 }
 
 /** Whether an email image is drawn shorter than a line of 16px text (its height known from its own size). */

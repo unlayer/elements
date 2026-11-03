@@ -129,6 +129,6 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
 
   it("draw an image a template links as legacy links it", () => {
     const html = renderToHtml(<Page><Row><Column><Image src="https://example.com/a.png" alt="A" action={{ url: "#hero", target: "_self" } as never} /></Column></Row></Page>);
-    expect(html).toMatch(/<a href="#hero" target="_self"[^>]*><img[^>]*alt="A"/);
+    expect(html).toMatch(/<a href="#hero" target="_self"[^>]*>\s*<img[^>]*alt="A"/);
   });
 });
