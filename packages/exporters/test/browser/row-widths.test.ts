@@ -138,6 +138,28 @@ describe("a Grid kept side by side, on phones", () => {
   });
 });
 
+describe("a Grid stacked on phones", () => {
+  it("puts its gap between every two of its children, with a rowGap of its own between its rows on desktop", async () => {
+    const children = ["a", "b", "c", "d", "e"].map((words, index) => ({ type: "Text", id: `s${index}`, children: [words] }));
+    for (const [style, mobile, expected] of [
+      [{ gap: 10, rowGap: 30 }, undefined, 10],
+      [{ rowGap: 30 }, undefined, 0],
+      [{ gap: 10, rowGap: 30 }, { gap: 4 }, 4],
+    ] as const) {
+      const template = (root: "Page" | "Email") =>
+        resolveDocument(parseDocument({ root: { type: root, props: { width: 600 }, children: [{ type: "Grid", style, ...(mobile ? { mobile } : {}), children }] } }));
+      for (const html of [renderEmail(template("Email")).html, renderPage(template("Page")).html]) {
+        const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+        await page.setContent(html);
+        const boxes = await page.evaluate((ids) => ids.map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ top, bottom }) => ({ top, bottom })), children.map((child) => child.id));
+        await page.close();
+        const gaps = boxes.slice(1).map((box, index) => Math.round(box.top - boxes[index].bottom));
+        expect([JSON.stringify(style), gaps]).toEqual([JSON.stringify(style), gaps.map(() => expected)]);
+      }
+    }
+  });
+});
+
 describe("Row widths in Chromium", () => {
   for (const [name, children, style, props] of CASES) {
     it(`gives each child the resolver's width: ${name}`, async () => {

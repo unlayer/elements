@@ -43,7 +43,10 @@ function arrangeGrid(node: Node): Node {
   }
   const box = only(style, BOX);
   const mobileBox = only(node.mobile, BOX);
-  const mobileRowGap = node.mobile?.rowGap ?? node.mobile?.gap;
+  // On phones, where the children stack one under another, the gap is between every two of them, across a row's end
+  // too: the rows are its gap apart there, not rowGap.
+  const phoneGap = node.mobile?.gap ?? gap ?? 0;
+  const mobileRowGap = stackOnMobile ? (phoneGap !== (rowGap ?? 0) ? phoneGap : undefined) : (node.mobile?.rowGap ?? node.mobile?.gap);
   return {
     type: "Column",
     ...(node.id ? { id: node.id } : {}),

@@ -47,6 +47,16 @@ describe("Grid", () => {
     ]);
   });
 
+  it("is its gap apart on phones, where its children stack: between its rows too, whatever its rowGap", () => {
+    const phoneGap = (grid: Record<string, unknown>) => (expandDocument(parseDocument(email({ type: "Grid", children: [text("a"), text("b"), text("c")], ...grid }))).document.root.children![0] as Node).mobile?.gap;
+    expect(phoneGap({ style: { gap: 10, rowGap: 30 } })).toBe(10);
+    expect(phoneGap({ style: { rowGap: 30 } })).toBe(0);
+    expect(phoneGap({ style: { gap: 10, rowGap: 30 }, mobile: { gap: 4 } })).toBe(4);
+    // The same gap both ways needs nothing of its own on phones; side by side there, the rows keep their rowGap.
+    expect(phoneGap({ style: { gap: 10 } })).toBeUndefined();
+    expect(phoneGap({ props: { stackOnMobile: false }, style: { gap: 10, rowGap: 30 } })).toBeUndefined();
+  });
+
   it("takes blocks, not text, and a whole number of columns from 1 to 12", () => {
     const check = (grid: Record<string, unknown>) => checkDocument(email(grid)).diagnostics.filter((d) => d.severity === "error").map((d) => d.path);
     expect(check({ type: "Grid", children: ["loose words"] })).toEqual(["root.children[0].children[0]"]);
