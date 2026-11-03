@@ -90,20 +90,22 @@ jobs:
           fi
           echo "✅ Bundle size within budget"
 
-      # The new engine's entry (/primitives) has its own budget: about 221KB
+      # The new engine's entry (/primitives) has its own budget: about 229KB
       # unminified ESM, its core, writers and JSX API bundled (Social, Menu,
       # Video, Grid, Layer, Document's print HTML, Canvas and Svg, outline(),
       # and the PDF and image checks validate() runs for a Document or a
       # Canvas: what they can't show, content that can't fit; the Raw node
-      # importers make for markup they bring in), with no @unlayer/exporters
-      # in it. Raise it on purpose, with what grew.
+      # importers make for markup they bring in; a Menu that wraps and says
+      # where it can't, messages at a Grid's places in the template, the
+      # layout version), with no @unlayer/exporters in it. Raise it on
+      # purpose, with what grew.
       - name: Check /primitives bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=223000
+          MAX_SIZE=232000
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
