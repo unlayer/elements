@@ -1,5 +1,4 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
-import React from "react";
 import { describe, expect, it } from "vitest";
 import { Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import * as stripe from "../primitives/codemod/StripeReceipt";
@@ -24,7 +23,7 @@ describe("toDesign", () => {
   }
 
   it("writes what no tool shows as an HTML block of the new engine's markup, and says so", () => {
-    const Card = component({ type: "acme.Card", props: { title: prop.text() }, render: ({ title }) => <Text>{title}</Text> });
+    const Card = component({ type: "acme.Card", label: "Card", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Text>{title}</Text> });
     const { design, report } = toDesign(
       <Page width={600}>
         <Heading>Summer sale</Heading>
