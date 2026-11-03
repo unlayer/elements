@@ -15,8 +15,15 @@ import { renderBody, resolveConfig, resolveDisplayMode } from "../utils/render-t
 import { renderToJson } from "../utils/render-to-json";
 import { getDisplayName, ROOT_NAMES } from "../utils/unwrap-root";
 import { htmlRoot } from "../utils/unwrap-root";
+import Body from "../components/Body";
+import Document from "../components/Document";
+import Email from "../components/Email";
+import Page from "../components/Page";
 import { BLOCKS } from "./blocks";
 import { givenId, hidden, lowerDesign, Unlowerable, type DesignBlock, type Mode, type TreeNode } from "./lower";
+
+/** This copy's root components. */
+const OWN_ROOTS = new Set<unknown>([Body, Email, Page, Document]);
 
 export interface Lowered {
   /** The template's root, as it renders (a template component called). */
@@ -37,6 +44,9 @@ export interface Lowered {
 export function lowerTemplate(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined, name: string): Lowered | { unlowered: string } | undefined {
   const root = htmlRoot(element, name);
   if (!ROOT_NAMES.has(getDisplayName(root) ?? "")) return undefined;
+  // Another copy of this package's components (a tool that loads templates with one of its own): they collect and
+  // render themselves, which this copy's lowering can't read; it renders as today, through them.
+  if (!OWN_ROOTS.has(root.type)) return undefined;
   const merged = resolveConfig(root, config);
   const mode = resolveDisplayMode(root, merged) as Mode;
   const outside = outsideTheDesign(normalizedRoot(root));

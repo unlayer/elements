@@ -75,6 +75,13 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
+  it("render a template of another copy of today's components as today, through them", () => {
+    const Foreign = Object.assign((props: Record<string, unknown>) => <Email {...props} />, { displayName: "Email" });
+    const template = <Foreign><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Foreign>;
+    expect(withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"))).toBeUndefined();
+    expect(renderToHtml(template)).toBe(legacyRenderToHtml(template));
+  });
+
   it("render a template the new engine can't draw as today", () => {
     const template = <Email><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
     expect(renderToHtml(template)).toBe(legacyRenderToHtml(template));
