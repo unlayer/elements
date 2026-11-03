@@ -589,6 +589,10 @@ describe("email HTML", () => {
     const vimeo = render(email([{ type: "Video", props: { src: "https://vimeo.com/76979871" } }]));
     expect(vimeo.body).toContain('<a href="https://vimeo.com/76979871">Video</a>');
     expect(vimeo.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[0].props.thumbnail"]);
+    // In a Grid, at its place in the template, not in the Rows the Grid lays it out in.
+    const text = { type: "Text", children: ["a"] };
+    const grid = render(email([text, { type: "Grid", children: [text, { type: "Video", props: { src: "https://vimeo.com/76979871" } }] }]));
+    expect(grid.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[1].children[1].props.thumbnail"]);
   });
 
   describe("a Layer", () => {

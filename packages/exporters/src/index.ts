@@ -86,15 +86,22 @@ export function prepareTemplate(input: unknown, options: ComponentsOption = {}):
   const expanded = expandDocument(checked.document, registry);
   diagnostics.push(...expanded.diagnostics);
   if (failed()) return { resolved: null, target: output.target, diagnostics };
-  diagnostics.push(...checkTargetExpanded(expanded.document, output.target, registry));
+  diagnostics.push(...checkTargetExpanded(expanded.document, output.target, registry, expanded.paths));
   if (failed()) return { resolved: null, target: output.target, diagnostics };
-  const resolved = resolveExpanded(expanded.document, registry);
+  const resolved = resolveExpanded(expanded.document, registry, expanded.paths);
   diagnostics.push(...resolved.diagnostics);
-  diagnostics.push(...(output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target)));
+  const found = output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target);
   // A Document's page and a Canvas are a fixed size: content that can't fit is cut off.
-  if (root === "Document" || root === "Canvas") diagnostics.push(...overflow(resolved.root));
-  if (root !== "Document") diagnostics.push(...pageNumbersOutside(resolved.root));
+  if (root === "Document" || root === "Canvas") found.push(...overflow(resolved.root));
+  if (root !== "Document") found.push(...pageNumbersOutside(resolved.root));
+  diagnostics.push(...inTemplate(resolved, found));
   return { resolved: failed() ? null : resolved, target: output.target, diagnostics };
+}
+
+/** Diagnostics found on the tree as laid out, at their places in the template (a Grid's children, a custom component's). */
+export function inTemplate(resolved: ResolvedDocument, diagnostics: Diagnostic[]): Diagnostic[] {
+  const { templatePath } = resolved;
+  return templatePath ? diagnostics.map((diagnostic) => ({ ...diagnostic, path: templatePath(diagnostic.path) })) : diagnostics;
 }
 
 /** A PageNumber outside a Document: a page has no number there. */
@@ -117,7 +124,8 @@ function pageNumbersOutside(root: ResolvedNode): Diagnostic[] {
 export function validateTemplate(input: unknown, options: ComponentsOption = {}): { valid: boolean; diagnostics: Diagnostic[] } {
   const { diagnostics, resolved } = prepareTemplate(input, options);
   const root = resolved?.root;
-  const all = [...diagnostics, ...(root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [])];
+  const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
+  const all = [...diagnostics, ...(resolved ? inTemplate(resolved, paged) : paged)];
   return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
 }
 
@@ -132,5 +140,5 @@ export function renderTemplate(input: unknown, options: RenderOptions & Componen
   const text = renderText(resolved, options);
   const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), diagnostics: [] };
   const shown = (html: string) => (options.pretty ? prettyHtml(html) : html);
-  return { html: shown(written.html), head: shown(written.head), body: shown(written.body), bodyStyle: written.bodyStyle, text, diagnostics: [...diagnostics, ...written.diagnostics] };
+  return { html: shown(written.html), head: shown(written.head), body: shown(written.body), bodyStyle: written.bodyStyle, text, diagnostics: [...diagnostics, ...inTemplate(resolved, written.diagnostics)] };
 }

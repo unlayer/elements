@@ -1,4 +1,4 @@
-import { checkDocument, expandDocument, parseDocument, resolveDocument, type Node, type ResolvedNode } from "../src";
+import { checkDocument, checkTarget, defineCustomComponent, expandDocument, parseDocument, resolveDocument, type Node, type ResolvedNode } from "../src";
 
 const email = (child: Record<string, unknown>) => ({ root: { type: "Email", props: { width: 600 }, children: [child] } });
 const text = (words: string, id?: string) => ({ type: "Text", ...(id ? { id } : {}), children: [words] });
@@ -55,6 +55,33 @@ describe("Grid", () => {
     // The same gap both ways needs nothing of its own on phones; side by side there, the rows keep their rowGap.
     expect(phoneGap({ style: { gap: 10 } })).toBeUndefined();
     expect(phoneGap({ props: { stackOnMobile: false }, style: { gap: 10, rowGap: 30 } })).toBeUndefined();
+  });
+
+  it("says where its children are in the template, not in the Rows and cells it lays them out in (which are the Grid)", () => {
+    const wide = { type: "Column", style: { width: 400 }, children: [text("b")] };
+    const grid = { type: "Grid", children: [text("a"), wide, { type: "Grid", children: [text("c"), wide] }] };
+    const { root, diagnostics, templatePath } = resolveDocument(parseDocument(email(grid)));
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ["layout/overflow", "root.children[0].children[1]"],
+      ["layout/overflow", "root.children[0].children[2].children[1]"],
+    ]);
+    // Each node keeps its own place in the tree as laid out (a Grid's Rows and cells too); templatePath says where it,
+    // and what follows its path, is in the template.
+    const rows = (root.children[0] as ResolvedNode).children as ResolvedNode[];
+    const second = (rows[0].children[1] as ResolvedNode).children[0] as ResolvedNode;
+    expect([second.type, second.path]).toEqual(["Column", "root.children[0].children[0].children[1].children[0]"]);
+    expect([templatePath!(second.path), templatePath!(`${second.path}.style.width`), templatePath!(`${second.path}.children[0]`), templatePath!(rows[1].path)]).toEqual([
+      "root.children[0].children[1]",
+      "root.children[0].children[1].style.width",
+      "root.children[0].children[1].children[0]",
+      "root.children[0]",
+    ]);
+    // What an email can't show, and what a custom component in a Grid renders, at their places in the template too.
+    const svg = { type: "Svg", props: { width: 10, height: 10 } };
+    expect(checkTarget(parseDocument(email({ type: "Grid", children: [text("a"), svg] })), "email").map((d) => d.path)).toEqual(["root.children[0].children[1]"]);
+    const Card = defineCustomComponent({ type: "acme.Card", label: "Card", props: {}, expand: () => ({ type: "Text", style: { margin: 1 } }) });
+    const card = parseDocument(email({ type: "Grid", children: [text("a"), { type: "acme.Card" }] }), { components: [Card] });
+    expect(expandDocument(card, { components: [Card] }).diagnostics.map((d) => d.path)).toEqual(["root.children[0].children[1](acme.Card).style.margin"]);
   });
 
   it("takes blocks, not text, and a whole number of columns from 1 to 12", () => {

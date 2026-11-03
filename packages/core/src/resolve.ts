@@ -9,7 +9,7 @@ import { Diagnostics, type Diagnostic } from "./diagnostics";
 import { assetParts, readLength, type Asset, type Border, type BorderSide, type FontFamily, type Insets, type LineHeight } from "./kinds";
 import { isNode, type ElementsDocument, type Json, type Node } from "./model";
 import { pageBox } from "./document";
-import { expandDocument } from "./expand";
+import { expandDocument, templatePathsOf, type TemplatePaths } from "./expand";
 import { propsWithDefaults, registryOf, type ComponentsOption, type Registry } from "./registry";
 
 /** Text styles as they apply to a node: its own, its component's defaults, else its parent's. */
@@ -30,7 +30,10 @@ export interface ResolvedText {
 export interface ResolvedNode {
   /** The author's id, if any. */
   id?: string;
-  /** Where it is in the template ("root.children[2]"), for messages. */
+  /**
+   * Where it is in the tree as laid out ("root.children[2]"): its place in the template, but inside a Grid (laid out
+   * as Rows of cells) and inside what a custom component renders. The document's `templatePath` gives the template's.
+   */
   path: string;
   type: string;
   definition: ComponentDefinition;
@@ -60,7 +63,10 @@ export interface ResolvedNode {
 
 export interface ResolvedDocument {
   root: ResolvedNode;
+  /** At their places in the template. */
   diagnostics: Diagnostic[];
+  /** A path in the tree as laid out (a node's `path`, and what follows it: ".props.src") as the template's, for messages. */
+  templatePath?: (path: string) => string;
 }
 
 /**
@@ -128,12 +134,15 @@ interface Context {
 export function resolveDocument(input: ElementsDocument, options?: ComponentsOption | Registry): ResolvedDocument {
   const registry = registryOf(options);
   const expanded = expandDocument(input, registry);
-  const resolved = resolveExpanded(expanded.document, registry);
-  return { root: resolved.root, diagnostics: [...expanded.diagnostics, ...resolved.diagnostics] };
+  const resolved = resolveExpanded(expanded.document, registry, expanded.paths);
+  return { ...resolved, diagnostics: [...expanded.diagnostics, ...resolved.diagnostics] };
 }
 
-/** Resolves a document whose custom components are already expanded (`expandDocument`): primitives only. */
-export function resolveExpanded(document: ElementsDocument, options?: ComponentsOption | Registry): ResolvedDocument {
+/**
+ * Resolves a document whose custom components are already expanded (`expandDocument`): primitives only. With the
+ * expansion's `paths`, its messages (and its `templatePath`) say where things are in the template.
+ */
+export function resolveExpanded(document: ElementsDocument, options?: ComponentsOption | Registry, paths?: TemplatePaths): ResolvedDocument {
   const registry = registryOf(options);
   const d = new Diagnostics();
   const definition = registry.get(document.root.type)!;
@@ -144,7 +153,8 @@ export function resolveExpanded(document: ElementsDocument, options?: Components
   root.width = width;
   root.contentWidth = width === null ? null : width - horizontalFrame(root.style);
   root.children = resolveChildren(document.root, "root", root, root.contentWidth, "stack", context);
-  return { root, diagnostics: d.list };
+  const templatePath = paths ? templatePathsOf(document, paths) : (path: string) => path;
+  return { root, diagnostics: d.list.map((diagnostic) => ({ ...diagnostic, path: templatePath(diagnostic.path) })), templatePath };
 }
 
 function styleOf(node: Node, definition: ComponentDefinition, props: Record<string, Json>, context: Context): Record<string, Json> {
@@ -498,11 +508,12 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
 /** Errors for each component the target doesn't render (custom components: for what they're made of). */
 export function checkTarget(input: ElementsDocument, target: Target, options?: ComponentsOption | Registry): Diagnostic[] {
   const registry = registryOf(options);
-  return checkTargetExpanded(expandDocument(input, registry).document, target, registry);
+  const expanded = expandDocument(input, registry);
+  return checkTargetExpanded(expanded.document, target, registry, expanded.paths);
 }
 
-/** `checkTarget` for a document whose custom components are already expanded. */
-export function checkTargetExpanded(document: ElementsDocument, target: Target, options?: ComponentsOption | Registry): Diagnostic[] {
+/** `checkTarget` for a document whose custom components are already expanded (its `paths`: each node's place in the template). */
+export function checkTargetExpanded(document: ElementsDocument, target: Target, options?: ComponentsOption | Registry, paths?: TemplatePaths): Diagnostic[] {
   const registry = registryOf(options);
   const d = new Diagnostics();
   const visit = (node: Node, path: string) => {
@@ -516,5 +527,6 @@ export function checkTargetExpanded(document: ElementsDocument, target: Target, 
     node.children?.forEach((child, index) => isNode(child) && visit(child, `${path}.children[${index}]`));
   };
   visit(document.root, "root");
-  return d.list;
+  const templatePath = paths ? templatePathsOf(document, paths) : (path: string) => path;
+  return d.list.map((diagnostic) => ({ ...diagnostic, path: templatePath(diagnostic.path) }));
 }
