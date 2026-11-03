@@ -13,7 +13,7 @@
 import { linkParts, type Child, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
 import { setPaths } from "./paths";
-import { baseline, BUILDER_OWN, fingerprint, PARTED, PAYLOAD_KEY, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
+import { baseline, BUILDER_OWN, fingerprint, PARTED, PAYLOAD_KEY, PAYLOAD_VERSION, phonePrint, WRITTEN, type Group, type Payload } from "./payload";
 import { sameText } from "./runs";
 import { dropTaken, mark } from "./taken";
 
@@ -85,10 +85,17 @@ export type Say = (message: string, key: string) => void;
 export function changesOf(kind: string, values: Values, payload: Payload | undefined, only?: (key: string) => boolean): string[] {
   const fields = FIELDS[kind] ?? {};
   const w = baseline(kind, payload);
-  return Object.keys({ ...w, ...values }).filter((key) => {
+  // A template's item: each value written for it whatever it sets, removed or not, and each told apart by a fingerprint.
+  const written = payload ? [...(WRITTEN[kind] ?? []), ...Object.keys(payload.h ?? {})] : [];
+  return [...new Set([...Object.keys({ ...w, ...values }), ...written])].filter((key) => {
     if (BUILDER_OWN.has(key) || (only && !only(key))) return false;
+    if (written.includes(key) && !(key in values) && !(w && key in w)) return Boolean(fields[key]);
     // A long value only told apart from the one written (a block's own markup).
-    if (payload?.h && key in payload.h) return fingerprint(values[key]) !== payload.h[key] && Boolean(fields[key]);
+    if (payload?.h && key in payload.h) {
+      // Phone values: their hiding as written, the rest by their fingerprint.
+      if (key === "_override") return (phonePrint(values[key]) !== payload.h[key] || values[key]?.mobile?.hideMobile !== (w?._override as Values | undefined)?.mobile?.hideMobile) && Boolean(fields[key]);
+      return fingerprint(values[key]) !== payload.h[key] && Boolean(fields[key]);
+    }
     // A value with parts of the node's and the builder's: its setter tells them apart.
     if (payload && PARTED.has(`${kind}.${key}`) && meaningful(values[key])) return Boolean(fields[key]);
     if (w && key in w ? unchanged(key, w[key], values[key]) : !meaningful(values[key])) return false;
@@ -102,7 +109,9 @@ export function applyTo(kind: string, node: Node, values: Values, payload: Paylo
   const w = baseline(kind, payload);
   for (const key of changesOf(kind, values, payload, only)) {
     const set = fields[key];
-    if (set) set({ node, now: values[key], was: w ? w[key] : undefined, say: (message) => say(message, key) });
+    // Phone values told apart by a fingerprint: whether the rest of them changed, beside the hiding written.
+    const was = key === "_override" && payload?.h?._override !== undefined ? { ...(w?._override as Values | undefined), changed: phonePrint(values[key]) !== payload.h._override } : w ? w[key] : undefined;
+    if (set) set({ node, now: values[key], was, say: (message) => say(message, key) });
     else {
       if (w && key in w && !BUILDER_DATA.has(key)) say(`its ${key} changed in the builder: kept for the builder, which Elements doesn't draw`, key);
       // A value the builder removed is no longer the builder's data.

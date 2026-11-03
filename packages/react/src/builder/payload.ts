@@ -9,6 +9,11 @@
  *
  * On the way back, each builder value is read as the node's (less its place), except where it's still what the
  * builder has for nothing set (its defaults, below) or what the node takes from what it's in (taken.ts).
+ *
+ * Experimental: this is version 1 to be, not yet frozen. It's frozen (every later version reads it as this one does)
+ * once a test sets every field of every tool to another value, to its default and removes it, designs saved by the
+ * real builder for every tool read back, the defaults below are checked against what today's components write, and a
+ * review finds nothing new. Till then a design written with it may read otherwise in a later release.
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
 
@@ -81,8 +86,8 @@ const LINKS = { linkColor: "#0000ee", linkHoverColor: "#0000ee", linkUnderline: 
 
 /**
  * What the builder holds for an item where its template sets nothing: the values today's components write for
- * themselves. Part of this format, so frozen: a value here is read as nothing set in every design of this version.
- * A later version that writes other ones has a table of its own.
+ * themselves. Part of this format: once it's frozen, a value here is read as nothing set in every design of this
+ * version, and a later version that writes other ones has a table of its own.
  */
 export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, Json>>>> = {
   body: {
@@ -127,6 +132,24 @@ export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, Json>>>> 
 };
 
 /**
+ * The values today's components write for an item whatever its template sets (a button's link, its padding): one the
+ * builder removed is read as removed, as a value it changed is. Part of this format.
+ */
+export const WRITTEN: Readonly<Record<string, readonly string[]>> = {
+  body: ["contentWidth", "fontFamily", "textColor", "backgroundColor"],
+  row: ["padding", "columnsBackgroundColor", "noStackMobile"],
+  column: ["padding", "backgroundColor", "border", "borderRadius"],
+  heading: ["containerPadding", "headingType", "fontSize", "textAlign", "lineHeight", "color", "fontWeight", "text", "fontFamily"],
+  text: ["containerPadding", "fontSize", "textAlign", "lineHeight", "color", "fontFamily", "fontWeight", "text"],
+  button: ["containerPadding", "href", "buttonColors", "size", "fontSize", "lineHeight", "textAlign", "padding", "border", "borderRadius", "text", "fontFamily", "fontWeight"],
+  image: ["containerPadding", "src", "textAlign", "altText", "action"],
+  divider: ["containerPadding", "width", "border", "textAlign"],
+  menu: ["containerPadding", "menu", "fontSize", "textColor", "linkColor", "align", "layout", "separator", "padding", "fontFamily"],
+  social: ["containerPadding", "icons", "align", "iconSize", "spacing"],
+  video: ["containerPadding", "video"],
+};
+
+/**
  * Values whose parts are a node's and the builder's own (a button's colors, an image's source and width): their
  * default is only the builder's parts, and their setter tells each part apart, so it's given every value.
  */
@@ -146,6 +169,8 @@ export const sidesCss = (s: Partial<Sides>) => `${s.top ?? 0}px ${s.right ?? 0}p
 export function baseline(kind: string, payload: Payload | undefined): Record<string, Json> | undefined {
   if (!payload) return undefined;
   const out: Record<string, Json> = { ...DEFAULTS[kind] };
+  // A Document's page settings are its own: the builder's defaults for them are an email's.
+  if (kind === "body" && payload.node?.type === "Document") for (const key of ["documentSize", "documentOrientation", "documentMargin"]) delete out[key];
   for (const held of (payload.held ?? "").split(" ").filter(Boolean)) {
     const [key, part] = held.split(".");
     if (part === undefined) delete out[key];
@@ -167,6 +192,14 @@ export function baseline(kind: string, payload: Payload | undefined): Record<str
 export function bare(node: Node): Node {
   const { children: _children, ...rest } = node;
   return rest;
+}
+
+/** A fingerprint of an item's phone values but their hiding (which is kept as written, and read). */
+export function phonePrint(value: unknown): string {
+  const mobile = (value as { mobile?: Record<string, unknown> } | undefined)?.mobile;
+  if (!mobile || !("hideMobile" in mobile)) return fingerprint(value);
+  const { hideMobile: _hiding, ...rest } = mobile;
+  return fingerprint({ ...(value as object), mobile: rest });
 }
 
 /** A short fingerprint of a long value (cyrb53), to tell it from another. */

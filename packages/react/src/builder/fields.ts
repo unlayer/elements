@@ -38,7 +38,8 @@ function setStyle(node: Node, key: string, value: Json | undefined) {
 
 function setProp(node: Node, key: string, value: Json | undefined) {
   const props = { ...node.props };
-  if (value === undefined || value === "") delete props[key];
+  // A value the builder removed (a size read from nothing) is none.
+  if (value === undefined || value === "" || (typeof value === "number" && Number.isNaN(value))) delete props[key];
   else props[key] = value;
   node.props = props;
 }
@@ -78,7 +79,8 @@ const paddingBy: Setter = ({ node, now, was }) => {
   const own = (node.style?.padding as Sides | undefined) ?? ZERO;
   const moved = { top: own.top + after.top - before.top, right: own.right + after.right - before.right, bottom: own.bottom + after.bottom - before.bottom, left: own.left + after.left - before.left };
   const clamped = { top: Math.max(0, moved.top), right: Math.max(0, moved.right), bottom: Math.max(0, moved.bottom), left: Math.max(0, moved.left) };
-  setStyle(node, "padding", same(clamped, ZERO) && !node.style?.padding ? undefined : clamped);
+  // None where none is written; a padding the builder removed is none, said.
+  setStyle(node, "padding", same(clamped, ZERO) && !node.style?.padding && now !== undefined ? undefined : clamped);
 };
 
 /** Padding set to the builder's value (a button's own). */
@@ -133,6 +135,11 @@ const phone: Setter = (change) => {
   const now = change.now?.mobile ?? {};
   const was = change.was?.mobile ?? {};
   if (now.hideMobile !== was.hideMobile) hidden("mobile")({ ...change, now: now.hideMobile, was: was.hideMobile });
+  // Values told apart by a fingerprint say they changed, not which.
+  if (typeof change.was?.changed === "boolean") {
+    if (change.was.changed) change.say("its phone values changed in the builder: set them in the template's mobile styles");
+    return;
+  }
   const other = Object.keys({ ...now, ...was }).filter((key) => key !== "hideMobile" && JSON.stringify(now[key]) !== JSON.stringify(was[key]));
   if (other.length) change.say(`its phone values changed in the builder (${other.join(", ")}): set them in the template's mobile styles`);
 };

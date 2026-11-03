@@ -8,7 +8,7 @@ import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
 import { changesOf, readItem, unchanged, type Values } from "./lower";
 import { pathsOf, sameValue, setAt, setPaths, valueAt } from "./paths";
-import { baseline, BUILDER_OWN, DEFAULTS, fingerprint, PADDING_BY, PARTED, PLACED, type Payload, type Sides } from "./payload";
+import { baseline, BUILDER_OWN, DEFAULTS, fingerprint, PADDING_BY, PARTED, phonePrint, PLACED, type Payload, type Sides } from "./payload";
 import { say, taken } from "./taken";
 
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -110,7 +110,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
    * written, which is read (a block hidden there that the builder shows again is shown).
    */
   const phoneSaid = () => {
-    h._override = fingerprint(values._override);
+    h._override = phonePrint(values._override);
     const hiding = (values._override as Values | undefined)?.mobile?.hideMobile;
     if (hiding !== undefined) w._override = { mobile: { hideMobile: hiding } };
     else delete w._override;
