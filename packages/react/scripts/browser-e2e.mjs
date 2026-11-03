@@ -94,15 +94,18 @@ const IMAGE_SRC = {
 const IMAGE_DISPLAY_WIDTH = 200;
 const PREVIEW_TEXT = "Preview line for the inbox list";
 
+/** An author's id for a row, column or block (written to the HTML by today's components and by the new engine). */
+const id = (htmlID) => ({ values: { _meta: { htmlID } } });
+
 /** The golden tree: fixed content width so geometry is deterministic. */
 function tree(Root) {
   return h(Root, { contentWidth: "600px", previewText: PREVIEW_TEXT },
     h(Row, { layout: ColumnLayouts.ThreeEqual },
-      h(Column, null, h(Paragraph, null, "Col one")),
-      h(Column, null, h(Paragraph, null, "Col two")),
-      h(Column, null, h(Paragraph, null, "Col three"))
+      h(Column, id("col-1"), h(Paragraph, null, "Col one")),
+      h(Column, id("col-2"), h(Paragraph, null, "Col two")),
+      h(Column, id("col-3"), h(Paragraph, null, "Col three"))
     ),
-    h(Row, null,
+    h(Row, id("row-2"),
       h(Column, null,
         h(Heading, null, "Browser E2E"),
         h(Paragraph, null, "First paragraph."),
@@ -194,10 +197,10 @@ async function checkDocuments(page) {
   }
 }
 
-/** Measure the three columns of the first row: [{x, width, top, bottom}]. */
+/** Measure the columns of the first row (col-1, col-2, …): [{x, width, top, bottom}]. */
 async function measureColumns(page) {
   return page.evaluate(() => {
-    const cols = [...document.querySelectorAll("#u_row_1 .u-col")];
+    const cols = [1, 2, 3].map((n) => document.getElementById(`col-${n}`)).filter(Boolean);
     return cols.map((c) => {
       const r = c.getBoundingClientRect();
       return { x: Math.round(r.x), width: Math.round(r.width), top: Math.round(r.top), bottom: Math.round(r.bottom) };
@@ -215,8 +218,8 @@ async function checkNoStack(page) {
     const html = renderToHtml(
       h(Root, { contentWidth: "600px" },
         h(Row, { cells: [1, 3], noStackMobile: true },
-          h(Column, null, h(Paragraph, null, "Quarter")),
-          h(Column, null, h(Paragraph, null, "Three quarters"))
+          h(Column, id("col-1"), h(Paragraph, null, "Quarter")),
+          h(Column, id("col-2"), h(Paragraph, null, "Three quarters"))
         ),
         h(Row, { layout: ColumnLayouts.TwoEqual },
           h(Column, null, h(Paragraph, null, "Stacks")),
@@ -340,11 +343,22 @@ async function collectStyleFacts(page) {
       };
       const textProps = ["color", "backgroundColor", "fontSize", "fontWeight", "fontFamily", "textAlign", "lineHeight", "direction"];
       const boxProps = ["backgroundColor", "borderRadius", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight"];
-      const columns = [...document.querySelectorAll("#u_row_1 .u-col")].map((c) => Math.round(c.getBoundingClientRect().width));
+      const columns = [1, 2, 3].map((n) => document.getElementById(`col-${n}`)).filter(Boolean).map((c) => Math.round(c.getBoundingClientRect().width));
+      // The button as a reader sees it: its label's type and inset (from the element holding the label's
+      // text) and its face (the nearest box behind the label that paints a background). Markup may put
+      // these on the link, an inner span or the cell around it; the reader sees the same button.
+      const link = document.querySelector('a[href="https://example.com"]');
+      const label = link && [link, ...link.querySelectorAll("*")].find((el) =>
+        [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()));
+      let face = label;
+      while (face && getComputedStyle(face).backgroundColor === "rgba(0, 0, 0, 0)") face = face.parentElement;
       return {
         heading: pick(document.querySelector("h1"), textProps),
-        firstParagraph: pick(document.querySelector("#u_row_2 p"), textProps),
-        button: pick(document.querySelector('a[href="https://example.com"]'), [...textProps, ...boxProps]),
+        firstParagraph: pick(document.querySelector("#row-2 p"), textProps),
+        button: label && {
+          ...pick(label, [...textProps, ...boxProps]),
+          ...pick(face, ["backgroundColor", "borderRadius"]),
+        },
         columnWidths: columns,
       };
     });
@@ -491,11 +505,28 @@ async function checkImageSizing(page) {
   }
 }
 
-/** Section 10: every non-empty <style> parses into CSS rules. */
+/**
+ * Section 10: every <style> parses into every rule it writes. A malformed rule makes the browser drop
+ * it (and often the rules after it), so a sheet that parses into fewer rules than its source holds
+ * at the top level is broken — however few rules the writer needs.
+ */
 async function checkCssParses(page) {
   for (const { name, html } of DOCUMENTS) {
     await page.setContent(html, { waitUntil: "load" });
     const facts = await page.evaluate(() => {
+      // Top-level rules in the source: blocks that close at depth 0, and statements such as @import.
+      const written = (css) => {
+        let depth = 0;
+        let count = 0;
+        const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+        for (let i = 0; i < source.length; i++) {
+          const c = source[i];
+          if (c === "{") depth++;
+          else if (c === "}" && depth > 0 && --depth === 0) count++;
+          else if (c === "@" && depth === 0 && /^@(import|charset|namespace|layer [^{;]*;)/.test(source.slice(i))) count++;
+        }
+        return count;
+      };
       const sheets = [...document.styleSheets];
       let totalRules = 0;
       const broken = [];
@@ -504,8 +535,9 @@ async function checkCssParses(page) {
           const count = sheet.cssRules.length;
           totalRules += count;
           const source = sheet.ownerNode?.textContent ?? "";
-          if (source.trim().length > 0 && count === 0) {
-            broken.push(source.slice(0, 80));
+          const expected = written(source);
+          if (count < expected || (source.trim().length > 0 && count === 0)) {
+            broken.push(`${count} of ${expected} rules parsed: ${source.slice(0, 80)}`);
           }
         } catch (e) {
           broken.push(String(e));
@@ -516,8 +548,8 @@ async function checkCssParses(page) {
 
     const problems = [];
     if (facts.sheetCount < 1) problems.push("no stylesheets in the document");
-    if (facts.totalRules < 3) problems.push(`only ${facts.totalRules} CSS rules parsed — stylesheet likely malformed`);
-    for (const b of facts.broken) problems.push(`non-empty <style> parsed to zero rules: ${b}`);
+    if (facts.totalRules < 1) problems.push("no CSS rules parsed");
+    for (const b of facts.broken) problems.push(`a <style> lost rules when parsed — ${b}`);
 
     if (problems.length) fail(`css:${name}`, problems);
     else pass(`css:${name}`, `${facts.totalRules} CSS rules parsed across ${facts.sheetCount} stylesheets`);
@@ -563,24 +595,27 @@ async function checkDeviceOverrides(page) {
   const phone = { width: 375, height: 800 };
   for (const { name, Root } of DOCUMENTS.filter((d) => d.name !== "document")) {
     const make = (overrides) => renderToHtml(h(Root, { contentWidth: "600px" },
-      h(Row, null, h(Column, { padding: "20px", ...(overrides ? { mobile: { padding: "8px 12px" } } : {}) },
+      h(Row, null, h(Column, { padding: "20px", ...id("phone-column"), ...(overrides ? { mobile: { padding: "8px 12px" } } : {}) },
         h(Image, { src: { ...IMAGE_SRC, width: 800 }, width: 120, containerPadding: 0, ...(overrides ? { mobile: { autoWidth: true } } : {}) }),
-        h(Paragraph, { containerPadding: 0, hideOnMobile: overrides }, "Desktop only"),
-        h(Paragraph, { containerPadding: 0, hideOnDesktop: overrides }, "Phone only")
+        h(Paragraph, { containerPadding: 0, hideOnMobile: overrides, ...id("desktop-only") }, "Desktop only"),
+        h(Paragraph, { containerPadding: 0, hideOnDesktop: overrides, ...id("phone-only") }, "Phone only")
       )),
-      h(Row, { hideOnMobile: overrides }, h(Column, null, h(Paragraph, null, "Hidden row")))
+      h(Row, { hideOnMobile: overrides, ...id("hidden-row") }, h(Column, null, h(Paragraph, null, "Hidden row")))
     ));
     const read = () => page.evaluate(() => {
-      const column = document.querySelector("#u_column_1 .v-col-padding");
+      // A column's padding: on its padding box in today's components' markup, on the column in the new engine's.
+      const outer = document.getElementById("phone-column");
+      const column = outer.querySelector(".v-col-padding") ?? outer;
       const image = document.querySelector("img");
       const css = getComputedStyle(column);
+      const hidden = (id) => document.getElementById(id).getBoundingClientRect().height === 0 || getComputedStyle(document.getElementById(id)).display === "none";
       return {
         padding: [css.paddingTop, css.paddingRight, css.paddingBottom, css.paddingLeft],
         slot: column.getBoundingClientRect().width - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight),
         image: image.getBoundingClientRect().width,
-        mobileHidden: getComputedStyle(document.querySelector("#u_content_paragraph_1")).display === "none",
-        desktopHidden: getComputedStyle(document.querySelector("#u_content_paragraph_2")).display === "none",
-        rowHidden: getComputedStyle(document.querySelector("#u_row_2")).display === "none",
+        mobileHidden: hidden("desktop-only"),
+        desktopHidden: hidden("phone-only"),
+        rowHidden: hidden("hidden-row"),
       };
     });
     const phoneProblems = (facts) => [

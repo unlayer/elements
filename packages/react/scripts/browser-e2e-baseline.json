@@ -27,13 +27,13 @@
       "fontWeight": "400",
       "fontFamily": "arial, helvetica, sans-serif",
       "textAlign": "center",
-      "lineHeight": "normal",
+      "lineHeight": "16.8px",
       "direction": "ltr",
       "borderRadius": "8px",
-      "paddingTop": "0px",
-      "paddingBottom": "0px",
-      "paddingLeft": "0px",
-      "paddingRight": "0px"
+      "paddingTop": "10px",
+      "paddingBottom": "10px",
+      "paddingLeft": "20px",
+      "paddingRight": "20px"
     },
     "columnWidths": [
       200,
