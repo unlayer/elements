@@ -22,6 +22,8 @@ A preview of the next major version, at its own entry: new components with typed
 
 For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/PRIMITIVES.md."
 
+Or install the same guide as an agent skill: `npx skills add unlayer/elements`.
+
 ```tsx
 import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
 
