@@ -40,6 +40,9 @@
 //      unbalanced brace silently kills the rest of a stylesheet.
 //  11. Print — the document mode output stays visible under print media
 //      emulation (the PDF pipeline's rendering condition).
+//  12. Row side padding — an email row's side padding stays inside the
+//      email: in a window narrower than the content plus those sides,
+//      nothing scrolls sideways and the content stays centred.
 //
 // A negative control (a document with a bare <p>) must FAIL the margin
 // check — so a green run also proves the gate can detect the regressions
@@ -422,6 +425,33 @@ async function checkOverflow(page) {
   await page.setViewportSize(DESKTOP);
 }
 
+/**
+ * Section 12: an email row's side padding stays inside the email. In a window wider than the content
+ * but narrower than the content plus a row's side padding (600px for 560px of content and 48px sides),
+ * the email doesn't scroll sideways and the row's content stays centred. (Through 0.2 the sides were
+ * written outside the content width: the page scrolled 8px and the content sat 28px right of centre.)
+ */
+async function checkRowSidePadding(page) {
+  const window = { width: 600, height: 800 };
+  await page.setViewportSize(window);
+  const html = renderToHtml(h(Email, { contentWidth: "560px", backgroundColor: "#eeeeee" },
+    h(Row, { padding: "36px 48px", backgroundColor: "#ffffff" },
+      h(Column, id("padded-column"), h(Paragraph, null, "A row with side padding")))));
+  await page.setContent(html, { waitUntil: "load" });
+  const facts = await page.evaluate(() => {
+    const column = document.getElementById("padded-column").getBoundingClientRect();
+    return { scrollWidth: document.documentElement.scrollWidth, left: column.left, right: column.right };
+  });
+  const problems = [];
+  if (facts.scrollWidth > window.width) problems.push(`the email scrolls sideways: ${facts.scrollWidth}px wide in a ${window.width}px window`);
+  const margins = [facts.left, window.width - facts.right];
+  if (Math.abs(margins[0] - margins[1]) > 1) problems.push(`the row's content isn't centred: ${margins.map(Math.round).join("px left, ")}px right`);
+  if (Math.abs(facts.right - facts.left - 560) > 1) problems.push(`the row's content is ${Math.round(facts.right - facts.left)}px wide, expected 560px`);
+  await page.setViewportSize(DESKTOP);
+  if (problems.length) fail("row-side-padding", problems);
+  else pass("row-side-padding", `an email row with 48px sides fits a ${window.width}px window, centred, without sideways scroll`);
+}
+
 /** Section 7: preheader — present for inbox preview, invisible on screen. */
 async function checkPreheader(page) {
   const email = DOCUMENTS.find((d) => d.name === "email");
@@ -651,6 +681,7 @@ try {
   await checkResponsive(page);
   await checkNoStack(page);
   await checkDeviceOverrides(page);
+  await checkRowSidePadding(page);
   await checkHover(page);
   await checkRtl(page);
   await checkStyleBaseline(page);
