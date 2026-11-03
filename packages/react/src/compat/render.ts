@@ -75,7 +75,8 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     js ? `<script type="application/javascript">\n${js}\n</script>` : "",
     links && (lowered.mode === "email" ? `<!--[if !mso]><!-->${links}<!--<![endif]-->` : links),
   ].filter(Boolean);
-  const html = extra.length ? result.html.replace("</head>", `${extra.join("\n")}</head>`) : result.html;
+  // (A replacer: a tool's script may hold `$&` or `$'`, which a replacement string reads as patterns.)
+  const html = extra.length ? result.html.replace("</head>", () => `${extra.join("\n")}</head>`) : result.html;
 
   // The parts: the stylesheet with the body's own style (an app's page embedding them takes the template's margin and
   // background, as legacy's head gave them), the script and the tags; the body.

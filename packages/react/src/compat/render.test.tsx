@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Button, Column, Email, Html, Image, Page, Paragraph, Row, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Email, Html, Image, Page, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -125,6 +125,16 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     const html = renderToHtml(<Email><Row><Column><Button href="<%unsubscribe%>">Unsubscribe</Button><Paragraph>Hi</Paragraph></Column></Row></Email>);
     expect(html).toContain('href="<%unsubscribe%>"');
     expect(html).toContain(">Hi</p>");
+  });
+
+  it("add a custom tool's script to the head whole, whatever it holds ($& and $' are text)", () => {
+    const script = "var s = x.replace(/a/g, '\\\\$&') + \"$'\";";
+    const Tool = registerTool({ name: "dollar_script", renderer: { exporters: { web: () => "<i>T</i>", email: () => "<i>T</i>" }, head: { js: () => script } } });
+    for (const Root of [Email, Page]) {
+      const html = renderToHtml(<Root><Row><Column><Tool /></Column></Row></Root>);
+      expect(html.match(/<\/head>/g)).toHaveLength(1);
+      expect(html).toContain(script);
+    }
   });
 
   it("draw an image a template links as legacy links it", () => {
