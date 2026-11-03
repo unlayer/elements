@@ -19,6 +19,7 @@ import {
   Email,
   Grid,
   Heading,
+  Html,
   Image,
   Layer,
   Link,
@@ -373,19 +374,21 @@ describe("renderPdf", () => {
     expect((await read(given.pdf)).pages[0].words).toContain("Привет, мир");
   });
 
-  it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {
+  it("says what a PDF can't show that its HTML can: a hover, a Video, markup (and validate() says it too)", async () => {
     const template = (
       <Document>
         <Button href="https://x.test" hover={{ backgroundColor: "#333333" }}>
           Go
         </Button>
         <Video src="https://vimeo.com/76979871" title="Our launch" />
+        <Html html="<b>Sale</b>" text="Sale today" />
       </Document>
     );
     const said = (diagnostics: Array<{ code: string; message: string }>) => diagnostics.filter((d) => d.code.startsWith("pdf/")).map((d) => [d.code, d.message.split(":")[0]]);
     const expected = [
       ["pdf/unsupported", "A hover isn't possible in a PDF"],
       ["pdf/unsupported", "A Video isn't possible in a PDF"],
+      ["pdf/unsupported", "Markup isn't possible in a PDF"],
     ];
     expect(said((await renderPdf(template)).diagnostics)).toEqual(expected);
     expect(said(validate(template).diagnostics)).toEqual(expected);
@@ -613,6 +616,8 @@ describe("renderPdf", () => {
       Svg: [<Svg key="svg" width={10} height={10}><Rect width={10} height={10} /></Svg>, ""],
       Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
       Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
+      // Markup it can't draw: its plain text, its own or its markup's words.
+      Html: [<Html key="html" html="<p>Sale <b>today</b></p><style>p{color:red}</style>" />, "Sale today"],
     };
     /** The words in the pages the writer builds, in their order. */
     const words = (item: unknown): string => {

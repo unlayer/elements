@@ -78,6 +78,8 @@ const BLOCKS: Record<string, Component> = {
   TableCell,
   Video,
   Raw,
+  // The authorable twin of Raw: the same markup, written the same way.
+  Html: Raw,
 };
 const INLINES: Record<string, Component> = {
   Span,

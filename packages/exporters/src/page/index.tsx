@@ -89,6 +89,8 @@ const COMPONENTS: Record<string, Component> = {
   TableCell,
   Video,
   Raw,
+  // The authorable twin of Raw: the same markup, written the same way.
+  Html: Raw,
 };
 
 /** What a node's component gets. */

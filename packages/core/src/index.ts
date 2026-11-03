@@ -14,3 +14,4 @@ export * from "./describe";
 export * from "./resolve";
 export * from "./registry";
 export * from "./expand";
+export * from "./markup";

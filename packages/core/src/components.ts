@@ -506,9 +506,30 @@ export const Raw = defineComponent({
   imported: true,
 });
 
+/**
+ * Raw's authorable twin: markup no component says (the builder's HTML block), written as it is by the same writers.
+ * A PDF and an image can't draw markup: they draw its plain text, and say so.
+ */
+export const Html = defineComponent({
+  type: "Html",
+  label: "HTML",
+  description:
+    "Markup written as it is, for what no component says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text.",
+  categories: ["block"],
+  props: {
+    html: prop(text(), { support: WRITTEN, label: "HTML", required: true, description: "The markup, written as it is: only markup you trust." }),
+    text: prop(text(), { support: WRITTEN, label: "Plain text", description: "What it reads as in the plain-text version, and in a PDF or an image (its markup's words where there's none)." }),
+  },
+  style: {},
+  children: {},
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "HTML", paths: ["props.html", "props.text"] }] },
+});
+
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Raw].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html, Raw].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

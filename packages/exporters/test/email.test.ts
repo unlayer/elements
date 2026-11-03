@@ -731,5 +731,11 @@ describe("email HTML", () => {
       expect(head).toContain("a{}<\\/style><script>x</script>");
       expect(body).toMatch(/<tr class="[^"]+"><td><div id="sale" style="font-size:16px"><p>Sale<\/p><\/div><\/td><\/tr>/);
     });
+
+    it("writes an Html block, its authorable twin, the same way, its text in the plain text", () => {
+      const { body, text } = render(email([{ type: "Html", props: { html: "<a href=\"https://example.com\">Buy <b>now</b></a>" } }]));
+      expect(notOutlook(body)).toContain('<tr><td><div style="font-size:16px"><a href="https://example.com">Buy <b>now</b></a></div></td></tr>');
+      expect(text).toBe("Buy now");
+    });
   });
 });

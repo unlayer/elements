@@ -1,7 +1,7 @@
 # RFC 0001: Elements primitives and exporters
 
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
-every step below is done. Built so far: the API, 38 components, the layout resolver, the email, page
+every step below is done. Built so far: the API, 39 components, the layout resolver, the email, page
 and print writers, PDF and image output, plain text, custom components, web fonts, validation, support
 data for every output, and the codemod from today's components; the builder adapter follows in a pull
 request of its own (see [Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
@@ -72,8 +72,11 @@ The decisions behind the design, with the date each was taken.
 9. **Parity with React Email first, the builder last** (2026-11-01): the API and the full component
    set come first, with React Email (`@react-email/components` 1.0.12) as the bar for what a template can
    say. Within that:
-   - **Elements components only**: no raw HTML elements in templates (`<strong>`, `<ul>`, `<div>`) and
-     no raw-HTML block; inline formatting is a styled `Span`, lists and tables are components.
+   - **Elements components only**: no raw HTML elements in templates (`<strong>`, `<ul>`, `<div>`);
+     inline formatting is a styled `Span`, lists and tables are components. Revised 2026-11-03: one
+     escape hatch, `<Html html="…" />`, a block of markup written as it is, so what the builder's HTML
+     block holds (and what `toDesign()` can only write as markup) comes back as a component. A PDF and an
+     image can't draw markup: they draw its plain text, and say so (`pdf/unsupported`, `image/unsupported`).
    - **No Tailwind**: typed `style` props. `@unlayer/migrate` converts Tailwind templates.
    - **Later, not rejected**: dark-mode styles, background images, shadows, gradients, opacity,
      margins, code blocks and Markdown.
@@ -175,6 +178,7 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Table`, `TableRow`, `TableCell` | A data table. A `header` row heads the columns; cells take text and images, `colSpan`, `dir` |
 | `Video` | A YouTube or Vimeo video (`src`, `title`, `thumbnail`): its player on a page; in an email, its thumbnail linked to it (a YouTube video's own by default, worked out from its link; a Vimeo video's needs giving) |
 | `Menu` | A line of links with a separator between them on desktop, or links down a column (`items` as `{ text, href }`, `separator`, `layout`; the links' `color`, `separatorColor`, each link's `padding`, `justifyContent` and font as styles). Made of primitives: a Row (or Column) of Links, each link in its padding and a separator between two links' paddings; a long line of links wraps (on the page and in email; classic Outlook, a PDF and an image keep one line, and say so where it looks too wide). In plain text, one line |
+| `Html` | Markup written as it is (`html`), for what no component says: the builder's HTML block. Its plain text is `text`, else its markup's words; a Document's PDF and a Canvas's image draw that, and say so. The `Raw` node importers make, made public: the same writers, without its stylesheet |
 | `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, a name with a letter or a digit, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
 
  Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand

@@ -43,6 +43,7 @@ export {
   Polygon,
   Path,
   Video,
+  Html,
 } from "./components";
 export type {
   PrimitiveProps,
@@ -85,6 +86,7 @@ export type {
   PolygonProps,
   PathProps,
   VideoProps,
+  HtmlProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";
 export { outline, prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type ValidationResult } from "./render";

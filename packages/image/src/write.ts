@@ -3,7 +3,7 @@
  * other output), text in the font a stack names that's given (else the first given), images from their bytes, an
  * Svg's shapes as a drawing. No engine is named here: an engine's adapter draws what this writes (satori.ts).
  */
-import { assetParts, fontStack, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, fontStack, htmlText, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "@unlayer-internal/elements-core";
 import type { Block, DrawnCanvas, Font, Picture, Run, Shape, Style } from "./model";
 
 export interface WriteContext {
@@ -140,6 +140,9 @@ class Writer {
         return this.list(node, placed);
       case "Table":
         return this.table(node, placed);
+      case "Html":
+        // An image can't draw markup: its plain text (validate() says so).
+        return { kind: "text", style: { display: "flex", ...this.text(node), ...placed }, runs: [htmlText(node)] };
       case "Video":
         // An image can't play a video: its title, as an email or a PDF without its thumbnail shows it.
         return { kind: "text", style: { display: "flex", ...this.text(node), ...this.box(node), ...placed }, runs: [String(node.props.title ?? "Video")] };

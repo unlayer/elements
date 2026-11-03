@@ -4,6 +4,8 @@ import {
   COMPONENTS,
   describeComponent,
   describeComponents,
+  htmlText,
+  markupText,
   parseDocument,
   type AssetInput,
   type ComponentDefinition,
@@ -29,10 +31,25 @@ describe("property discovery", () => {
     expect(describeComponent("Nope")).toBeUndefined();
   });
 
-  it("leaves imported nodes (Raw) out of what a template can use", () => {
+  it("leaves imported nodes (Raw) out of what a template can use, and has Html, their authorable twin, in it", () => {
     expect(describeComponents().map((d) => d.type)).not.toContain("Raw");
     expect(describeComponents().length).toBe(Object.keys(COMPONENTS).length - 1);
     expect(describeComponent("Raw")?.type).toBe("Raw");
+    const html = describeComponent("Html")!;
+    expect(describeComponents().map((d) => d.type)).toContain("Html");
+    expect(html.properties.map((p) => [p.path, p.required])).toEqual([
+      ["props.html", true],
+      ["props.text", false],
+    ]);
+    expect(html.categories).toEqual(["block"]);
+  });
+
+  it("reads markup's words for what can't show markup: blocks a line each, what a browser hides left out", () => {
+    expect(markupText("<style>p{color:red}</style><p>Sale&nbsp;<b>today</b></p><!--[if mso]><p>Outlook</p><![endif]--><div>Ends &amp; soon</div>x<br>y")).toBe("Sale today\nEnds & soon\nx\ny");
+    expect(markupText("<table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>")).toBe("ab\nc");
+    expect(markupText("&copy; &#8364;5 &unknown;")).toBe("© €5 &unknown;");
+    expect(htmlText({ props: { html: "<b>Sale</b>", text: " Sale today " } })).toBe("Sale today");
+    expect(htmlText({ props: { html: "<b>Sale</b>" } })).toBe("Sale");
   });
 
   it("names only paths each component has in its editor groups", () => {

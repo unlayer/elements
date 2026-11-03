@@ -169,6 +169,7 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
     case "Social":
       return node({ props: { icons: [{ name: "Instagram", href: "https://instagram.com/acme" }, { name: "X", href: "https://x.com/acme" }] } });
     case "Raw":
+    case "Html":
       return node({ props: { html: "<p>raw</p>" } });
     default:
       return node({ children: ["words"] });

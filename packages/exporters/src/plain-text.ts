@@ -7,7 +7,7 @@
  * items as "- " or "1. " (nested ones indented), a table's rows a line each,
  * its cells apart by " | "; a Row that wraps (a Menu) a line of what's in it.
  */
-import { linkParts, type LinkValue, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { htmlText, linkParts, type LinkValue, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 
 export interface TextOptions {
   /** How a merge tag is written (default `{{name}}`). */
@@ -86,6 +86,10 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           return [];
         case "Raw":
           return typeof child.props.text === "string" && child.props.text.trim() ? [child.props.text.trim()] : [];
+        case "Html": {
+          const words = htmlText(child);
+          return words ? [words] : [];
+        }
         default:
           return blocks(child);
       }

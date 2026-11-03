@@ -38,7 +38,7 @@ A template is one of these, and the root decides the output: `render()` writes a
 
 An email. Its children are stacked down the content width, centered in the window.
 
-Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email.
+Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email.
 
 Props:
 - `width`: a length (a number of px) (default `600`)
@@ -68,7 +68,7 @@ Props:
 
 A web page. Its children are stacked down the content width, centered in the window.
 
-Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: page.
+Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 
 Props:
 - `width`: a length (a number of px) (default `1200`). The widest the content gets.
@@ -98,7 +98,7 @@ Props:
 
 A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/elements-pdf.
 
-Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Document.Page, PageBreak, PageHeader, PageFooter. Drawn in: page.
+Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html, Document.Page, PageBreak, PageHeader, PageFooter. Drawn in: page.
 
 Props:
 - `size`: one of "A3", "A4", "A5", "Letter", "Legal", "Tabloid" (default `"A4"`)
@@ -129,7 +129,7 @@ Props:
 
 An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/elements-image.
 
-Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: page.
+Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 
 Props:
 - `width`: a length (a number of px) (default `1200`). The image's width, in px.
@@ -165,7 +165,7 @@ Bands and boxes that arrange blocks. None is required: a root stacks its childre
 
 A band across the whole window, directly in an Email or Page: its background spans the window, its children are stacked at the content width.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email, page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
 `style`:
 - `color`: *color* (inherited)
@@ -189,7 +189,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 
 Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default).
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email, page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
 Props:
 - `stackOnMobile`: true or false (default `true`). Its children stack full-width on phones (in an Email or a Page).
@@ -225,7 +225,7 @@ Props:
 
 Stacks its children vertically, with its own spacing and box.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email, page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
 `style`:
 - `color`: *color* (inherited)
@@ -257,7 +257,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 
 Its children in columns of equal width, row after row; on phones, one under another.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email, page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
 Props:
 - `columns`: an integer from 1 to 12 (default `2`). How many children to a row.
@@ -293,7 +293,7 @@ Props:
 
 Its children over each other, in one box as tall as the tallest: an image with words on it. In an email, an Image with one child over it.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: email, page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
 `style`:
 - `color`: *color* (inherited)
@@ -621,6 +621,16 @@ Props:
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`.
 
+### Html
+
+Markup written as it is, for what no component says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text.
+
+Holds: nothing. Drawn in: email, page.
+
+Props:
+- `html`: text (required). The markup, written as it is: only markup you trust.
+- `text`: text. What it reads as in the plain-text version, and in a PDF or an image (its markup's words where there's none).
+
 ## Inline
 
 Inside text: a styled run, a link, a line break, a merge tag.
@@ -704,7 +714,7 @@ Only inside the component named: a list's items, a table's rows and cells, a doc
 
 One page of a Document (Document.Page in JSX): its children stacked down it, inside the Document's margins.
 
-Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: page.
+Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 
 `style`:
 - `color`: *color* (inherited)
@@ -732,7 +742,7 @@ Holds: nothing. Drawn in: page.
 
 In a Document: drawn at the top of every page, inside its margins.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 
 `style`:
 - `color`: *color* (inherited)
@@ -756,7 +766,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 
 In a Document: drawn at the bottom of every page, inside its margins.
 
-Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu. Drawn in: page.
+Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 
 `style`:
 - `color`: *color* (inherited)

@@ -16,6 +16,7 @@ import {
   Email,
   Grid,
   Heading,
+  Html,
   Image,
   Layer,
   Link,
@@ -125,13 +126,14 @@ describe("renderImage", () => {
     ]);
   });
 
-  it("says what an image can't show that its HTML can (a hover, a Video), and content that can't fit the Canvas (and validate() says both)", async () => {
+  it("says what an image can't show that its HTML can (a hover, a Video, markup), and content that can't fit the Canvas (and validate() says both)", async () => {
     const template = (
       <Canvas width={300} height={120} style={{ fontFamily: "Liberation Sans", gap: 8 }}>
         <Button href="https://x.test" hover={{ backgroundColor: "#333333" }}>
           Go
         </Button>
         <Video src="https://vimeo.com/76979871" title="Our launch" />
+        <Html html="<b>Sale</b>" />
         {Array.from({ length: 12 }, (_, i) => (
           <Text key={i}>Line {i + 1} of more than a 120px Canvas can hold</Text>
         ))}
@@ -142,6 +144,7 @@ describe("renderImage", () => {
       ["canvas/overflow", "The Canvas's content looks about"],
       ["image/unsupported", "A hover isn't possible in an image"],
       ["image/unsupported", "A Video isn't possible in an image"],
+      ["image/unsupported", "Markup isn't possible in an image"],
     ];
     const tidy = (list: string[][]) => list.map(([code, message]) => [code, message.replace(/ \d+%.*/, "")]).sort();
     expect(tidy(said((await renderImage(template, { fonts })).diagnostics))).toEqual(tidy(expected));
@@ -237,6 +240,8 @@ describe("renderImage", () => {
       Svg: [<Svg key="svg" width={10} height={10}><Rect width={10} height={10} /></Svg>, ""],
       Social: [<Social key="so" icons={[{ name: "x", href: "https://x.com/acme" }]} />, ""],
       Menu: [<Menu key="m" items={[{ text: "Home", href: "/" }, { text: "Blog", href: "/blog" }]} separator="|" />, "Home|Blog"],
+      // Markup it can't draw: its plain text, its own or its markup's words.
+      Html: [<Html key="html" html="<p>Sale <b>today</b></p><style>p{color:red}</style>" />, "Sale today"],
     };
     const words = (item: unknown): string => {
       if (typeof item === "string") return item;

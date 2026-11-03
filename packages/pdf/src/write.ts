@@ -4,7 +4,7 @@
  * link or a drawing, at the width the resolver gave it, so the PDF is laid out as the print HTML is. No engine is
  * named here: an engine's adapter draws what this writes (react-pdf.tsx).
  */
-import { assetParts, documentPages, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "@unlayer-internal/elements-core";
 import type { Block, DrawnDocument, Font, Page, Picture, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
@@ -116,6 +116,9 @@ class Writer {
         return this.table(node, placed);
       case "Video":
         return this.video(node, placed);
+      case "Html":
+        // A PDF can't draw markup: its plain text (validate() says so).
+        return { kind: "text", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
       case "Svg":
         return this.svg(node, placed);
       case "Section":

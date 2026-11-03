@@ -413,4 +413,10 @@ describe("web HTML", () => {
     expect(body).toMatch(/<div style="[^"]*flex[^"]*"><p>Sale<\/p><\/div>/);
     expect(text).toBe("Sale\n\nSale\n\nSale");
   });
+
+  it("writes an Html block's markup as Raw's is, and its text (or its markup's words) in the plain text", () => {
+    const { body, text } = web(page([{ type: "Html", props: { html: "<p>Sale <b>now</b></p>" } }, { type: "Html", id: "own", props: { html: "<hr>", text: "Our own words" } }]));
+    expect(body).toContain('<p>Sale <b>now</b></p><div id="own"><hr></div>');
+    expect(text).toBe("Sale now\n\nOur own words");
+  });
 });

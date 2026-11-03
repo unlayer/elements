@@ -28,6 +28,9 @@ export function pagedSupport(root: ResolvedNode, output: "pdf" | "image"): Diagn
       const shows = output === "pdf" ? "its thumbnail (where its file is given) or its title, linked to it" : "its title";
       d.warning(`${output}/unsupported`, `A Video isn't possible in ${where}: it has no player. It shows ${shows}`, node.path, node.id);
     }
+    if (node.type === "Html") {
+      d.warning(`${output}/unsupported`, `Markup isn't possible in ${where}: it has no browser. The Html block shows its plain text`, node.path, node.id);
+    }
     const past = wrapsPastIts(node);
     if (past !== null) {
       d.warning(
