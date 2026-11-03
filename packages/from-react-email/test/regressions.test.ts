@@ -666,7 +666,8 @@ describe("migration review regressions", () => {
       expect(text).not.toContain("{{image}}");
       expect(text).toContain("https://example.com/logo.png");
     }
-    expect(runtime.html()).toMatch(/color:\s*#ff0000/);
+    // Red as #ff0000 (today's components) or #f00 (the new engine).
+    expect(runtime.html()).toMatch(/color:\s*#f(?:f0000|00)\b/);
   });
 });
 
@@ -844,7 +845,8 @@ describe("evaluation order and conditional roots", () => {
       source,
       "escaped-tags",
     );
-    expect(runtime.html()).toContain("<strong>{{name}}</strong>");
+    // Bold: a <strong> (today's components) or a span of weight 700 (the new engine).
+    expect(runtime.html()).toMatch(/<strong>\{\{name\}\}<\/strong>|<span style="font-weight:700">\{\{name\}\}<\/span>/);
     expect(runtime.html()).not.toContain("{{color}}");
     const tagged = await mergeTagDesign(
       Migrated,

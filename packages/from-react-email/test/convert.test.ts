@@ -1054,8 +1054,9 @@ export default function Template() {
   return <Html><Head><style>{".copy { color: #000000 !important; } .copy { color: #ffffff; }"}</style><style>{".copy { color: #ffffff; }"}</style></Head><Body><Text className="copy">Black text</Text></Body></Html>;
 }`);
     for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
-      expect(html).toContain("color: #000000; line-height: 24px");
-      expect(html).not.toContain("color: #ffffff; line-height: 24px");
+      // The text's own style: black, not white (as today's components write it, or the new engine).
+      expect(html).toMatch(/color:\s*#000(?:000)?;[^"]*line-height:\s*24px/);
+      expect(html).not.toMatch(/color:\s*#fff(?:fff)?;[^"]*line-height:\s*24px/);
     }
   });
 });
@@ -1556,7 +1557,7 @@ Template.PreviewProps = { name: "Ana" };`);
     expect(result.code).toMatch(/<Button[^>]*backgroundColor="#4f46e5"/);
     const html = renderToHtml(Migrated({ name: "Ana" }));
     expect(html).toContain("color: #111827");
-    expect(html).toContain("background-color: #4f46e5");
+    expect(html).toMatch(/background-color:\s*#4f46e5/);
   });
 
   it("read the property used, whatever else the object holds or however it's named", async () => {

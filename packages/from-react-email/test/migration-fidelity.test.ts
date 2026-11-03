@@ -54,7 +54,8 @@ describe("migration fidelity", () => {
     const result = await convertBoth(`${imports}
       export default function T({ direction = "rtl", language = "ar" }) { return <Html dir={direction} lang={language}><Body><Text>مرحبا</Text></Body></Html>; }
       T.PreviewProps = { direction: "rtl", language: "ar" };`);
-    for (const html of [result.check.convertedHtml, result.runtime.html()]) expect(html).toMatch(/<html[^>]*dir="rtl"[^>]*lang="ar"/);
+    // (In either order: the new engine writes lang first.)
+    for (const html of [result.check.convertedHtml, result.runtime.html()]) expect(html).toMatch(/<html(?=[^>]*\sdir="rtl")(?=[^>]*\slang="ar")/);
     expect(result.check.design.body).toMatchObject({ values: { textDirection: "rtl" } });
     expect(result.runtime.design().body.values.textDirection).toBe("rtl");
     expect(result.runtime.design().body.values).not.toHaveProperty("lang");

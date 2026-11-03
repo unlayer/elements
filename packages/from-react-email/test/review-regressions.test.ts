@@ -205,7 +205,8 @@ T.PreviewProps = { url: "https://example.com/track" };`;
       }`;
     const { Original, Migrated } = await templates(source);
     for (const out of [await html(Migrated), (await convertReactEmail(Original)).html()]) {
-      expect(out).toMatch(/<span style="text-transform:uppercase;font-style:italic">Track it<\/span>/);
+      // (In either order: the new engine writes the italic first.)
+      expect(out).toMatch(/<span style="(?:text-transform:uppercase;font-style:italic|font-style:italic;text-transform:uppercase)">Track it<\/span>/);
     }
   });
 });
@@ -223,7 +224,8 @@ describe("links in text", () => {
         return <Html><Body><Text>Read <a href="https://example.com/a">the guide</a> or <Link href="https://example.com/b">the docs</Link> or <a href="https://example.com/c" target="_self">here</a>.</Text></Body></Html>;
       }`);
     const out = await html(Migrated);
-    expect(out).toContain('<a href="https://example.com/a">the guide</a>');
+    // No target (the new engine also writes the link's color and underline, which today's components put in the head).
+    expect(out).toMatch(/<a href="https:\/\/example\.com\/a"(?:\s+style="[^"]*")?>the guide<\/a>/);
     expect(out).toMatch(/<a href="https:\/\/example\.com\/b"[^>]*target="_blank"/);
     expect(out).toMatch(/<a href="https:\/\/example\.com\/c"[^>]*target="_self"/);
     expect((await verifyConversion(Original, Migrated)).styles).toEqual([]);
