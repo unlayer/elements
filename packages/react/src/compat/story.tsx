@@ -96,8 +96,12 @@ export interface AcceptedFix {
   why: string;
 }
 
-/** A word too long for its column wraps inside it, where legacy's page lets it run out of the column. */
-export const LONG_WORDS_WRAP: AcceptedFix = { css: "body{overflow-wrap:break-word}", why: "a word too long for its column wraps inside it (a legacy bug fixed on purpose)" };
+/**
+ * A word too long for its column wraps inside it, where legacy's page lets it run out of the column. `anywhere`, not
+ * `break-word`: legacy's column content is a flex item, at least as wide as its longest word unless that word may break.
+ * On every element, over the `overflow-wrap:break-word` legacy writes inline on its blocks.
+ */
+export const LONG_WORDS_WRAP: AcceptedFix = { css: "*{overflow-wrap:anywhere!important}", why: "a word too long for its column wraps inside it (a legacy bug fixed on purpose)" };
 
 /** Main's HTML with the fixes accepted for it drawn in: their rules at the end of its head. */
 const withFixes = (html: string, fixes: AcceptedFix[]) => {
