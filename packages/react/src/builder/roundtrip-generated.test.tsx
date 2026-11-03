@@ -8,13 +8,31 @@
  *
  *   ROUNDTRIP_SEEDS=1000 pnpm vitest run src/builder/roundtrip-generated.test.tsx
  */
+import { writeFileSync } from "node:fs";
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { generate, toElement, type Root, type Tree } from "../primitives/testing/templates";
+import { renderTemplate } from "@unlayer-internal/elements-exporters";
+import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
+import * as luma from "../primitives/codemod/LumaEventInvite";
+import * as mercury from "../primitives/codemod/MercuryReceipt";
+import * as brew from "../primitives/codemod/MorningBrewDigest";
+import * as nike from "../primitives/codemod/NikeDrop";
+import * as notion from "../primitives/codemod/NotionWelcome";
+import * as digest from "../primitives/codemod/ProductDigest";
+import * as spotify from "../primitives/codemod/SpotifyWelcome";
+import * as stripe from "../primitives/codemod/StripeReceipt";
+import * as warby from "../primitives/codemod/WarbyOrderShipped";
+import { FIELDS } from "./fields";
 import { fromDesign, toDesign } from "./index";
+import { lower } from "./lower";
+import { BUILDER_OWN, DEFAULTS, PARTED } from "./payload";
+import { writeDesign, type Keep } from "./write";
+
+const EXAMPLES = [stripe.StripeReceipt, spotify.SpotifyPremiumWelcome, airbnb.AirbnbConfirmation, mercury.MercuryReceipt, luma.LumaEventInvite, warby.WarbyOrderShipped, notion.NotionWelcome, nike.NikeDrop, brew.MorningBrewDigest, digest.ProductDigest];
 
 const SEEDS = Number(process.env.ROUNDTRIP_SEEDS ?? 80);
 
@@ -117,5 +135,127 @@ describe.each(["Email", "Page", "Document"] as Root[])("%s to the builder and ba
       if (unexpected.length) failures.push(`seed ${seed}, ${edit.what} changed: ${unexpected.slice(0, 4).join(", ")} changed too\n  ${JSON.stringify(tree)}`);
     }
     expect(failures.slice(0, 4)).toEqual([]);
+  });
+});
+
+/**
+ * Every field of every tool, edited in the builder three ways (to another value, to the builder's default for it,
+ * and removed), read back from the design as written and from the same design keeping a whole copy of what it was
+ * written with (the old format, which read each edit against its copy): both read the edit the same. Read the same
+ * means the same template, or one that draws the same HTML (a value written where it's what the node takes).
+ *
+ *   EDIT_SEEDS=40 pnpm vitest run src/builder/roundtrip-generated.test.tsx -t "every field"
+ */
+const EDIT_SEEDS = Number(process.env.EDIT_SEEDS ?? 6);
+
+/** The old format: each item keeps its whole node and a copy of every value written. */
+const wholeCopy: Keep = (_kind, values, full) => {
+  const w: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) if (!BUILDER_OWN.has(key) && value !== undefined) w[key] = JSON.parse(JSON.stringify(value));
+  return { ...full, w } as never;
+};
+
+const SKIP = new Set(["cells", "_meta", "_elements"]);
+/**
+ * Where this format reads what the builder shows, and a whole copy read the template's intent: a body's font or text
+ * color changed (each block's is written as it was, and the builder shows it there), and a heading's level changed
+ * (its size is written, and the builder keeps it).
+ */
+const AS_SHOWN = new Set(["body.fontFamily", "body.textColor", "heading.headingType"]);
+const COLOR = /^#[0-9a-f]{3,8}$/i;
+
+/** Another value of the same kind as `value`, one per part of it (each leaf of an object, the first item of a list). */
+function others(value: unknown, key: string): unknown[] {
+  if (typeof value === "string") {
+    if (COLOR.test(value)) return [value.toLowerCase() === "#123456" ? "#654321" : "#123456"];
+    if (/^(-?\d+(\.\d+)?px\s*)+$/.test(value.trim())) return [value.trim().split(/\s+/).map((part, i) => (i === 0 ? `${parseFloat(part) + 7}px` : part)).join(" ")];
+    if (/^\d+(\.\d+)?%$/.test(value)) return [`${Math.max(1, parseFloat(value) - 10)}%`];
+    if (/^h[1-6]$/.test(value)) return [value === "h2" ? "h3" : "h2"];
+    const turn: Record<string, string> = { left: "center", center: "right", right: "left", horizontal: "vertical", vertical: "horizontal", circle: "rounded", rounded: "squared" };
+    if (turn[value]) return [turn[value]];
+    if (key === "text" || key === "html") return [value.includes("</") ? value.replace(/(<\/[a-z0-9]+>)\s*$/i, " edited$1") : `${value} edited`];
+    return [`${value}x`];
+  }
+  if (typeof value === "number") return [value + 3];
+  if (typeof value === "boolean") return [!value];
+  if (Array.isArray(value)) return value.length ? others(value[0], key).map((first) => [first, ...value.slice(1)]) : [];
+  if (value && typeof value === "object") {
+    return Object.entries(value).flatMap(([k, v]) => (["name", "type", "key"].includes(k) || v === null ? [] : others(v, k).map((part) => ({ ...value, [k]: part }))));
+  }
+  return [];
+}
+
+type Item = { kind: string; values: Values };
+const itemsOf = (design: Values): Item[] => {
+  const out: Item[] = [{ kind: "body", values: design.body.values }];
+  for (const row of [...design.body.rows, ...(design.body.headers ?? []), ...(design.body.footers ?? [])]) {
+    out.push({ kind: "row", values: row.values });
+    for (const column of row.columns) {
+      out.push({ kind: "column", values: column.values });
+      for (const content of column.contents) out.push({ kind: content.values._elements?.locked ? "html" : content.type, values: content.values });
+    }
+  }
+  return out;
+};
+
+/** What a design reads as: its template's HTML (or that it isn't valid), and what's said. */
+function readAs(design: Values): { tree: string; html: string; report: string[] } {
+  const report: string[] = [];
+  const root = lower(design as never, report);
+  let html: string;
+  try {
+    const out = renderTemplate({ root });
+    html = out.head + out.body;
+  } catch (error) {
+    html = `not valid: ${(error as Error).message.split("\n")[0]}`;
+  }
+  // Phone values told apart by a fingerprint are said to change, not which (a whole copy names them).
+  return { tree: JSON.stringify(sortedKeys(root)), html, report: report.map((line) => line.replace(/its phone values changed in the builder \([^)]*\)/, "its phone values changed in the builder")).sort() };
+}
+const sortedKeys = (v: unknown): unknown => (Array.isArray(v) ? v.map(sortedKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortedKeys((v as Values)[k])])) : v);
+
+describe("every field of every tool, edited in the builder", () => {
+  it(`reads each edit as a whole copy of what was written does (${EDIT_SEEDS} templates of each root, and the examples)`, { timeout: 300_000 }, () => {
+    const templates: Array<[string, React.ReactElement]> = [];
+    for (const root of ["Email", "Page", "Document"] as Root[]) for (let seed = 1; seed <= EDIT_SEEDS; seed++) templates.push([`${root} ${seed}`, element(decorated(seed, root))]);
+    for (const Example of EXAMPLES) templates.push([Example.name, React.createElement(Example)]);
+    const failures: string[] = [];
+    let edits = 0;
+    for (const [name, template] of templates) {
+      const compact = JSON.stringify(writeDesign(template).design);
+      const whole = JSON.stringify(writeDesign(template, wholeCopy).design);
+      const seen = new Set<string>();
+      itemsOf(JSON.parse(compact)).forEach((item, at) => {
+        const keys = new Set([...Object.keys(FIELDS[item.kind] ?? {}), ...Object.keys(DEFAULTS[item.kind] ?? {}), "displayCondition", "anchor"]);
+        for (const key of keys) {
+          if (SKIP.has(key) || AS_SHOWN.has(`${item.kind}.${key}`) || seen.has(`${item.kind}.${key}`)) continue;
+          seen.add(`${item.kind}.${key}`);
+          const value = item.values[key];
+          const fallback = DEFAULTS[item.kind]?.[key];
+          const edited: Array<[string, unknown]> = [
+            ...(value === undefined ? [] : others(value, key).map((v): [string, unknown] => ["to another value", v])),
+            ...(fallback !== undefined && JSON.stringify(fallback) !== JSON.stringify(value) ? [["to the builder's default", PARTED.has(`${item.kind}.${key}`) && value && typeof value === "object" ? { ...value, ...(fallback as object) } : fallback] as [string, unknown]] : []),
+            ...(value === undefined ? [] : [["removed", undefined] as [string, unknown]]),
+          ];
+          for (const [how, now] of edited) {
+            edits++;
+            const read = [compact, whole].map((json) => {
+              const design = JSON.parse(json);
+              const values = itemsOf(design)[at].values;
+              if (now === undefined) delete values[key];
+              else values[key] = now;
+              return readAs(design);
+            });
+            const [a, b] = read;
+            if (a.tree === b.tree && JSON.stringify(a.report) === JSON.stringify(b.report)) continue;
+            if (a.html === b.html && JSON.stringify(a.report) === JSON.stringify(b.report)) continue;
+            failures.push(`${name}: ${item.kind}.${key} ${how} (${JSON.stringify(now)?.slice(0, 60)}): ${a.html !== b.html ? "draws otherwise" : "says otherwise"}${JSON.stringify(a.report) !== JSON.stringify(b.report) ? ` — ${JSON.stringify(a.report)} vs ${JSON.stringify(b.report)}` : ""}`);
+          }
+        }
+      });
+    }
+    if (process.env.EDIT_DUMP) writeFileSync(process.env.EDIT_DUMP, `${edits} edits\n${failures.join("\n")}\n`);
+    expect(edits).toBeGreaterThan(500);
+    expect(failures.slice(0, 12)).toEqual([]);
   });
 });
