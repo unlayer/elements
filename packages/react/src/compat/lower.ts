@@ -63,15 +63,43 @@ export interface LowerOptions {
   block(block: DesignBlock, place: Place): TreeNode | null;
 }
 
-/** Where a block, column or row is hidden: on desktop, or on phones (an override). */
+/**
+ * Where a block, column or row is hidden: on desktop, or on phones, by its overrides (legacy reads only these: a flat
+ * `hideDesktop` or `hideMobile` in its values hides nothing).
+ */
 export function hidden(values: Values): TreeNode["hidden"] {
-  const desktop = !!(values.hideDesktop || values._override?.desktop?.hideDesktop);
-  const mobile = !!(values.hideMobile || values._override?.mobile?.hideMobile);
+  const desktop = !!values._override?.desktop?.hideDesktop;
+  const mobile = !!values._override?.mobile?.hideMobile;
   return desktop || mobile ? { ...(desktop ? { desktop } : {}), ...(mobile ? { mobile } : {}) } : undefined;
 }
 
 /** Thrown where the frame (the body, a row, a column) holds what the new engine can't draw as legacy does. */
 export class Unlowerable extends Error {}
+
+/**
+ * The values of a row, a column or the body that the lowering reads, or that draw nothing in legacy's output (the
+ * editor's flags, a value only a popup reads, a document's page size, which the PDF takes). Any other value that isn't
+ * empty is one the frame can't draw as legacy does, whatever it is (a row's anchor, its columns' alignment): the
+ * template renders as today.
+ */
+const READ = {
+  row: new Set(["displayCondition", "backgroundColor", "columnsBackgroundColor", "backgroundImage", "padding", "noStackMobile", "cells", "_meta", "_override", "hideDesktop", "hideMobile", "selectable", "draggable", "duplicatable", "deletable", "hideable", "locked"]),
+  column: new Set(["backgroundColor", "padding", "border", "borderRadius", "_meta", "_override", "hideDesktop", "hideMobile", "deletable", "locked"]),
+  body: new Set(["textDirection", "borderRadius", "contentAlign", "contentVerticalAlign", "contentWidth", "fontFamily", "textColor", "backgroundColor", "documentSize", "documentOrientation", "documentMargin", "preheaderText", "linkStyle", "backgroundImage", "_meta"]),
+};
+
+function onlyRead(values: Values, what: keyof typeof READ): void {
+  for (const [key, value] of Object.entries(values)) {
+    if (READ[what].has(key) || value === undefined || value === null || value === "" || value === false) continue;
+    if (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length) continue;
+    throw new Unlowerable(`a ${what}'s ${key} ${JSON.stringify(value)}`);
+  }
+  // Settings for a tablet's width, which legacy applies there.
+  if (Object.keys(values._override?.tablet ?? {}).length) throw new Unlowerable(`a ${what}'s settings for tablets`);
+}
+
+/** Today's link style of the body: links in the browser's blue, underlined. Another is drawn by legacy's head CSS. */
+const BODY_LINKS = { body: true, linkColor: "#0000ee", linkHoverColor: "#0000ee", linkUnderline: true, linkHoverUnderline: true };
 
 /** Sides that must be read: a value that isn't one is what the frame can't draw. */
 function readSides(value: unknown, what: string) {
@@ -114,8 +142,10 @@ type Lines = Partial<Record<"top" | "bottom", Json>>;
 
 function column(design: Values, width: string | undefined, rowLines: Lines, background: string | undefined, stacks: boolean, place: Omit<Place, "column" | "index">, index: number, options: LowerOptions): TreeNode {
   const values: Values = design.values ?? {};
+  onlyRead(values, "column");
   phoneSettings(values, "a column", options.mode);
-  const phonePadding = options.mode === "web" ? some(readSides(values._override?.mobile?.padding, "a column's phone padding")) : undefined;
+  // Its padding on phones, 0 too (which takes off its desktop padding there).
+  const phonePadding = options.mode === "web" ? readSides(values._override?.mobile?.padding, "a column's phone padding") : undefined;
   const radius = px(values.borderRadius);
   if (radius === undefined && values.borderRadius !== undefined && values.borderRadius !== "") throw new Unlowerable(`a column's corner radius ${JSON.stringify(values.borderRadius)}`);
   const own = border(values.border) as Record<string, Json> | undefined;
@@ -149,6 +179,7 @@ function column(design: Values, width: string | undefined, rowLines: Lines, back
 
 function row(design: Values, place: Omit<Place, "row" | "column" | "cells" | "index">, options: LowerOptions): TreeNode {
   const values: Values = design.values ?? {};
+  onlyRead(values, "row");
   if (values.backgroundImage?.url) throw new Unlowerable("a row's background image");
   phoneSettings(values, "a row", options.mode);
   givenClasses(values, "u_row", "a row");
@@ -228,7 +259,14 @@ export const PAGE_WIDTH = 100_000;
 /** The design's body, rows and blocks as the new engine's tree. */
 export function lowerDesign(design: { body: Values }, options: LowerOptions): { root: TreeNode } {
   const values: Values = design.body.values ?? {};
+  onlyRead(values, "body");
   if (values.backgroundImage?.url) throw new Unlowerable("the body's background image");
+  // A content width that isn't in px (100%, 80%): legacy's rows take that share of the window.
+  if (values.contentWidth !== undefined && px(values.contentWidth) === undefined) throw new Unlowerable(`a content width of ${JSON.stringify(values.contentWidth)}`);
+  // A page narrower than a phone: legacy's rows take a phone's whole width at 480px and below.
+  if (options.mode === "web" && (px(values.contentWidth) ?? 500) < 480) throw new Unlowerable("a page narrower than a phone");
+  if (values.linkStyle && Object.entries(BODY_LINKS).some(([key, value]) => values.linkStyle[key] !== undefined && values.linkStyle[key] !== value)) throw new Unlowerable("the body's own link style");
+  if (values.fontFamily !== undefined && values.fontFamily !== "" && typeof values.fontFamily?.value !== "string") throw new Unlowerable(`the body's font ${JSON.stringify(values.fontFamily)}`);
   if (values.contentAlign !== undefined && values.contentAlign !== "center") throw new Unlowerable(`content aligned ${values.contentAlign}`);
   // An email service's tag, which legacy writes as it is for the service to fill in (the new engine escapes it).
   if (typeof values.preheaderText === "string" && serviceTag(values.preheaderText)) throw new Unlowerable("an email service's tag in the preview text");

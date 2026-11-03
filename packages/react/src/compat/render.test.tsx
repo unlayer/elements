@@ -40,6 +40,8 @@ function templates(): Array<[string, React.ReactElement]> {
 /** What the new engine can't draw as legacy does in these stories, which render as today (their reasons). */
 const AS_TODAY: Record<string, string> = {
   "components/Body.stories.tsx Magazine": "a row's background image",
+  // Its links' own color and hover color, which legacy's head CSS draws for every link.
+  "examples/MorningBrewDigest.stories.tsx Default": "the body's own link style",
 };
 
 describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine", () => {

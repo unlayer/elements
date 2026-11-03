@@ -82,4 +82,32 @@ describe("lowerDesign()", () => {
     expect(unlowered(<Email>{"Loose"}<Row><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("among the rows");
     expect(unlowered(<Email previewText="Hi <%name%>"><Row><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("tag in the preview text");
   });
+
+  it("renders as today a frame holding a value it doesn't read, whatever it is", () => {
+    const unlowered = (element: React.ReactElement) => (lowered(element) as { unlowered?: string }).unlowered;
+    const cell = <Column><Paragraph>A</Paragraph></Column>;
+    // A row's anchor (legacy writes <a name>), its columns' vertical alignment, a value of its own.
+    expect(unlowered(<Page><Row anchor="details">{cell}</Row></Page>)).toContain("anchor");
+    expect(unlowered(<Page><Row values={{ alignItems: "center" } as never}>{cell}</Row></Page>)).toContain("alignItems");
+    expect(unlowered(<Email><Row values={{ somethingNew: 1 } as never}>{cell}</Row></Email>)).toContain("somethingNew");
+    expect(unlowered(<Email><Row values={{ _override: { tablet: { padding: "4px" } } } as never}>{cell}</Row></Email>)).toContain("tablets");
+    // A content width that isn't in px, a page narrower than a phone, the body's own link style.
+    for (const Root of [Email, Page]) expect(unlowered(<Root contentWidth="100%"><Row>{cell}</Row></Root>)).toContain("content width");
+    expect(unlowered(<Page contentWidth="80%"><Row>{cell}</Row></Page>)).toContain("content width");
+    expect(unlowered(<Page contentWidth="320px"><Row>{cell}</Row></Page>)).toContain("narrower than a phone");
+    expect(unlowered(<Page linkStyle={{ linkColor: "#ff0000" } as never}><Row>{cell}</Row></Page>)).toContain("link style");
+    // What legacy draws the same: an email narrower than a phone, empty values, the editor's flags.
+    expect(unlowered(<Email contentWidth="320px"><Row>{cell}</Row></Email>)).toBeUndefined();
+    expect(unlowered(<Page><Row anchor="" values={{ locked: true } as never}>{cell}</Row></Page>)).toBeUndefined();
+  });
+
+  it("hides only by the overrides legacy reads, and keeps a phone padding of 0", () => {
+    const tree = (element: React.ReactElement) => (lowered(element) as Lowered).tree.root;
+    const find = (node: TreeNode, test: (n: TreeNode) => boolean): TreeNode | undefined => (test(node) ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c, test))).find(Boolean));
+    // A flat hideDesktop in a block's values hides nothing in legacy.
+    const block = find(tree(<Page><Row><Column><Paragraph values={{ hideDesktop: true } as never}>A</Paragraph></Column></Row></Page>), (n) => n.type === "Paragraph");
+    expect(block?.hidden).toBeUndefined();
+    const column = find(tree(<Page><Row><Column padding="40px" mobile={{ padding: "0px" } as never}><Paragraph>A</Paragraph></Column></Row></Page>), (n) => !!n.designColumn);
+    expect(column?.mobile).toEqual({ padding: { top: 0, right: 0, bottom: 0, left: 0 } });
+  });
 });

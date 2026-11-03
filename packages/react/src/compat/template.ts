@@ -134,6 +134,8 @@ function legacyOnly(block: DesignBlock, mode: Mode): boolean {
   if (strings(block.values).some(serviceTag)) return true;
   const override = block.values?._override ?? {};
   if (Object.keys(override.desktop ?? {}).some((key) => key !== "hideDesktop")) return true;
+  // Settings for a tablet's width, which legacy applies there.
+  if (Object.keys(override.tablet ?? {}).length) return true;
   return mode === "email" && (Object.keys(override.mobile ?? {}).some((key) => key !== "hideMobile") || !!hidden(block.values ?? {}));
 }
 
