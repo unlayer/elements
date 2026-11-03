@@ -11,7 +11,7 @@
 - New, as a preview of the next major version: `@unlayer/react-elements/primitives`, the new components, with
   `render()` and `validate()`. Today's API is also at `@unlayer/react-elements/legacy`.
 - Types for `/primitives` and `/legacy` resolve under `moduleResolution: "node"` too.
-- The main entry grows from about 31KB to about 94KB gzipped.
+- The main entry grows from about 31KB to about 96KB gzipped.
 
 ## 0.1.0
 

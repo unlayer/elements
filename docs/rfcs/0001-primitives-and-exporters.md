@@ -462,14 +462,20 @@ major that drops them).
 What the new engine can't draw the same way yet keeps legacy's output, decided per block or per template:
 
 - **A block** keeps the HTML its exporter writes (a `Raw` node): an `Html` block and a custom tool always;
-  a table, for now; in an email, a block with phone or hiding settings (legacy applies them below 480px,
-  the new engine below its width plus 20), a menu or a social block (their spacing is the font's), and an
-  image shorter than a line of text; text with markup a run can't hold (an attribute with no value,
-  `<% %>` tags, a link's own attributes); a divider on a page or in a printed document.
-- **A template** renders as today, through legacy, where its frame can't be drawn the same way: a
-  background image, an email row's padding uneven on its sides, column backgrounds or borders legacy
-  stretches to the row's height, markup among the rows, a layout its columns don't match, a divider
-  longer than its column, or a template made with another copy of today's components.
+  a table, a linked image, and a button with a width on a page or in a printed document, for now; in an
+  email, a block with phone or hiding settings (legacy applies them below 480px, the new engine below its
+  width plus 20), a menu or a social block (their spacing is the font's), and an image shorter than a line
+  of text; text the run parser doesn't read exactly (it fails closed: a comment, an entity it doesn't know,
+  a Liquid tag or a merge tag the new engine would escape, a paragraph with margins of its own, a link
+  target or attribute it doesn't keep, a text direction other than the template's, a link hover style);
+  a divider on a page or in a printed document.
+- **A template** renders as today, through legacy, where its frame holds a value the lowering doesn't
+  read: only the body, row and column values it reads are let through (so, for example, a background image,
+  a row's anchor or vertical alignment, a content width that isn't px, a page narrower than a phone, a body
+  link style or tablet settings render as today), and where it can't be drawn the same way: an email row's
+  padding uneven on its sides, column backgrounds or borders legacy stretches to the row's height, markup
+  among the rows, a layout its columns don't match, a divider longer than its column, or a template made
+  with another copy of today's components.
 
 Two of legacy's layout bugs are fixed instead (2026-11-03): an email whose rows have side padding no
 longer sits off centre and scrolls sideways in a window narrower than its content plus that padding, and a
@@ -477,7 +483,8 @@ word too long for its column wraps inside it, on a page and in an email.
 
 It's checked by Storybook's comparison gate (`test:compare`: main's examples and every story of today's
 components, through both engines, at desktop and phone widths) and, before each release, against the
-published version over 173 templates (the demo app's, every story's, main's examples and generated ones),
+published version over 236 templates (the demo app's, every story's, main's examples, generated ones, and
+the inputs a two-reviewer review probed it with),
 in Chromium at 375, 600 and 800px: the same words, styles, positions, images, links and paint, and the same
 plain text, every difference but the two fixes above.
 

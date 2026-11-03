@@ -412,16 +412,17 @@ Number of `<Column>` children must match the layout.
 Since 0.3.0 these components render through Elements' own writers, open source in this repository, in place
 of the closed `@unlayer/exporters`. Your templates and the functions you call don't change. The HTML does;
 what a reader gets doesn't: the same words, links, images, text styles and layout, on desktop and on phones,
-and the same plain text. That was checked against 0.2.1 over 173 templates in Chromium.
+and the same plain text. That was checked against 0.2.1 over 236 templates in Chromium.
 
-- **Kept as before:** what the new writers can't draw the same way yet keeps its 0.2 output. An `Html` block
-  and a custom tool always do. So do a table, a few blocks in an email (with phone-only or hiding settings, a
-  menu or social block), and whole templates whose layout the new writers can't match yet (a background image,
-  for one).
+- **Kept as before:** what the new writers can't draw the same way, or don't fully read, keeps its 0.2
+  output. An `Html` block and a custom tool always do. So do a table, a linked image, a few blocks in an email
+  (with phone-only or hiding settings, a menu or social block), text with markup the new writers don't read
+  exactly (comments, Liquid tags), and whole templates with a setting they don't read yet (a background image
+  or a row anchor, for example).
 - **Two fixes:** an email whose rows have side padding no longer sits off centre and scrolls sideways in a
   window narrower than its content plus that padding; and a word too long for its column wraps inside it
   instead of running out of it.
-- **Size:** the main entry grows from about 31KB to about 94KB gzipped, as it carries the new engine.
+- **Size:** the main entry grows from about 31KB to about 96KB gzipped, as it carries the new engine.
 
 ## Rendering Modes
 
