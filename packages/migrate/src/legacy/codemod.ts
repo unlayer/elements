@@ -439,11 +439,9 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         report.push(`${where(at)}: its html comes from an expression (${code(html)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
         return [`{${code(html)}}`];
       }
+      // What the new components hold is written with them; what they don't is named, each on a line of the report.
       const parsed = inlineHtml(markup, holes, nameOf);
-      if ("unsupported" in parsed) {
-        report.push(`${where(at)}: its html holds ${parsed.unsupported}: it's written as text; rewrite it with Span, Link and LineBreak`);
-        return [isLiteral(html) ? `{${JSON.stringify(markup.replace(/<[^>]+>/g, ""))}}` : `{${code(html)}}`];
-      }
+      for (const left of parsed.dropped) report.push(`${where(at)}: its html's ${left}`);
       parsed.used.forEach((name) => used.add(name));
       return [parsed.jsx];
     }

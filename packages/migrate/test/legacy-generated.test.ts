@@ -58,6 +58,8 @@ const html = [
   `'<span style="font-size:18px">Big</span><br>next line'`,
   `'<a href="https://example.test/l" style="color:#0000ee">a link</a> &amp; more'`,
   `'<span style="line-height:2">Spaced</span>'`,
+  `'<p style="line-height: 140%;">One &amp; two</p><p>Three <a href="https://example.test/l" target="_blank">four</a></p>'`,
+  `'Logo <img src="https://example.test/i.png" alt="Logo"> <sup>1</sup><ul><li>Item</li><li>Next</li></ul>'`,
 ];
 
 /** Each of today's blocks: its props, its phone settings, and what it holds. */

@@ -61,10 +61,24 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     expect(report).toEqual([]);
   });
 
-  it("reports markup it can't write with the new components, and keeps its text", async () => {
-    const { code, report } = await migrate(`export const T = () => <Email><Row><Column><Paragraph html="<ul><li>One</li></ul>" /></Column></Row></Email>;`);
-    expect(code).toContain('{"One"}');
-    expect(report.join("\n")).toMatch(/<ul>, which isn't inline text/);
+  it("writes html's paragraphs and blocks as lines, its entities decoded and its links as Links, and names each thing it leaves out", async () => {
+    const { code, report } = await migrate(`export const T = () => <Email><Row><Column>
+      <Paragraph html='<p>First line.</p><p>Second &amp; last, <a href="https://example.com" target="_blank">link</a></p>' />
+      <Paragraph html='Logo <img src="https://example.com/logo.png" alt="Logo"> here<sup>1</sup>, <font color="red">red</font>' />
+      <Paragraph html="<ul><li>One</li><li>Two</li></ul>" />
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(code).toContain('{"Second & last, "}');
+    expect(flat).toContain('Firstline.<LineBreak/><LineBreak/>{"Second&last,"}<Linkhref={{href:"https://example.com",target:"_blank"}}>link</Link>');
+    expect(flat).toContain('Logohere<Spanstyle={{verticalAlign:"super"}}>1</Span>,red</Paragraph>');
+    expect(flat).toContain("One<LineBreak/>Two");
+    expect(report).toEqual([
+      "line 3: its html's paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out",
+      'line 4: its html\'s image <img src="https://example.com/logo.png" alt="Logo"> is left out: text holds no image (put it in an Image beside this block)',
+      "line 4: its html's <font> is left out, its text kept",
+      "line 5: its html's <ul> list is left out: its items are written as lines, with no bullets or numbers",
+    ]);
+    expect(errors(code)).toEqual([]);
   });
 
   it("makes a Row a band across the email: its top and bottom padding the Section's, its sides (outside the content) dropped", async () => {
@@ -333,12 +347,20 @@ export const T = () => (
 describe("inlineHtml", () => {
   it("decodes entities and keeps the spaces between runs", () => {
     const parsed = inlineHtml("Tom &amp; Jerry <i>and</i> friends");
-    expect(parsed).toEqual({ jsx: '{"Tom & Jerry "}<Span style={{ fontStyle: "italic" }}>and</Span>{" friends"}', used: new Set(["Span"]) });
+    expect(parsed).toEqual({ jsx: '{"Tom & Jerry "}<Span style={{ fontStyle: "italic" }}>and</Span>{" friends"}', used: new Set(["Span"]), dropped: [] });
   });
 
-  it("refuses a style a run of text can't take, and markup that isn't closed", () => {
-    expect(inlineHtml('<span style="display:block">x</span>')).toEqual({ unsupported: "a style a run of text can't take (display:block)" });
-    expect(inlineHtml("<b>x")).toEqual({ unsupported: "<b> isn't closed" });
+  it("keeps what a run of text takes of a style and names the rest; draws markup that isn't closed as a browser does", () => {
+    expect(inlineHtml('<span style="display:block;color:#123456">x</span>')).toEqual({ jsx: '<Span style={{ color: "#123456" }}>x</Span>', used: new Set(["Span"]), dropped: ["style display: block (on <span>) is left out: a run of text doesn't take it"] });
+    expect(inlineHtml("<b>x")).toEqual({ jsx: "<Span style={{ fontWeight: 700 }}>x</Span>", used: new Set(["Span"]), dropped: [] });
+    expect(inlineHtml("a</i> <!-- note --><b>b</b>")).toEqual({ jsx: '{"a "}<Span style={{ fontWeight: 700 }}>b</Span>', used: new Set(["Span"]), dropped: [] });
+  });
+
+  it("starts each block's text on a line of its own, a paragraph's a blank line from its neighbors, with no line before the first", () => {
+    expect(inlineHtml("<div>A</div><div>B</div>").jsx).toBe("A<LineBreak />B");
+    expect(inlineHtml("<p>A</p>\n<p>B</p>").jsx).toBe("A<LineBreak /><LineBreak />B");
+    expect(inlineHtml("A<br><p>B</p>").jsx).toBe("A<LineBreak /><LineBreak />B");
+    expect(inlineHtml("<p>A</p><ul><li>B</li><li>C</li></ul>").jsx).toBe("A<LineBreak /><LineBreak />B<LineBreak />C");
   });
 });
 
