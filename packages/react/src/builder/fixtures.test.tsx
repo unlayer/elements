@@ -119,12 +119,41 @@ describe("text as the builder's editors write it", () => {
     // Drawn with the same href, target and rel (Elements' own on a link opening a new window; on one opening in its
     // own, noopener and noreferrer change nothing).
     const links = [...new JSDOM((await render(back.element)).html).window.document.querySelectorAll("a")].map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
-    expect(links).toEqual([
+    // (The third text's links, the first two drawn.)
+    expect(links.slice(0, 2)).toEqual([
       ["https://x.test/guide", "_blank", "noopener noreferrer"],
       ["https://x.test/faq", "_self", null],
     ]);
     // Another rel (nofollow) is one a Link doesn't write: the text is its markup.
     design.body.rows[0].columns[0].contents[2].values.textJson = textJson.replace('"noopener noreferrer"', '"noopener nofollow"');
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
+  });
+
+  // The fourth text's rich text has links as the editor saves them (ExtendedLinkNode's JSON: an `extended-link`, one
+  // with a title, a style and the builder's link value, one it made as it was typed) and Lexical's automatic links
+  // (`autolink`, one its writer unlinked), which the shared generator writes as their words only.
+  it("reads the editor's links in rich text (extended-link, autolink) as Links, with their href, target, title and style", () => {
+    const design = fixture("paragraphs.builder-editor");
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    expect((tree(back.element).children as Node[])[8]).toEqual(
+      line(
+        [
+          "Read ",
+          { type: "Link", props: { href: { href: "https://x.test/docs", target: "_blank" }, title: "Read the docs" }, style: { color: "#ff0000" }, children: ["the docs"] },
+          ", ",
+          { type: "Link", props: { href: { href: "https://x.test/faq", target: "_blank" } }, children: ["x.test/faq"] },
+          ", ",
+          { type: "Link", props: { href: "https://x.test/help", title: "Help" }, children: ["x.test/help"] },
+          " or x.test/old",
+        ],
+        10,
+        10
+      )
+    );
+    // What a Link can't hold that the editor draws on one (a click handler) keeps the text as markup, as for any link.
+    const values = design.body.rows[0].columns[0].contents[3].values;
+    values.textJson = values.textJson.replace('"onClick":""', '"onClick":"track()"');
     expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
   });
 });

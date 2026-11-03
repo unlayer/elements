@@ -6,9 +6,9 @@
  * What isn't read exactly is said in `left`, and the block is kept as its markup.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
-import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { parseRuns, type Run } from "../compat/runs";
 import { px } from "../compat/values";
+import { textJsonHtml } from "./text-json";
 
 export interface TextPart {
   /** A Paragraph's runs, or a List. */
@@ -76,13 +76,14 @@ export function mergeTags(runs: Run[], pages: boolean): Child[] {
 
 /**
  * A tool's text as the builder draws it: its rich text (`textJson`, what its editor saves) where it has one, as today's
- * exporters write it, which the design's `text` may be an older copy of; its `text` where it hasn't. A heading's or a
+ * exporters write it, its links kept (text-json.ts), which the design's `text` may be an older copy of; its `text` where
+ * it hasn't. A heading's or a
  * button's lines are each a `<span>` in its direction (its alignment nothing on a span): unwrapped where that's the
  * block's own.
  */
 export function richText(values: Record<string, unknown>, inline: boolean, dir: string): string {
   if (typeof values.textJson !== "string") return typeof values.text === "string" ? values.text : "";
-  const html = generateHtmlFromTextJson(values.textJson);
+  const html = textJsonHtml(values.textJson);
   return inline ? unwrapLines(html, dir) : html;
 }
 
