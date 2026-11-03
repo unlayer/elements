@@ -4,7 +4,8 @@
  * HTML is the new engine's; what a reader gets is legacy's. Undefined where the template renders as today: a root
  * that isn't one of today's (a block on its own), or a frame the new engine can't draw as legacy does.
  */
-import type React from "react";
+import React from "react";
+import { renderToStaticMarkup } from "../utils/server-renderer";
 import { ElementsError } from "@unlayer-internal/elements-core";
 import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
@@ -14,7 +15,10 @@ import { lowerTemplate } from "./template";
 export interface Rendered {
   /** The whole document. */
   html: string;
-  /** Head and body as renderToHtmlParts() gives them. */
+  /**
+   * Head and body as renderToHtmlParts() gives them: the body in the root's host <div> (its className and style), as
+   * legacy's, holding the <body> tag in an email or a printed document.
+   */
   head: string;
   body: string;
   css: string;
@@ -85,10 +89,16 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const head = [css ? `<style>${styleText(css)}</style>` : "", js ? `<script>${js}</script>` : "", ...tags].filter(Boolean).join("\n");
   // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render).
   const text = () => htmlToPlainText(renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, ""));
+  // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
+  // document (a page's has none).
+  const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };
+  const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
+  const inner = lowered.mode === "web" ? result.body : `\n${bodyTag}${result.body}</body>\n`;
+  const body = renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: inner }, className, style }));
   return {
     html,
     head,
-    body: result.body,
+    body,
     css,
     js,
     tags,

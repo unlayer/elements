@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Button, Column, Email, Html, Image, Page, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -125,6 +125,19 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     const html = renderToHtml(<Email><Row><Column><Button href="<%unsubscribe%>">Unsubscribe</Button><Paragraph>Hi</Paragraph></Column></Row></Email>);
     expect(html).toContain('href="<%unsubscribe%>"');
     expect(html).toContain(">Hi</p>");
+  });
+
+  it("give renderToHtmlParts() a body of legacy's shape: the root's host <div>, holding the <body> tag in an email or a printed document", () => {
+    for (const Root of [Email, Document, Page]) {
+      const template = <Root className="mine" style={{ outline: "1px solid red" }}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>;
+      const body = renderToHtmlParts(template).body;
+      const legacy = legacyRenderToHtmlParts(template).body;
+      // The same host <div> as legacy's, and a <body> tag where legacy has one.
+      expect(body.slice(0, body.indexOf(">") + 1)).toBe(legacy.slice(0, legacy.indexOf(">") + 1));
+      expect(/<body[\s>]/.test(body)).toBe(/<body[\s>]/.test(legacy));
+      expect(body.endsWith("</div>")).toBe(true);
+    }
+    expect(renderToHtmlParts(<Email><Row><Column><Paragraph>x</Paragraph></Column></Row></Email>).body).toMatch(/^<div>\n<body[^>]*>[\s\S]*<\/body>\n<\/div>$/);
   });
 
   it("add a custom tool's script to the head whole, whatever it holds ($& and $' are text)", () => {
