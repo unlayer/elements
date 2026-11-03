@@ -77,6 +77,18 @@ const { valid } = validate(<Receipt />); // the same checks, without rendering
 console.log(outline(<Receipt />)); // the laid-out template as text: each block, its width, its words
 ```
 
+**To the Unlayer builder and back** (`@unlayer/react-elements/builder`): `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
+
+```tsx
+import { fromDesign, toDesign } from "@unlayer/react-elements/builder";
+
+const { design, report } = toDesign(<Receipt />); // report: what the builder can't hold as it is, one line each
+// …the design is edited in the builder, and saved…
+const { element, code, report: read } = fromDesign(saved, { displayMode: "email" }); // "web" a Page, "document" a Document
+```
+
+The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do.
+
 **To write one, read [PRIMITIVES.md](./PRIMITIVES.md)** in this package: how a template is written, how the new components differ from the ones below, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions. To move templates from the components below, see the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and `npx @unlayer/migrate --from elements`.
 
 ## Quick Start

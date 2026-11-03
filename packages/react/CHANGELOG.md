@@ -10,7 +10,12 @@
 - Fixed: a word too long for its column wraps inside it, on a page and in an email.
 - New, as a preview of the next major version: `@unlayer/react-elements/primitives`, the new components, with
   `render()` and `validate()`. Today's API is also at `@unlayer/react-elements/legacy`.
-- Types for `/primitives` and `/legacy` resolve under `moduleResolution: "node"` too.
+- New in `/primitives`: `Html`, markup written as it is (the builder's HTML block); a PDF and an image draw its
+  plain text.
+- New, with `/primitives`: `@unlayer/react-elements/builder`, `toDesign()` and `fromDesign()`, a template to the
+  Unlayer builder's design JSON and back. What a builder tool has no field for is kept in the design as a hidden
+  property of that tool; what the builder can't arrange comes back with the same look, flatter.
+- Types for `/primitives`, `/builder` and `/legacy` resolve under `moduleResolution: "node"` too.
 - The main entry grows from about 31KB to about 96KB gzipped.
 
 ## 0.1.0
