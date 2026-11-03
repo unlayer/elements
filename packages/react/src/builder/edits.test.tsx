@@ -7,7 +7,7 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Link, Menu, PageBreak, Paragraph, Row, Section, Social, Text, Video } from "../primitives";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Link, Menu, PageBreak, Paragraph, render, Row, Section, Social, Text, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign, type DisplayMode } from "./index";
 
@@ -449,6 +449,28 @@ describe("an edit this adapter's review found lost", () => {
     );
     values.href = { name: "web", values: { href: "https://x.test" }, attrs: { onClick: "track()" } };
     expect(fromDesign(design).report).toEqual([expect.stringMatching(/^rows\[0\]\.columns\[0\]\.contents\[0\]: its link .* holds what a link in Elements can't/)]);
+  });
+
+  it("keeps an email service's tag in text as written (an Html block of its markup), and says one Elements escapes", async () => {
+    for (const text of ["{% if orders > 1 %}Thanks{% endif %}", "{% if a && b %}x{% endif %}", "Hi <%name%>"]) {
+      const { design, values } = one(
+        <Email>
+          <Paragraph>Hello</Paragraph>
+        </Email>
+      );
+      values.text = text;
+      const back = fromDesign(design);
+      expect(back.report).toEqual([expect.stringContaining("an email service's tag, kept as written): it's an Html block of its markup")]);
+      expect((await render(back.element)).html).toContain(text);
+    }
+    const { design, values } = one(
+      <Email>
+        <Button href="https://x.test">Go</Button>
+      </Email>
+    );
+    values.text = "Hi <%name%>";
+    design.body.values.preheaderText = "{% if vip %}Early access{% endif %}";
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("its preview text has an email service's tag"), expect.stringContaining("its label has an email service's tag")]);
   });
 
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {

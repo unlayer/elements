@@ -6,7 +6,7 @@
  */
 import { Heading as HeadingDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { color, fontWeight, font, sides, some, type Sides, type Values } from "../compat/values";
+import { color, fontWeight, font, serviceTag, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden } from "./hide";
 import { boxOf, defined, make, obj, phoneText, placed, str, textStyle, ZERO, type Context } from "./reading";
 import { readText, richText } from "./text";
@@ -23,6 +23,8 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const weight = fontWeight(values.fontWeight) ?? (tool === "heading" ? 700 : context.inherited.fontWeight);
   const fontSize = (style.fontSize as number | undefined) ?? (taken.fontSize as number | undefined) ?? 16;
   const { parts, left } = readText(html, { weight, pages: context.document, fontSize });
+  // An email service's tag ({% if %}, <%name%>) is written as it is for the service to fill in, as today's writers do.
+  if (serviceTag(html)) left.push("an email service's tag, kept as written");
   const containerPadding = sides(values.containerPadding ?? "10px") ?? ZERO;
   const phonePadding = sides(obj(obj(values._override).mobile).containerPadding);
   const id = givenId(values);

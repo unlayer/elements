@@ -9,7 +9,7 @@ import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDef
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
-import { color, fontWeight, font, letterSpacing, px, sides, some, webLink, type Values } from "../compat/values";
+import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "../compat/values";
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
@@ -57,8 +57,14 @@ function button(values: Values, context: Context): Node[] {
   if (!href && webLink(values.href) === null) context.say('its link is empty in the builder: it\'s "#" until one is set');
   const label = parseRuns(richText(values, true, str(values.textDirection) ?? context.dir), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
+  tagged(richText(values, true, str(values.textDirection) ?? context.dir), "its label", context.say);
   const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile: { ...phoneText(values), ...phonePadding(values, "padding"), ...hidden.mobile }, hover, children: mergeTags(label.children, false) });
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
+}
+
+/** Says where text holds an email service's tag (<%name%>, {% if %}), which Elements writes escaped: the service can't fill it in. */
+function tagged(text: string, what: string, say: (message: string) => void): void {
+  if (serviceTag(text)) say(`${what} has an email service's tag, which today's writers keep as written and Elements writes escaped: the service won't fill it in`);
 }
 
 const phonePadding = (values: Values, key: string) => defined({ padding: sides(obj(obj(values._override).mobile)[key]) });
@@ -125,6 +131,7 @@ function menu(values: Values, context: Context): Node[] {
   const hidden = readHidden("menu", "Menu", values, context.say);
   const items = (Array.isArray(obj(values.menu).items) ? (obj(values.menu).items as unknown[]) : []).map(obj).map((item, i) => ({ text: str(item.text) ?? "", href: link(item.link, context.say, `its item ${i + 1}'s link`), empty: webLink(item.link) === null }));
   if (!items.length || items.some((item) => item.empty)) context.say("a menu item with no link in the builder: it's \"#\" until one is set");
+  for (const item of items) tagged(item.text, "a menu item's text", context.say);
   const size = px(values.fontSize ?? "14px");
   const style = defined({
     color: unless(color(values.linkColor), defaults.color),

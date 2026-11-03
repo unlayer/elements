@@ -549,7 +549,8 @@ design holds no Elements data (decision 12).
   builder, also takes what `toDesign()` writes in text); a tool's text is its rich text (`textJson`, what
   the builder's editor saves) where it has one, as today's exporters write it, else its `text`; each `<p>`
   in text is a Paragraph of its own, with no margins but those its own style gives it (the builder's export
-  resets a paragraph's, `p { margin: 0 }`); text with what no run holds, and any builder `html` block, is an
+  resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with an email service's tag
+  (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder `html` block, is an
   `Html` block. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`,
   `"document"` a `Document`); without one, a design with a header, a footer or a page break is a
   `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, every value checked
