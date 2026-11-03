@@ -5,7 +5,7 @@
  * difference between targets.
  */
 import { chromium, type Browser, type Page } from "playwright";
-import { resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { parseDocument, resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { template } from "./fixture";
 import { renderPage } from "../../src";
 
@@ -76,4 +76,43 @@ describe("web layout in Chromium", () => {
     expect(measured["desktop-only"].display).toBe("flex");
     expect(measured["desktop-only"].top).toBe(measured.column_1.top);
   });
+});
+
+describe("an Svg in Chromium", () => {
+  // Its drawing is the width and height it says; its padding and border are around it, as the resolver counts them.
+  const svg = (style: Record<string, unknown> = {}) => ({ type: "Svg", id: "drawing", props: { width: 100, height: 50 }, style, children: [{ type: "Rect", props: { width: 100, height: 50 } }] });
+  const CASES: Array<[string, Record<string, unknown>]> = [
+    ["with padding and a border", { type: "Column", children: [svg({ padding: 20, border: "2px solid #000" })] }],
+    ["in a stack that stretches its children", { type: "Column", style: { alignItems: "stretch" }, children: [svg({ padding: 10 })] }],
+    ["in a Row, beside a Text", { type: "Row", style: { gap: 10 }, children: [svg({ padding: 10 }), { type: "Text", id: "beside", children: ["words"] }] }],
+    ["wider than its room", { type: "Column", style: { width: 80 }, children: [svg()] }],
+  ];
+  for (const [name, child] of CASES) {
+    it(`draws it as wide as the resolver says, its drawing as wide as it says: ${name}`, async () => {
+      const resolved = resolveDocument(parseDocument({ root: { type: "Page", props: { width: 600 }, children: [child] } }));
+      const expected: Record<string, number | null> = {};
+      const collect = (node: ResolvedNode) => {
+        if (node.id) expected[node.id] = node.width;
+        for (const c of node.children) if (typeof c !== "string") collect(c);
+      };
+      collect(resolved.root);
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.setContent(renderPage(resolved).html);
+      const measured = await page.evaluate(() =>
+        Object.fromEntries(
+          ["drawing", "beside"].flatMap((id) => {
+            const element = document.getElementById(id);
+            if (!element) return [];
+            const style = getComputedStyle(element);
+            const frame = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"].reduce((sum, key) => sum + parseFloat(style[key as "paddingLeft"]), 0);
+            const width = element.getBoundingClientRect().width;
+            return [[id, Math.round(width)], [`${id}-content`, Math.round(width - frame)]];
+          })
+        )
+      );
+      expect(measured.drawing).toBe(expected.drawing);
+      expect(measured["drawing-content"]).toBe(100);
+      if (expected.beside !== undefined) expect(measured.beside).toBe(expected.beside);
+    });
+  }
 });

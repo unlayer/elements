@@ -298,6 +298,16 @@ describe("Row widths, as browser flexbox gives them", () => {
   it("gives an Svg the size it says, as the Page draws it (flex: none), and the rest to the others", () => {
     const { root } = resolve({ type: "Page", props: { width: 600 }, children: [{ type: "Row", style: { gap: 10 }, children: [{ type: "Svg", props: { width: 28, height: 28 }, children: [] }, column(), column({ width: 200 })] }] });
     expect(child(root, 0).children.map((c) => (c as ResolvedNode).width)).toEqual([28, 352, 200]);
+    // Its drawing is the size it says, its padding around it; a stretching stack doesn't widen it, and a narrower one
+    // doesn't narrow it: it overflows, as on the page.
+    const svg = { type: "Svg", props: { width: 100, height: 50 }, style: { padding: 10 }, children: [] };
+    const stacked = (style: Record<string, unknown>) => {
+      const { root, diagnostics } = resolve({ type: "Page", props: { width: 600 }, children: [{ type: "Column", style, children: [svg] }] });
+      return [(child(root, 0).children[0] as ResolvedNode).width, diagnostics.map((d) => d.code)];
+    };
+    expect(stacked({})).toEqual([120, []]);
+    expect(stacked({ alignItems: "stretch" })).toEqual([120, []]);
+    expect(stacked({ width: 80 })).toEqual([120, ["layout/overflow"]]);
   });
 
   it("leaves a child that takes its own size unknown where its size isn't known, the others the room past its padding", () => {

@@ -212,11 +212,9 @@ function clamp(width: number, style: Record<string, Json>, of: number | null): n
 
 /** The size a node has of its own: an image's, when its document gives it. */
 function intrinsicWidth(resolved: ResolvedNode, available: number | null): number | null {
-  // An Svg is as wide as it says, its padding and border included.
-  if (resolved.type === "Svg" && typeof resolved.props.width === "number") {
-    const own = resolved.props.width + horizontalFrame(resolved.style);
-    return clamp(available === null ? own : Math.min(own, available), resolved.style, available);
-  }
+  // An Svg's drawing is as wide as it says, its padding and border around it; it's never narrowed (the Page draws it
+  // so): wider than its room, it overflows it.
+  if (resolved.type === "Svg" && typeof resolved.props.width === "number") return resolved.props.width + horizontalFrame(resolved.style);
   if (resolved.type !== "Image" || resolved.props.src === undefined) return null;
   const own = assetParts(resolved.props.src as Asset).width ?? null;
   if (own === null) return null;
@@ -262,10 +260,10 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
   else {
     for (const { resolved, at, source } of nodes) {
       if (resolved.available === null && layout === "text") continue;
-      // A stack that stretches its children widens those that take their own size (a Button, an Image), as flexbox does.
-      // Across a Layer is its justifyItems (its alignItems is down it).
+      // A stack that stretches its children widens those that take their own size (a Button, an Image), as flexbox does;
+      // not an Svg, whose width is its drawing's. Across a Layer is its justifyItems (its alignItems is down it).
       const across = parent.type === "Layer" ? parent.style.justifyItems : parent.style.alignItems;
-      const stretched = layout === "stack" && across === "stretch" && resolved.definition.sizing === "shrink" && resolved.style.width === undefined;
+      const stretched = layout === "stack" && across === "stretch" && resolved.definition.sizing === "shrink" && resolved.style.width === undefined && resolved.type !== "Svg";
       const width = stretched && resolved.available !== null ? clamp(resolved.available, resolved.style, resolved.available) : stackedWidth(resolved, resolved.available);
       if (width !== null && resolved.available !== null && width > resolved.available + 0.5) {
         context.d.warning("layout/overflow", `This ${source.type} is ${Math.round(width)}px wide, wider than the ${Math.round(resolved.available)}px it's in`, at, source.id);

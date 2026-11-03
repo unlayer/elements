@@ -32,7 +32,8 @@ export const Svg: Component = ({ node, parent, placement }) => {
       role={title ? "img" : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : "true"}
-      style={[placement, { display: "block", flex: "none" }, box(node, parent.type !== "Row")]}
+      // Its padding and border around the drawing, as the resolver counts them (a framed box is border-box elsewhere).
+      style={[placement, { display: "block", flex: "none" }, { ...box(node, parent.type !== "Row"), boxSizing: undefined }]}
     >
       {node.children.filter(isNode).map((shape) => h(TAGS[shape.type], shapeAttributes(shape)))}
     </svg>
