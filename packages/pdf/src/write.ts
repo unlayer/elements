@@ -40,14 +40,18 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
     pages: pages.map(({ page, children }, index): Page => {
       write.page = { number: index + 1, total };
       const content = page ?? root;
+      const margin = { top: pt(box.margin.top), right: pt(box.margin.right), bottom: pt(box.margin.bottom), left: pt(box.margin.left) };
       return {
         width: pt(box.width),
         height: pt(box.height),
-        margin: { top: pt(box.margin.top), right: pt(box.margin.right), bottom: pt(box.margin.bottom), left: pt(box.margin.left) },
+        margin,
         // Paper is white: a page with no background of its own paints one, as a viewer may show a page left
         // transparent as black (in dark mode), under text that's dark.
         background: (page?.style.backgroundColor ?? root.style.backgroundColor ?? "#ffffff") as string,
-        contentHeight: pt(box.contentHeight),
+        // The room inside the margins, as react-pdf works it out (the paper's height less them, in points), less a
+        // thousandth: react-pdf warns that a box taller than the room can't wrap, and Yoga lays it out in 32-bit
+        // floats (A4's 769.89 points is 769.8900146). The page box's contentHeight is a whole px (1027 for 1026.52).
+        contentHeight: Math.floor((pt(box.height) - margin.bottom - margin.top - 0.001) * 1000) / 1000,
         header: header && write.block(header, root),
         content: present(children.filter(shown).map((child) => write.block(child, content))),
         gap: typeof content.style.gap === "number" ? pt(content.style.gap) : undefined,

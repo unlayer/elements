@@ -160,6 +160,22 @@ describe("renderPdf", () => {
     expect(first.y).toBeLessThan(36 + 13);
   });
 
+  it("makes each page's box the room inside its margins, no taller (react-pdf warned it can't wrap one taller on every A4 page)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const props of [{ size: "A4" }, { size: "A4", orientation: "landscape" }, { size: "Letter", margin: 50.3 }, { size: "A3", margin: 0 }] as const) {
+        await renderPdf(
+          <Document {...props}>
+            <Text>One line</Text>
+          </Document>
+        );
+      }
+      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("writes the same file for the same template", async () => {
     const [a, b] = await Promise.all([renderPdf(invoice), renderPdf(invoice)]);
     expect(Buffer.from(a.pdf).equals(Buffer.from(b.pdf))).toBe(true);
