@@ -3,9 +3,9 @@
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
 every step below is done. Built so far: the API, 39 components, the layout resolver, the email, page
 and print writers, PDF and image output, plain text, custom components, web fonts, validation, support
-data for every output, and the codemod from today's components; the builder adapter in a pull request of
-its own, stacked on it (see [Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
-`@unlayer/react-elements/primitives`, until it becomes the package's main import in a new major
+data for every output, the codemod from today's components, and the builder adapter (see [Status and
+order of work](#status-and-order-of-work)). It ships in 0.3.0 as internal entries, `@unlayer/react-elements/primitives`
+and `@unlayer/react-elements/builder`, until the new API becomes the package's main import in a new major
 version.
 
 ## Summary
@@ -495,9 +495,9 @@ in Chromium at 375, 600 and 800px: the same words, styles, positions, images, li
 plain text, every difference but the two fixes above.
 
 Meanwhile, a block that has no new component yet is a `Raw` node: the markup today's exporter writes for it,
-the CSS it needs in the stylesheet (each rule once) and its plain text. Only importers make one (the
-legacy entry now, the builder adapter later, for blocks such as custom tools that Elements can't know);
-it isn't a JSX component and `describeComponents()` leaves it out.
+the CSS it needs in the stylesheet (each rule once) and its plain text. Only the legacy entry makes one, for
+blocks such as custom tools that Elements can't know; it isn't a JSX component and `describeComponents()`
+leaves it out. Its authorable twin, `Html`, is what the builder adapter brings markup back as.
 
 The new major version then makes the new API the main import, keeps today's at `/legacy` (removed in
 the major after), ships the codemod and the migration guide, and drops `@unlayer/exporters` and
@@ -505,7 +505,7 @@ the major after), ships the codemod and the migration guide, and drops `@unlayer
 
 ## Builder adapter
 
-Built in a pull request of its own, stacked on #76, at `@unlayer/react-elements/builder`. It converts
+Part of 0.3.0, at `@unlayer/react-elements/builder`. It converts
 templates to the Unlayer builder's design JSON for Email, Page and Document (`toDesign(element)`), and designs
 back (`fromDesign(design, { displayMode })`), as an element to render and as JSX source. The builder's
 design holds no Elements data (decision 12).
@@ -586,7 +586,7 @@ Each step ends with its tests in CI.
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
-| 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done, in a pull request of its own stacked on #76 |
+| 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done |
 | 12. Today's components render through the new engine (decision 13) | done |
 
 ## Open questions

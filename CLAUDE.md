@@ -97,7 +97,8 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/primitives/index.ts` | The new API until it replaces the main entry in the next major: the primitive components, `component()`, async `render()` (output from the root) and `validate()`; JSX only |
 | `packages/core/src/components.ts` | Primitive component definitions (props, styles, children, targets, each style's and prop's support per output, editors) |
 | `packages/exporters/src/{email,page}/` | The new writers, one file per component (`Button.tsx`, `Row.tsx`, …) per output, in JSX that writes strings (`packages/exporters/src/jsx.ts`, no React); `packages/exporters/README.md` explains the layout, the JSX and how to add a component |
-| `docs/rfcs/0001-primitives-and-exporters.md` | The new engine's design: decisions (dated), components, styles, layout, support per output, the writers, status and order of work (builder adapter last) |
+| `docs/rfcs/0001-primitives-and-exporters.md` | The new engine's design: decisions (dated), components, styles, layout, support per output, the writers, the builder adapter, status and order of work |
+| `packages/react/src/builder/` | The builder adapter (`/builder`): `toDesign()` writes a template as the Unlayer builder's design JSON through today's components (`raise.tsx`, `tools.tsx`), `fromDesign()` reads one back (`read.ts`, `rows.ts`, `blocks.ts`) with compat's parsers. `manifest.ts` lists every hidden property (a style or prop a tool has no field for, kept in its values) and the builder's own keys; a test holds `toDesign()` to it |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
 | `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
