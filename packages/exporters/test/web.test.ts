@@ -25,7 +25,7 @@ describe("web HTML", () => {
       ])
     );
     expect(body).toBe(
-      '<main style="max-width:600px;margin:0 auto;display:flex;flex-direction:column;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:16px;font-weight:400;font-style:normal;line-height:1.5;letter-spacing:0;text-align:left;text-transform:none">' +
+      '<main style="max-width:600px;margin:0 auto;display:flex;flex-direction:column;overflow-wrap:break-word;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:16px;font-weight:400;font-style:normal;line-height:1.5;letter-spacing:0;text-align:left;text-transform:none">' +
         '<h2 style="margin:0;font-size:24px;font-weight:700;line-height:1.25">Welcome</h2>' +
         '<p style="margin:0;font-size:14px;box-sizing:border-box;padding:0 8px">Hello</p>' +
         '<a href="https://example.com" style="align-self:flex-start;display:inline-block;text-decoration:none;color:#fff;font-size:14px;line-height:1.2;text-align:center;box-sizing:border-box;padding:10px 20px;background-color:#0879a1;border-radius:4px">Go</a>' +

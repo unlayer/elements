@@ -186,10 +186,11 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   const preheader = preview
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true">${escapeText(preview)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
     : "";
-  // Gmail drops <html>'s attributes and <body>: the language, direction and background are kept on the email too.
+  // Gmail drops <html>'s attributes and <body>: the language, direction and background are kept on the email too. A word
+  // too long for its line (a long link) breaks onto the next rather than widening the email past a phone's screen.
   const body =
     preheader +
-    `<div${attrs({ role: "article", "aria-roledescription": "email", "aria-label": title, lang, dir })}${styleAttr([["background-color", background]])}>${email}</div>`;
+    `<div${attrs({ role: "article", "aria-roledescription": "email", "aria-label": title, lang, dir })}${styleAttr([["background-color", background], ["overflow-wrap", "break-word"]])}>${email}</div>`;
   const bodyStyle = css([
     ["margin", "0"],
     ["padding", "0"],

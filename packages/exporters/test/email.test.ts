@@ -19,7 +19,7 @@ describe("email HTML", () => {
     expect(head).toContain("<title>A &amp; B</title>");
     expect(bodyStyle).toBe("margin:0;padding:0;background-color:#eee");
     expect(body.startsWith('<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true">Your &lt;order&gt;&#847;')).toBe(true);
-    expect(body).toContain('<div role="article" aria-roledescription="email" aria-label="A &amp; B" lang="ar" dir="rtl" style="background-color:#eee">');
+    expect(body).toContain('<div role="article" aria-roledescription="email" aria-label="A &amp; B" lang="ar" dir="rtl" style="background-color:#eee;overflow-wrap:break-word">');
     expect(body).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#eeeeee" style="background-color:#eee">');
   });
 
