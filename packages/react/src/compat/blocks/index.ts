@@ -4,7 +4,8 @@
  * a block that draws nothing in this output. A tool is added here once the comparisons with main pass with it.
  */
 import type { DesignBlock, Place, TreeNode } from "../lower";
+import { divider } from "./divider";
 
 export type Lowering = (block: DesignBlock, place: Place) => TreeNode | null | undefined;
 
-export const BLOCKS: Readonly<Record<string, Lowering>> = {};
+export const BLOCKS: Readonly<Record<string, Lowering>> = { divider };
