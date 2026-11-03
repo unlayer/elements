@@ -49,6 +49,12 @@ export interface Payload {
   own?: string;
   /** By key, a fingerprint of a long value written that's only told apart, not read (a block's own markup). */
   h?: Record<string, string>;
+  /**
+   * The defaults (below) that aren't the item's, as the node sets that value itself (a button's hover color, a
+   * body's background): the builder's value there is read as the node's whatever it is. A value with parts names the
+   * part (`buttonColors.hoverColor`). Between spaces.
+   */
+  held?: string;
   /** A row: the Section it's part of (or a Document's page, header or footer). */
   sec?: Group;
   /** A row: the Grid it's a row of (its columns its cells). */
@@ -126,6 +132,11 @@ export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, Json>>>> 
  */
 export const PARTED = new Set(["button.buttonColors", "image.src"]);
 
+/** Values that are a node's padding and its place (a block's spacing is its padding and its stack's gap, a row's its Section's). */
+export const PADDING_BY = new Set(["heading.containerPadding", "text.containerPadding", "divider.containerPadding", "column.padding", "row.padding"]);
+/** Values that are only a block's place (a button's spacing is its stack's). */
+export const PLACED = new Set(["button", "image", "menu", "social", "video", "html", "page_break"].map((kind) => `${kind}.containerPadding`));
+
 export const sidesCss = (s: Partial<Sides>) => `${s.top ?? 0}px ${s.right ?? 0}px ${s.bottom ?? 0}px ${s.left ?? 0}px`;
 
 /**
@@ -135,9 +146,20 @@ export const sidesCss = (s: Partial<Sides>) => `${s.top ?? 0}px ${s.right ?? 0}p
 export function baseline(kind: string, payload: Payload | undefined): Record<string, Json> | undefined {
   if (!payload) return undefined;
   const out: Record<string, Json> = { ...DEFAULTS[kind] };
-  for (const [key, part] of Object.entries(payload.place ?? {})) out[key] = sidesCss(part);
+  for (const held of (payload.held ?? "").split(" ").filter(Boolean)) {
+    const [key, part] = held.split(".");
+    if (part === undefined) delete out[key];
+    else if (out[key] && typeof out[key] === "object") {
+      const { [part]: _held, ...rest } = out[key] as Record<string, Json>;
+      out[key] = rest;
+    }
+  }
+  // Its place: none where none is said.
+  for (const key of ["containerPadding", "padding"]) if (PADDING_BY.has(`${kind}.${key}`) || PLACED.has(`${kind}.${key}`)) out[key] = sidesCss(payload.place?.[key] ?? {});
   // A row's band is its Section's background.
   if (kind === "row" && typeof payload.sec?.node.style?.backgroundColor === "string") out.backgroundColor = payload.sec.node.style.backgroundColor;
+  // The builder's own data the node keeps (a display condition) is as it was written.
+  for (const [key, value] of Object.entries((payload.node?.compat?.builder ?? {}) as Record<string, Json>)) out[key] = value;
   return { ...out, ...payload.w };
 }
 
@@ -149,7 +171,9 @@ export function bare(node: Node): Node {
 
 /** A short fingerprint of a long value (cyrb53), to tell it from another. */
 export function fingerprint(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value ?? null);
+  // An object's keys in any order.
+  const canon = (v: unknown): unknown => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])])) : v);
+  const text = typeof value === "string" ? value : JSON.stringify(canon(value ?? null));
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
   for (let i = 0; i < text.length; i++) {

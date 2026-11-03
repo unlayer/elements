@@ -8,22 +8,21 @@ import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
 import { changesOf, readItem, unchanged, type Values } from "./lower";
 import { pathsOf, sameValue, setAt, setPaths, valueAt } from "./paths";
-import { baseline, BUILDER_OWN, DEFAULTS, fingerprint, type Payload, type Sides } from "./payload";
+import { baseline, BUILDER_OWN, DEFAULTS, fingerprint, PADDING_BY, PARTED, PLACED, type Payload, type Sides } from "./payload";
 import { say, taken } from "./taken";
 
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-
-/** Values that are a node's padding and its place (a block's spacing is its padding and its stack's gap). */
-const PADDING_BY = new Set(["heading.containerPadding", "text.containerPadding", "divider.containerPadding", "column.padding"]);
-/** Values that are only a block's place (a button's spacing is its stack's). */
-const PLACED = new Set(["button", "image", "menu", "social", "video", "html", "page_break"].map((kind) => `${kind}.containerPadding`));
 
 /** Which part of a value with parts sets which of the node. */
 const PART_OF: Record<string, Record<string, string>> = {
   "button.buttonColors": { color: "style.color", backgroundColor: "style.backgroundColor", hoverColor: "hover.color", hoverBackgroundColor: "hover.backgroundColor" },
   "image.src": { url: "props.src", width: "props.src", height: "props.src", autoWidth: "style.width", maxWidth: "style.width" },
 };
+
+/** A value that sets nothing: empty, off, or no space. */
+const none = (value: unknown) =>
+  value === null || value === "" || value === false || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length) || (typeof value === "string" && /^(0px\s*)+$/.test(value.trim()));
 
 const sides = (css: unknown): Sides => {
   const [top = 0, right = top, bottom = top, left = right] = String(css ?? "0px").trim().split(/\s+/).map((part) => parseFloat(part) || 0);
@@ -62,8 +61,9 @@ function compare(got: Node, want: Node, resolved: ResolvedNode | undefined, read
     const was = valueAt(want, path);
     if (read.includes(path) && path.includes(".")) (was === undefined ? out.taken : out.own).push(path);
     if (sameValue(now, was)) continue;
-    // The template's node has none: what the builder holds there is what it takes (resolved, it has none).
-    if (was === undefined && read.includes(path) && path.includes(".") && resolved !== undefined && sameValue(now, taken(resolved, path))) continue;
+    // The template's node has none: what the builder holds there is what it takes (resolved, it has none). A node
+    // drawn as others (a Menu, as its Row of links) isn't resolved as itself: its values are its own.
+    if (was === undefined && read.includes(path) && path.includes(".") && resolved?.type === want.type && sameValue(now, taken(resolved, path))) continue;
     out.differ.push(path);
   }
   if (got.type !== want.type) out.differ.push("type");
@@ -77,7 +77,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
   const place: Record<string, Partial<Sides>> = {};
   for (const key of ["containerPadding", "padding"]) {
     const at = `${kind}.${key}`;
-    if (values[key] === undefined || !(PADDING_BY.has(at) || PLACED.has(at) || at === "row.padding")) continue;
+    if (values[key] === undefined || !(PADDING_BY.has(at) || PLACED.has(at))) continue;
     const mine = node && !PLACED.has(at) ? ((node.style?.padding as Sides | undefined) ?? ZERO) : ZERO;
     const kept = at === "row.padding" ? { ...ZERO, top: mine.top, bottom: mine.bottom } : mine;
     const all = sides(values[key]);
@@ -87,8 +87,9 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
   }
   const w: Record<string, Json> = {};
   const h: Record<string, string> = {};
+  const held: string[] = [];
   // A row's columns' widths, as the builder holds them (it shares them out its own way).
-  if (kind === "row" && Array.isArray(values.cells) && JSON.stringify(values.cells) !== "[1]") w.cells = values.cells as Json;
+  if (kind === "row" && Array.isArray(values.cells) && JSON.stringify(values.cells) !== "[1]") w.cells = copy(values.cells as Json);
   if (full.locked && typeof values.html === "string") h.html = fingerprint(values.html);
 
   const assemble = (hidden: Node | undefined, said: { taken: string[]; own: string[] } = { taken: [], own: [] }): Payload => {
@@ -101,6 +102,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     if (said.taken.length && said.own.length < said.taken.length) out.own = say(said.own);
     else if (said.taken.length) out.taken = say(said.taken);
     if (Object.keys(h).length) out.h = h;
+    if (held.length) out.held = held.join(" ");
     return { ...out, ...structure };
   };
   const bandChanged = () => kind === "row" && !unchanged("backgroundColor", baseline("row", assemble(undefined))?.backgroundColor, values.backgroundColor);
@@ -110,7 +112,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     for (const key of changesOf(kind, values, assemble(undefined), kind === "row" ? (key) => key !== "backgroundColor" : undefined)) {
       // Phone values are only told apart (they're said where they change, but for hiding): by a fingerprint.
       if (key === "_override") h[key] = fingerprint(values[key]);
-      else w[key] = values[key];
+      else w[key] = copy(values[key] as Json);
     }
     if (bandChanged()) w.backgroundColor = values.backgroundColor;
     const said = assemble(undefined);
@@ -127,8 +129,19 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     setAt(hidden, "style.padding", padding.left || padding.right ? { ...padding, top: 0, bottom: 0 } : undefined);
   }
   if (bandChanged()) w.backgroundColor = values.backgroundColor;
+  // A Document's content width is its page's: a change to it is only said, against the one written.
+  if (kind === "body" && node.type === "Document" && values.contentWidth !== undefined) w.contentWidth = copy(values.contentWidth as Json);
 
   const want = kind === "image" ? imageIn(node) : node;
+  // A default the node sets itself isn't its default: the builder's value there is the node's, whatever it is. A
+  // default that's none (no border, no corners, no background) reads the same either way, and a place is said apart.
+  for (const [key, value] of Object.entries(DEFAULTS[kind] ?? {})) {
+    if (values[key] === undefined || PADDING_BY.has(`${kind}.${key}`) || PLACED.has(`${kind}.${key}`) || none(value)) continue;
+    const parts = PARTED.has(`${kind}.${key}`) ? PART_OF[`${kind}.${key}`] : undefined;
+    if (parts) {
+      for (const part of Object.keys(value as object)) if (parts[part] && valueAt(want, parts[part]) !== undefined) held.push(`${key}.${part}`);
+    } else if ((touched.get(key) ?? []).some((path) => valueAt(want, path) !== undefined)) held.push(key);
+  }
   const resolvedHere = kind === "image" ? resolvedImage(resolved) : resolved;
   /** Reads back as it was: the item kept with what's said of it. */
   const reads = () => {
@@ -164,7 +177,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     const found = compare(got, want, resolvedHere, setPaths(before, got));
     const linkDiffers = kind === "image" && (read.type !== node.type || (node.type === "Link" && !sameValue(read.props, node.props)));
     if (!found.differ.length && !heard.size && !linkDiffers) return phoneTold(found);
-    if (linkDiffers) w.action = values.action;
+    if (linkDiffers) w.action = copy(values.action as Json);
     for (const [key, paths] of touched) {
       const hit = found.differ.filter((path) => paths.includes(path));
       if (!hit.length && !heard.has(key)) continue;
@@ -176,12 +189,12 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
         w[key] = kept as Json;
         for (const path of hit) setAt(target, path, valueAt(want, path));
       } else {
-        w[key] = values[key];
+        w[key] = copy(values[key] as Json);
         for (const path of paths) if (valueAt(want, path) !== undefined) setAt(target, path, valueAt(want, path));
       }
     }
     // A report on a value no setter sets anything for (a place the builder shows): kept as written.
-    for (const key of heard) if (!touched.get(key)?.length && key !== "html") w[key] = values[key];
+    for (const key of heard) if (!touched.get(key)?.length && key !== "html") w[key] = copy(values[key] as Json);
   }
   // Still not as it was: the item kept whole, read as it was written.
   const whole: Record<string, Json> = {};

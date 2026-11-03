@@ -10,7 +10,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, Document, Email, Grid, Heading, Image, Layer, Link, Menu, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
+import { Button, Column, component, Document, Email, Grid, Heading, Image, Layer, Link, Menu, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import { collectTemplate } from "../primitives/collect";
 import * as luma from "../primitives/codemod/LumaEventInvite";
@@ -23,6 +23,7 @@ import * as spotify from "../primitives/codemod/SpotifyWelcome";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as warby from "../primitives/codemod/WarbyOrderShipped";
 import { fromDesign, toDesign } from "./index";
+import { lower } from "./lower";
 
 type Values = Record<string, any>;
 type Design = { body: { rows: Array<{ cells: number[]; values: Values; columns: Array<{ values: Values; contents: Array<{ type: string; values: Values }> }> }>; values: Values } };
@@ -720,6 +721,130 @@ describe("fromDesign(toDesign())", () => {
       expect(tree(fromDesign(design).element)).toEqual(tree(template));
       button.values.buttonColors.hoverBackgroundColor = "#111111";
       expect((tree(fromDesign(design).element).children![0] as Node).hover).toEqual({ backgroundColor: "#111111" });
+    });
+
+    it("brings a template with a component of its own back as it went, the values blocks take from the body left out", () => {
+      const Card = component({
+        type: "acme.Card",
+        label: "Card",
+        props: { name: prop.text({ label: "Name", required: true }) },
+        render: ({ name }) => (
+          <Column style={{ gap: 8 }}>
+            <Heading level={3}>{name}</Heading>
+          </Column>
+        ),
+      });
+      const template = (
+        <Email>
+          <Heading>Hi</Heading>
+          <Card name="X" />
+        </Email>
+      );
+      expect(tree(fromDesign(designOf(template), { components: { "acme.Card": Card } as never }).element)).toEqual(tree(template));
+    });
+
+    it("takes a change to the value the builder has for nothing set where the template set it: a hover color, a body's background", () => {
+      const design = designOf(
+        <Email style={{ backgroundColor: "#ffffff" }}>
+          <Button href="https://x.test" hover={{ color: "#111111", backgroundColor: "#222222" }}>
+            Go
+          </Button>
+        </Email>
+      );
+      const [button] = blocks(design);
+      button.values.buttonColors = { ...button.values.buttonColors, hoverColor: "#FFFFFF", hoverBackgroundColor: "#0879A1" };
+      design.body.values.backgroundColor = "#F7F8F9";
+      const back = tree(fromDesign(design).element);
+      // (The template's tree writes a color in lower case.)
+      expect(back.style).toEqual({ backgroundColor: "#f7f8f9" });
+      expect((back.children![0] as Node).hover).toEqual({ color: "#ffffff", backgroundColor: "#0879a1" });
+    });
+
+    it("says a block's spacing changed in the builder where its place has none", () => {
+      const design = designOf(
+        <Email>
+          <Button href="https://x.test">Go</Button>
+        </Email>
+      );
+      blocks(design)[0].values.containerPadding = "20px 0px 0px 0px";
+      expect(fromDesign(design).report).toEqual(["rows[0].columns[0].contents[0]: its spacing changed in the builder; in Elements a block's place is set by what it's in"]);
+    });
+
+    it("drops the builder's own data on a block where the builder removed it (a display condition)", () => {
+      const design = designOf(
+        <Email>
+          <Heading>Hi</Heading>
+        </Email>
+      );
+      blocks(design)[0].values.displayCondition = { type: "vip", label: "VIP", before: "{% if vip %}", after: "{% endif %}" };
+      const again = designOf(fromDesign(design).element);
+      expect(blocks(again)[0].values.displayCondition).toMatchObject({ type: "vip" });
+      delete blocks(again)[0].values.displayCondition;
+      expect((tree(fromDesign(again).element).children![0] as Node).compat).toBeUndefined();
+    });
+
+    it("reads a Grid's item by what it's in, as laid out: a Column's color its text takes, and a color changed in the builder", () => {
+      const template = (
+        <Email>
+          <Grid columns={2}>
+            <Column style={{ color: "#ff0000" }}>
+              <Paragraph>Hi</Paragraph>
+            </Column>
+            <Text>B</Text>
+          </Grid>
+        </Email>
+      );
+      const design = designOf(template);
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      blocks(design).find((block) => String(block.values.text).includes("Hi"))!.values.color = "#000000";
+      const paragraph = (((tree(fromDesign(design).element).children![0] as Node).children![0] as Node).children![0] as Node);
+      expect(paragraph.style).toEqual({ color: "#000000" });
+    });
+
+    it("keeps a Menu's link color changed in the builder (a Menu is drawn as a Row of links, not resolved as itself)", () => {
+      const design = designOf(
+        <Email>
+          <Menu items={[{ text: "A", href: "https://a.test" }]} />
+        </Email>
+      );
+      blocks(design)[0].values.linkColor = "#000000";
+      expect((tree(fromDesign(design).element).children![0] as Node).style).toEqual({ color: "#000000" });
+      // Read as a Menu even where its payload says every value it doesn't set is taken.
+      blocks(design)[0].values._elements.own = "";
+      expect((tree(fromDesign(design).element).children![0] as Node).style).toEqual({ color: "#000000" });
+    });
+
+    it("keeps what it wrote apart from the design's values: a change to the design in memory is a change", () => {
+      const border = { bottom: { width: 1, style: "solid", color: "#ebebeb" } } as const;
+      const { design } = toDesign(
+        <Email>
+          <Row style={{ border }}>
+            <Column>
+              <Text>a</Text>
+            </Column>
+            <Column>
+              <Text>b</Text>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const column = (design as unknown as Design).body.rows[0].columns[0];
+      expect(column.values._elements.w.border).toBeDefined();
+      column.values.border.borderBottomColor = "#ff0000";
+      const row = tree(fromDesign(design).element).children![0] as Node;
+      expect(((row.children![0] as Node).style?.border as { bottom: { color: string } }).bottom.color).toBe("#ff0000");
+    });
+
+    it("leaves out the values blocks take from the body when another block isn't valid (an image the builder left with no source)", () => {
+      const design = designOf(
+        <Email>
+          <Heading>Hi</Heading>
+          <Image src="https://x.test/a.png" alt="" />
+        </Email>
+      );
+      blocks(design)[1].values.src = { ...blocks(design)[1].values.src, url: "" };
+      // The template isn't valid till the image has a source: read as the builder has it, without validating.
+      expect((lower(design as never, []).children![0] as Node).style).toBeUndefined();
     });
 
     // Designs as this version writes them, kept as they are: every later version reads them as this one does.

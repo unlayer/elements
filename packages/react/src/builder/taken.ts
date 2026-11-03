@@ -48,9 +48,18 @@ export function taken(resolved: ResolvedNode, path: string): Json | undefined {
   return undefined;
 }
 
-/** Each node by its place in the template, resolved; or where it doesn't resolve, the places of what's wrong. */
-function resolvedByPath(root: Node): Map<string, ResolvedNode> | { wrong: string[] } {
-  const prepared = prepareTemplate({ root });
+/** A path's parent's: `root.children[2]` for `root.children[2].children[0]`; none for the root. */
+const parentOf = (path: string) => (/\.children\[\d+\]$/.test(path) ? path.replace(/\.children\[\d+\]$/, "") : undefined);
+
+/**
+ * Each node by its place in the template, resolved, with a plain Column in place of each node at `standIns` (one that
+ * doesn't resolve: a component of the template's own, an image with no source); or where it doesn't resolve, the
+ * places of what's wrong.
+ */
+function resolvedByPath(root: Node, standIns: Set<string>): Map<string, ResolvedNode> | { wrong: string[] } {
+  const swap = (node: Node, path: string): Node =>
+    standIns.has(path) ? { type: "Column" } : node.children ? { ...node, children: node.children.map((child, i) => (typeof child === "string" ? child : swap(child, `${path}.children[${i}]`))) } : node;
+  const prepared = prepareTemplate({ root: standIns.size ? swap(root, "root") : root });
   if (!prepared.resolved) return { wrong: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => d.path) };
   const out = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
@@ -67,9 +76,9 @@ function resolvedByPath(root: Node): Map<string, ResolvedNode> | { wrong: string
  */
 export function dropTaken(root: Node): Node {
   const marked: Array<{ node: Node; path: string; depth: number; values: Record<string, unknown> }> = [];
-  const types = new Map<string, string>();
+  const nodes = new Map<string, Node>();
   const visit = (node: Marked, path: string, depth: number) => {
-    types.set(path, node.type);
+    nodes.set(path, node);
     const mine = node[TAKEN];
     if (mine) {
       delete node[TAKEN];
@@ -91,35 +100,56 @@ export function dropTaken(root: Node): Node {
     for (const [at, value] of Object.entries(m.values)) setAt(m.node, at, value);
     m.values = {};
   };
+  const standIns = new Set<string>();
   for (const depth of [...new Set(marked.map((m) => m.depth))].sort((a, b) => a - b)) {
-    let found = resolvedByPath(root);
-    // A node that isn't valid without one of its values (a Social's icons the builder changed) keeps them all.
-    while (!(found instanceof Map)) {
-      // The node each wrong value is of (the innermost marked one it's in) keeps that value, or all of them.
-      const open = marked.filter((m) => Object.keys(m.values).length);
-      let kept = 0;
-      for (const path of found.wrong) {
-        const holders = open.filter((m) => path === m.path || path.startsWith(`${m.path}.`));
-        if (!holders.length) continue;
-        const m = holders.reduce((a, b) => (b.path.length > a.path.length ? b : a));
-        const value = Object.keys(m.values).find((at) => path === `${m.path}.${at}` || path.startsWith(`${m.path}.${at}.`) || path.startsWith(`${m.path}.${at}[`));
-        if (value) {
-          setAt(m.node, value, m.values[value]);
-          delete m.values[value];
-        } else keep(m);
-        kept++;
-      }
-      if (!kept) {
+    let found = resolvedByPath(root, standIns);
+    for (let tries = 0; !(found instanceof Map); tries++) {
+      if (tries > nodes.size) {
         marked.forEach(keep);
         return root;
       }
-      found = resolvedByPath(root);
+      // What's wrong is a value a marked node needs (a Social's icons the builder changed): it keeps it. Else the
+      // node it's in is a Column while it's resolved, and keeps what it holds.
+      const open = marked.filter((m) => Object.keys(m.values).length);
+      for (const path of found.wrong) {
+        const holders = open.filter((m) => path === m.path || path.startsWith(`${m.path}.`));
+        const m = holders.length ? holders.reduce((a, b) => (b.path.length > a.path.length ? b : a)) : undefined;
+        const value = m && Object.keys(m.values).find((at) => path === `${m.path}.${at}` || path.startsWith(`${m.path}.${at}.`) || path.startsWith(`${m.path}.${at}[`));
+        if (m && value) {
+          setAt(m.node, value, m.values[value]);
+          delete m.values[value];
+          continue;
+        }
+        let at: string | undefined = path;
+        while (at && !nodes.has(at)) at = at.includes(".") ? at.slice(0, Math.max(at.lastIndexOf("."), at.lastIndexOf("["))) : undefined;
+        if (!at) continue;
+        standIns.add(at);
+        for (const inside of marked) if (inside.path === at || inside.path.startsWith(`${at}.`)) keep(inside);
+      }
+      found = resolvedByPath(root, standIns);
     }
     const resolved = found;
+    // What's around a node a layout moved (a Grid's item, in the Row it's laid out in): each node around it as it
+    // is where it was, or resolved on its own in what's around it.
+    const texts = new Map<string, ResolvedNode["text"] | undefined>();
+    const textAt = (path: string | undefined): ResolvedNode["text"] | undefined => {
+      if (path === undefined) return undefined;
+      if (texts.has(path)) return texts.get(path);
+      const node = nodes.get(path);
+      const there = moved(path) ? undefined : resolved.get(path);
+      const text = !node ? undefined : there && (there.type === node.type || ARRANGED.has(node.type)) ? there.text : alone(node, textAt(parentOf(path)))?.text;
+      texts.set(path, text);
+      return text;
+    };
+    /** In a layout that moves what's in it (a Grid's item): another node is at its place once it's laid out. */
+    const moved = (path: string) => {
+      for (let at = parentOf(path); at !== undefined; at = parentOf(at)) if (ARRANGED.has(nodes.get(at)?.type ?? "")) return true;
+      return false;
+    };
     for (const m of marked.filter((m) => m.depth === depth && Object.keys(m.values).length)) {
-      // Where a layout moved it (a Grid's item), what's at its place is another node: it's resolved on its own.
-      const there = resolved?.get(m.path);
-      const own = there?.type === m.node.type ? there : alone(m.node, aroundOf(resolved, types, m.path));
+      // The node as it's resolved: none where it's drawn as others (a Menu, as its Row of links), so it keeps them.
+      const there = moved(m.path) ? alone(m.node, textAt(parentOf(m.path))) : resolved.get(m.path);
+      const own = there?.type === m.node.type ? there : undefined;
       for (const [at, value] of Object.entries(m.values)) if (!own || !sameValue(value, taken(own, at))) setAt(m.node, at, value);
     }
   }
@@ -128,20 +158,6 @@ export function dropTaken(root: Node): Node {
 
 /** Nodes laid out as others at their own place (a Grid, as the Column of Rows it is). */
 const ARRANGED = new Set(["Grid"]);
-
-/**
- * The text styles around a node a layout moved (a Grid's item, in the Row it's laid out in): those of the nearest
- * node around it that is where it was (the Grid, as the Column it's laid out as).
- */
-function aroundOf(resolved: Map<string, ResolvedNode>, types: Map<string, string>, path: string): ResolvedNode["text"] | undefined {
-  for (let at = path; /\.children\[\d+\]$/.test(at); ) {
-    at = at.replace(/\.children\[\d+\]$/, "");
-    const found = resolved.get(at);
-    const type = types.get(at);
-    if (found && type && (found.type === type || ARRANGED.has(type))) return found.text;
-  }
-  return undefined;
-}
 
 /** A node resolved on its own, in an Email with the text styles around it. */
 function alone(node: Node, around: ResolvedNode["text"] | undefined): ResolvedNode | undefined {
