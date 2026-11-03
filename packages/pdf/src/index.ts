@@ -16,7 +16,7 @@ import type { ReactElement } from "react";
 import type { Font } from "./model";
 import { reactPdf } from "./react-pdf";
 import { pdfFamily } from "./styles";
-import { writeDocument } from "./write";
+import { thumbnailOf, writeDocument } from "./write";
 
 export interface PdfFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
@@ -216,7 +216,10 @@ function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | Arr
         });
       }
     }
-    if (node.type === "Video" && node.props.thumbnail) resolve(assetParts(node.props.thumbnail as Asset).src);
+    if (node.type === "Video") {
+      const thumbnail = thumbnailOf(node);
+      if (thumbnail) resolve(thumbnail);
+    }
     for (const child of node.children) if (typeof child !== "string") visit(child);
   };
   visit(root);

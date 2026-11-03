@@ -204,6 +204,28 @@ describe("renderPdf", () => {
     ]);
   });
 
+  it("draws a Video's thumbnail given in images: its own, or a YouTube video's by the URL it's derived from", async () => {
+    // The images a PDF draws, as pdf.js reads its drawing operators.
+    const images = async (pdf: Uint8Array) => {
+      const { fnArray } = await (await (await getDocument({ data: pdf.slice(), verbosity: 0 }).promise).getPage(1)).getOperatorList();
+      return fnArray.filter((fn) => fn === OPS.paintImageXObject).length;
+    };
+    const youtube = <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Our launch" />;
+    const own = <Video src="https://vimeo.com/76979871" title="Our launch" thumbnail={{ src: "https://cdn.acme.test/launch.png", width: 64, height: 36 }} />;
+    for (const [video, url] of [
+      [youtube, "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg"],
+      [own, "https://cdn.acme.test/launch.png"],
+    ] as const) {
+      const { pdf } = await renderPdf(<Document>{video}</Document>, { images: { [url]: PNG } });
+      expect(await images(pdf)).toBe(1);
+      expect((await read(pdf)).pages[0].words).toBe("");
+      // Not given, its title.
+      const { pdf: titled } = await renderPdf(<Document>{video}</Document>);
+      expect(await images(titled)).toBe(0);
+      expect((await read(titled)).pages[0].words).toBe("Our launch");
+    }
+  });
+
   it("notes a web font it isn't given, and draws its text in a standard PDF font", async () => {
     const { diagnostics, pdf } = await renderPdf(
       <Document fonts={[{ family: "Inter", src: "https://fonts.acme.test/inter.woff2" }]} style={{ fontFamily: "Inter, sans-serif" }}>

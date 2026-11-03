@@ -19,6 +19,10 @@ export interface WriteContext {
   date: Date;
 }
 
+/** A Video's thumbnail: its own, else a YouTube video's (derived from its URL), or undefined (a Vimeo video's isn't). */
+export const thumbnailOf = (video: ResolvedNode): string | undefined =>
+  video.props.thumbnail ? assetParts(video.props.thumbnail as Asset).src : videoParts(String(video.props.src))?.thumbnail;
+
 const shown = (node: ResolvedNode) => !node.hidden?.desktop;
 const nodes = (node: ResolvedNode) => node.children.filter((child): child is ResolvedNode => typeof child !== "string" && shown(child));
 const present = <T>(items: Array<T | undefined>): T[] => items.filter((item): item is T => item !== undefined);
@@ -265,7 +269,7 @@ class Writer {
   /** A Video: its thumbnail linked to it where its bytes are given, else a link with its title. */
   video(node: ResolvedNode, placed: Style): Block {
     const src = String(node.props.src);
-    const thumbnail = node.props.thumbnail ? assetParts(node.props.thumbnail as Asset).src : videoParts(src)?.thumbnail;
+    const thumbnail = thumbnailOf(node);
     const image = thumbnail ? this.context.image(thumbnail) : undefined;
     return {
       kind: "link",
