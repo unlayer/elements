@@ -10,7 +10,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, component, Document, Email, Grid, Heading, Image, Layer, Link, Menu, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "../primitives";
+import { Button, Column, component, Divider, Document, Email, Grid, Heading, Image, Layer, Link, Menu, MergeTag, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "../primitives";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import { collectTemplate } from "../primitives/collect";
 import * as luma from "../primitives/codemod/LumaEventInvite";
@@ -65,6 +65,51 @@ const sample = (
   </Email>
 );
 
+/** Each of the builder's tools, with what it has no editor for: for a design the builder itself saves. */
+const everyTool = (
+  <Email previewText="Every tool" style={{ backgroundColor: "#fafafa", color: "#222222" }}>
+    <Section style={{ backgroundColor: "#ffffff", padding: [24, 16, 24, 16], gap: 12 }}>
+      <Heading level={2} style={{ letterSpacing: 1, textTransform: "uppercase", backgroundColor: "#fde68a" }}>
+        Heading
+      </Heading>
+      <Paragraph style={{ fontSize: 15, lineHeight: 1.6 }}>
+        Text with a{" "}
+        <Link href={{ href: "https://x.test", target: "_self" }} hover={{ color: "#0000ff" }}>
+          link
+        </Link>{" "}
+        and <MergeTag name="first_name" />
+      </Paragraph>
+      <Button href="https://x.test/go" style={{ backgroundColor: "#111111", color: "#ffffff", borderRadius: 6, padding: [12, 24, 12, 24] }} hover={{ backgroundColor: "#333333" }}>
+        Button
+      </Button>
+      <Link href="https://x.test/image">
+        <Image src={{ src: "https://picsum.photos/id/10/600/300", width: 600, height: 300 }} alt="Linked image" style={{ width: "80%" }} />
+      </Link>
+      <Divider style={{ borderTop: { width: 2, style: "dashed", color: "#cccccc" } }} />
+      <Menu items={[{ text: "Docs", href: "https://x.test/docs" }, { text: "Blog", href: { href: "https://x.test/blog", target: "_self" } }]} separator="|" />
+      <Social icons={[{ name: "Facebook", href: "https://facebook.com/x" }, { name: "X", href: "https://x.com/x" }]} />
+      <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+    </Section>
+    <Row style={{ gap: 16, border: { bottom: { width: 1, style: "solid", color: "#eeeeee" } } }}>
+      <Column style={{ padding: 8, backgroundColor: "#f0f0f0" }} hidden={{ mobile: true }}>
+        <Text>Desktop only</Text>
+      </Column>
+      <Column>
+        <Image src="https://picsum.photos/id/11/300/200" alt="" style={{ width: "50%" }} hidden={{ mobile: true }} />
+      </Column>
+    </Row>
+    <Grid columns={2} style={{ gap: 8 }}>
+      <Text>a</Text>
+      <Text>b</Text>
+      <Text>c</Text>
+    </Grid>
+    <Layer style={{ height: 120 }}>
+      <Image src={{ src: "https://picsum.photos/id/12/600/240", width: 600, height: 240 }} alt="" />
+      <Heading>Over</Heading>
+    </Layer>
+  </Email>
+);
+
 describe("fromDesign(toDesign())", () => {
   const examples = [
     stripe.StripeReceipt,
@@ -78,6 +123,11 @@ describe("fromDesign(toDesign())", () => {
     brew.MorningBrewDigest,
     digest.ProductDigest,
   ];
+  it("brings a template with every tool back as it went", () => {
+    const back = fromDesign(toDesign(everyTool).design);
+    expect(tree(back.element)).toEqual(tree(everyTool));
+  });
+
   for (const Example of examples) {
     it(`brings ${Example.name} back as it went`, () => {
       const back = fromDesign(toDesign(<Example />).design);
@@ -884,6 +934,17 @@ describe("fromDesign(toDesign())", () => {
       it(`reads ${name} as this version wrote it`, () => {
         const design = JSON.parse(readFileSync(join(__dirname, "__fixtures__/designs", `${name}.json`), "utf8"));
         expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      });
+    }
+
+    // Designs this version wrote, loaded into the real builder and saved by it (what it adds and rewrites as it
+    // does): each reads back as the template it was written from. Every tool is in one of them.
+    for (const [name, template] of [["every-tool", everyTool], ["sample", sample], ["invoice", invoice]] as const) {
+      it(`reads ${name} as the builder saved it`, () => {
+        const design = JSON.parse(readFileSync(join(__dirname, "__fixtures__/designs", `${name}.saved-in-builder.json`), "utf8"));
+        const back = fromDesign(design);
+        expect(back.report).toEqual([]);
+        expect(tree(back.element)).toEqual(tree(template));
       });
     }
 
