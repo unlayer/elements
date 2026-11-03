@@ -531,9 +531,11 @@ design holds no Elements data (decision 12).
   `_override.mobile`. A name the tool already uses for something else, or that today's writers read, is
   prefixed by the component whose value it is: a Button's `textAlign` (the builder's places the button)
   is `buttonTextAlign`, a Section's border on its rows `sectionBorder`, an Image's border `imageBorder`
-  (today's image writer takes a row's and an image's border as room lost). `builder/manifest.ts` lists every
-  key written, with the builder's own, and a test holds `toDesign()` to it. A value is written in one place
-  only: what's folded into a field the builder shows (a Section's space in its rows' padding, inherited text
+  (today's image writer takes a row's and an image's border as room lost). A root's `title` is the builder's
+  accessibility title (`accessibilityTitle`, which its export writes as the page's `<title>`); its `lang` is
+  hidden, as the builder's `language` holds a design's translations, not the language its text is in.
+  `builder/manifest.ts` lists every key written, with the builder's own, and a test holds `toDesign()` to
+  it. A value is written in one place only: what's folded into a field the builder shows (a Section's space in its rows' padding, inherited text
   styles in each block's own) isn't also hidden. The one exception is a Document's margin, whose sides
   differ: the builder has one margin (the widest, written), and the sides are hidden beside it; an edit to
   the builder's margin wins.

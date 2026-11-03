@@ -73,6 +73,8 @@ function rootOf(mode: DisplayMode, values: Values, say: (message: string) => voi
     if (width !== undefined && width < 200) say(`a content width of ${width}px is narrower than a root's least, 200px: left out`);
   }
   if (mode === "email" && typeof values.preheaderText === "string" && values.preheaderText.trim()) props.previewText = values.preheaderText;
+  // The builder's accessibility title, which its export writes as the page's <title>.
+  if (typeof values.accessibilityTitle === "string" && values.accessibilityTitle.trim()) props.title = values.accessibilityTitle;
   if (mode === "email" && typeof values.preheaderText === "string" && serviceTag(values.preheaderText)) say("its preview text has an email service's tag, which today's writers keep as written and Elements writes escaped: the service won't fill it in");
   if (["ltr", "rtl", "auto"].includes(values.textDirection)) props.dir = values.textDirection;
   if (mode === "document") {

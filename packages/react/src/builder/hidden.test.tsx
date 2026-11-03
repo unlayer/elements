@@ -115,7 +115,10 @@ describe("hidden properties", () => {
     expect(paragraph._override.mobile).toEqual({ maxWidth: "200px" });
     const button = written.find((item) => item.tool === "button")!.values;
     expect(button).toMatchObject({ buttonTextAlign: "left", textAlign: "left", title: "Go there", "aria-label": "Go to x", size: { autoWidth: false, width: "300px" } });
-    expect(written.find((item) => item.tool === "body")!.values).toMatchObject({ title: "Welcome", lang: "en", fonts: [{ family: "Inter", src: "https://fonts.test/inter.woff2", format: "woff2", weight: 400 }] });
+    // Its title is the builder's accessibility title, a field.
+    const body = written.find((item) => item.tool === "body")!.values;
+    expect(body).toMatchObject({ accessibilityTitle: "Welcome", lang: "en", fonts: [{ family: "Inter", src: "https://fonts.test/inter.woff2", format: "woff2", weight: 400 }] });
+    expect(body.title).toBeUndefined();
   });
 
   it("come back as the template's styles and props", () => {

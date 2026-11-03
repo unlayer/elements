@@ -18,7 +18,7 @@ const TEXT_PHONE = ["containerPadding", "fontSize", "lineHeight", "textAlign", "
 const READ: Record<string, { values: string[]; phone: string[] }> = {
   body: {
     // A popup's settings (its corners, its content's vertical alignment) draw nothing in an email, a page or a document.
-    values: ["textDirection", "contentWidth", "fontFamily", "fontWeight", "textColor", "backgroundColor", "preheaderText", "documentSize", "documentOrientation", "documentMargin", "contentVerticalAlign", "borderRadius"],
+    values: ["textDirection", "contentWidth", "fontFamily", "fontWeight", "textColor", "backgroundColor", "preheaderText", "accessibilityTitle", "documentSize", "documentOrientation", "documentMargin", "contentVerticalAlign", "borderRadius"],
     phone: [],
   },
   row: { values: ["columns", "cells", "backgroundColor", "columnsBackgroundColor", "padding", "noStackMobile", "alignItems"], phone: ["padding", "hideMobile", "noStackMobile"] },

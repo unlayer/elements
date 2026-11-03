@@ -250,7 +250,7 @@ export function raise(element: React.ReactElement): Raised {
   const style = resolvedRoot.style;
   const text = resolvedRoot.text;
   sayLeftOut("body", root, "root", [
-    "props.width", "props.previewText", "props.dir", "props.size", "props.orientation",
+    "props.width", "props.previewText", "props.dir", "props.title", "props.size", "props.orientation",
     "style.backgroundColor", "style.color", "style.fontFamily", "style.fontWeight", "style.gap", "style.alignItems", ...TEXT_FOLDED,
   ]);
   const common = {
@@ -260,10 +260,12 @@ export function raise(element: React.ReactElement): Raised {
     ...(text.fontWeight !== 400 ? { fontWeight: text.fontWeight } : {}),
     ...(root.props?.dir ? { textDirection: root.props.dir as never } : {}),
   };
+  // Its title, the builder's accessibility title (which its export writes as the page's <title>).
+  const title = typeof root.props?.title === "string" && root.props.title ? { accessibilityTitle: root.props.title } : {};
   // A Document's margin: the builder has one for every side (write.ts), the template's sides kept where they differ.
   const margin = root.type === "Document" ? { margin: cssSides((root.props?.margin as Sides | undefined) ?? { top: 48, right: 48, bottom: 48, left: 48 }) } : {};
   // No background is none (the builder's own default is a grey).
-  const bodyHidden = { ...hiddenOf("body", root, ["props.margin"]), ...margin, backgroundColor: (style.backgroundColor as string | undefined) ?? "" };
+  const bodyHidden = { ...hiddenOf("body", root, ["props.margin"]), ...margin, ...title, backgroundColor: (style.backgroundColor as string | undefined) ?? "" };
   const raised =
     root.type === "Document"
       ? put(

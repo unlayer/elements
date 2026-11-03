@@ -237,6 +237,8 @@ describe("an edit in the builder", () => {
     fontFamily: [{ label: "Georgia", value: "georgia,serif" }, own(body(undefined, { fontFamily: "georgia,serif" }), { fontFamily: "Arial, Helvetica, sans-serif" }), { label: "Arial", value: "arial,helvetica,sans-serif" }, own(body(undefined, { fontFamily: "arial,helvetica,sans-serif" }), { fontFamily: "Arial, Helvetica, sans-serif" }), own(body(undefined, { fontFamily: "arial,helvetica,sans-serif" }), { fontFamily: "Arial, Helvetica, sans-serif" })],
     fontWeight: [300, own(body(undefined, { fontWeight: 300 }), { fontWeight: 400 }), 400, body(), body()],
     preheaderText: ["Hi there", body({ previewText: "Hi there" }), "", body(), body()],
+    // The builder's accessibility title is the root's title.
+    accessibilityTitle: ["Welcome", body({ title: "Welcome" }), "", body(), body()],
     textDirection: ["rtl", body({ dir: "rtl" }), "ltr", body({ dir: "ltr" }), body()],
   });
   fields("document's body", <Document><Text>Hello</Text></Document>, "body", {

@@ -225,7 +225,7 @@ describe("malformed design JSON", () => {
     const design = toDesign(TEMPLATES.sample).design as any;
     const [, text] = design.body.rows[0].columns[0].contents;
     text.values.text = '"}; globalThis.ran = 1; {"<a href="javascript:alert(1)">x</a> {`${globalThis.ran = 2}`}';
-    design.body.values.title = '"/><script>globalThis.ran = 3</script>';
+    design.body.values.accessibilityTitle = '"/><script>globalThis.ran = 3</script>';
     design.body.rows[0].columns[0].contents[0].values._meta = { htmlID: 'a"} onload={() => (globalThis.ran = 4)} x={"' };
     const designs = [design, ...Object.values(TEMPLATES).map((template) => toDesign(template).design)];
     for (const each of designs) {

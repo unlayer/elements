@@ -23,7 +23,9 @@ const own = (...paths: string[]): Hidden[] => paths.map((path) => ({ path, key: 
 const TEXT_BOX = own("style.fontStyle", "style.textTransform", "style.textDecoration", "style.backgroundColor", "style.border", "style.borderRadius", "style.width", "style.maxWidth", "style.padding");
 
 export const HIDDEN: Readonly<Record<string, readonly Hidden[]>> = {
-  body: own("props.title", "props.lang", "props.fonts", "props.description", "props.margin"),
+  // The root's title is the builder's accessibility title (accessibilityTitle), a field; its `language` holds a design's
+  // translations, not the language its text is in, so a root's `lang` is hidden.
+  body: own("props.lang", "props.fonts", "props.description", "props.margin"),
   // A Section's border, the part of it around this row; the rest of a Row's box.
   row: [
     { path: "style.border", key: "sectionBorder", prefixed: "today's image writer takes a row's border as room its columns lose; a Section's is around its band" },
