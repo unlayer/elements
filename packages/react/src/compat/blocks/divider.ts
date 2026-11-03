@@ -1,10 +1,17 @@
-/** A divider: its line, length and padding (on phones too), placed by its alignment where it's shorter than its column. */
+/**
+ * A divider in an email: its line, length and padding (on phones too), placed by its alignment where it's shorter
+ * than its column. On a page or in a printed document it keeps legacy's HTML: there legacy's line is an inline block
+ * in a line of no height, aligned to the middle of its font's x-height, so the block is a fraction of a pixel taller
+ * than its line by the font's own metrics (0.64px in Georgia at 16px), which a 1px rule can't follow and which adds
+ * up down a page of dividers.
+ */
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { dividerLength } from "../quirks";
 import { px, sides, some } from "../values";
 
 export function divider({ values }: DesignBlock, place: Place): TreeNode | undefined {
+  if (place.mode !== "email") return undefined;
   // A block given a mode of its own is drawn in that output's markup, whatever its template's.
   if (values.mode !== undefined && values.mode !== place.mode) return undefined;
   if (Object.keys(values._override?.mobile ?? {}).some((key) => key !== "containerPadding" && key !== "hideMobile")) return undefined;

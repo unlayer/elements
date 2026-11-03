@@ -77,6 +77,11 @@ describe("a divider block", () => {
     expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />)).toEqual({ type: "Divider", style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
     expect(lowered(<Divider width="60%" textAlign="left" />)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
   });
+
+  it("keeps its legacy HTML on a page and in a printed document, whose line is as tall as its font makes it", () => {
+    expect(lowered(<Divider borderTopWidth="2px" />, Page)?.type).toBe("Raw");
+    expect(lowered(<Divider borderTopWidth="2px" />, Document)?.type).toBe("Raw");
+  });
 });
 
 describe("a menu block", () => {
