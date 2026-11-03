@@ -218,7 +218,8 @@ beforeAll(() => {
 afterAll(() => vi.restoreAllMocks());
 
 describe("generated templates", () => {
-  it(`show what the previous release showed, in ${SEEDS} templates`, () => {
+  // Each template renders three ways in two releases: well past the default 10s on CI's runners with coverage on.
+  it(`show what the previous release showed, in ${SEEDS} templates`, { timeout: 60_000 }, () => {
     const regressions: string[] = [];
     const both = { html: 0, text: 0, design: 0 };
     for (let seed = 1; seed <= SEEDS; seed++) {
