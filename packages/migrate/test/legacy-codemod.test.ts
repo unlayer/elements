@@ -6,6 +6,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 import { inlineHtml } from "../src/legacy/html";
 import { migrateElements } from "../src/legacy/codemod";
@@ -16,6 +17,9 @@ const migrate = (body: string, imports = "Email, Row, Column, ColumnLayouts, Hea
   migrateElements(`import { ${imports} } from "@unlayer/react-elements";\n${body}`);
 /** The code without its spacing, to look for a piece of it whatever the formatting. */
 const squash = (code: string) => code.replace(/\s+/g, "");
+/** What a module's syntax holds that its file can't (TypeScript in a .jsx file, for one). */
+const syntaxErrors = (code: string, fileName: string) =>
+  (ts.transpileModule(code, { fileName, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve, allowJs: true } }).diagnostics ?? []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 
 describe("migrateElements", () => {
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
@@ -112,6 +116,20 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref="https://example.com"style={{backgroundColor:"#000000"}}>Go</Button>');
     expect(flat).toContain('icons={[{name:"Facebook",href:"https://facebook.com/x"}]}size={24}');
     expect(flat).toContain('style={{color:"#123456",separatorColor:"#999999",fontSize:14}}');
+  });
+
+  it("writes JavaScript into a JavaScript module: an alignment read at run time has no TypeScript in it", async () => {
+    const source = `import { Email, Row, Column, Button, Social } from "@unlayer/react-elements";
+export default function Card({ align }) {
+  return <Email><Row><Column><Button href="#" textAlign={align}>Go</Button><Social icons={[]} align={align} /></Column></Row></Email>;
+}`;
+    const js = await migrateElements(source, { typescript: false });
+    expect(syntaxErrors(js.code, "Card.jsx")).toEqual([]);
+    expect(squash(js.code)).toContain('alignItems:{left:"start",center:"center",right:"end"}[align]??"start"');
+    expect(squash(js.code)).toContain('justifyContent:{left:"start",center:"center",right:"end"}[align]??"start"');
+    // TypeScript keeps the cast its types need.
+    const tsx = await migrateElements(source);
+    expect(squash(tsx.code)).toContain('alignItems:({left:"start",center:"center",right:"end"}asconst)[alignas"left"]??"start"');
   });
 
   it("carries phone settings over, today's containerPadding as the padding", async () => {
@@ -347,6 +365,14 @@ describe("unlayer-migrate --from elements", () => {
     expect(await main(["emails/welcome.tsx", "--from", "elements"], sink)).toBe(0);
     expect(sink.out).toContain('from "@unlayer/react-elements/primitives"');
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(TEMPLATE);
+  });
+
+  it("writes a .jsx template as JavaScript", async () => {
+    const dir = project({ "emails/Card.jsx": `import { Email, Row, Column, Button } from "@unlayer/react-elements";\nexport default function Card({ align }) { return <Email><Row><Column><Button textAlign={align}>Go</Button></Column></Row></Email>; }\n` });
+    const sink = io(dir);
+    expect(await main(["emails/Card.jsx", "--from", "elements"], sink)).toBe(0);
+    expect(sink.out).toContain('from "@unlayer/react-elements/primitives"');
+    expect(syntaxErrors(sink.out, "Card.jsx")).toEqual([]);
   });
 
   it("replaces templates with --write only where git can restore them", async () => {

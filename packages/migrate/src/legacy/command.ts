@@ -45,7 +45,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     // Only modules that import today's components (by their import, not a mention in a comment).
     if (!TODAY.test(source)) continue;
     try {
-      const { code, report } = await migrateElements(source);
+      const { code, report } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file) });
       if (code !== source) results.push({ file, code, report });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });

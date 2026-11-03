@@ -10,6 +10,7 @@
  * from the source (expressions) are kept as they are, and what that may change is reported, as is anything with no
  * new component yet (Html, Table, custom tools): the migration never drops anything quietly.
  */
+import * as prettier from "prettier";
 import ts from "typescript";
 import { formatTsx } from "@unlayer/convert-core";
 import { hole, inlineHtml } from "./html";
@@ -19,6 +20,11 @@ export interface MigrateElementsOptions {
   from?: string[];
   /** Where the new components are imported from (default "@unlayer/react-elements/primitives"). */
   to?: string;
+  /**
+   * Whether the module is TypeScript (default true). A JavaScript one (a .js, .jsx, .mjs or .cjs file) is written with
+   * no TypeScript in it.
+   */
+  typescript?: boolean;
 }
 
 export interface MigrateElementsResult {
@@ -110,6 +116,7 @@ interface Place {
 
 export async function migrateElements(source: string, options: MigrateElementsOptions = {}): Promise<MigrateElementsResult> {
   const from = new Set(options.from ?? DEFAULT_FROM);
+  const typescript = options.typescript ?? true;
   const file = ts.createSourceFile("template.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const report: string[] = [];
   const used = new Set<string>();
@@ -425,9 +432,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** A block's padding (today's containerPadding, 10px by default): the block's own, or a Column around it. */
   const padding = (props: Props) => given(props, "containerPadding", "10px")!;
   const ALIGN: Record<string, string> = { left: "start", center: "center", right: "end" };
-  /** Today's alignment (left, center, right) as the new one's (start, center, end). */
+  /** Today's alignment (left, center, right) as the new one's (start, center, end): one read at run time is looked up there (with a cast in TypeScript). */
   const alignOf = (value: Value | undefined): Value | undefined =>
-    value && (isLiteral(value) ? lit(ALIGN[String(value.literal)] ?? "start") : { code: `({ left: "start", center: "center", right: "end" } as const)[${value.code} as "left"]` });
+    value &&
+    (isLiteral(value)
+      ? lit(ALIGN[String(value.literal)] ?? "start")
+      : { code: typescript ? `({ left: "start", center: "center", right: "end" } as const)[(${value.code}) as "left"] ?? "start"` : `({ left: "start", center: "center", right: "end" })[${value.code}] ?? "start"` });
   const align = (props: Props, name: string, fallback: string): Value => alignOf(props.get(name) ?? lit(fallback))!;
   /** A border's shorthand ("1px solid #BBBBBB") from today's width, style and color. */
   const line = (width: Value, style: Value | undefined, color: Value): Value =>
@@ -1003,5 +1013,6 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   if (!imports.length && added && first) edits.push({ start: first.getStart(), end: first.getStart(), text: `${added}\n` });
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
-  return { code: await formatTsx(out), report };
+  // JavaScript is formatted as JavaScript: TypeScript written into it would be an error here, not in the project.
+  return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report };
 }
