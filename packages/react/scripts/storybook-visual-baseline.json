@@ -7219,6 +7219,70 @@
    1532,
    1470
   ],
+  "primitives-builder--airbnb-confirmation@desktop": [
+   1533,
+   1534,
+   1535,
+   1536,
+   1537
+  ],
+  "primitives-builder--luma-event-invite@desktop": [
+   1533,
+   1538,
+   1535,
+   1536,
+   1539
+  ],
+  "primitives-builder--mercury-receipt@desktop": [
+   1533,
+   1540,
+   1535,
+   1536,
+   1541
+  ],
+  "primitives-builder--morning-brew-digest@desktop": [
+   1535,
+   1536
+  ],
+  "primitives-builder--nike-drop@desktop": [
+   1533,
+   1534,
+   1535,
+   1536,
+   1537
+  ],
+  "primitives-builder--notion-welcome@desktop": [
+   1533,
+   1542,
+   1535,
+   1536,
+   1543
+  ],
+  "primitives-builder--product-digest@desktop": [
+   1535,
+   1536
+  ],
+  "primitives-builder--spotify-welcome@desktop": [
+   1533,
+   1544,
+   1535,
+   1536,
+   1545
+  ],
+  "primitives-builder--stripe-receipt@desktop": [
+   1533,
+   1540,
+   1535,
+   1536,
+   1541
+  ],
+  "primitives-builder--warby-order-shipped@desktop": [
+   1533,
+   1538,
+   1535,
+   1536,
+   1539
+  ],
   "primitives-canvas--social-card@desktop": [],
   "primitives-codemod-of-main--airbnb-confirmation@desktop": [
    1533,
@@ -13851,6 +13915,70 @@
    1485,
    1532,
    1470
+  ],
+  "primitives-builder--airbnb-confirmation@mobile": [
+   1533,
+   1534,
+   1535,
+   1536,
+   1537
+  ],
+  "primitives-builder--luma-event-invite@mobile": [
+   1533,
+   1538,
+   1535,
+   1536,
+   1539
+  ],
+  "primitives-builder--mercury-receipt@mobile": [
+   1533,
+   1540,
+   1535,
+   1536,
+   1541
+  ],
+  "primitives-builder--morning-brew-digest@mobile": [
+   1535,
+   1536
+  ],
+  "primitives-builder--nike-drop@mobile": [
+   1533,
+   1534,
+   1535,
+   1536,
+   1537
+  ],
+  "primitives-builder--notion-welcome@mobile": [
+   1533,
+   1542,
+   1535,
+   1536,
+   1543
+  ],
+  "primitives-builder--product-digest@mobile": [
+   1535,
+   1536
+  ],
+  "primitives-builder--spotify-welcome@mobile": [
+   1533,
+   1544,
+   1535,
+   1536,
+   1545
+  ],
+  "primitives-builder--stripe-receipt@mobile": [
+   1533,
+   1540,
+   1535,
+   1536,
+   1541
+  ],
+  "primitives-builder--warby-order-shipped@mobile": [
+   1533,
+   1538,
+   1535,
+   1536,
+   1539
   ],
   "primitives-canvas--social-card@mobile": [],
   "primitives-codemod-of-main--airbnb-confirmation@mobile": [
