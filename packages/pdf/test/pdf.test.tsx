@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { COMPONENTS } from "@unlayer-internal/elements-core";
+import { COMPONENTS, LAYOUT_VERSION } from "@unlayer-internal/elements-core";
 import {
   Button,
   Circle,
@@ -47,6 +47,20 @@ import {
 import { renderPdf } from "../src";
 import { writeDocument } from "../src/write";
 import { toWoff, toWoff2 } from "./woff";
+
+/** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
+const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
+vi.mock("@unlayer/react-elements/primitives", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@unlayer/react-elements/primitives")>();
+  return {
+    ...actual,
+    prepare: (element: ReactElement) => {
+      if (!other.prepared) return actual.prepare(element);
+      const { layout: _, ...prepared } = actual.prepare(element);
+      return { ...prepared, ...other.prepared };
+    },
+  };
+});
 
 /** Liberation Sans (SIL OFL), as pdf.js ships it. */
 const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
@@ -518,6 +532,28 @@ describe("renderPdf", () => {
     );
     expect(tinted).toMatch(/fef3c7|254,243,199/i);
     expect(tinted).not.toMatch(/#ffffff|255,255,255/i);
+  });
+
+  it("reads the tree prepare() lays out at the layout version it's built for, and refuses another (Elements newer or older)", async () => {
+    const template = (
+      <Document>
+        <Text>Hi</Text>
+      </Document>
+    );
+    expect(prepare(template).layout).toBe(LAYOUT_VERSION);
+    await expect(renderPdf(template)).resolves.toMatchObject({ diagnostics: [] });
+    const refused = async (prepared: { layout?: number }, message: string) => {
+      other.prepared = prepared;
+      try {
+        await expect(renderPdf(template)).rejects.toMatchObject({ diagnostics: [{ code: "pdf/version", severity: "error", path: "root", message }] });
+      } finally {
+        other.prepared = undefined;
+      }
+    };
+    const reads = `@unlayer/elements-pdf reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes`;
+    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/elements-pdf`);
+    await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @unlayer/react-elements`);
+    await refused({}, `${reads} none: update @unlayer/react-elements`);
   });
 
   it("depends on its engine in one file: the writer builds pages as plain data, which react-pdf's adapter draws", () => {

@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { COMPONENTS } from "@unlayer-internal/elements-core";
+import { COMPONENTS, LAYOUT_VERSION } from "@unlayer-internal/elements-core";
 import {
   Button,
   Canvas,
@@ -39,6 +39,20 @@ import {
 import type { ReactElement, ReactNode } from "react";
 import { renderImage } from "../src";
 import { writeCanvas } from "../src/write";
+
+/** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
+const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
+vi.mock("@unlayer/react-elements/primitives", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@unlayer/react-elements/primitives")>();
+  return {
+    ...actual,
+    prepare: (element: ReactElement) => {
+      if (!other.prepared) return actual.prepare(element);
+      const { layout: _, ...prepared } = actual.prepare(element);
+      return { ...prepared, ...other.prepared };
+    },
+  };
+});
 
 /** Liberation Sans (Arial's metrics, SIL OFL), as pdf.js ships it. */
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
@@ -143,6 +157,28 @@ describe("renderImage", () => {
     );
     await expect(renderImage(photo, { fonts })).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "image/image", path: "root.children[0].props.src" })] });
     expect(size((await renderImage(photo, { fonts, images: { "https://cdn.acme.test/photo.png": PNG } })).image)).toEqual([200, 100]);
+  });
+
+  it("reads the tree prepare() lays out at the layout version it's built for, and refuses another (Elements newer or older)", async () => {
+    const template = (
+      <Canvas width={200} height={100} style={{ fontFamily: "Liberation Sans" }}>
+        <Text>Hi</Text>
+      </Canvas>
+    );
+    expect(prepare(template).layout).toBe(LAYOUT_VERSION);
+    await expect(renderImage(template, { fonts })).resolves.toMatchObject({ diagnostics: [] });
+    const refused = async (prepared: { layout?: number }, message: string) => {
+      other.prepared = prepared;
+      try {
+        await expect(renderImage(template, { fonts })).rejects.toMatchObject({ diagnostics: [{ code: "image/version", severity: "error", path: "root", message }] });
+      } finally {
+        other.prepared = undefined;
+      }
+    };
+    const reads = `@unlayer/elements-image reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes`;
+    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/elements-image`);
+    await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @unlayer/react-elements`);
+    await refused({}, `${reads} none: update @unlayer/react-elements`);
   });
 
   it("depends on its engine in one file: the writer builds a canvas as plain data, which Satori's and resvg's adapter draws", () => {

@@ -63,6 +63,13 @@ export interface ResolvedDocument {
   diagnostics: Diagnostic[];
 }
 
+/**
+ * The laid-out tree's format (ResolvedNode), as prepare() gives it to the packages that write a PDF or an image: each
+ * reads the version it's built with and refuses another. Raise it only where a reader of the tree would break (a
+ * field renamed, removed or meaning something else), not for one added.
+ */
+export const LAYOUT_VERSION = 1;
+
 /** What a root's text styles start from, under its own defaults. */
 const INITIAL_TEXT: Omit<ResolvedText, "lineHeightPx"> = {
   color: "#000000",

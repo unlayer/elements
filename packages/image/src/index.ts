@@ -8,7 +8,7 @@
  * Nothing is fetched: fonts are given (`fonts`, or the Canvas's `fonts` as data: URIs), and so are images (`images`
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  */
-import { assetParts, fontStack, type Asset, type FontFace } from "@unlayer-internal/elements-core";
+import { assetParts, fontStack, LAYOUT_VERSION, type Asset, type FontFace } from "@unlayer-internal/elements-core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
 import type { ReactElement } from "react";
 import type { Font } from "./model";
@@ -47,7 +47,8 @@ export interface ImageResult {
 
 /** A Canvas written as an image. Rejects with an `ElementsError` listing the problems if it has errors. */
 export async function renderImage(element: ReactElement, options: ImageOptions = {}): Promise<ImageResult> {
-  const { root, diagnostics } = prepare(element);
+  const { root, diagnostics, layout } = prepare(element);
+  readable(layout, "image");
   if (!root) throw new ElementsError(diagnostics);
   if (root.type !== "Canvas") {
     throw new ElementsError([...diagnostics, { code: "image/root", severity: "error", message: `Image output is a Canvas's: this template is a ${root.type}`, path: "root" }]);
@@ -66,6 +67,23 @@ export async function renderImage(element: ReactElement, options: ImageOptions =
   if (options.format === "svg") return { image: await satoriResvg(canvas, { format: "svg", scale }), width, height, diagnostics: [...diagnostics, ...found] };
   const image = await satoriResvg(canvas, { format: "png", scale });
   return { image, width: Math.round(width * scale), height: Math.round(height * scale), diagnostics: [...diagnostics, ...found] };
+}
+
+/**
+ * The tree prepare() gives, read as this package's copy of the core lays it out: from an Elements that writes another
+ * layout version (newer or older), it's refused rather than drawn wrong.
+ */
+function readable(layout: unknown, output: "pdf" | "image"): void {
+  if (layout === LAYOUT_VERSION) return;
+  const update = typeof layout === "number" && layout > LAYOUT_VERSION ? `@unlayer/elements-${output}` : "@unlayer/react-elements";
+  throw new ElementsError([
+    {
+      code: `${output}/version`,
+      severity: "error",
+      message: `@unlayer/elements-${output} reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes ${typeof layout === "number" ? layout : "none"}: update ${update}`,
+      path: "root",
+    },
+  ]);
 }
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────

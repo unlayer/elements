@@ -1,5 +1,5 @@
 import React from "react";
-import { ElementsError, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { ElementsError, LAYOUT_VERSION, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { pagedSupport, prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { collectTemplate } from "./collect";
 import { outlineOf } from "./outline";
@@ -65,16 +65,17 @@ export function outline(element: React.ReactElement): string {
 /**
  * A template laid out, for a package that writes another output (`@unlayer/elements-pdf`): its tree, every block's
  * width worked out, and what was found. What render() does before it writes HTML; `root` is null where there are
- * errors. The tree is the writers' input, not a format to store: it changes with Elements.
+ * errors. The tree is the writers' input, not a format to store: it changes with Elements, and `layout` says which
+ * format it's in (a writer refuses one it doesn't read).
  */
-export function prepare(element: React.ReactElement): { root: ResolvedNode | null; diagnostics: Diagnostic[] } {
+export function prepare(element: React.ReactElement): { root: ResolvedNode | null; diagnostics: Diagnostic[]; layout: number } {
   const { document, diagnostics, components } = template(element, "prepare");
-  if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics };
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics, layout: LAYOUT_VERSION };
   const prepared = prepareTemplate(document, { components });
   const root = prepared.resolved?.root ?? null;
   // A Document is prepared for its PDF and a Canvas for its image: what they can't show that the HTML can.
   const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
-  return { root, diagnostics: [...diagnostics, ...prepared.diagnostics, ...paged] };
+  return { root, diagnostics: [...diagnostics, ...prepared.diagnostics, ...paged], layout: LAYOUT_VERSION };
 }
 
 export type { RenderOptions, RenderResult, ResolvedNode };

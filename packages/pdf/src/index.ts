@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so.
  */
-import { assetParts, type Asset, type FontFace } from "@unlayer-internal/elements-core";
+import { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "@unlayer-internal/elements-core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
 import type { ReactElement } from "react";
 import type { Font } from "./model";
@@ -48,7 +48,8 @@ const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
 
 /** A Document written as a PDF. Rejects with an `ElementsError` listing the problems if it has errors. */
 export async function renderPdf(element: ReactElement, options: PdfOptions = {}): Promise<PdfResult> {
-  const { root, diagnostics } = prepare(element);
+  const { root, diagnostics, layout } = prepare(element);
+  readable(layout, "pdf");
   if (!root) throw new ElementsError(diagnostics);
   if (root.type !== "Document") {
     throw new ElementsError([...diagnostics, { code: "pdf/root", severity: "error", message: `PDF output is a Document's: this template is a ${root.type}`, path: "root" }]);
@@ -60,6 +61,23 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
   found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
   const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
   return { pdf: await reactPdf(pages), diagnostics: [...diagnostics, ...found] };
+}
+
+/**
+ * The tree prepare() gives, read as this package's copy of the core lays it out: from an Elements that writes another
+ * layout version (newer or older), it's refused rather than drawn wrong.
+ */
+function readable(layout: unknown, output: "pdf" | "image"): void {
+  if (layout === LAYOUT_VERSION) return;
+  const update = typeof layout === "number" && layout > LAYOUT_VERSION ? `@unlayer/elements-${output}` : "@unlayer/react-elements";
+  throw new ElementsError([
+    {
+      code: `${output}/version`,
+      severity: "error",
+      message: `@unlayer/elements-${output} reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes ${typeof layout === "number" ? layout : "none"}: update ${update}`,
+      path: "root",
+    },
+  ]);
 }
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
