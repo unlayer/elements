@@ -19,6 +19,9 @@
  */
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 
+/** What isn't Lexical's JSON or an HTML passthrough, as `unread` says it. */
+const NOT_RICH_TEXT = "rich text that isn't the editor's";
+
 type Item = Record<string, unknown>;
 
 /** The nodes the generator writes. */
@@ -29,6 +32,11 @@ const TAGS = new Set(["span", "p", "a", "strong", "b", "em", "i", "u", "s", "mar
 /** Where a custom node's markup goes in the generator's HTML (characters no text holds: Unicode's private use). */
 const MARK = (i: number) => `${i}`;
 
+/** The generator's HTML: a passthrough of something other than a string (`{"__html": 42}`) is none. */
+const generated = (json: string): TextJsonHtml => {
+  const html: unknown = generateHtmlFromTextJson(json);
+  return typeof html === "string" ? { html, unread: [] } : { html: "", unread: [NOT_RICH_TEXT] };
+};
 const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const attribute = (name: string, value: unknown) => (text(value) && /^[A-Za-z_:][\w:.-]*$/.test(name) ? ` ${name}="${escape(text(value)!)}"` : "");
@@ -46,7 +54,7 @@ export function textJsonHtml(textJson: string): TextJsonHtml {
   const unread = new Set<string>();
   try {
     const parsed = JSON.parse(textJson) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || "__html" in parsed || textJson.includes("")) return { html: generateHtmlFromTextJson(textJson), unread: [] };
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || "__html" in parsed || textJson.includes("")) return generated(textJson);
     // What the generator won't write, by the tag it writes (in the order those tags come: a tag holding another
     // comes first, and links don't nest), and each custom node's markup.
     const added: Record<"a" | "list" | "li" | "h", string[]> = { a: [], list: [], li: [], h: [] };
@@ -101,6 +109,6 @@ export function textJsonHtml(textJson: string): TextJsonHtml {
     return { html, unread: [...unread] };
   } catch {
     // JSON that isn't, or nested too deep to walk: as the generator reads it.
-    return { html: generateHtmlFromTextJson(textJson), unread: [] };
+    return generated(textJson);
   }
 }

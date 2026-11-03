@@ -306,6 +306,19 @@ describe("malformed design JSON", () => {
     );
   });
 
+  it("reads rich text whose passthrough isn't HTML (`{\"__html\": 42}`) as the block's text, or as nothing, and says so: the rest of the design is read", () => {
+    const design = (values: Record<string, unknown>) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "text", values: { text: "Kept block" } }, { type: "paragraph", values }] }] }] } });
+    const withText = fromDesign(design({ text: "Its own words", textJson: '{"__html":42}' }));
+    expect(validate(withText.element).valid).toBe(true);
+    expect(withText.code).toContain("Kept block");
+    expect(withText.code).toContain("Its own words");
+    expect(withText.report.join("\n")).toContain("rich text that isn't the editor's");
+    const without = fromDesign(design({ textJson: '{"__html":42}' }));
+    expect(validate(without.element).valid).toBe(true);
+    expect(without.code).toContain("Kept block");
+    expect(without.report.join("\n")).toContain("rich text that isn't the editor's");
+  });
+
   it("reads markup nested deeper than any text's as an Html block, and says so, rather than running out of stack", async () => {
     const nested = (open: string, close: string, n: number) => open.repeat(n) + "x" + close.repeat(n);
     for (const [type, key, text] of [["text", "text", nested("<ul><li>a", "</li></ul>", 1000)], ["text", "text", nested("<b>", "</b>", 3000)], ["button", "text", nested("<b>", "</b>", 3000)]]) {
