@@ -544,7 +544,10 @@ design holds no Elements data (decision 12).
   Row's); a one-column row its blocks, the row's and column's space folded into them, or a `Column` where
   the column has a box; a block with spacing or alignment of its own a `Column` around it with that padding
   and `alignItems`, as the codemod does for today's components. A value equal to what the node would take
-  anyway (its defaults, the body's text) is left out. Values are read as compat reads today's designs (what
+  anyway (its defaults, the body's text) is left out. A value the reader doesn't read that draws something
+  (a row's background image, an anchor, a display condition, the body's own link style, a phone value
+  Elements has no place for) is said, as compat fails closed on one; the editor's own flags and a popup's
+  settings draw nothing. Values are read as compat reads today's designs (what
   legacy, and so the builder, draws), sharing its value parsers and its run parser (which, read for the
   builder, also takes what `toDesign()` writes in text); a tool's text is its rich text (`textJson`, what
   the builder's editor saves) where it has one, as today's exporters write it, else its `text`; each `<p>`

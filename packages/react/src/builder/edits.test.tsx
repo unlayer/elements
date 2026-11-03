@@ -509,6 +509,33 @@ describe("an edit this adapter's review found lost", () => {
     expect(fromDesign(design, { displayMode: "web" }).report).toEqual([expect.stringContaining("its links' hover style, which a page draws, has no place")]);
   });
 
+  it("says each value the builder draws that the template doesn't hold, and nothing for one that draws nothing", () => {
+    const said = (edit: (design: any) => void, displayMode?: DisplayMode) => {
+      const design = designOf(
+        <Email>
+          <Social icons={[{ name: "Facebook", href: "https://facebook.com/x" }]} />
+        </Email>
+      );
+      edit(design);
+      return fromDesign(design, { displayMode }).report;
+    };
+    const row = (design: any) => design.body.rows[0].values;
+    const block = (design: any) => design.body.rows[0].columns[0].contents[0].values;
+    expect(said((d) => (row(d).backgroundImage = { url: "https://x.test/bg.png", fullWidth: true, repeat: "no-repeat", size: "cover", position: "center" }))).toEqual(["rows[0]: its background image isn't one Elements draws: left out"]);
+    expect(said((d) => (row(d).anchor = "section-1"))).toEqual(["rows[0]: its anchor isn't read: links to it go nowhere"]);
+    expect(said((d) => (row(d).displayCondition = { type: "segment", label: "VIP", before: "{% if vip %}", after: "{% endif %}" }))).toEqual([expect.stringMatching(/^rows\[0\]: its display condition.*shown to everyone$/)]);
+    expect(said((d) => (block(d).displayCondition = { type: "segment", label: "VIP", before: "{% if vip %}", after: "{% endif %}" }))).toEqual([expect.stringMatching(/^rows\[0\]\.columns\[0\]\.contents\[0\]: its display condition/)]);
+    expect(said((d) => (d.body.values.contentAlign = "left"))).toEqual(["body: its content alignment isn't one Elements' root takes: its content is centered"]);
+    expect(said((d) => (d.body.values.backgroundImage = { url: "https://x.test/bg.png" }), "web")).toEqual(["body: its background image isn't one Elements draws: left out"]);
+    expect(said((d) => (d.body.values.linkStyle = { body: true, linkColor: "#ff0000", linkHoverColor: "#ff0000", linkUnderline: false, linkHoverUnderline: false }))).toEqual(["body: its link style, the body's own, isn't one Elements draws for every link: left out"]);
+    expect(said((d) => (block(d).icons.iconType = "circle-black"))).toEqual(['rows[0].columns[0].contents[0]: its icon set "circle-black" isn\'t one a Social has: its circle icons']);
+    expect(said((d) => (block(d)._override = { tablet: { iconSize: 20 } }))).toEqual(["rows[0].columns[0].contents[0]: its settings for tablets aren't read: left out"]);
+    expect(said((d) => (block(d)._override = { mobile: { iconSize: 20 } }))).toEqual(['rows[0].columns[0].contents[0]: its iconSize on phones 20 isn\'t read: left out']);
+    // The editor's own flags, a popup's settings, and values the builder fills in draw nothing.
+    expect(said((d) => Object.assign(block(d), { selectable: false, locked: true, anchor: "", displayCondition: null, _styleGuide: null }))).toEqual([]);
+    expect(said((d) => Object.assign(d.body.values, { popupWidth: "400px", contentAlign: "center", language: {}, backgroundImage: { url: "", size: "custom" } }))).toEqual([]);
+  });
+
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
     const { design, values } = one(
       <Email>

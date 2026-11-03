@@ -15,6 +15,7 @@ import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
 import { mergeTags, richText } from "./text";
 import { textTool } from "./text-tool";
+import { sayUnread } from "./unread";
 import { readBorder } from "./values";
 
 export type { Context, Slot };
@@ -179,6 +180,7 @@ function social(values: Values, context: Context): Node[] {
     return [];
   }
   const iconType = obj(values.icons).iconType;
+  if (iconType !== undefined && iconType !== "circle" && iconType !== "rounded" && iconType !== "squared") context.say(`its icon set ${JSON.stringify(iconType)} isn't one a Social has: its circle icons`);
   const props = defined({ icons: icons.map((icon) => ({ name: String(icon.name), href: String(icon.url) })) as Json, iconType: iconType === "rounded" || iconType === "squared" ? iconType : undefined, size: unless(px(values.iconSize), 32), ...hidden.props });
   const style = defined({ gap: unless(px(values.spacing), defaults.gap), justifyContent: unless(alignOf(values.align ?? "center"), defaults.justifyContent), ...hidden.style });
   const node = make("Social", { id: givenId(values), props, style, mobile: hidden.mobile });
@@ -240,5 +242,6 @@ export function readBlock(type: unknown, values: Values, context: Context, slot?
     context.say(`a ${typeof type === "string" ? type : "block"} of the builder's has no component in Elements: left out`);
     return [];
   }
+  sayUnread(type as string, values, DEFAULTS.get(type as string), context.say);
   return read({ ...DEFAULTS.get(type as string), ...values }, context, slot);
 }

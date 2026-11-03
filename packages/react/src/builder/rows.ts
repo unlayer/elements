@@ -11,6 +11,7 @@ import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, px, sides, some, type Sides, type Values } from "../compat/values";
 import { readBlock, type Context, type Slot } from "./blocks";
 import { readHidden } from "./hide";
+import { sayUnread } from "./unread";
 import { readBorder } from "./values";
 
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -130,6 +131,8 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
     say("a row with no columns: left out");
     return [];
   }
+  sayUnread("row", obj(row.values), undefined, say);
+  arr(row.columns).forEach((column, c) => sayUnread("column", obj(obj(column).values), undefined, at.context(`${where}.columns[${c}]`).say));
   const rowHidden = readHidden("row", "Row", values, say);
   const { border: sectionBorder, ...rowOwn } = rowHidden.style;
   const alignItems = typeof values.alignItems === "string" && Object.hasOwn(ALIGN_ITEMS, values.alignItems) ? ALIGN_ITEMS[values.alignItems] : undefined;

@@ -9,6 +9,7 @@ import { color, fontWeight, font, px, serviceTag, type Sides, type Values } from
 import type { Context } from "./blocks";
 import { readHidden } from "./hide";
 import { readRow } from "./rows";
+import { sayUnread } from "./unread";
 
 export type DisplayMode = "email" | "web" | "document";
 
@@ -35,6 +36,7 @@ export function readDesign(design: unknown, displayMode: DisplayMode | undefined
   const breaks = rows.some((row) => arr(obj(row).columns).some((column) => arr(obj(column).contents).some((content) => obj(content).type === "page_break")));
   const mode: DisplayMode = displayMode && Object.hasOwn(ROOTS, displayMode) ? displayMode : headers.length || footers.length || breaks ? "document" : "email";
   const root = rootOf(mode, values, (message) => report.push(`body: ${message}`));
+  sayUnread("body", obj(body.values), undefined, (message) => report.push(`body: ${message}`));
   const context = (where: string): Context => ({
     inherited: { color: (root.style?.color as string | undefined) ?? "#000000", fontFamily: (root.style?.fontFamily as string | undefined) ?? "Arial, Helvetica, sans-serif", fontWeight: (root.style?.fontWeight as number | undefined) ?? 400 },
     mode,
