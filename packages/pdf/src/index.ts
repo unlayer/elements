@@ -30,7 +30,7 @@ export interface PdfFont {
 export interface PdfOptions {
   /** Font files, by the family the template names: PDF output loads none itself. */
   fonts?: PdfFont[];
-  /** Image files (PNG, JPEG, SVG), by the URL the template gives: PDF output loads none itself. */
+  /** Image files (PNG or JPEG; an SVG's alt text is shown instead), by the URL the template gives: PDF output loads none itself. */
   images?: Record<string, Uint8Array | ArrayBuffer>;
   /** When the PDF says it was made (a fixed date by default, so a template makes the same file every time). */
   date?: Date;
@@ -162,7 +162,7 @@ function beyondStandard(root: ResolvedNode, families: ReadonlySet<string>): Diag
 
 // ─── Images ────────────────────────────────────────────────────────────────
 
-/** What an image file is, from its first bytes: a format a PDF draws, or undefined. */
+/** What an image file is, from its first bytes: PNG, JPEG or SVG, or undefined. */
 function mime(bytes: Uint8Array): string | undefined {
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
@@ -171,35 +171,50 @@ function mime(bytes: Uint8Array): string | undefined {
   return undefined;
 }
 
-const DRAWN = /^data:image\/(png|jpeg|jpg|svg\+xml)[;,]/;
+/** What react-pdf's Image draws: PNG and JPEG (an SVG, it leaves out without an error). */
+const DRAWN = /^data:image\/(png|jpeg|jpg)[;,]/;
+const SVG = /^data:image\/svg\+xml[;,]/;
 
-/** Each image's source as the pages hold it, without the network: a data URI; an image without one, an error. */
+/**
+ * Each image's source as the pages hold it, without the network: a data URI. An image without one is an error; an
+ * SVG, which a PDF can't draw, a warning (its alt text is shown in its box).
+ */
 function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | ArrayBuffer>, found: Diagnostic[]): Map<string, string> {
   const out = new Map<string, string>();
+  const bytes = (src: string) => (given[src] instanceof ArrayBuffer ? new Uint8Array(given[src] as ArrayBuffer) : (given[src] as Uint8Array | undefined));
+  /** The image's data URI, "svg" for an SVG, or undefined where there's none. */
   const resolve = (src: string): string | undefined => {
     if (out.has(src)) return out.get(src);
-    let source: string | undefined;
-    if (DRAWN.test(src)) source = src;
+    if (DRAWN.test(src)) out.set(src, src);
+    else if (SVG.test(src)) return "svg";
     else if (given[src]) {
-      const bytes = given[src] instanceof ArrayBuffer ? new Uint8Array(given[src] as ArrayBuffer) : (given[src] as Uint8Array);
-      const type = mime(bytes);
-      if (type) source = `data:${type};base64,${base64(bytes)}`;
+      const type = mime(bytes(src)!);
+      if (type === "image/svg+xml") return "svg";
+      if (type) out.set(src, `data:${type};base64,${base64(bytes(src)!)}`);
     }
-    if (source) out.set(src, source);
-    return source;
+    return out.get(src);
   };
   const visit = (node: ResolvedNode) => {
     if (node.hidden?.desktop) return;
-    if (node.type === "Image" && !resolve(assetParts(node.props.src as Asset).src)) {
-      found.push({
-        code: "pdf/image",
-        severity: "error",
-        message: given[assetParts(node.props.src as Asset).src]
-          ? "This image's file isn't a PNG, JPEG or SVG, the formats a PDF draws"
-          : "PDF output loads no images: give this one's file in renderPdf's images option (by its URL), or its src as a data: URI",
-        path: `${node.path}.props.src`,
-        ...(node.id ? { nodeId: node.id } : {}),
-      });
+    if (node.type === "Image") {
+      const { src } = assetParts(node.props.src as Asset);
+      const source = resolve(src);
+      const where = { path: `${node.path}.props.src`, ...(node.id ? { nodeId: node.id } : {}) };
+      if (source === "svg") {
+        found.push({
+          code: "pdf/image",
+          severity: "warning",
+          message: "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Its alt text is shown in its box meanwhile",
+          ...where,
+        });
+      } else if (!source) {
+        found.push({
+          code: "pdf/image",
+          severity: "error",
+          message: given[src] ? "This image's file isn't a PNG or JPEG, the formats a PDF draws" : "PDF output loads no images: give this one's file in renderPdf's images option (by its URL), or its src as a data: URI",
+          ...where,
+        });
+      }
     }
     if (node.type === "Video" && node.props.thumbnail) resolve(assetParts(node.props.thumbnail as Asset).src);
     for (const child of node.children) if (typeof child !== "string") visit(child);

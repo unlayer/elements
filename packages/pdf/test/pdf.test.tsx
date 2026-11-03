@@ -175,8 +175,33 @@ describe("renderPdf", () => {
     const { pdf } = await renderPdf(template, { images: { "https://cdn.acme.test/logo.png": PNG } });
     expect((await read(pdf)).pages).toHaveLength(1);
     await expect(renderPdf(template, { images: { "https://cdn.acme.test/logo.png": new TextEncoder().encode("GIF89a") } })).rejects.toMatchObject({
-      diagnostics: [expect.objectContaining({ code: "pdf/image", message: "This image's file isn't a PNG, JPEG or SVG, the formats a PDF draws" })],
+      diagnostics: [expect.objectContaining({ code: "pdf/image", message: "This image's file isn't a PNG or JPEG, the formats a PDF draws" })],
     });
+  });
+
+  it("says an SVG image isn't drawn (react-pdf draws PNG and JPEG), and shows its alt text in its box", async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#ff0000"/></svg>';
+    const template = (
+      <Document>
+        <Image src={{ src: "https://cdn.acme.test/logo.svg", width: 80, height: 40 }} alt="Acme logo" />
+        <Image src={{ src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, width: 40, height: 40 }} alt="" />
+        <Text>Below</Text>
+      </Document>
+    );
+    const { pdf, diagnostics } = await renderPdf(template, { images: { "https://cdn.acme.test/logo.svg": new TextEncoder().encode(svg) } });
+    const message = "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Its alt text is shown in its box meanwhile";
+    expect(diagnostics.map((d) => [d.code, d.severity, d.path, d.message])).toEqual([
+      ["pdf/image", "warning", "root.children[0].props.src", message],
+      ["pdf/image", "warning", "root.children[1].props.src", message],
+    ]);
+    expect((await read(pdf)).pages[0].words).toBe("Acme logo Below");
+    // Each in a box of the image's size (40px tall: 30 points), so what's around it is where it was.
+    const { root } = prepare(template);
+    const { content } = writeDocument(root!, { families: new Set(), fonts: [], image: () => undefined, date: new Date(0) }).pages[0];
+    expect(content.slice(0, 2).map((block) => [block.kind, "style" in block ? [block.style.width, block.style.height] : []])).toEqual([
+      ["box", [60, 30]],
+      ["box", [30, 30]],
+    ]);
   });
 
   it("notes a web font it isn't given, and draws its text in a standard PDF font", async () => {

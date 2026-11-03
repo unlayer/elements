@@ -136,8 +136,11 @@ class Writer {
             return String(child.props.total ? this.page.total : this.page.number);
           case "Link":
             return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: runStyle(child, this.context.families), runs: this.runs(child) };
-          case "Image":
-            return this.image(child, {});
+          case "Image": {
+            // In a line, an image the PDF can't draw is its alt text.
+            const image = this.image(child, {});
+            return image.kind === "image" ? image : String(child.props.alt ?? "");
+          }
           default:
             return { kind: "span", style: runStyle(child, this.context.families), runs: this.runs(child) };
         }
@@ -145,15 +148,17 @@ class Writer {
     );
   }
 
-  image(node: ResolvedNode, placed: Style, cover?: number): Picture | undefined {
+  /** An Image; one the PDF can't draw (an SVG), its alt text in a box of its size, as a browser shows one it can't. */
+  image(node: ResolvedNode, placed: Style, cover?: number): Picture | Block {
     const { src, width, height } = assetParts(node.props.src as Asset);
-    const source = this.context.image(src);
-    if (!source) return undefined;
     const drawn = node.width ?? width;
     const style: Style = { ...placed, ...boxStyle(node), width: drawn !== undefined && drawn !== null ? pt(drawn) : undefined };
     if (cover !== undefined) Object.assign(style, { width: "100%", height: pt(cover), objectFit: "cover" });
     else if (typeof node.style.height !== "number" && drawn && width && height) style.height = pt((drawn * height) / width);
-    return { kind: "image", src: source, style };
+    const source = this.context.image(src);
+    if (source) return { kind: "image", src: source, style };
+    const alt = String(node.props.alt ?? "");
+    return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: textStyle(node, this.context.families), runs: [alt] }] : [] };
   }
 
   /** A Layer: its first child in place, the others over it, each in the Layer's whole box, placed by its alignment. */
