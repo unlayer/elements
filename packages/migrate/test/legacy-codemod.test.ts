@@ -323,6 +323,10 @@ export const T = () => (
   it("leaves modules that don't import today's components as they are", async () => {
     const source = `import { Button } from "@react-email/components";\nexport const T = () => <Button href="#">Go</Button>;\n`;
     expect((await migrateElements(source)).code).toBe(source);
+    // Today's other API alone, or a component it never draws: nothing is migrated, so nothing is reformatted.
+    for (const other of [`import {renderToHtml} from '@unlayer/react-elements'\nexport const send = (email: any) => renderToHtml( email )\n`, `import { Email } from "@unlayer/react-elements";\nexport { Email }\n`]) {
+      expect((await migrateElements(other)).code).toBe(other);
+    }
   });
 });
 
@@ -392,4 +396,63 @@ describe("unlayer-migrate --from elements", () => {
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements/primitives");
     expect(fs.readFileSync(path.join(dir, "emails/other.ts"), "utf8")).toBe("export const x = 1;\n");
   });
+
+  it("takes the modules that import today's components as templates: one that only names the package, passes it on or uses its other API is left as it is, and not listed", async () => {
+    const others = {
+      "emails/notes.ts": `// Written for "@unlayer/react-elements": import { Email } from "@unlayer/react-elements";\nexport const answer   =   42;\n`,
+      "emails/send.ts": `import {renderToHtml} from '@unlayer/react-elements'\nexport const send = (email: any) => renderToHtml( email )\n`,
+      "emails/index.ts": `export { Email,Row } from '@unlayer/react-elements'\n`,
+    };
+    const dir = project({ "emails/welcome.tsx": TEMPLATE, ...others });
+    commit(dir);
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(sink.out).toBe("emails/welcome.tsx: migrated\n");
+    for (const [file, text] of Object.entries(others)) expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(text);
+  });
+
+  it("migrates templates that import today's components through the project's own modules, by the names those pass them on as", async () => {
+    const ui = {
+      // Today's components passed on by name (one renamed), and all of them through another module, which has its own Paragraph.
+      "emails/ui/index.ts": `export { Email, Row as Band, Column } from "@unlayer/react-elements";\nexport * from "./more";\nexport { Footer } from "./footer";\n`,
+      "emails/ui/more.ts": `export * from "@unlayer/react-elements";\nexport const Paragraph = (props: { children?: unknown }) => null;\n`,
+      "emails/ui/footer.tsx": `export const Footer = () => null;\n`,
+    };
+    const dir = project({
+      ...ui,
+      "emails/welcome.tsx": `import { Email, Band, Column, Heading, Paragraph, Footer } from "./ui";\nexport default function Welcome() { return <Email><Band><Column><Heading>Hi</Heading><Paragraph>Mine</Paragraph><Footer /></Column></Band></Email>; }\n`,
+      "emails/digest.tsx": `import * as UI from "./ui";\nexport default function Digest() { return <UI.Email><UI.Band><UI.Column><UI.Heading>News</UI.Heading></UI.Column></UI.Band></UI.Email>; }\n`,
+    });
+    commit(dir);
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(sink.out).toBe("emails/digest.tsx: migrated\nemails/welcome.tsx: migrated\n");
+    const welcome = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    expect(welcome).toContain('import { Email, Heading, Section } from "@unlayer/react-elements/primitives";');
+    // The project's own components stay imported from where they were, and as they were.
+    expect(welcome).toContain('import { Paragraph, Footer } from "./ui";');
+    expect(squash(welcome)).toMatch(/<Section><Headingstyle=\{\{[^}]*\}\}>Hi<\/Heading><Paragraph>Mine<\/Paragraph><Footer\/><\/Section>/);
+    const digest = fs.readFileSync(path.join(dir, "emails/digest.tsx"), "utf8");
+    expect(digest).not.toContain("./ui");
+    expect(squash(digest)).toContain("<Section><Headingstyle=");
+    // The modules that pass today's components on are left as they are.
+    for (const [file, text] of Object.entries(ui)) expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(text);
+  });
+
+  it("fails a template that imports today's components through a namespace another module passes on, naming both, instead of skipping it", async () => {
+    const dir = project({
+      "emails/ui.ts": `export * as E from "@unlayer/react-elements";\n`,
+      "emails/welcome.tsx": `import { E } from "./ui";\nexport default function Welcome() { return <E.Email><E.Row><E.Column><E.Paragraph>Hi</E.Paragraph></E.Column></E.Row></E.Email>; }\n`,
+    });
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
+    expect(sink.err).toContain("emails/welcome.tsx: couldn't be migrated: it imports today's components as E from ./ui (emails/ui.ts), a namespace of them, which the codemod doesn't follow: import them by name");
+  });
 });
+
+function commit(dir: string) {
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: dir, stdio: "ignore" });
+  git("init", "-q");
+  git("add", "-A");
+  git("commit", "-q", "-m", "templates");
+}

@@ -21,6 +21,12 @@ export interface MigrateElementsOptions {
   /** Where the new components are imported from (default "@unlayer/react-elements/primitives"). */
   to?: string;
   /**
+   * The project's modules that pass today's components on (an index re-exporting them), by the specifier the module
+   * imports them with: each name one is passed on as, and the component it is (`{ "./ui": { Band: "Row" } }`). Their
+   * other names stay imported from them.
+   */
+  through?: Record<string, Record<string, string>>;
+  /**
    * Whether the module is TypeScript (default true). A JavaScript one (a .js, .jsx, .mjs or .cjs file) is written with
    * no TypeScript in it.
    */
@@ -34,11 +40,15 @@ export interface MigrateElementsResult {
   report: string[];
 }
 
-const DEFAULT_FROM = ["@unlayer/react-elements", "@unlayer/react-elements/legacy"];
+export const DEFAULT_FROM = ["@unlayer/react-elements", "@unlayer/react-elements/legacy"];
 const DEFAULT_TO = "@unlayer/react-elements/primitives";
 
 /** Today's components that have a new one (by the same name, or the one they become). */
 const COMPONENTS = new Set(["Email", "Page", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
+/** What the codemod migrates of today's exports: its components and its layouts. */
+export const MIGRATED = new Set([...COMPONENTS, "ColumnLayouts"]);
+/** A record's own value for a key (never one from Object.prototype, as `constructor` would be). */
+const own = <T>(record: Record<string, T> | undefined, key: string): T | undefined => (record && Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined);
 const LAYOUTS: Record<string, number[]> = {
   OneColumn: [1],
   TwoEqual: [1, 1],
@@ -166,35 +176,45 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const beforeLayout = (expression: ts.Node) => ts.isPropertyAccessExpression(expression.parent) && expression.parent.expression === expression && isLayout(expression.parent.name.text);
 
   // Today's components and layouts, by the name they're imported as (through a namespace, `E.Button`); the imports of
-  // today's package, each with what stays imported from it (today's other API, and its types).
+  // today's package (or of a module passing its components on), each with what stays imported from it (today's other
+  // API, and its types; the module's own names).
   const local = new Map<string, string>();
   const imports: Array<{ statement: ts.ImportDeclaration; kept: string[] }> = [];
   /** Names the migrated module no longer declares: today's components, its layouts and their namespace where only they used it. */
   const freed: string[] = [];
+  const todaysImport = (statement: ts.Statement): statement is ts.ImportDeclaration & { moduleSpecifier: ts.StringLiteral } =>
+    ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && (from.has(statement.moduleSpecifier.text) || !!own(options.through, statement.moduleSpecifier.text));
   for (const statement of file.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || !from.has(statement.moduleSpecifier.text)) continue;
+    if (!todaysImport(statement)) continue;
     const clause = statement.importClause;
     // `import type` stays as it is: today's types are still exported.
     if (!clause || clause.isTypeOnly) continue;
     const specifier = statement.moduleSpecifier.text;
+    const through = from.has(specifier) ? undefined : own(options.through, specifier);
+    /** Today's component (or ColumnLayouts) a name exported here is, or undefined (today's other API, the module's own). */
+    const todays = (name: string) => (through ? own(through, name) : MIGRATED.has(name) ? name : undefined);
     const named = clause.namedBindings;
     if (named && ts.isNamespaceImport(named)) {
       const ns = named.name.text;
-      for (const name of [...COMPONENTS, "ColumnLayouts"]) local.set(`${ns}.${name}`, name);
+      for (const name of through ? Object.keys(through) : MIGRATED) local.set(`${ns}.${name}`, todays(name)!);
       // The namespace goes where it's only used for today's components and layouts, which are rewritten.
-      const migrated = onlyUsedAs(named.name, (use) => ts.isPropertyAccessExpression(use.parent) && use.parent.expression === use && ((COMPONENTS.has(use.parent.name.text) && isTag(use.parent)) || (use.parent.name.text === "ColumnLayouts" && beforeLayout(use.parent))));
+      const migrated = onlyUsedAs(named.name, (use) => {
+        const name = ts.isPropertyAccessExpression(use.parent) && use.parent.expression === use ? todays(use.parent.name.text) : undefined;
+        return !!name && ((COMPONENTS.has(name) && isTag(use.parent)) || (name === "ColumnLayouts" && beforeLayout(use.parent)));
+      });
       if (migrated && !clause.name) {
         imports.push({ statement, kept: [] });
         freed.push(ns);
-      } else report.push(`${where(statement)}: ${ns} stays imported from ${specifier} for today's API used through it; its components are migrated`);
+      } else report.push(`${where(statement)}: ${ns} stays imported from ${specifier} for ${through ? "the rest it passes on" : "today's API used through it"}; its components are migrated`);
       continue;
     }
     const kept: string[] = clause.name ? [clause.name.text] : [];
     const specifiers: string[] = [];
     for (const element of named && ts.isNamedImports(named) ? named.elements : []) {
-      const name = (element.propertyName ?? element.name).text;
+      const name = todays((element.propertyName ?? element.name).text);
       if (element.isTypeOnly) specifiers.push(element.getText());
-      else if (COMPONENTS.has(name)) {
+      else if (through && !name) specifiers.push(element.getText());
+      else if (name && COMPONENTS.has(name)) {
         local.set(element.name.text, name);
         if (onlyUsedAs(element.name, isTag)) freed.push(element.name.text);
         else {
@@ -210,7 +230,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         }
       } else {
         specifiers.push(element.getText());
-        report.push(`${where(element)}: ${name} is today's API and stays imported from ${specifier}; it doesn't take the new components (render them with render() from the new entry)`);
+        report.push(`${where(element)}: ${(element.propertyName ?? element.name).text} is today's API and stays imported from ${specifier}; it doesn't take the new components (render them with render() from the new entry)`);
       }
     }
     if (specifiers.length) kept.push(`{ ${specifiers.join(", ")} }`);
@@ -1000,6 +1020,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   // In the order of the lines (a stable sort: lines of one place stay in the order they were found).
   const lineOf = (entry: string) => Number(/^line (\d+):/.exec(entry)?.[1] ?? 0);
   report.sort((a, b) => lineOf(a) - lineOf(b));
+  // None of today's JSX or layouts in it (today's other API, a name passed on): nothing to migrate, so it's left as it is.
+  if (!edits.length) return { code: source, report };
 
   const to = options.to ?? DEFAULT_TO;
   const imported = [...used].sort().map((component) => (nameOf(component) === component ? component : `${component} as ${nameOf(component)}`));
@@ -1009,7 +1031,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     edits.push({ start: statement.getStart(), end: statement.getEnd(), text: [index === 0 ? added : "", rest].filter(Boolean).join("\n") });
   });
   // Today's imports all stay (a namespace used for more than its components): the new import goes before them.
-  const first = file.statements.find((statement) => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && from.has(statement.moduleSpecifier.text));
+  const first = file.statements.find(todaysImport);
   if (!imports.length && added && first) edits.push({ start: first.getStart(), end: first.getStart(), text: `${added}\n` });
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);

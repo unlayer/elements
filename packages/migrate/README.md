@@ -108,6 +108,8 @@ const tsx = await conversion.tsx();
 
 `--from elements` rewrites templates written with `@unlayer/react-elements`'s components with the new ones (`@unlayer/react-elements/primitives`, the main import from the next major version). Props, loops and helpers stay; the defaults today's components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
 
+Templates are the files that import today's components, from the package or through your own modules that pass them on (an index with `export { Email } from "@unlayer/react-elements"` or `export *` from it, followed as your `tsconfig` resolves it). Other files, such as one that only calls `renderToHtml` or that index itself, are left as they are and aren't listed. A template that imports a namespace of them another module passes on (`export * as E from "@unlayer/react-elements"`) isn't followed: the run fails it, saying so.
+
 ```bash
 npx @unlayer/migrate src/emails --from elements --write
 ```

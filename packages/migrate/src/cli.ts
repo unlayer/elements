@@ -228,7 +228,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (from === "elements" && args.positional.length) {
     const { migrateLegacy } = await import("./legacy/command");
-    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable });
+    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver });
   }
   if (!args.positional.length) {
     // Run with nothing at all, it says how it's used; with options but no templates, what's missing.

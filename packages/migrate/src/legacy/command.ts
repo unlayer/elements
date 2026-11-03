@@ -4,9 +4,10 @@
  * several are listed with what the codemod reported; --write replaces them, only where git can give them back.
  */
 import { readFile, stat, writeFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import type { Args } from "../args";
 import { migrateElements } from "./codemod";
+import { todaysImports } from "./imports";
 
 export interface LegacyIo {
   cwd: string;
@@ -14,13 +15,13 @@ export interface LegacyIo {
   stderr(text: string): void;
 }
 
-/** What the command borrows from the CLI: its folder walk and its check of what git can restore. */
+/** What the command borrows from the CLI: its folder walk, its check of what git can restore, and its module resolution. */
 export interface LegacyHelpers {
   walk(dir: string): Promise<string[]>;
   notRestorable(files: string[]): Promise<Array<{ file: string; why: string }>>;
+  /** Where an import leads among the project's files, as the project's tsconfig (or Node) resolves it from a file. */
+  resolver(file: string): Promise<(specifier: string, fromFile: string) => string | undefined>;
 }
-
-const TODAY = /from\s+["']@unlayer\/react-elements(\/legacy)?["']/;
 
 export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, helpers: LegacyHelpers): Promise<number> {
   for (const option of ["out", "design", "no-merge-tags", "strict", "force", "overwrite"]) {
@@ -39,13 +40,29 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     }
     files.push(...(info.isDirectory() ? await helpers.walk(path) : [path]));
   }
+  const name = (file: string) => relative(io.cwd, file);
+  // One resolution per folder: the project's tsconfig is the folder's.
+  const resolvers = new Map<string, ReturnType<LegacyHelpers["resolver"]>>();
+  const find = todaysImports(async (specifier, fromFile) => {
+    const dir = dirname(fromFile);
+    if (!resolvers.has(dir)) resolvers.set(dir, helpers.resolver(fromFile));
+    return (await resolvers.get(dir)!)(specifier, fromFile);
+  });
   const results: Array<{ file: string; code?: string; report: string[]; error?: string }> = [];
   for (const file of files) {
     const source = await readFile(file, "utf8");
-    // Only modules that import today's components (by their import, not a mention in a comment).
-    if (!TODAY.test(source)) continue;
     try {
-      const { code, report } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file) });
+      // Templates are the modules that import today's components (by their imports, not a mention in a comment), from
+      // today's package or through the project's modules that pass them on; a namespace of them passed on isn't followed.
+      const found = await find(file, source);
+      if (!found) continue;
+      if (found.namespaces.length) {
+        const how = found.namespaces.map((n) => `as ${n.name} from ${n.specifier} (${name(n.file)})`).join(", ");
+        results.push({ file, report: [], error: `it imports today's components ${how}, a namespace of them, which the codemod doesn't follow: import them by name` });
+        continue;
+      }
+      const { code, report } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
+      // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was: not listed.
       if (code !== source) results.push({ file, code, report });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });
@@ -55,7 +72,6 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     io.stderr("No templates importing @unlayer/react-elements's components were found.\n");
     return 1;
   }
-  const name = (file: string) => relative(io.cwd, file);
   const failed = results.filter((r) => r.error);
   for (const r of failed) io.stderr(`${name(r.file)}: couldn't be migrated: ${r.error}\n`);
   const migrated = results.filter((r) => !r.error);
