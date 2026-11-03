@@ -123,6 +123,21 @@ describe("a Row kept side by side, on phones", () => {
   });
 });
 
+describe("a Grid kept side by side, on phones", () => {
+  it("keeps the last row's cells as wide as the others, in the email and on the page", async () => {
+    const children = ["a", "b", "c"].map((words, index) => ({ type: "Text", id: `g${index}`, children: [words] }));
+    const template = (root: "Page" | "Email") =>
+      resolveDocument(parseDocument({ root: { type: root, props: { width: 600 }, children: [{ type: "Grid", props: { stackOnMobile: false }, children }] } }));
+    for (const html of [renderEmail(template("Email")).html, renderPage(template("Page")).html]) {
+      const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+      await page.setContent(html);
+      const widths = await page.evaluate(() => ["g0", "g1", "g2"].map((id) => Math.round(document.getElementById(id)!.getBoundingClientRect().width)));
+      await page.close();
+      expect(widths).toEqual([widths[0], widths[0], widths[0]]);
+    }
+  });
+});
+
 describe("Row widths in Chromium", () => {
   for (const [name, children, style, props] of CASES) {
     it(`gives each child the resolver's width: ${name}`, async () => {

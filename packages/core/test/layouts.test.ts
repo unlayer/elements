@@ -40,6 +40,11 @@ describe("Grid", () => {
       [{ stackOnMobile: false }, { gap: 8 }, 2],
       [{ stackOnMobile: false }, { gap: 8 }, 2],
     ]);
+    // Where the cells stay side by side on phones, the last Row's empty cell is drawn there too: its cell keeps its width.
+    expect((column.children as Node[]).map((row) => (row.children as Node[]).map((cell) => cell.hidden ?? null))).toEqual([
+      [null, null],
+      [null, null],
+    ]);
   });
 
   it("takes blocks, not text, and a whole number of columns from 1 to 12", () => {

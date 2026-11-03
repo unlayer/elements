@@ -29,8 +29,9 @@ function arrangeGrid(node: Node): Node {
   const rows: Node[] = [];
   for (let start = 0; start < children.length; start += columns) {
     const cells: Node[] = children.slice(start, start + columns).map((child) => ({ type: "Column", children: [child] }));
-    // The last Row's empty cells keep its cells as wide as the others; on phones, where the cells stack, they're not drawn.
-    while (cells.length < columns) cells.push({ type: "Column", hidden: { mobile: true }, children: [] });
+    // The last Row's empty cells keep its cells as wide as the others; on phones, where the cells stack, they're not
+    // drawn (where they stay side by side, they are: the cells keep their widths there too).
+    while (cells.length < columns) cells.push({ type: "Column", ...(stackOnMobile ? { hidden: { mobile: true } } : {}), children: [] });
     const mobileGap = node.mobile?.gap;
     rows.push({
       type: "Row",
