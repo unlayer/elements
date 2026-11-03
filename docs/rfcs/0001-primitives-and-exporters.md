@@ -120,7 +120,7 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes through today's components, so it bundles them beside the new engine (about 438KB unminified, with its own CI budget) |
+| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes through today's components, so it bundles them beside the new engine (about 447KB unminified, with its own CI budget) |
 | `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
 
@@ -554,22 +554,24 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   parser (which, read for the builder, also takes what `toDesign()` writes in text, and a link's `rel` of
   `noopener` and `noreferrer` only, which its editor writes and Elements writes on a link opening a new
   window); a tool's text is read as the builder's exporter reads it: a paragraph's (its rich-text tool's), a
-  heading's and a button's from its rich text (`textJson`, what its editor saves) where it has one (its
-  editor's links, an `extended-link` or an `autolink`, which the shared generator writes as their words, kept
-  as links), a text's (its older tool's) from its `text`, which the editor writes from the rich text whenever
-  it saves, and from its rich text only where it has no `text`; each `<p>` in text is a Paragraph of its own,
-  with no margins but those its own style gives it (the builder's export resets a paragraph's, `p { margin: 0
-  }`); text with what no run holds or with an email service's tag (`{% if %}`, `<%name%>`, kept as written for
-  the service to fill in), and any builder `html` block, is an `Html` block. A design's markup (an `html`
-  block's, a text's before it's read) goes through the app's `toSafeHtml` where it gives one, as it does in
-  today's exporters; without one it's kept as it is. The root is the builder's display mode (`"email"` an
-  `Email`, `"web"` a `Page`, `"document"` a `Document`); without one, a design with a header, a footer or a
-  page break is a `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, a
-  value that can't be read as text (an object whose own `toString` isn't a function) left out first, markup
-  nested deeper than any text's (64 tags) an `Html` block, every value checked against its component, what
-  can't be read left out and said in `report` (a link Elements won't write, a file's or a script's, alone: a
-  Link's words or image kept, a button's, a menu item's or an icon's `#`); the printed JSX never holds a
-  design's data as code.
+  heading's and a button's from its rich text (`textJson`, what its editor saves) where it has one (the
+  editor's own nodes, which the shared generator writes as their words or not at all, written as its export
+  writes them: a link, a merge tag, a heading in text, a list and its nesting; a node it doesn't read is never
+  dropped: the block's `text`, the editor's export of it, is read, else its markup, and it's said), a text's
+  (its older tool's) from its `text`, which the editor writes from the rich text whenever it saves, and from
+  its rich text only where it has no `text`; each `<p>` in text is a Paragraph of its own, each `<h1>` to
+  `<h6>` a Heading of its level drawn as the browser draws it there, with no margins but those its own style
+  gives it (the builder's export resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with
+  an email service's tag (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder
+  `html` block, is an `Html` block. A design's markup (an `html` block's, a text's before it's read) goes
+  through the app's `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as
+  it is. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a
+  `Document`); without one, a design with a header, a footer or a page break is a `Document`, any other an
+  `Email`. Malformed JSON doesn't throw: own-key lookups only, a value that can't be read as text (an object
+  whose own `toString` isn't a function) left out first, markup nested deeper than any text's (64 tags) an
+  `Html` block, every value checked against its component, what can't be read left out and said in `report` (a
+  link Elements won't write, a file's or a script's, alone: a Link's words or image kept, a button's, a menu
+  item's or an icon's `#`); the printed JSX never holds a design's data as code.
 - **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same look: a
   Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns, a
   `Text` as a `Paragraph`, a `Document.Page` as the content between page breaks, a locked block as an `Html`

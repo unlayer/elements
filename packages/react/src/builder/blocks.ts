@@ -62,10 +62,13 @@ function button(values: Values, context: Context): Node[] {
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
   const href = link(values.href, context.say);
   if (!href && webLink(values.href) === null) context.say('its link is empty in the builder: it\'s "#" until one is set');
-  const labelHtml = context.safe(richText(values, "button", str(values.textDirection) ?? context.dir));
+  const rich = richText(values, "button", str(values.textDirection) ?? context.dir);
+  if (rich.said) context.say(rich.said);
+  const labelHtml = context.safe(rich.html);
   const label = tooDeep(labelHtml) ? { children: [], left: [`markup nested more than ${DEEPEST} deep`] } : parseRuns(labelHtml, { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
+  if (rich.markup) label.left.push(rich.markup);
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
-  tagged(richText(values, "button", str(values.textDirection) ?? context.dir), "its label", context.say);
+  tagged(rich.html, "its label", context.say);
   const { textAlign: _label, ...phoneLabel } = phoneText(values);
   const mobile = { ...phoneLabel, ...phonePadding(values, "padding"), ...(phoneWidth !== undefined && phoneWidth !== width ? { width: phoneWidth } : {}), ...hidden.mobile };
   const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile, hover, children: mergeTags(label.children, false) });

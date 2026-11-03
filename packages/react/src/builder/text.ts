@@ -7,7 +7,7 @@
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
 import { parseRuns, type Run } from "../compat/runs";
-import { px } from "../compat/values";
+import { color, fontWeight, px } from "../compat/values";
 import { textJsonHtml } from "./text-json";
 
 export interface TextPart {
@@ -84,11 +84,22 @@ export type TextToolName = "text" | "paragraph" | "heading" | "button";
  * its rich text only where it has no `text`. A heading's or a button's lines are each a `<span>` in its direction (its
  * alignment nothing on a span): unwrapped where that's the block's own.
  */
-export function richText(values: Record<string, unknown>, tool: TextToolName, dir: string): string {
+export function richText(values: Record<string, unknown>, tool: TextToolName, dir: string): RichText {
   const text = typeof values.text === "string" ? values.text : undefined;
-  if (typeof values.textJson !== "string" || (tool === "text" && text)) return text ?? "";
-  const html = textJsonHtml(values.textJson);
-  return tool === "heading" || tool === "button" ? unwrapLines(html, dir) : html;
+  if (typeof values.textJson !== "string" || (tool === "text" && text)) return { html: text ?? "" };
+  const { html, unread } = textJsonHtml(values.textJson);
+  // A node the editor saves that isn't read is never dropped: its `text` (the editor's own export of it), else its
+  // markup as written, without that node.
+  const nodes = unread.join(", ");
+  if (unread.length && text) return { html: text, said: `its rich text has nodes Elements doesn't read (${nodes}): its text, the builder's export of it, is read` };
+  return { html: tool === "heading" || tool === "button" ? unwrapLines(html, dir) : html, ...(unread.length ? { markup: `rich text nodes Elements doesn't read (${nodes}), left out of it` } : {}) };
+}
+
+/** A tool's text as HTML, what's said about it, and why it's kept as markup, where it is. */
+export interface RichText {
+  html: string;
+  said?: string;
+  markup?: string;
 }
 
 /** Spans each holding a line in the block's direction, their words in a row (as inline spans are drawn); the HTML as it is otherwise. */
@@ -123,15 +134,15 @@ export function tooDeep(html: string): boolean {
 }
 
 /** Whether the HTML has blocks of its own (a `<p>`, a list) rather than lines. */
-const blocky = (html: string) => /<\s*(p|ul|ol)\b/i.test(html);
+const blocky = (html: string) => /<\s*(p|ul|ol|h[1-6])\b/i.test(html);
 const P_STYLES = new Set(["line-height", "text-align", "padding-inline-start"]);
 
 /** The HTML as parts, each a block, and what isn't read. */
-export function readText(html: string, { weight = 400, pages = false, links = true, fontSize = 16 } = {}): { parts: TextPart[]; left: string[] } {
+export function readText(html: string, { weight = 400, pages = false, links = true, fontSize = 16, lineHeight = 1.5 as Json } = {}): { parts: TextPart[]; left: string[] } {
   const left: string[] = [];
   if (tooDeep(html)) return { parts: [], left: [`markup nested more than ${DEEPEST} deep`] };
-  const runs = (inner: string): Child[] => {
-    const read = parseRuns(inner, { weight, links, builder: true });
+  const runs = (inner: string, bold = weight): Child[] => {
+    const read = parseRuns(inner, { weight: bold, links, builder: true });
     left.push(...read.left);
     return mergeTags(read.children, pages);
   };
@@ -143,12 +154,12 @@ export function readText(html: string, { weight = 400, pages = false, links = tr
     if (inline.trim()) parts.push({ node: { type: "Paragraph", children: runs(inline) }, margin: NONE });
     inline = "";
   };
-  // The top level: `<p>`s and lists as blocks, what's between them as lines.
+  // The top level: `<p>`s, headings and lists as blocks, what's between them as lines.
   let at = 0;
   for (const match of [...html.matchAll(TAG)]) {
     if (match.index! < at) continue;
     const tag = match[2].toLowerCase();
-    if (match[1] || (tag !== "p" && tag !== "ul" && tag !== "ol")) continue;
+    if (match[1] || !/^(p|ul|ol|h[1-6])$/.test(tag)) continue;
     inline += html.slice(at, match.index);
     const end = closing(html, tag, match.index! + match[0].length);
     if (end === null) {
@@ -160,12 +171,52 @@ export function readText(html: string, { weight = 400, pages = false, links = tr
     if (tag === "p") {
       const part = readParagraph(match[3], inner, runs, fontSize, left);
       if (part) parts.push(part);
-    } else parts.push(readList(tag, match[3], inner, runs, fontSize, left));
+    } else if (tag[0] === "h") parts.push(readHeading(Number(tag[1]), match[3], inner, runs, fontSize, lineHeight, left));
+    else parts.push(readList(tag, match[3], inner, runs, fontSize, left));
     at = end.end;
   }
   inline += html.slice(at);
   flush();
   return { parts, left };
+}
+
+/** A heading's size and margins in the browser's stylesheet, in ems of its parent's size and of its own, h1 to h6. */
+const HEADING_SIZES = [2, 1.5, 1.17, 1, 0.83, 0.67];
+const HEADING_MARGINS = [0.67, 0.83, 1, 1.33, 1.67, 2.33];
+const HEADING_STYLES = new Set(["font-size", "font-weight", "line-height", "text-align", "color"]);
+const round = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * An `<h1>` to `<h6>` in text (the builder's editor writes one in its own style) as a Heading of its level, drawn as the
+ * browser draws it there: in bold, its size its level's share of the text's, its margins its level's, its line as tall
+ * as the text's (a percentage is the text's size's, inherited as a length), but where its style says otherwise.
+ */
+function readHeading(level: number, attrs: string, inner: string, runs: (html: string, weight?: number) => Child[], fontSize: number, lineHeight: Json, left: string[]): TextPart {
+  const d = declarations(style(attrs));
+  const size = d["font-size"] === undefined ? round(HEADING_SIZES[level - 1] * fontSize) : length(d["font-size"], fontSize);
+  if (size === undefined) left.push(`a heading's font size ${d["font-size"]}`);
+  const own = size ?? fontSize;
+  const weight = d["font-weight"] === undefined ? 700 : fontWeight(d["font-weight"]);
+  if (weight === undefined) left.push(`a heading's font weight ${d["font-weight"]}`);
+  const css: Record<string, Json> = { fontSize: own, fontWeight: weight ?? 700 };
+  const height = d["line-height"];
+  if (height !== undefined) {
+    const share = /^(\d*\.?\d+)%$/.exec(height);
+    if (share) css.lineHeight = Number(share[1]) / 100;
+    else if (px(height) !== undefined) css.lineHeight = `${px(height)}px`;
+    else left.push(`a heading's line height ${height}`);
+  } else css.lineHeight = typeof lineHeight === "number" ? `${round(lineHeight * fontSize)}px` : lineHeight;
+  if (d["text-align"] !== undefined) css.textAlign = d["text-align"];
+  if (d.color !== undefined) {
+    const value = color(d.color);
+    if (value) css.color = value;
+    else left.push(`a heading's color ${d.color}`);
+  }
+  const margin = margins(d, round(HEADING_MARGINS[level - 1] * own), own);
+  if (!margin) left.push("a heading's margins");
+  const dir = /\bdir\s*=\s*"?(ltr|rtl|auto)\b/i.exec(attrs)?.[1].toLowerCase();
+  if (Object.keys(d).some((name) => !HEADING_STYLES.has(name) && !name.startsWith("margin")) || attributeNames(attrs).some((name) => name !== "dir")) left.push("a heading with attributes of its own");
+  return { node: { type: "Heading", props: { level, ...(dir ? { dir } : {}) }, style: css, children: runs(inner, weight ?? 700) }, margin: margin ?? { top: 0, bottom: 0 } };
 }
 
 /** A `<p>` as a Paragraph: its line height, alignment, direction and indent its own, its margins none but its style's. */
@@ -205,11 +256,19 @@ function closing(html: string, tag: string, from: number): { start: number; end:
   return null;
 }
 
-/** A `<ul>` or `<ol>` as a List: its padding its indent (the browser's 40px), its items' margin above its gap, its margins the browser's but where its style says otherwise. */
+/**
+ * A `<ul>` or `<ol>` as a List: its padding its indent (the browser's 40px), its items' margin above its gap, its
+ * margins the browser's but where its style says otherwise; an item's direction and alignment its own. An item
+ * showing no marker that holds only a list (how the builder's editor nests one) is that list, in the item before it.
+ * What a List doesn't hold (other markers, a direction of its own, other attributes) is said in `left`.
+ */
 function readList(tag: string, attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart {
   const d = declarations(style(attrs));
   const indent = px(d["padding-left"] ?? d.padding ?? "40px");
   if (indent === undefined) left.push(`a list's indent ${d["padding-left"]}`);
+  const marker = d["list-style-type"];
+  if (marker !== undefined && marker !== (tag === "ol" ? "decimal" : "disc")) left.push(`a list's markers ${marker}`);
+  if (Object.keys(d).some((name) => !["padding-left", "padding", "list-style-type"].includes(name) && !name.startsWith("margin")) || attributeNames(attrs).some((name) => name !== "start" || tag !== "ol")) left.push("a list with attributes of its own");
   const start = /\bstart\s*=\s*"?(\d+)/.exec(attrs)?.[1];
   const items: Node[] = [];
   let gap: number | undefined;
@@ -221,9 +280,11 @@ function readList(tag: string, attrs: string, inner: string, runs: (html: string
       left.push("a list item that isn't closed");
       break;
     }
+    at = end.end;
     const body = inner.slice(match.index! + match[0].length, end.start);
-    const space = px(declarations(style(match[3]))["margin-top"] ?? "0px") ?? 0;
-    if (items.length) gap ??= space;
+    const li = declarations(style(match[3]));
+    const dir = /\bdir\s*=\s*"?(ltr|rtl)\b/i.exec(match[3])?.[1].toLowerCase();
+    if (Object.keys(li).some((name) => !["margin-top", "text-align", "list-style-type"].includes(name)) || attributeNames(match[3]).some((name) => name !== "dir")) left.push("a list item with attributes of its own");
     // Its words and the lists in it, in their order.
     const children: Child[] = [];
     let rest = body;
@@ -240,8 +301,20 @@ function readList(tag: string, attrs: string, inner: string, runs: (html: string
       rest = rest.slice(close.end);
     }
     if (rest) children.push(...runs(rest));
-    items.push({ type: "ListItem", children });
-    at = end.end;
+    if (li["list-style-type"] !== undefined) {
+      // An item with no marker holding only a list: that list, nested in the item before it.
+      const only = children.filter((child) => typeof child !== "string" || child.trim());
+      const before = items[items.length - 1];
+      if (li["list-style-type"] === "none" && only.length === 1 && typeof only[0] !== "string" && only[0].type === "List" && before) {
+        before.children = [...(before.children ?? []), only[0]];
+        continue;
+      }
+      left.push(`a list item's marker ${li["list-style-type"]}`);
+    }
+    const space = px(li["margin-top"] ?? "0px") ?? 0;
+    if (items.length) gap ??= space;
+    const align = li["text-align"];
+    items.push({ type: "ListItem", ...(dir === "rtl" ? { props: { dir } } : {}), ...(align ? { style: { textAlign: align } } : {}), children });
   }
   const own: Record<string, Json> = {};
   if (indent !== undefined && indent !== 24) own.indent = indent;

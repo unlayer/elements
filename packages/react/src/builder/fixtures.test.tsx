@@ -157,6 +157,54 @@ describe("text as the builder's editors write it", () => {
     values.textJson = values.textJson.replace('"onClick":""', '"onClick":"track()"');
     expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
   });
+
+  // The fifth block's (a paragraph's) rich text has the editor's own nodes, as their exportJSON shapes them: a merge tag
+  // (merge_tag) in bold, a heading in text (extended-heading), and a bulleted list (extended-list) whose last item
+  // nests one (as the editor nests a list: an item of its own, with no marker). The shared generator writes the merge
+  // tag as nothing, the heading's words without its tag and the list's words without it.
+  it("reads the editor's own nodes in rich text (a merge tag, a heading, a list) as MergeTag, Heading and List", async () => {
+    const design = fixture("paragraphs.builder-editor");
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const pad = (top: number, bottom: number) => ({ top, right: 10, bottom, left: 10 });
+    expect((tree(back.element).children as Node[]).slice(9)).toEqual([
+      line(["Hi ", { type: "Span", style: { fontWeight: 700 }, children: [{ type: "MergeTag", props: { name: "first_name" } }] }, ","], 10, 0),
+      // An h2 as the browser draws one in 14px text at 140%: 1.5 times its size, bold, its margins 0.83em of its own,
+      // its line the text's (19.6px).
+      { type: "Heading", props: { level: 2 }, style: { fontSize: 21, fontWeight: 700, lineHeight: "19.6px", padding: pad(17.43, 0) }, children: ["Your order"] },
+      {
+        type: "List",
+        style: { fontSize: 14, lineHeight: 1.4, indent: 40, padding: pad(17.43, 24) },
+        children: [
+          { type: "ListItem", children: ["Shoes"] },
+          { type: "ListItem", children: ["Socks", { type: "List", style: { indent: 40 }, children: [{ type: "ListItem", children: ["Wool"] }] }] },
+        ],
+      },
+    ]);
+    // The merge tag is written as the editor writes it, for the sending service to fill in.
+    expect((await render(back.element)).html).toContain("{{first_name}}");
+  });
+
+  it("never drops a node of the editor's it doesn't read: its text is read, else its markup, and said", () => {
+    const design = fixture("paragraphs.builder-editor");
+    const values = design.body.rows[0].columns[0].contents[4].values;
+    const json = JSON.parse(values.textJson);
+    const words = json.root.children[0].children;
+    // A node of the editor's own with attributes (custom_node) is its element, as the editor writes it: markup.
+    words.push({ detail: 0, format: 0, mode: "normal", style: "", text: "VIP", type: "custom_node", version: 1, attributes: { "data-segment": "vip" }, tagName: "span" });
+    values.textJson = JSON.stringify(json);
+    const custom = fromDesign(design);
+    expect(custom.report).toEqual([expect.stringContaining("it's an Html block of its markup")]);
+    expect(JSON.stringify(tree(custom.element))).toContain('<span data-segment=\\"vip\\">VIP</span>');
+    // A node it doesn't know: the block's text (the builder's export of its rich text) where it has one, else its
+    // markup without that node; said either way.
+    words.splice(-1, 1, { type: "equation", version: 1, equation: "x^2", inline: true });
+    values.textJson = JSON.stringify(json);
+    values.text = "<p>Hi {{first_name}}, x²</p>";
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("its rich text has nodes Elements doesn't read (equation): its text, the builder's export of it, is read")]);
+    delete values.text;
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("rich text nodes Elements doesn't read (equation), left out of it): it's an Html block of its markup")]);
+  });
 });
 
 describe("malformed design JSON", () => {

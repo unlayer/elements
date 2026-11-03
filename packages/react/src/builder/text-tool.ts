@@ -20,10 +20,13 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const taken: Record<string, Json> = tool === "heading" ? { ...(HeadingDefinition.defaultStyle as Record<string, Json>), ...(HeadingDefinition.defaultStyleBy!.values as Record<string, Record<string, Json>>)[String(level)] } : {};
   const style = { ...textStyle(values, taken, context), ...hidden.style };
   const mobile = { ...phoneText(values), ...hidden.mobile };
-  const html = context.safe(richText(values, builderTool, str(values.textDirection) ?? context.dir));
+  const rich = richText(values, builderTool, str(values.textDirection) ?? context.dir);
+  if (rich.said) context.say(rich.said);
+  const html = context.safe(rich.html);
   const weight = fontWeight(values.fontWeight) ?? (tool === "heading" ? 700 : context.inherited.fontWeight);
   const fontSize = (style.fontSize as number | undefined) ?? (taken.fontSize as number | undefined) ?? 16;
-  const { parts, left } = readText(html, { weight, pages: context.document, fontSize });
+  const { parts, left } = readText(html, { weight, pages: context.document, fontSize, lineHeight: (style.lineHeight as Json | undefined) ?? (taken.lineHeight as Json | undefined) ?? 1.5 });
+  if (rich.markup) left.push(rich.markup);
   // An email service's tag ({% if %}, <%name%>) is written as it is for the service to fill in, as today's writers do.
   if (serviceTag(html)) left.push("an email service's tag, kept as written");
   const containerPadding = sides(values.containerPadding ?? "10px") ?? ZERO;
@@ -46,8 +49,9 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const boxed = boxOf(hidden);
   const blockDir = str(values.textDirection) ?? context.dir;
   const nodes = parts.map((part, i) => {
-    // A list takes the block's text styles; a heading's part beside one is a Paragraph in its styles.
-    const own = part.node.type === "List" ? "List" : type;
+    // A list takes the block's text styles, as a heading in text does its own; a heading's part beside one is a
+    // Paragraph in its styles.
+    const own = part.node.type === "List" || part.node.type === "Heading" ? part.node.type : type;
     // A paragraph in a direction of its own is aligned as its block is (its block's alignment is the one it inherits).
     const dir = own === "List" ? undefined : (part.node.props?.dir as string | undefined);
     const turned: Record<string, Json> = dir && dir !== blockDir && part.node.style?.textAlign === undefined ? { textAlign: (style.textAlign as string | undefined) ?? (taken.textAlign as string | undefined) ?? "left" } : {};
@@ -58,7 +62,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
     // A paragraph's indent is at the side its line starts.
     const start = (dir ?? blockDir) === "rtl" ? "right" : "left";
     const space = { top: above, bottom: below, [start]: part.indent ?? 0 } as Partial<Sides>;
-    const partProps = own === "List" ? part.node.props : defined({ ...props, dir: dir && dir !== blockDir ? dir : props.dir });
+    const partProps = own === "List" ? part.node.props : defined({ ...props, ...(part.node.type === "Heading" ? { level: part.node.props!.level } : {}), dir: dir && dir !== blockDir ? dir : props.dir });
     return { node: make(own, { id: i === 0 ? id : undefined, props: partProps, style: partStyle, mobile, children: part.node.children && (styled(part.node.children as never, links ?? undefined) as Node["children"]) }), space };
   });
   if (boxed) {
