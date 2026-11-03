@@ -50,7 +50,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
     const own = part.node.type === "List" ? "List" : type;
     // A paragraph in a direction of its own is aligned as its block is (its block's alignment is the one it inherits).
     const dir = own === "List" ? undefined : (part.node.props?.dir as string | undefined);
-    const turned = dir && dir !== blockDir && part.node.style?.textAlign === undefined ? { textAlign: (style.textAlign as string | undefined) ?? (taken.textAlign as string | undefined) ?? "left" } : {};
+    const turned: Record<string, Json> = dir && dir !== blockDir && part.node.style?.textAlign === undefined ? { textAlign: (style.textAlign as string | undefined) ?? (taken.textAlign as string | undefined) ?? "left" } : {};
     const partStyle = { ...style, ...turned, ...part.node.style, ...(own === "List" && type === "Heading" ? headingAsText(taken, style) : {}) };
     // The margins between parts collapse into one: the larger, above the part below.
     const above = i === 0 ? part.margin.top : Math.max(part.margin.top, parts[i - 1].margin.bottom);
@@ -65,8 +65,8 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
     // Its box's padding is its own (an indent inside it); its place's spacing is a Column's around it.
     return nodes.map(({ node, space }, i) => {
       const around = { ...containerPadding, top: i === 0 ? containerPadding.top + (space.top ?? 0) : (space.top ?? 0), bottom: i === nodes.length - 1 ? containerPadding.bottom + (space.bottom ?? 0) : 0 };
-      const inside = space.left || space.right ? { padding: add((node.style?.padding as Sides | undefined) ?? ZERO, { ...ZERO, left: space.left ?? 0, right: space.right ?? 0 }) } : {};
-      return placed({ ...node, ...(Object.keys(inside).length ? { style: { ...node.style, ...inside } } : {}) }, around, undefined, phonePadding, visibility);
+      const indented = space.left || space.right ? { ...node, style: { ...node.style, padding: add((node.style?.padding as Sides | undefined) ?? ZERO, { ...ZERO, left: space.left ?? 0, right: space.right ?? 0 }) as Json } } : node;
+      return placed(indented, around, undefined, phonePadding, visibility);
     });
   }
   return nodes.map(({ node, space }, i) => {
