@@ -101,6 +101,13 @@ describe("lowerDesign()", () => {
     expect(unlowered(<Page><Row anchor="" values={{ locked: true } as never}>{cell}</Row></Page>)).toBeUndefined();
   });
 
+  it("writes legacy's preview text: its first 150 characters, none where it's only white space", () => {
+    const preview = (text: string) => (lowered(<Email previewText={text}><Row><Column><Paragraph>A</Paragraph></Column></Row></Email>) as Lowered).tree.root.props?.previewText;
+    expect(preview("A".repeat(200))).toBe("A".repeat(150));
+    expect(preview("Hi there")).toBe("Hi there");
+    expect(preview("   ")).toBeUndefined();
+  });
+
   it("hides only by the overrides legacy reads, and keeps a phone padding of 0", () => {
     const tree = (element: React.ReactElement) => (lowered(element) as Lowered).tree.root;
     const find = (node: TreeNode, test: (n: TreeNode) => boolean): TreeNode | undefined => (test(node) ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c, test))).find(Boolean));

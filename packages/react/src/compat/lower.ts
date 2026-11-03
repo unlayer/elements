@@ -256,6 +256,9 @@ function row(design: Values, place: Omit<Place, "row" | "column" | "cells" | "in
  */
 export const PAGE_WIDTH = 100_000;
 
+/** The preview text's length legacy writes at most (the rest of its 150 is filler). */
+const PREVIEW_LENGTH = 150;
+
 /** The design's body, rows and blocks as the new engine's tree. */
 export function lowerDesign(design: { body: Values }, options: LowerOptions): { root: TreeNode } {
   const values: Values = design.body.values ?? {};
@@ -277,7 +280,8 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
     type: email ? "Email" : "Page",
     props: defined({
       width: email ? px(values.contentWidth) : PAGE_WIDTH,
-      previewText: email && values.preheaderText ? values.preheaderText : undefined,
+      // Legacy's preview text: none where it's only white space, its first 150 characters where it's longer.
+      previewText: email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined,
       dir: textDirectionOf(options.config?.textDirection ?? values.textDirection),
     }) as Record<string, Json>,
     style: defined({

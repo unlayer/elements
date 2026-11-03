@@ -194,6 +194,15 @@ function throughNewEngine(element: React.ReactElement, options: RenderToHtmlOpti
   }
 }
 
+/** A template's plain text through the new engine (another render of it, guarded as the first is). */
+function throughNewEngineText(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined): string | undefined {
+  try {
+    return throughNewEngine(element, config, "renderToPlainText")?.text;
+  } catch {
+    return undefined;
+  }
+}
+
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
 function styleText(css: string): string {
   return css.replace(/<\/(style)/gi, "<\\/$1");
@@ -276,7 +285,7 @@ export function renderToPlainText(
   config?: Partial<UnlayerConfig>
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  return withRenderScope(() => throughNewEngine(element, config, "renderToPlainText")?.text ?? htmlToPlainText(legacyBodyHtml(element, config)));
+  return withRenderScope(() => throughNewEngineText(element, config) ?? htmlToPlainText(legacyBodyHtml(element, config)));
 }
 
 /**

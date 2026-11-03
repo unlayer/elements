@@ -80,7 +80,14 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     links && (lowered.mode === "email" ? `<!--[if !mso]><!-->${links}<!--<![endif]-->` : links),
   ].filter(Boolean);
   // (A replacer: a tool's script may hold `$&` or `$'`, which a replacement string reads as patterns.)
-  const html = extra.length ? result.html.replace("</head>", () => `${extra.join("\n")}</head>`) : result.html;
+  // An email's head without what the new engine asks of a client that legacy's doesn't: a light color scheme (a
+  // client's dark mode treats it as it treats legacy's), and no detection of phone numbers, addresses and dates (which
+  // Apple's Mail links in legacy's).
+  const shell = result.html.replace(
+    '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">',
+    () => ""
+  );
+  const html = extra.length ? shell.replace("</head>", () => `${extra.join("\n")}</head>`) : shell;
 
   // The parts: the stylesheet with the body's own style (an app's page embedding them takes the template's margin and
   // background, as legacy's head gave them), the script and the tags; the body.

@@ -4,6 +4,7 @@ import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, reg
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
+import * as compat from "./render";
 import { renderThroughNewEngine } from "./render";
 import { storyElement, storyTemplate } from "./story";
 
@@ -158,6 +159,26 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(legacyRenderToHtml(template)).toContain("Critical final notice");
     expect(html).toContain("Inner words");
     expect(html).toContain("Critical final notice");
+  });
+
+  it("ask nothing of an email client that legacy's head doesn't: no light color scheme, no format detection off", () => {
+    const html = renderToHtml(<Email><Row><Column><Paragraph>Call 555 0100</Paragraph></Column></Row></Email>);
+    expect(html).not.toMatch(/color-scheme|format-detection/);
+    expect(html).toContain('<meta name="x-apple-disable-message-reformatting">');
+  });
+
+  it("render the plain text as today where the new engine's plain text fails", () => {
+    const spy = vi.spyOn(compat, "renderThroughNewEngine").mockReturnValue({
+      get text(): string {
+        throw new Error("the plain text failed");
+      },
+    } as never);
+    try {
+      const template = <Email><Row><Column><Paragraph>Plain words</Paragraph></Column></Row></Email>;
+      expect(renderToPlainText(template)).toBe(legacyRenderToPlainText(template));
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("add a custom tool's script to the head whole, whatever it holds ($& and $' are text)", () => {
