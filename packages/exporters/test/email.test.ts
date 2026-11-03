@@ -570,6 +570,12 @@ describe("email HTML", () => {
     ]);
   });
 
+  it("writes a horizontal Menu as one line of plain text, its separators between its links; a vertical one a link to a line", () => {
+    const items = [{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }];
+    expect(render(email([{ type: "Menu", props: { items, separator: "|" } }])).text).toBe("Docs (https://example.com/docs) | Blog (https://example.com/blog)");
+    expect(render(email([{ type: "Menu", props: { items, layout: "vertical" } }])).text).toBe("Docs (https://example.com/docs)\n\nBlog (https://example.com/blog)");
+  });
+
   it("wraps a long horizontal Menu's links where they don't fit, and notes where classic Outlook can't", () => {
     const items = (count: number) => Array.from({ length: count }, (_, index) => ({ text: `Section ${index + 1}`, href: `https://example.com/${index}` }));
     const menu = (count: number) => render(email([{ type: "Menu", props: { items: items(count), separator: "|" } }]));

@@ -5,7 +5,7 @@
  * renderToPlainText: large headings in capitals, a link as "text (url)", an
  * image as "[alt]", a divider as "---", blocks apart by a blank line; list
  * items as "- " or "1. " (nested ones indented), a table's rows a line each,
- * its cells apart by " | ".
+ * its cells apart by " | "; a Row that wraps (a Menu) a line of what's in it.
  */
 import { linkParts, type LinkValue, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 
@@ -75,6 +75,11 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           return [`${tidy(String(child.props.title))} (${child.props.src})`];
         case "Svg":
           return child.props.title ? [`[${tidy(String(child.props.title))}]`] : [];
+        case "Row": {
+          // A Row that wraps its children as words wrap (a Menu's links and separators) is a line of them.
+          const parts = blocks(child);
+          return child.style.flexWrap === "wrap" && parts.every((part) => !part.includes("\n")) ? [parts.filter(Boolean).join(" ")] : parts;
+        }
         // A Document's header and footer are on every page: its text is its pages' content, once.
         case "PageHeader":
         case "PageFooter":
