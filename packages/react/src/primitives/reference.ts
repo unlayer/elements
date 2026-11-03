@@ -5,6 +5,7 @@
  * - PRIMITIVES.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
  *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
  * - PRIMITIVES-REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
+ * - skills/unlayer-elements/SKILL.md, at the repository's root: the guide as an agent skill.
  */
 import { describeComponents, type ComponentDescription, type PropertyDescription } from "@unlayer-internal/elements-core";
 
@@ -36,7 +37,9 @@ function glossary(all: ComponentDescription[]): Map<string, string> {
 
 const code = (value: unknown) => `\`${JSON.stringify(value)}\``;
 
-const GENERATED = "<!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->";
+/** The note at the top of each file this writes, naming this file as `from` the file's own folder. */
+const generated = (from: string) => `<!-- Written from the component definitions by ${from}: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->`;
+const GENERATED = generated("src/primitives/reference.ts");
 
 function property(p: PropertyDescription, named: Map<string, string>): string {
   const key = p.path.slice(p.path.indexOf(".") + 1);
@@ -158,6 +161,53 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
 
 /** PRIMITIVES.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
 export function primitivesGuide(example: string): string {
+  return [
+    "# Writing templates with the new components (`@unlayer/react-elements/primitives`)",
+    "",
+    GENERATED,
+    "",
+    "Everything needed to write a template, in short. Every prop's and style's details: [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md).",
+    "",
+    guide(example),
+  ].join("\n");
+}
+
+/** What the skill's frontmatter says, which is how an agent decides to load it. */
+const SKILL_DESCRIPTION =
+  "Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
+
+/**
+ * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add unlayer/elements` installs: the
+ * guide, as PRIMITIVES.md has it, under the frontmatter a skill needs and a few lines for projects already on today's
+ * components. An agent given the guide before writing a template gets it right on the first try far more often.
+ */
+export function primitivesSkill(example: string): string {
+  return [
+    "---",
+    "name: unlayer-elements",
+    `description: ${SKILL_DESCRIPTION}`,
+    "---",
+    "",
+    "# Unlayer Elements",
+    "",
+    generated("packages/react/src/primitives/reference.ts"),
+    "",
+    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements/primitives` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.",
+    "",
+    "## Templates on today's components",
+    "",
+    "A project may already have templates on today's components: they import from `@unlayer/react-elements` (or `@unlayer/react-elements/legacy`, the same entry), not `/primitives`, and use `ColumnLayouts`, `html` props and `renderToHtml()`.",
+    "",
+    "- They keep working. Their API is unchanged, and since 0.3.0 they render through the same engine as the new components; what it can't draw as before (an `Html` block, a custom tool) keeps its 0.2 output.",
+    "- The two sets don't mix: a template uses one or the other. When changing one of these templates, keep its components, or move it first.",
+    "- To move them, the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md",
+    "",
+    guide(example),
+  ].join("\n");
+}
+
+/** The guide itself, from "How a template is written" on: the same in PRIMITIVES.md and the skill. */
+function guide(example: string): string {
   const all = describeComponents();
   const named = glossary(all);
   const placed = new Set<string>();
@@ -167,12 +217,6 @@ export function primitivesGuide(example: string): string {
     return [`### ${group.title}`, "", ...members.map((c) => line(c, named))].join("\n");
   });
   return [
-    "# Writing templates with the new components (`@unlayer/react-elements/primitives`)",
-    "",
-    GENERATED,
-    "",
-    "Everything needed to write a template, in short. Every prop's and style's details: [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md).",
-    "",
     "## How a template is written",
     "",
     "- Import from `@unlayer/react-elements/primitives`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
