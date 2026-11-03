@@ -8,6 +8,7 @@ import { BodyDefaults } from "@unlayer/exporters";
 import { color, fontWeight, font, px, serviceTag, type Sides, type Values } from "../compat/values";
 import type { Context } from "./blocks";
 import { readHidden } from "./hide";
+import { withoutMalformed } from "./malformed";
 import { readRow } from "./rows";
 import { sayUnread } from "./unread";
 
@@ -20,7 +21,8 @@ const ROOTS: Record<DisplayMode, string> = { email: "Email", web: "Page", docume
 /** The page sizes a Document takes. */
 const SIZES = new Set(["A3", "A4", "A5", "Letter", "Legal", "Tabloid"]);
 
-export function readDesign(design: unknown, displayMode: DisplayMode | undefined, report: string[], toSafeHtml?: (html: string) => string): Node {
+export function readDesign(given: unknown, displayMode: DisplayMode | undefined, report: string[], toSafeHtml?: (html: string) => string): Node {
+  const design = withoutMalformed(given, report);
   const body = obj(obj(design).body);
   if (!Object.keys(body).length) report.push("the design has no body: an empty template");
   // A value the body doesn't have is the builder's default, as it gives it.

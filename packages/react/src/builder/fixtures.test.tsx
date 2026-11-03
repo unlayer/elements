@@ -116,7 +116,7 @@ describe("malformed design JSON", () => {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   };
-  const ODD: unknown[] = [null, undefined, 0, -1, 1e9, NaN, "", "x", "__proto__", "constructor", "toString", true, [], [null], {}, { __proto__: { x: 1 } }, { constructor: 1 }, "javascript:alert(1)", "<script>x</script>", "10px 20px 30px 40px 50px", { value: 5 }];
+  const ODD: unknown[] = [null, undefined, 0, -1, 1e9, NaN, "", "x", "__proto__", "constructor", "toString", true, [], [null], {}, { __proto__: { x: 1 } }, { constructor: 1 }, JSON.parse('{"toString":null}'), JSON.parse('{"valueOf":1,"toString":"x"}'), "javascript:alert(1)", "<script>x</script>", "10px 20px 30px 40px 50px", { value: 5 }];
 
   /** The design with one value somewhere replaced by something odd. */
   function damaged(design: any, seed: number): any {
@@ -183,6 +183,24 @@ describe("malformed design JSON", () => {
       expect(safe).not.toContain("<script");
       expect(safe).toContain("Hi");
     }
+  });
+
+  it("leaves out a value whose own toString or valueOf isn't a function (which can't be read as text), wherever it is, and says so", () => {
+    const odd = () => JSON.parse('{"toString":null}');
+    const design = toDesign(TEMPLATES.sample).design as any;
+    const [first, second] = design.body.rows[0].columns[0].contents;
+    first.values.containerPadding = odd();
+    second.values.fontSize = odd();
+    design.body.rows[0].values.padding = odd();
+    design.body.rows[0].columns[0].values.padding = odd();
+    design.body.values.contentWidth = odd();
+    design.body.values.textColor = JSON.parse('{"valueOf":null,"toString":"x"}');
+    let back: ReturnType<typeof fromDesign> | undefined;
+    expect(() => (back = fromDesign(design))).not.toThrow();
+    expect(validate(back!.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(back!.report.filter((line) => line.includes("toString or valueOf"))).toEqual(
+      ["body.rows[0].columns[0].contents[0].values.containerPadding", "body.rows[0].columns[0].contents[1].values.fontSize", "body.rows[0].columns[0].values.padding", "body.rows[0].values.padding", "body.values.contentWidth", "body.values.textColor"].map((path) => `${path}: a value whose own toString or valueOf isn't a function can't be read: left out`)
+    );
   });
 
   it("reads JSON that isn't a design as an empty template, and says so", () => {
