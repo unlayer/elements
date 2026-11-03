@@ -29,7 +29,8 @@ export const Social = defineComposite({
   description: "Links to social profiles: a line of the networks' icons, each linked to its profile.",
   categories: ["block"],
   props: {
-    icons: prop(items({ name: text({ maxLength: 40 }), href: link() }, "icon"), {
+    // Its icon is found by its name's letters and digits ("LinkedIn": linkedin.png): a name needs one.
+    icons: prop(items({ name: text({ maxLength: 40, pattern: /[A-Za-z0-9]/, mismatch: `has no letter (a to z) or digit, which its icon is found by ("Instagram")` }), href: link() }, "icon"), {
       support: WRITTEN,
       label: "Icons",
       required: true,

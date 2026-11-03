@@ -33,6 +33,10 @@ describe("Social", () => {
       ["error", "root.children[0].props.icons", expect.stringContaining('icon 2: "url" isn\'t one of its fields (name, href)')],
     ]);
     expect(checkDocument(email({ type: "Social", props: {} })).diagnostics.map((d) => d.path)).toEqual(["root.children[0].props.icons"]);
+    // Its icon is found by the letters and digits of its name: a name with none would point at no icon.
+    expect(checkDocument(email({ type: "Social", props: { icons: [ICONS[0], { name: "★ ✦", href: "https://y.com" }] } })).diagnostics.map((d) => [d.severity, d.path, d.message])).toEqual([
+      ["error", "root.children[0].props.icons", expect.stringContaining("icon 2: name: has no letter (a to z) or digit")],
+    ]);
   });
 
   it("is described for editors and agents: its icons as a list of { name, href }", () => {

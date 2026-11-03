@@ -383,7 +383,8 @@ export function enumOf<const V extends readonly (string | number)[]>(values: V):
   });
 }
 
-export function text(options: { maxLength?: number } = {}): Kind<string, string> {
+/** Text, at most `maxLength` long; with a `pattern`, text it finds something in (`mismatch` says what's missing). */
+export function text(options: { maxLength?: number; pattern?: RegExp; mismatch?: string } = {}): Kind<string, string> {
   return kind({
     name: "text",
     editor: "text",
@@ -391,9 +392,10 @@ export function text(options: { maxLength?: number } = {}): Kind<string, string>
     parse(input) {
       if (typeof input !== "string") return fail(`expected text, not ${show(input)}`);
       if (options.maxLength !== undefined && input.length > options.maxLength) return fail(`is longer than ${options.maxLength} characters`);
+      if (options.pattern && !options.pattern.test(input)) return fail(options.mismatch ?? `doesn't match ${options.pattern.source}`);
       return ok(input);
     },
-    jsonSchema: () => ({ type: "string", ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}) }),
+    jsonSchema: () => ({ type: "string", ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}), ...(options.pattern ? { pattern: options.pattern.source } : {}) }),
   });
 }
 
