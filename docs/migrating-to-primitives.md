@@ -2,8 +2,9 @@
 
 The new components (`@unlayer/react-elements/primitives`, the main import from the next major version) render
 without `@unlayer/exporters`, take typed `style` props, and come with the outputs and checks described in
-[RFC 0001](rfcs/0001-primitives-and-exporters.md). Today's components stay, unchanged, at
-`@unlayer/react-elements/legacy`, so a template can move when it's ready.
+[RFC 0001](rfcs/0001-primitives-and-exporters.md). Today's components stay at
+`@unlayer/react-elements/legacy` with their API unchanged (since 0.3.0 they render through the new engine too),
+so a template can move when it's ready.
 
 ## Run the codemod
 
@@ -55,7 +56,9 @@ The codemod never drops anything quietly. It lists, with the line:
   declaration and the tag it was on, a tag they have no run for; the text in it is kept;
 - a text block's source today's doesn't draw (a `Paragraph`'s `html` beside its children);
 - `Column`s whose borders or backgrounds today's stretch to their `Row`'s height;
-- a `Menu`: today's put a space between its links on top of their padding; the new one doesn't;
+- a horizontal `Menu` of links written out: it's written as a wrapping `Row` of its links and separators, with
+  the spaces today's puts between them, so it draws as today's does (a `Menu` of links worked out at run
+  time, or a vertical one, stays a `Menu`);
 - components with no new one yet (`Html`, `Table`, custom tools): a comment where each was, for you to rewrite;
 - today's functions it leaves imported (`renderToHtml`): render the new components with `render()`, which is
   async.

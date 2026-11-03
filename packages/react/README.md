@@ -12,7 +12,7 @@ pnpm add @unlayer/react-elements
 
 ## New components (`@unlayer/react-elements/primitives`)
 
-A preview of the next major version, at its own entry: new components with typed `style` props, one template for an email, a web page, a printed document or an image, and `validate()` to check a template before it's sent. The components further down (the main import) are unchanged and don't mix with these: a template uses one set or the other.
+A preview of the next major version, at its own entry: new components with typed `style` props, one template for an email, a web page, a printed document or an image, and `validate()` to check a template before it's sent. The components further down (the main import) keep their API and render through the same new engine since 0.3.0 (see [The rendering engine](#the-rendering-engine)); they don't mix with these: a template uses one set or the other.
 
 **With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
 
@@ -406,6 +406,22 @@ import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 ```
 
 Number of `<Column>` children must match the layout.
+
+## The rendering engine
+
+Since 0.3.0 these components render through Elements' own writers, open source in this repository, in place
+of the closed `@unlayer/exporters`. Your templates and the functions you call don't change. The HTML does;
+what a reader gets doesn't: the same words, links, images, text styles and layout, on desktop and on phones,
+and the same plain text. That was checked against 0.2.1 over 173 templates in Chromium.
+
+- **Kept as before:** what the new writers can't draw the same way yet keeps its 0.2 output. An `Html` block
+  and a custom tool always do. So do a table, a few blocks in an email (with phone-only or hiding settings, a
+  menu or social block), and whole templates whose layout the new writers can't match yet (a background image,
+  for one).
+- **Two fixes:** an email whose rows have side padding no longer sits off centre and scrolls sideways in a
+  window narrower than its content plus that padding; and a word too long for its column wraps inside it
+  instead of running out of it.
+- **Size:** the main entry grows from about 31KB to about 94KB gzipped, as it carries the new engine.
 
 ## Rendering Modes
 

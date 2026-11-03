@@ -91,7 +91,8 @@ The decisions behind the design, with the date each was taken.
     [Builder adapter](#builder-adapter). An earlier version (2026-11-02) kept each item's node in
     `values._elements`; it was withdrawn before release.
 13. **Existing components move to the new engine** (2026-10). Their HTML may change; what a reader gets
-    (content, links, images, styles, layout on desktop and phones) may not.
+    (content, links, images, styles, layout on desktop and phones) may not. Done in 0.3.0, with two of
+    their layout bugs fixed instead of kept (2026-11-03; see [Moving the existing components](#moving-the-existing-components-and-the-major-version)).
 
 ## The API
 
@@ -449,11 +450,36 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 
 ## Moving the existing components and the major version
 
-Today's components (`@unlayer/react-elements`'s main entry) keep their props and behavior, and move to
-the new engine one at a time: each lowers into the new components, renders through the new writers,
-and is switched over when its output passes the existing suites (designs and plain text identical, HTML
-equal in content and styles by convert-core's check at desktop and phone widths, the browser and
-Storybook gates). Its markup may change; each switch is a changelog entry naming what changed.
+Today's components (`@unlayer/react-elements`'s main entry) keep their props and behavior, and since
+0.3.0 render through the new engine: `renderToHtml`, `renderToHtmlParts` and `renderToPlainText` take a
+template's design (what `renderToJson` returns, unchanged), lower it into the new engine's tree
+(`packages/react/src/compat`) and write it with the new writers. Each tool lowers into its new component:
+heading and text into `Heading` and `Paragraph`, button, image, divider, video, and on a page menu and
+social. Their markup changes; what a reader gets doesn't. Where legacy draws something other than its
+design asks, the tree draws it as legacy does (`compat/quirks.ts`, one function and one test each, for the
+major that drops them).
+
+What the new engine can't draw the same way yet keeps legacy's output, decided per block or per template:
+
+- **A block** keeps the HTML its exporter writes (a `Raw` node): an `Html` block and a custom tool always;
+  a table, for now; in an email, a block with phone or hiding settings (legacy applies them below 480px,
+  the new engine below its width plus 20), a menu or a social block (their spacing is the font's), and an
+  image shorter than a line of text; text with markup a run can't hold (an attribute with no value,
+  `<% %>` tags, a link's own attributes); a divider on a page or in a printed document.
+- **A template** renders as today, through legacy, where its frame can't be drawn the same way: a
+  background image, an email row's padding uneven on its sides, column backgrounds or borders legacy
+  stretches to the row's height, markup among the rows, a layout its columns don't match, a divider
+  longer than its column, or a template made with another copy of today's components.
+
+Two of legacy's layout bugs are fixed instead (2026-11-03): an email whose rows have side padding no
+longer sits off centre and scrolls sideways in a window narrower than its content plus that padding, and a
+word too long for its column wraps inside it, on a page and in an email.
+
+It's checked by Storybook's comparison gate (`test:compare`: main's examples and every story of today's
+components, through both engines, at desktop and phone widths) and, before each release, against the
+published version over 173 templates (the demo app's, every story's, main's examples and generated ones),
+in Chromium at 375, 600 and 800px: the same words, styles, positions, images, links and paint, and the same
+plain text, every difference but the two fixes above.
 
 Meanwhile, a block that has no new component yet is a `Raw` node: the markup today's exporter writes for it,
 the CSS it needs in the stylesheet (each rule once) and its plain text. Only importers make one (the
@@ -512,6 +538,7 @@ Each step ends with its tests in CI.
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
 | 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | next, in a pull request of its own |
+| 12. Today's components render through the new engine (decision 13) | done |
 
 ## Open questions
 

@@ -1,5 +1,18 @@
 # @unlayer/react-elements
 
+## 0.3.0
+
+- Today's components render through Elements' own open-source writers instead of `@unlayer/exporters`.
+  Templates and the render functions don't change, and neither does what a reader gets; the HTML does. What
+  the new writers can't draw the same way yet keeps its 0.2 output.
+- Fixed: an email whose rows have side padding no longer sits off centre and scrolls sideways in a window
+  narrower than its content plus that padding.
+- Fixed: a word too long for its column wraps inside it, on a page and in an email.
+- New, as a preview of the next major version: `@unlayer/react-elements/primitives`, the new components, with
+  `render()` and `validate()`. Today's API is also at `@unlayer/react-elements/legacy`.
+- Types for `/primitives` and `/legacy` resolve under `moduleResolution: "node"` too.
+- The main entry grows from about 31KB to about 94KB gzipped.
+
 ## 0.1.0
 
 - Initial release
