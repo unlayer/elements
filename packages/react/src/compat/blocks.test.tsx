@@ -33,6 +33,19 @@ describe("a text block", () => {
   });
 });
 
+describe("a text block's link style", () => {
+  const link = (Root: Root, linkStyle: Record<string, unknown>) => lowered(<Paragraph html='<a href="https://example.com">link</a> rest' linkStyle={linkStyle as never} />, Root);
+
+  it("gives its links its color, and no underline where it says none", () => {
+    expect(link(Email, { inherit: false, linkColor: "#00ff00", linkUnderline: false })?.children?.[0]).toMatchObject({ type: "Link", style: { color: "#00ff00", textDecoration: "none" } });
+    expect(link(Page, { inherit: false, linkColor: "#00ff00", linkHoverColor: "#00ff00", linkUnderline: false, linkHoverUnderline: false })?.children?.[0]).toMatchObject({ type: "Link", style: { color: "#00ff00", textDecoration: "none" } });
+  });
+
+  it("keeps its legacy HTML on a page where its links' hover style is another (legacy's head CSS draws it)", () => {
+    expect(link(Page, { inherit: false, linkColor: "#00ff00", linkUnderline: false })?.type).toBe("Raw");
+  });
+});
+
 describe("a heading block", () => {
   it("is a Heading of its level, bold where it says no weight", () => {
     expect(lowered(<Heading headingType="h2" values={{ fontWeight: undefined } as never}>Title</Heading>)).toMatchObject({ type: "Heading", props: { level: 2 }, children: ["Title"] });

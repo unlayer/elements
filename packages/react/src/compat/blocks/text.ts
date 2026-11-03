@@ -66,19 +66,27 @@ export const textHtml = (values: Values, place: Place): string => {
   return spaceBeforeTag(place.config.toSafeHtml ? place.config.toSafeHtml(html) : html);
 };
 
-/** The color legacy gives a block's links: its own link color where it doesn't take the body's, else the browser's. */
-function linkColor(values: Values): string | undefined {
+/**
+ * The style legacy gives a block's links where it doesn't take the body's: their color, and no underline where it
+ * says none. Null where it can't be drawn: on a page, a hover style other than its links' own (legacy's head CSS
+ * draws it; a printed document and an email have none).
+ */
+function linkStyleOf(values: Values, mode: Place["mode"]): Record<string, Json> | undefined | null {
   const style = values.linkStyle;
-  return style && style.inherit === false && typeof style.linkColor === "string" && style.linkColor ? style.linkColor : undefined;
+  if (!style || style.inherit !== false) return undefined;
+  const color = typeof style.linkColor === "string" && style.linkColor ? style.linkColor : undefined;
+  const underline = style.linkUnderline !== false;
+  if (mode === "web" && (style.linkHoverColor !== style.linkColor || (style.linkHoverUnderline !== false) !== underline)) return null;
+  return { ...(color ? { color } : {}), ...(underline ? {} : { textDecoration: "none" }) };
 }
 
-/** The links among runs, in the block's link color (where a link has none of its own). */
-function colored(runs: Array<TreeNode | string>, color: string | undefined): Array<TreeNode | string> {
-  if (!color) return runs;
+/** The links among runs in the block's link style (in what a link doesn't set itself). */
+function styled(runs: Array<TreeNode | string>, style: Record<string, Json> | undefined): Array<TreeNode | string> {
+  if (!style || !Object.keys(style).length) return runs;
   return runs.map((run) => {
     if (typeof run === "string") return run;
-    const children = run.children && colored(run.children, color);
-    if (run.type === "Link" && run.style?.color === undefined) return { ...run, style: { ...run.style, color }, ...(children ? { children } : {}) };
+    const children = run.children && styled(run.children, style);
+    if (run.type === "Link") return { ...run, style: { ...style, ...run.style }, ...(children ? { children } : {}) };
     return children ? { ...run, children } : run;
   });
 }
@@ -95,6 +103,8 @@ function textBlock(type: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   if (!style || !phone || !padding) return undefined;
   const { children, left } = parseRuns(textHtml(values, place), { weight: (style.fontWeight as number | undefined) ?? 400 });
   if (left.length) return undefined;
+  const links = linkStyleOf(values, place.mode);
+  if (links === null) return undefined;
   const level = type === "Heading" ? Number(/^h([1-6])$/.exec(String(values.headingType ?? "h1"))?.[1]) : undefined;
   if (type === "Heading" && !level) return undefined;
   return {
@@ -103,7 +113,7 @@ function textBlock(type: "Paragraph" | "Heading", block: DesignBlock, place: Pla
     style: { ...style, ...(some(padding) ? { padding } : {}) },
     ...phone,
     // An empty block is a line of its height, as legacy's.
-    children: children.length ? colored(children, linkColor(values)) : ["​"],
+    children: children.length ? styled(children, links) : ["​"],
   };
 }
 
