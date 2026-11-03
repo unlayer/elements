@@ -553,15 +553,17 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   compat reads today's designs (what legacy, and so the builder, draws), sharing its value parsers and its run
   parser (which, read for the builder, also takes what `toDesign()` writes in text, and a link's `rel` of
   `noopener` and `noreferrer` only, which its editor writes and Elements writes on a link opening a new
-  window); a tool's text is its rich text (`textJson`, what the builder's editor saves) where it has one, as
-  today's exporters write it (its editor's links, an `extended-link` or an `autolink`, which the shared
-  generator writes as their words, kept as links), else its `text`; each `<p>` in text is a Paragraph of its
-  own, with no margins but those its own style gives it (the builder's export resets a paragraph's, `p {
-  margin: 0 }`); text with what no run holds or with an email service's tag (`{% if %}`, `<%name%>`, kept as
-  written for the service to fill in), and any builder `html` block, is an `Html` block. A design's markup (an
-  `html` block's, a text's before it's read) goes through the app's `toSafeHtml` where it gives one, as it
-  does in today's exporters; without one it's kept as it is. The root is the builder's display mode (`"email"`
-  an `Email`, `"web"` a `Page`, `"document"` a `Document`); without one, a design with a header, a footer or a
+  window); a tool's text is read as the builder's exporter reads it: a paragraph's (its rich-text tool's), a
+  heading's and a button's from its rich text (`textJson`, what its editor saves) where it has one (its
+  editor's links, an `extended-link` or an `autolink`, which the shared generator writes as their words, kept
+  as links), a text's (its older tool's) from its `text`, which the editor writes from the rich text whenever
+  it saves, and from its rich text only where it has no `text`; each `<p>` in text is a Paragraph of its own,
+  with no margins but those its own style gives it (the builder's export resets a paragraph's, `p { margin: 0
+  }`); text with what no run holds or with an email service's tag (`{% if %}`, `<%name%>`, kept as written for
+  the service to fill in), and any builder `html` block, is an `Html` block. A design's markup (an `html`
+  block's, a text's before it's read) goes through the app's `toSafeHtml` where it gives one, as it does in
+  today's exporters; without one it's kept as it is. The root is the builder's display mode (`"email"` an
+  `Email`, `"web"` a `Page`, `"document"` a `Document`); without one, a design with a header, a footer or a
   page break is a `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, a
   value that can't be read as text (an object whose own `toString` isn't a function) left out first, markup
   nested deeper than any text's (64 tags) an `Html` block, every value checked against its component, what

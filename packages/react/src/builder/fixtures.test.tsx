@@ -105,7 +105,8 @@ describe("text as the builder's editors write it", () => {
     ]);
   });
 
-  // The third text's rich text has links as the editor saves them, each with a rel of noopener and noreferrer only.
+  // The third block, a paragraph (the builder's rich-text tool, written from its rich text), has links as the editor
+  // saves them, each with a rel of noopener and noreferrer only.
   it("reads links in rich text, with the rel the editor gives them, as Links in the text's runs", async () => {
     const design = fixture("paragraphs.builder-editor");
     const textJson = design.body.rows[0].columns[0].contents[2].values.textJson;
@@ -129,7 +130,7 @@ describe("text as the builder's editors write it", () => {
     expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
   });
 
-  // The fourth text's rich text has links as the editor saves them (ExtendedLinkNode's JSON: an `extended-link`, one
+  // The fourth block's (a paragraph's) rich text has links as the editor saves them (ExtendedLinkNode's JSON: an `extended-link`, one
   // with a title, a style and the builder's link value, one it made as it was typed) and Lexical's automatic links
   // (`autolink`, one its writer unlinked), which the shared generator writes as their words only.
   it("reads the editor's links in rich text (extended-link, autolink) as Links, with their href, target, title and style", () => {

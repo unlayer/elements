@@ -74,17 +74,21 @@ export function mergeTags(runs: Run[], pages: boolean): Child[] {
   });
 }
 
+/** The builder's tools with text. */
+export type TextToolName = "text" | "paragraph" | "heading" | "button";
+
 /**
- * A tool's text as the builder draws it: its rich text (`textJson`, what its editor saves) where it has one, as today's
- * exporters write it, its links kept (text-json.ts), which the design's `text` may be an older copy of; its `text` where
- * it hasn't. A heading's or a
- * button's lines are each a `<span>` in its direction (its alignment nothing on a span): unwrapped where that's the
- * block's own.
+ * A tool's text as the builder's exporter writes it. A paragraph (its rich-text tool), a heading and a button are
+ * written from their rich text (`textJson`, what its editor saves) where they have one, through text-json.ts; a text
+ * (its older tool) from its `text`, which the editor writes from the rich text each time it saves a design, and from
+ * its rich text only where it has no `text`. A heading's or a button's lines are each a `<span>` in its direction (its
+ * alignment nothing on a span): unwrapped where that's the block's own.
  */
-export function richText(values: Record<string, unknown>, inline: boolean, dir: string): string {
-  if (typeof values.textJson !== "string") return typeof values.text === "string" ? values.text : "";
+export function richText(values: Record<string, unknown>, tool: TextToolName, dir: string): string {
+  const text = typeof values.text === "string" ? values.text : undefined;
+  if (typeof values.textJson !== "string" || (tool === "text" && text)) return text ?? "";
   const html = textJsonHtml(values.textJson);
-  return inline ? unwrapLines(html, dir) : html;
+  return tool === "heading" || tool === "button" ? unwrapLines(html, dir) : html;
 }
 
 /** Spans each holding a line in the block's direction, their words in a row (as inline spans are drawn); the HTML as it is otherwise. */
