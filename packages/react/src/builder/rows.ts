@@ -6,6 +6,7 @@
  * splits the row there (in a Document).
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
+import { ColumnDefaults, RowDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, px, sides, some, type Sides, type Values } from "../compat/values";
 import { readBlock, type Context } from "./blocks";
@@ -88,8 +89,9 @@ function columnOf(columnValues: Values, children: Node[], share: string | undefi
 }
 
 export function readRow(row: Values, where: string, at: Where): Node[] {
-  const values = obj(row.values);
-  const columns = arr(row.columns).map(obj);
+  // A value an item doesn't have is its tool's default, as the builder gives it.
+  const values = { ...RowDefaults, ...obj(row.values) } as Values;
+  const columns = arr(row.columns).map(obj).map((column) => ({ ...column, values: { ...ColumnDefaults, ...obj(column.values) } }));
   const say = at.context(where).say;
   if (!columns.length) {
     say("a row with no columns: left out");

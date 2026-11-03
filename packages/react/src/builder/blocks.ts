@@ -6,6 +6,7 @@
  * draws), and a tool that isn't one of Elements' is left out, and said.
  */
 import { Button as ButtonDefinition, Heading as HeadingDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
+import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
 import { ALIGN, color, fontWeight, font, letterSpacing, lineHeight as legacyLineHeight, px, sides, some, type Sides, type Values } from "../compat/values";
@@ -23,10 +24,10 @@ export interface Context {
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
 const obj = (value: unknown): Values => (value && typeof value === "object" && !Array.isArray(value) ? (value as Values) : {});
 const str = (value: unknown) => (typeof value === "string" ? value : undefined);
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const lower = (value: unknown) => (typeof value === "string" ? value.toLowerCase() : value);
+/** Two values the same, colors in either case ("#BBBBBB" is "#bbbbbb"). */
+const same = (a: unknown, b: unknown) => JSON.stringify(a)?.toLowerCase() === JSON.stringify(b)?.toLowerCase();
 /** A style set where it isn't what the node takes anyway. */
-const unless = (value: Json | undefined, taken: Json | undefined) => (value === undefined || same(lower(value), lower(taken)) ? undefined : value);
+const unless = (value: Json | undefined, taken: Json | undefined) => (value === undefined || same(value, taken) ? undefined : value);
 /** A line height as Elements': a percentage as the multiple it is ("150%" is 1.5), px as it is. */
 const lineHeight = (value: unknown): Json | undefined => {
   const read = legacyLineHeight(value);
@@ -291,6 +292,20 @@ const READERS = new Map<string, (values: Values, context: Context) => Node[]>([
   ["html", html],
 ]);
 
+/** Each tool's defaults, which the builder gives a value its item doesn't have. */
+const DEFAULTS = new Map<string, Values>([
+  ["text", TextDefaults],
+  ["paragraph", ParagraphDefaults],
+  ["heading", HeadingDefaults],
+  ["button", ButtonDefaults],
+  ["image", ImageDefaults],
+  ["divider", DividerDefaults],
+  ["menu", MenuDefaults],
+  ["social", SocialDefaults],
+  ["video", VideoDefaults],
+  ["html", HtmlDefaults],
+]);
+
 /** A builder block as nodes: its component, in a Column for its place where it needs one; none for a tool Elements has no component for. */
 export function readBlock(type: unknown, values: Values, context: Context): Node[] {
   const read = typeof type === "string" ? READERS.get(type) : undefined;
@@ -298,5 +313,5 @@ export function readBlock(type: unknown, values: Values, context: Context): Node
     context.say(`a ${typeof type === "string" ? type : "block"} of the builder's has no component in Elements: left out`);
     return [];
   }
-  return read(values, context);
+  return read({ ...DEFAULTS.get(type as string), ...values }, context);
 }

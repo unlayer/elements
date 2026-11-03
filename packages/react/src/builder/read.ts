@@ -4,6 +4,7 @@
  * never throws: what can't be read is left out and said.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
+import { BodyDefaults } from "@unlayer/exporters";
 import { color, fontWeight, font, px, type Sides, type Values } from "../compat/values";
 import type { Context } from "./blocks";
 import { readHidden } from "./hide";
@@ -21,7 +22,8 @@ const SIZES = new Set(["A3", "A4", "A5", "Letter", "Legal", "Tabloid"]);
 export function readDesign(design: unknown, displayMode: DisplayMode | undefined, report: string[]): Node {
   const body = obj(obj(design).body);
   if (!Object.keys(body).length) report.push("the design has no body: an empty template");
-  const values = obj(body.values);
+  // A value the body doesn't have is the builder's default, as it gives it.
+  const values = { ...BodyDefaults, ...obj(body.values) } as Values;
   const rowsOf = (key: string) => {
     if (body[key] !== undefined && !Array.isArray(body[key])) report.push(`body.${key} isn't a list of rows: left out`);
     return arr(body[key]);
