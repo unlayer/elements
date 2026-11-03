@@ -483,24 +483,36 @@ added inside a page ends it there, and what follows is a page of its own.
   `Button` → button, `Image` → image, `Divider` → divider, `Table` → table). What no tool can show
   (nested layouts, a `Layer`) is a locked block with its HTML: it can be moved, duplicated or deleted,
   not edited.
-- **What the builder has no editor for stays in the design.** Each item (the body, a row, a column, a
-  block) carries, in its `values._elements`, the node it was made from (without the children the
-  builder holds) and the values it was written with. The builder keeps any key in `values` through
-  loading, editing, saving and duplicating, and shows no editor for one it doesn't know; a key beside
-  `values` it drops. A row also names the Section and Grid it's a row of, and a block the boxes that
-  were flattened into its column.
-- **Back from the builder:** `fromDesign()`, as an element and as JSX source. Each node comes back as it
-  was; a value that's no longer the one written was changed in the builder, and its change is applied
-  (a value that's the sum of the node's own and its place, a block's spacing, moves the node's own by
-  the change). Text is compared by its runs, as the builder rewrites the HTML it keeps (a paragraph
-  around it, `<strong>` for bold). Order and nesting come from the builder: rows of a Section next to
+- **What the builder has no editor for stays in the design, and nothing else.** The builder's values
+  are the design: what the builder holds (a heading's words, size and color) is written there only.
+  Each item (the body, a row, a column, a block) carries, in its `values._elements`, only what the
+  builder can't hold: the props and styles of its node with no builder field (a heading's background),
+  and how much of a value the builder shows is the node's place rather than the node's own (a Section's
+  space, written into the spacing of the blocks in it). A value the builder can't give back exactly
+  (a width it measures its own way) is kept as written, and only that one. The builder keeps any key
+  in `values` through loading, editing, saving and duplicating, and shows no editor for one it doesn't
+  know; a key beside `values` it drops. A row also names the Section and Grid it's a row of, and a
+  block the boxes that were flattened into its column. A design is about a quarter bigger than the
+  builder's own (each value once: an embedded image isn't kept twice).
+- **Back from the builder:** `fromDesign()`, as an element and as JSX source. Each builder value is
+  read as the node's, less its place: a block's spacing of 46px where 36px is its Section's is 10px of
+  its own, and 56px after a change in the builder is 20px. A value that's still what the builder has
+  where a template sets nothing (its defaults, a frozen table of the format's) is nothing set, and one
+  a node takes from what it's in (a heading's font, the body's) is left out where it still is, against
+  what's around it as read back. Text is read from the HTML the builder keeps, as it rewrites it (a
+  paragraph around it, `<strong>` for bold); text whose runs its HTML can't hold (a link's hover) keeps
+  them, and the HTML written. Order and nesting come from the builder: rows of a Section next to
   each other are that Section again (moved apart, a Section each), a one-column row of blocks is those
   blocks; a block or row the builder duplicated comes in twice (a repeated id numbered), and one deleted
   is gone. A block made in the builder comes from its values; one of a tool Elements has no component
   for (a form) is left out and said.
 - **Props without a builder field** are closed over time in the builder: first a hidden option it
   stores and renders, then an editor. Each step changes one mapping (`builder/fields.ts`); the format
-  doesn't change. Every conversion reports what's kept with no editor, and what's an HTML block.
+  doesn't change. A field the builder gains, and fills with its default in designs written before it,
+  has that default added to the format's table: those designs never wrote it, so it reads as nothing
+  set. A default already in the table never changes (a design written with it would read otherwise):
+  writing another is a format of its own. Every conversion reports what's kept with no editor, and
+  what's an HTML block.
 - **A change where the template has no node of its own** comes back as one that holds it: a row of
   blocks, or a column around a Row's block, the builder changed (padding, background, hiding) is a Row
   or Column; a Grid's row it changed is a Row of its own; a row given its own background is a Section
