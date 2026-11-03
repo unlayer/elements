@@ -152,6 +152,26 @@ describe("malformed design JSON", () => {
     }
   });
 
+  it("leaves out only a link Elements refuses (a file's, a script's): the rest of its block is kept, and the template renders", async () => {
+    const block = (content: unknown) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [content] }] }] } });
+    const ok = { name: "web", values: { href: "https://x.test" } };
+    const designs = {
+      image: block({ type: "image", values: { src: { url: "https://x.test/a.png", width: 100, height: 100 }, action: { name: "web", values: { href: "file:///x" } } } }),
+      menu: block({ type: "menu", values: { menu: { items: [{ key: "1", text: "A", link: { name: "web", values: { href: "javascript:alert(1)" } } }, { key: "2", text: "B", link: ok }] } } }),
+      social: block({ type: "social", values: { icons: { iconType: "circle", icons: [{ name: "Facebook", url: "data:text/html,x" }, { name: "X", url: "https://x.test" }] } } }),
+    };
+    const read = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, fromDesign(design)]));
+    for (const { element } of Object.values(read)) {
+      expect(validate(element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      await render(element);
+    }
+    expect(tree(read.image.element).children).toEqual([{ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" }, children: [{ type: "Image", props: { src: { src: "https://x.test/a.png", width: 100, height: 100 } } }] }]);
+    expect(read.image.report).toEqual(['root.children[0].children[0]: its href "file:///x" isn\'t one Elements writes: what it holds without it']);
+    expect(((tree(read.menu.element).children as Node[])[0].children![0] as Node).props!.items).toEqual([{ text: "A", href: "#" }, { text: "B", href: "https://x.test" }]);
+    expect(read.menu.report).toEqual(['root.children[0].children[0]: its items[0]\'s link "javascript:alert(1)" isn\'t one Elements writes: it\'s "#"']);
+    expect(((tree(read.social.element).children as Node[])[0].children![0] as Node).props!.icons).toEqual([{ name: "Facebook", href: "#" }, { name: "X", href: "https://x.test" }]);
+  });
+
   it("reads JSON that isn't a design as an empty template, and says so", () => {
     for (const design of [null, "x", 5, [], {}, { body: 5 }, { body: { rows: "x" } }, { body: { rows: [null, 5, { columns: "x" }, { columns: [null, { contents: [null, { type: "constructor", values: 5 }, { type: "__proto__" }] }] }] } }]) {
       const back = fromDesign(design);

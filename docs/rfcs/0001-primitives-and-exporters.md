@@ -553,8 +553,9 @@ design holds no Elements data (decision 12).
   `Html` block. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`,
   `"document"` a `Document`); without one, a design with a header, a footer or a page break is a
   `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, every value checked
-  against its component, what can't be read left out and said in `report`; the printed JSX never holds a
-  design's data as code.
+  against its component, what can't be read left out and said in `report` (a link Elements won't write, a
+  file's or a script's, alone: a Link's words or image kept, a button's, a menu item's or an icon's `#`); the
+  printed JSX never holds a design's data as code.
 - **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same
   look: a Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of
   Columns, a `Text` as a `Paragraph`, a `Document.Page` as the content between page breaks, a locked
