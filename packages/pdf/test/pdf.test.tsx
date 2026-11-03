@@ -45,6 +45,12 @@ import {
 } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
 import { writeDocument } from "../src/write";
+import { toWoff, toWoff2 } from "./woff";
+
+/** Liberation Sans (SIL OFL), as pdf.js ships it. */
+const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
+/** The fonts a PDF embeds, each named by its file's own name (after a subset's tag: "ABCDEF+LiberationSans-Bold"). */
+const embedded = (pdf: Uint8Array) => [...new Set([...Buffer.from(pdf).toString("latin1").matchAll(/\/BaseFont \/[A-Z]{6}\+([\w-]+)/g)].map((match) => match[1]))];
 
 /** A 1×1 PNG. */
 const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
@@ -158,16 +164,19 @@ describe("renderPdf", () => {
     expect((await read(pdf)).pages[0].words).toBe("Hello");
   });
 
-  it("says a font file it's given that's WOFF or WOFF2 isn't drawn (a PDF draws TTF and OTF), and draws its text in a standard font", async () => {
-    const woff2 = Uint8Array.from([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0]);
-    const { diagnostics, pdf } = await renderPdf(
-      <Document fonts={[{ family: "Inter", src: "https://fonts.acme.test/inter.woff2" }]} style={{ fontFamily: "Inter, sans-serif" }}>
+  it("draws a font file it's given that's WOFF or WOFF2 as it draws a TTF, and says nothing", async () => {
+    const ttf = liberation("LiberationSans-Regular.ttf");
+    const template = (
+      <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff2" }]} style={{ fontFamily: "Brand, sans-serif" }}>
         <Text>Hello</Text>
-      </Document>,
-      { fonts: [{ family: "Inter", src: woff2 }] }
+      </Document>
     );
-    expect(diagnostics.find((d) => d.message.includes("WOFF2"))).toMatchObject({ code: "pdf/font", severity: "warning" });
-    expect((await read(pdf)).pages[0].words).toBe("Hello");
+    for (const src of [toWoff(ttf), toWoff2(ttf)]) {
+      const { diagnostics, pdf } = await renderPdf(template, { fonts: [{ family: "Brand", src }] });
+      expect(diagnostics).toEqual([]);
+      expect(embedded(pdf)).toEqual(["LiberationSans"]);
+      expect((await read(pdf)).pages[0].words).toBe("Hello");
+    }
   });
 
   it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {
@@ -220,18 +229,15 @@ describe("renderPdf", () => {
   });
 
   it("draws each render's fonts from its own files: a family another render gave other files to isn't theirs", async () => {
-    // Liberation Sans (SIL OFL), as pdf.js ships it: two different files given, in turn, as one family.
-    const file = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
+    // Two different files given, in turn, as one family.
     const brand = (
       <Document style={{ fontFamily: "Brand" }}>
         <Text>Hello</Text>
       </Document>
     );
-    // A PDF names each font it embeds by the file's own name (after a subset's tag: "ABCDEF+LiberationSans-Bold").
-    const embedded = (pdf: Uint8Array) => [...new Set([...Buffer.from(pdf).toString("latin1").matchAll(/\/BaseFont \/[A-Z]{6}\+([\w-]+)/g)].map((match) => match[1]))];
-    const regular = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Regular.ttf") }] });
-    const bold = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Bold.ttf") }] });
-    const again = await renderPdf(brand, { fonts: [{ family: "Brand", src: file("LiberationSans-Regular.ttf") }] });
+    const regular = await renderPdf(brand, { fonts: [{ family: "Brand", src: liberation("LiberationSans-Regular.ttf") }] });
+    const bold = await renderPdf(brand, { fonts: [{ family: "Brand", src: liberation("LiberationSans-Bold.ttf") }] });
+    const again = await renderPdf(brand, { fonts: [{ family: "Brand", src: liberation("LiberationSans-Regular.ttf") }] });
     expect(embedded(regular.pdf)).toEqual(["LiberationSans"]);
     expect(embedded(bold.pdf)).toEqual(["LiberationSans-Bold"]);
     expect(embedded(again.pdf)).toEqual(["LiberationSans"]);

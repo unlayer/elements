@@ -442,7 +442,7 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 | `email/unsupported`, `email/degraded`, `email/outlook-degraded`, `email/width`, `email/image-width`, `email/font-fallback`, `web/unsupported`, `web/degraded` | the support pass |
 | `pdf/unsupported`, `image/unsupported` | a Document's PDF and a Canvas's image: what they can't show that the HTML can (a hover, a Video), in `validate()` and `renderPdf()`/`renderImage()` |
 | `document/overflow`, `canvas/overflow` | a page's or a Canvas's content that looks clearly taller than it, estimated from text length till text is measured (RFC 0002): what doesn't fit is cut off |
-| `pdf/font`, `image/font` | rendering: a font not given, or a file the engine can't draw (WOFF or WOFF2 in a PDF, WOFF2 in an image) |
+| `pdf/font`, `image/font` | rendering: a font not given, or a file the engine can't draw (WOFF2 in an image) |
 | `email/size`, `email/style-size` | writing |
 
 ## Moving the existing components and the major version
