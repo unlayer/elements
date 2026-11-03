@@ -35,7 +35,7 @@ function report(node: ResolvedNode, where: "style" | "props", key: string, value
   for (const rule of ([] as Support[]).concat(rules)) {
     if (rule.level === "full") continue;
     if (rule.values && !rule.values.some((v) => same(v, value))) continue;
-    if (rule.when && !rule.when(value)) continue;
+    if (rule.when && !rule.when(value, node)) continue;
     const at = `${node.path}.${where}.${key}`;
     const asked = typeof value === "string" ? `${key}: "${value}"` : key;
     const output = target === "web" ? "a page" : target;

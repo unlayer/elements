@@ -570,6 +570,22 @@ describe("email HTML", () => {
     ]);
   });
 
+  it("wraps a long horizontal Menu's links where they don't fit, and notes where classic Outlook can't", () => {
+    const items = (count: number) => Array.from({ length: count }, (_, index) => ({ text: `Section ${index + 1}`, href: `https://example.com/${index}` }));
+    const menu = (count: number) => render(email([{ type: "Menu", props: { items: items(count), separator: "|" } }]));
+    // Each link and separator an inline-block, onto another line where it doesn't fit; Outlook gets a table row.
+    const { body } = menu(4);
+    expect(notOutlook(body).match(/<div (class="[^"]+" )?style="display:inline-block;vertical-align:top;font-size:14px">/g)).toHaveLength(7);
+    // Outlook's row as wide as the links (centered by its cell), not spread across the email; each link's box too.
+    expect(outlookOnly(body)).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="top">');
+    expect(outlookOnly(body).match(/<td valign="top">/g)).toHaveLength(7);
+    expect(body).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:5px 15px">');
+    expect(menu(4).diagnostics).toEqual([]);
+    expect(menu(12).diagnostics.map((d) => [d.code, d.severity, d.path])).toEqual([["email/outlook-degraded", "info", "root.children[0]"]]);
+    // A vertical one's links are in a Column, where a flex would be ignored: none is given.
+    expect(render(email([{ type: "Menu", props: { items: items(2), layout: "vertical" } }])).diagnostics).toEqual([]);
+  });
+
   it("asks no width of a Link or a line of Text, as wide as its text (a Menu's), and still of a Button", () => {
     const menu = { type: "Menu", props: { items: [{ text: "A", href: "https://a.com" }, { text: "B", href: "https://b.com" }], separator: "|" } };
     expect(render(email([menu])).diagnostics.filter((d) => d.code === "email/width")).toEqual([]);

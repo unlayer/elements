@@ -6,7 +6,9 @@
  * table of the same widths in conditional comments. Gaps are spacers: a
  * cell for Outlook, an inline-block for the rest (as tall as the gap on
  * phones, where the children stack). A Row that stays side by side
- * (`stackOnMobile` false) is a table row.
+ * (`stackOnMobile` false) is a table row; one that wraps (`flexWrap`, a
+ * Menu's) is the same inline-blocks, onto another line where they don't fit
+ * (classic Outlook's table keeps them on one).
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html, type Style } from "../jsx";
@@ -21,6 +23,7 @@ const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "ri
 export const Row: Component = (props) => {
   const { node, style, mobile, fill } = props;
   const stacks = node.props.stackOnMobile !== false;
+  const wraps = !stacks && style.flexWrap === "wrap";
   const width = boxWidth(node, fill);
   return (
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
@@ -34,7 +37,8 @@ export const Row: Component = (props) => {
           height={style.height !== undefined ? toNumber(style.height) : undefined}
           style={{
             // No line boxes between the children: their inline-blocks touch.
-            fontSize: stacks ? 0 : undefined,
+            fontSize: stacks || wraps ? 0 : undefined,
+            textAlign: wraps ? (JUSTIFY[style.justifyContent as string] ?? "left") : undefined,
             padding: style.padding,
             backgroundColor: style.backgroundColor,
             border: style.border,
@@ -43,7 +47,7 @@ export const Row: Component = (props) => {
             overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
-          {stacks ? fluidHybrid(props) : sideBySide(props)}
+          {stacks || wraps ? fluidHybrid(props, stacks) : sideBySide(props)}
         </td>
       </tr>
     </Table>
@@ -56,7 +60,7 @@ const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? pro
 const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
-function fluidHybrid(props: Props): Html {
+function fluidHybrid(props: Props, stacks: boolean): Html {
   const { node, render } = props;
   const [gap, phoneGap] = [gapOf(props), phoneGapOf(props)];
   const valign = valignOf(props);
@@ -68,7 +72,8 @@ function fluidHybrid(props: Props): Html {
   return (
     <Merged>
       <Outlook>
-        {open(<table {...TABLE} width="100%" />)}
+        {/* Where they wrap, as wide as they are (placed by the cell's align), not spread across the Row. */}
+        {open(<table {...TABLE} width={stacks ? "100%" : undefined} />)}
         {open(<tr />)}
       </Outlook>
       {children.map((child, index) => {
@@ -83,7 +88,7 @@ function fluidHybrid(props: Props): Html {
         const inOutlook = !child.hidden?.desktop;
         return (
           <>
-            {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
+            {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap, stacks)}
             {inOutlook ? (
               <>
                 <Outlook>{open(<td width={width} valign={valign} style={{ width }} />)}</Outlook>
@@ -184,12 +189,14 @@ function phoneShares(children: readonly ResolvedNode[], gap: number): Map<Resolv
 }
 
 /**
- * The gap before a stacking Row's child, where there is one (`at`, from gapShown): a cell in Outlook's table on
- * desktop; for the rest, an inline-block as wide as the gap, and as tall as the phone gap where the children stack.
+ * The gap before a stacking or wrapping Row's child, where there is one (`at`, from gapShown): a cell in Outlook's
+ * table on desktop; for the rest, an inline-block as wide as the gap, and as tall as the phone gap where the children
+ * stack (as wide as it, where they wrap).
  */
-function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
+function spacer(at: GapAt, gap: number, phoneGap: number, stacks: boolean): Html | null {
   if (!at.desktop && !at.phone) return null;
   const hidden = hiding({ hidden: gapHidden(at) }, "inline-block");
+  const phone = stacks ? { height: phoneGap } : phoneGap !== gap ? { width: phoneGap } : undefined;
   return (
     <>
       {at.desktop && (
@@ -198,7 +205,7 @@ function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
         </Outlook>
       )}
       <NotOutlook>
-        <div class={hidden.class} phone={{ height: phoneGap }} style={[{ display: "inline-block", width: gap || undefined }, hidden.style]} />
+        <div class={hidden.class} phone={phone} style={[{ display: "inline-block", width: gap || undefined }, hidden.style]} />
       </NotOutlook>
     </>
   );

@@ -8,6 +8,7 @@
  */
 import { Diagnostics, fontStack, videoParts, type Diagnostic, type FontFace, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { support } from "../shared/support";
+import { wrapsPastIts } from "../shared/estimate";
 import { isNode, shown } from "./context";
 import { layerShape } from "./Layer";
 
@@ -43,6 +44,18 @@ function fallback(node: ResolvedNode, webFonts: Set<string>, d: Diagnostics): vo
 function structure(node: ResolvedNode, d: Diagnostics): void {
   const { path, id } = node;
   if (node.type === "Row") {
+    // A Row kept side by side wraps its children in every client but classic Outlook (a Menu's links): said where they
+    // look too wide for one line.
+    const past = node.props.stackOnMobile === false ? wrapsPastIts(node) : null;
+    if (past !== null) {
+      d.add(
+        "email/outlook-degraded",
+        "info",
+        `What it holds looks about ${past}px wide on one line, wider than its ${node.contentWidth}px (an estimate: text isn't measured yet): classic Outlook can't wrap it onto another line as other clients do, and draws it wider`,
+        path,
+        id
+      );
+    }
     // A Link or a line of Text is as wide as its text in a cell of its own, in Outlook too (today's Menu writes its
     // links so): only a box whose size isn't known needs a width.
     for (const child of node.children.filter(isNode).filter(shown)) {

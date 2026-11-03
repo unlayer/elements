@@ -42,7 +42,7 @@ export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "css" 
 
 /**
  * How an output shows a style or prop, or some of its values (`values`, or
- * `when` the value is such): as asked (`full`); as asked but in classic
+ * `when` the value, on a node with such props, is such): as asked (`full`); as asked but in classic
  * Outlook, which shows something else (`outlook`, email only: what it shows);
  * not quite as asked anywhere it's shown (`partial`: what it shows); or not at
  * all (`none`: what it does instead). Read by the support pass every output
@@ -50,7 +50,7 @@ export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "css" 
  */
 export type Support =
   | { level: "full"; source: SupportSource }
-  | { level: "outlook" | "partial" | "none"; shows: string; values?: readonly Json[]; when?: (value: Json) => boolean; source: SupportSource };
+  | { level: "outlook" | "partial" | "none"; shows: string; values?: readonly Json[]; when?: (value: Json, node: { props: Record<string, Json> }) => boolean; source: SupportSource };
 
 export interface StyleSpec<K extends Kind<any, any> = Kind<any, any>> {
   kind: K;

@@ -10,6 +10,7 @@
  * clearly taller is said, as an estimate.
  */
 import { assetParts, documentPages, Diagnostics, pageBox, toPx, type Asset, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { CHARACTER, characters, wrapsPastIts } from "./estimate";
 
 const isNode = (child: ResolvedNode | string): child is ResolvedNode => typeof child !== "string";
 const OUTPUT = { pdf: "a PDF", image: "an image" } as const;
@@ -27,6 +28,15 @@ export function pagedSupport(root: ResolvedNode, output: "pdf" | "image"): Diagn
       const shows = output === "pdf" ? "its thumbnail (where its file is given) or its title, linked to it" : "its title";
       d.warning(`${output}/unsupported`, `A Video isn't possible in ${where}: it has no player. It shows ${shows}`, node.path, node.id);
     }
+    const past = wrapsPastIts(node);
+    if (past !== null) {
+      d.warning(
+        `${output}/unsupported`,
+        `What it holds looks about ${past}px wide on one line, wider than its ${node.contentWidth}px (an estimate: text isn't measured yet), and ${where} can't wrap it onto another line: it goes past the edge`,
+        node.path,
+        node.id
+      );
+    }
     node.children.filter(isNode).forEach(visit);
   };
   visit(root);
@@ -37,8 +47,6 @@ export function pagedSupport(root: ResolvedNode, output: "pdf" | "image"): Diagn
 
 /** How much taller than its room content must look before it's said: the estimate is rough. */
 const CLEARLY = 1.25;
-/** A character's average width, in ems: a little under most Latin text's, so text is never thought longer than it is. */
-const CHARACTER = 0.45;
 
 const sides = (value: unknown) => {
   const s = (value ?? {}) as Partial<Record<"top" | "right" | "bottom" | "left", number>>;
@@ -51,9 +59,6 @@ const frame = (node: ResolvedNode) => {
   const border = (node.style.border ?? {}) as Record<string, unknown>;
   return padding.top + padding.bottom + lineWidth(border.top) + lineWidth(border.bottom) + lineWidth(node.style.borderTop) + lineWidth(node.style.borderBottom);
 };
-/** The characters a node's text runs hold. */
-const characters = (node: ResolvedNode): number =>
-  node.children.reduce((sum: number, child) => sum + (typeof child === "string" ? child.length : child.type === "MergeTag" ? String(child.props.name ?? "").length + 4 : characters(child)), 0);
 /** Laid out side by side: a Row's children (a Grid's, a Menu's and a Social's, as laid out), a table row's cells, a Layer's on each other. */
 const SIDE_BY_SIDE = new Set(["Row", "TableRow", "Layer"]);
 

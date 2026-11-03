@@ -19,13 +19,16 @@ const sized = (node: ResolvedNode) => node.style.width !== undefined || node.sty
 
 export const toNumber = (value: Json) => (typeof value === "number" ? value : Number.parseFloat(String(value)));
 
+/** A Row's child that takes its own size (`flex: "none"`), whatever its component's sizing. */
+const ownSize = (node: ResolvedNode) => node.style.flex === "none" || node.style.flex === 0;
+
 /**
  * A box's table: filling its cell (`width` 100%), or its own width as a
  * percentage or a px maximum (fluid on phones; Word takes the maximum as the
- * width), or neither (as wide as its content).
+ * width), or neither (as wide as its content: a Row's child of its own size, a Menu's link).
  */
 export function boxWidth(node: ResolvedNode, fill: boolean): { width?: string; maxWidth?: number } {
-  if (fill || (!sized(node) && node.definition.sizing === "stretch")) return { width: "100%" };
+  if (fill || (!sized(node) && node.definition.sizing === "stretch" && !ownSize(node))) return { width: "100%" };
   if (typeof node.style.width === "string" && node.style.width.endsWith("%") && node.style.maxWidth === undefined) return { width: node.style.width };
   if (node.width !== null) return { width: "100%", maxWidth: node.width };
   // As wide as its content, up to its maximum.

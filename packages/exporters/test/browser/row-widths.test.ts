@@ -6,7 +6,7 @@
  */
 import { chromium, type Browser } from "playwright";
 import { parseDocument, resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { renderEmail, renderPage } from "../../src";
+import { renderEmail, renderPage, renderTemplate } from "../../src";
 
 const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style, children: [{ type: "Text", children: ["x"] }] });
 
@@ -213,6 +213,53 @@ describe("children of their own size in Chromium", () => {
       const expected = await boxes(renderPage(template("Page")).html);
       expect(await boxes(renderEmail(template("Email")).html)).toEqual(expected);
       expect(await boxes(renderEmail(template("Email")).html, false)).toEqual(expected);
+    });
+  }
+});
+
+describe("a Menu in Chromium", () => {
+  const LINKS = ["Home", "Products", "Pricing", "Customers", "Documentation", "Contact us"].map((text) => ({ text, href: `https://example.com/${text}` }));
+  const render = (root: "Email" | "Page", props: Record<string, unknown>) =>
+    renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Menu", props }] } }).html;
+  /** Where each word is on screen: its text's box, by its words. */
+  const words = async (html: string, viewport: number, style = true) => {
+    const page = await browser.newPage({ viewport: { width: viewport, height: 800 } });
+    await page.setContent(html);
+    if (!style) await page.evaluate(() => document.querySelectorAll("style").forEach((element) => element.remove()));
+    const found = await page.evaluate(() => {
+      const out: Array<{ text: string; left: number; right: number; top: number }> = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const box = range.getBoundingClientRect();
+        if (node.textContent!.trim() && box.width > 0) out.push({ text: node.textContent!.trim(), left: box.left, right: box.right, top: box.top });
+      }
+      return { out, scroll: document.documentElement.scrollWidth };
+    });
+    await page.close();
+    return found;
+  };
+
+  for (const root of ["Email", "Page"] as const) {
+    it(`puts a link's padding either side of a separator, as between links without one (${root})`, async () => {
+      const [docs, bar, blog] = (await words(render(root, { items: LINKS.slice(0, 2), separator: "|" }), 1000)).out;
+      expect([docs.text, bar.text, blog.text]).toEqual(["Home", "|", "Products"]);
+      expect([Math.round(bar.left - docs.right), Math.round(blog.left - bar.right)]).toEqual([15, 15]);
+      const [a, b] = (await words(render(root, { items: LINKS.slice(0, 2) }), 1000)).out;
+      expect(Math.round(b.left - a.right)).toBe(30);
+    });
+
+    it(`keeps a long Menu on one line where it fits, and wraps its links onto more lines where it doesn't (${root})`, async () => {
+      for (const style of root === "Email" ? [true, false] : [true]) {
+        const desktop = await words(render(root, { items: LINKS, separator: "|" }), 1000, style);
+        expect(new Set(desktop.out.map((word) => Math.round(word.top))).size).toBe(1);
+        const phone = await words(render(root, { items: LINKS, separator: "|" }), 375, style);
+        // Inside the screen, on more than one line: nothing to scroll sideways to.
+        expect(phone.scroll).toBeLessThanOrEqual(375);
+        expect(new Set(phone.out.map((word) => Math.round(word.top))).size).toBeGreaterThan(1);
+        for (const word of phone.out) expect([word.text, word.right <= 375.5]).toEqual([word.text, true]);
+      }
     });
   }
 });

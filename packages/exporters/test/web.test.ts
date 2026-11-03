@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import { ElementsError } from "@unlayer-internal/elements-core";
-import { renderTemplate } from "../src";
+import { renderTemplate, validateTemplate } from "../src";
 
 const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Page", props: { width: 600 }, children, ...extra } });
 const web = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
@@ -386,6 +386,14 @@ describe("web HTML", () => {
       expect(errors(page([text("p. ", { type: "PageNumber" })]))).toEqual([["document/page-number", "root.children[0].children[1]"]]);
       expect(errors(doc([{ type: "Column", children: [{ type: "PageBreak" }] }]))[0][1]).toBe("root.children[0].children[0]");
       expect(errors(doc([{ type: "DocumentPage", children: [{ type: "PageHeader", children: [] }] }]))[0][1]).toBe("root.children[0].children[0]");
+    });
+
+    it("says where a Menu looks too long for one line, which its PDF can't wrap (print HTML wraps it)", () => {
+      const items = (count: number) => Array.from({ length: count }, (_, index) => ({ text: `Section ${index + 1}`, href: `https://example.com/${index}` }));
+      const said = (count: number) => validateTemplate(doc([text("a"), { type: "Menu", props: { items: items(count), separator: "|" } }])).diagnostics.filter((d) => d.code === "pdf/unsupported").map((d) => d.path);
+      expect(said(4)).toEqual([]);
+      expect(said(12)).toEqual(["root.children[1]"]);
+      expect(web(doc([{ type: "Menu", props: { items: items(12) } }])).body).toContain("flex-wrap:wrap");
     });
   });
 

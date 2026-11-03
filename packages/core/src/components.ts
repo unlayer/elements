@@ -109,8 +109,12 @@ export const Row = defineComponent({
     flexWrap: {
       kind: enumOf(["nowrap", "wrap"]),
       label: "Wrap",
-      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (web only).',
-      support: { email: { level: "none", values: ["wrap"], shows: "children on one line on desktop, stacked on phones", source: "writer" }, web: css },
+      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones).',
+      // A Row kept side by side wraps in an email (but classic Outlook, which the email's checks say where it matters).
+      support: {
+        email: { level: "none", values: ["wrap"], when: (_, row) => row.props.stackOnMobile !== false, shows: "children on one line on desktop, stacked on phones", source: "writer" },
+        web: css,
+      },
     },
     ...placementStyle,
   },

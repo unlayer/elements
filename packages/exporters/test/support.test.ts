@@ -203,9 +203,9 @@ function inEffect(root: string, type: string, where: "style" | "props", key: str
   return node.style[key] ?? (type === "Span" && key === "verticalAlign" ? "baseline" : INITIAL[key]);
 }
 
-/** Whether a rule of the declaration covers this value (anything but `full`). */
-function declaredOtherwise(support: Support | readonly Support[], value: Json): boolean {
-  return ([] as Support[]).concat(support).some((rule) => rule.level !== "full" && (!rule.values || rule.values.some((v) => JSON.stringify(v) === JSON.stringify(value))) && (!rule.when || rule.when(value)));
+/** Whether a rule of the declaration covers this value, on a node with these props (anything but `full`). */
+function declaredOtherwise(support: Support | readonly Support[], value: Json, props: Record<string, Json>): boolean {
+  return ([] as Support[]).concat(support).some((rule) => rule.level !== "full" && (!rule.values || rule.values.some((v) => JSON.stringify(v) === JSON.stringify(value))) && (!rule.when || rule.when(value, { props })));
 }
 
 const entries = (definition: ComponentDefinition) => [
@@ -250,7 +250,7 @@ for (const { target, root } of OUTPUTS) {
           // A diagnostic for it, or for the node itself (a minimum wider than its parent: layout/overflow).
           const subject = type === root ? "root" : undefined;
           const reported = result.diagnostics.some((d) => d.path.endsWith(`.${where}.${key}`) || d.nodeId === "subject" || d.path === subject);
-          if (declaredOtherwise(spec.support![target]!, value) && !reported) unreported.push(label);
+          if (declaredOtherwise(spec.support![target]!, value, where === "props" ? { [key]: value } : {}) && !reported) unreported.push(label);
           // The output is the HTML and the plain text (a Raw node's text shows only there).
           else if (result.html === base.html && result.text === base.text && !reported) silent.push(label);
         }

@@ -74,7 +74,7 @@ const MENU_TEXT = ["fontFamily", "fontSize", "fontWeight", "lineHeight", "letter
 export const Menu = defineComposite({
   type: "Menu",
   label: "Menu",
-  description: "A line of links (a site's sections, a footer's), with a separator between them on desktop; or links down a column.",
+  description: "A line of links (a site's sections, a footer's), onto more lines where they don't fit, with a separator between them on desktop; or links down a column.",
   categories: ["block"],
   props: {
     items: prop(items({ text: text({ maxLength: 200 }), href: link() }, "item"), {
@@ -114,22 +114,26 @@ export const Menu = defineComposite({
   expand: ({ items: links, separator, layout }, { style, responsive }) => {
     const padding = style.padding as Sides;
     const text = Object.fromEntries(MENU_TEXT.filter((key) => style[key] !== undefined).map((key) => [key, style[key]]));
-    const link = (item: { text: string; href: LinkValue }) => ({
-      type: "Link",
-      props: { href: item.href },
-      style: { flex: "none", color: style.color, textDecoration: "none" },
-      children: [item.text],
-    });
+    const link = (item: { text: string; href: LinkValue }) => ({ type: "Link", props: { href: item.href }, style: { color: style.color, textDecoration: "none" }, children: [item.text] });
     if (layout === "vertical") {
       return { type: "Column", style: { ...text, gap: padding.top + padding.bottom, padding, alignItems: style.justifyContent }, children: links.map(link) };
     }
-    // Separators are left out on phones, where a template has phones (a Document or a Canvas has none).
-    const between = { type: "Text", ...(responsive ? { hidden: { mobile: true } } : {}), style: { flex: "none", color: style.separatorColor }, children: [separator] };
+    // Each link in its padding, as today's Menu has it: two links are its sides apart, and a separator between them
+    // has a link's padding on either side, not twice the space. Separators are left out on phones, where a template
+    // has phones (a Document or a Canvas has none); they're as high in the line as the links' words.
+    const item = (entry: { text: string; href: LinkValue }) => ({ type: "Text", style: { flex: "none", padding }, children: [link(entry)] });
+    const between = {
+      type: "Text",
+      ...(responsive ? { hidden: { mobile: true } } : {}),
+      style: { flex: "none", padding: { top: padding.top, right: 0, bottom: padding.bottom, left: 0 }, color: style.separatorColor },
+      children: [separator],
+    };
     return {
       type: "Row",
       props: { stackOnMobile: false },
-      style: { ...text, gap: padding.left + padding.right, padding, justifyContent: style.justifyContent },
-      children: links.flatMap((item: { text: string; href: LinkValue }, index: number) => [...(index && separator ? [between] : []), link(item)]),
+      // Links that don't fit on one line go onto another, as today's Menu's do.
+      style: { ...text, flexWrap: "wrap", justifyContent: style.justifyContent },
+      children: links.flatMap((entry: { text: string; href: LinkValue }, index: number) => [...(index && separator ? [between] : []), item(entry)]),
     };
   },
 });

@@ -216,7 +216,7 @@ Props:
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
-- `flexWrap`: one of "nowrap", "wrap". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (web only).
+- `flexWrap`: one of "nowrap", "wrap". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones).
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`, `gap`.
@@ -597,7 +597,7 @@ Props:
 
 ### Menu
 
-A line of links (a site's sections, a footer's), with a separator between them on desktop; or links down a column.
+A line of links (a site's sections, a footer's), onto more lines where they don't fit, with a separator between them on desktop; or links down a column.
 
 Holds: nothing. Drawn in: email, page.
 

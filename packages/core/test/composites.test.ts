@@ -51,19 +51,19 @@ describe("Menu", () => {
     { text: "Blog", href: "https://example.com/blog" },
   ];
 
-  it("expands into a line of its links, its separator between them on desktop, by today's defaults", () => {
+  it("expands into a line of its links, each in its padding, its separator between them on desktop, by today's defaults", () => {
     const { document, diagnostics } = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS, separator: "|" }, style: { fontWeight: 700 } })));
     expect(diagnostics).toEqual([]);
     const row = document.root.children![0] as Node;
-    expect(row).toMatchObject({
-      type: "Row",
-      props: { stackOnMobile: false },
-      style: { fontSize: 14, fontWeight: 700, lineHeight: 1.2, gap: 30, padding: { top: 5, right: 15, bottom: 5, left: 15 }, justifyContent: "center" },
-    });
-    expect((row.children as Node[]).map((child) => [child.type, child.props?.href ?? null, child.hidden ?? null, child.style?.color, child.children])).toEqual([
-      ["Link", "https://example.com/docs", null, "#0068a5", ["Docs"]],
-      ["Text", null, { mobile: true }, "#444444", ["|"]],
-      ["Link", "https://example.com/blog", null, "#0068a5", ["Blog"]],
+    // Its links wrap onto another line where they don't fit, as today's Menu's do.
+    expect(row).toEqual(expect.objectContaining({ type: "Row", props: { stackOnMobile: false }, style: { fontSize: 14, fontWeight: 700, lineHeight: 1.2, flexWrap: "wrap", justifyContent: "center" } }));
+    // A link's padding either side of the separator, as between two links without one: not twice the space.
+    const padding = { top: 5, right: 15, bottom: 5, left: 15 };
+    const link = (href: string, words: string) => [{ type: "Link", props: { href }, style: { color: "#0068a5", textDecoration: "none" }, children: [words] }];
+    expect((row.children as Node[]).map((child) => [child.type, child.hidden ?? null, child.style, child.children])).toEqual([
+      ["Text", null, { flex: "none", padding }, link("https://example.com/docs", "Docs")],
+      ["Text", { mobile: true }, { flex: "none", padding: { top: 5, right: 0, bottom: 5, left: 0 }, color: "#444444" }, ["|"]],
+      ["Text", null, { flex: "none", padding }, link("https://example.com/blog", "Blog")],
     ]);
   });
 
@@ -73,7 +73,10 @@ describe("Menu", () => {
     expect(column).toMatchObject({ type: "Column", style: { gap: 8, alignItems: "start", padding: { top: 4, right: 8, bottom: 4, left: 8 } } });
     expect((column.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
     const row = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS } }))).document.root.children![0] as Node;
-    expect((row.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
+    expect((row.children as Node[]).map((child) => [child.type, (child.children![0] as Node).type])).toEqual([
+      ["Text", "Link"],
+      ["Text", "Link"],
+    ]);
   });
 
   it("gives what it renders its id and its phone styles, as a Social does", () => {
@@ -91,10 +94,10 @@ describe("Menu", () => {
     const menu = () => parseDocument({ root: { type: "Document", children: [{ type: "Menu", props: { items: ITEMS, separator: "|" } }] } });
     expect(resolveDocument(menu()).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     const row = expandDocument(menu()).document.root.children![0] as Node;
-    expect((row.children as Node[]).map((child) => [child.type, child.hidden ?? null])).toEqual([
-      ["Link", null],
-      ["Text", null],
-      ["Link", null],
+    expect((row.children as Node[]).map((child) => [child.children, child.hidden ?? null])).toEqual([
+      [[expect.objectContaining({ type: "Link" })], null],
+      [["|"], null],
+      [[expect.objectContaining({ type: "Link" })], null],
     ]);
   });
 });

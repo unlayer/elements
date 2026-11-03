@@ -88,7 +88,8 @@ describe("render()", () => {
     ];
     const { html, text } = await render(<Email><Menu items={items} separator="|" style={{ color: "#2563EB" }} /></Email>);
     expect(html.match(/<a href="https:\/\/example.com\/(docs|blog)"[^>]*style="color:#2563eb;/g)).toHaveLength(2);
-    expect(html).toMatch(/<td class="[^"]+"[^>]*>(<[^>]+>)*\|/);
+    // The separator in a box of its own, hidden on phones by its class.
+    expect(html).toMatch(/<div class="[^"]+"[^>]*>(<[^>]+>)*\|/);
     expect(text).toContain("Docs");
     const page = await render(<Page><Menu items={items} layout="vertical" /></Page>);
     expect(page.html).not.toContain("|");
@@ -295,8 +296,8 @@ describe("outline()", () => {
       '  Text 1200px: phones only "Phones"',
       '  Video 1200px "Launch" https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       "  Row 1200px: 2 side by side",
-      '    Link "Home" → https://x.test/',
-      '    Link "Blog" → https://x.test/blog',
+      '    Text "Home (https://x.test/)"',
+      '    Text "Blog (https://x.test/blog)"',
       "  Svg 20px (2 shapes)",
     ]);
     expect(
