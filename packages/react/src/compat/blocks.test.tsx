@@ -1,0 +1,137 @@
+import { describe, expect, it } from "vitest";
+import { Button, Column, Divider, Document, Email, Heading, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
+import { withRenderScope } from "../utils/render-scope";
+import type { TreeNode } from "./lower";
+import { lowerTemplate, type Lowered } from "./template";
+
+type Root = typeof Email;
+
+/** The node a block lowers to, in an Email or a Page (its design column's first child). */
+function lowered(block: React.ReactElement, Root: Root = Email): TreeNode | undefined {
+  const result = withRenderScope(() => lowerTemplate(<Root><Row><Column>{block}</Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+  const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+  return find(result.tree.root);
+}
+
+describe("a text block", () => {
+  it("is a Paragraph of its HTML's runs, in its padding and text styles", () => {
+    const node = lowered(<Paragraph html='Hi <b>there</b>, <a href="https://example.com">a link</a>' color="#333" fontSize="15px" lineHeight="150%" letterSpacing="0.1em" containerPadding="4px 8px" />);
+    expect(node).toEqual({
+      type: "Paragraph",
+      style: { fontSize: 15, lineHeight: "150%", color: "#333", textAlign: "left", letterSpacing: 1.5, padding: { top: 4, right: 8, bottom: 4, left: 8 } },
+      children: ["Hi ", { type: "Span", style: { fontWeight: 700 }, children: ["there"] }, ", ", { type: "Link", props: { href: "https://example.com" }, children: ["a link"] }],
+    });
+  });
+
+  it("keeps its legacy HTML where its HTML holds what no run does", () => {
+    expect(lowered(<Paragraph html="<ul><li>One</li></ul>" />)?.type).toBe("Raw");
+  });
+});
+
+describe("a heading block", () => {
+  it("is a Heading of its level, bold where it says no weight", () => {
+    expect(lowered(<Heading headingType="h2" values={{ fontWeight: undefined } as never}>Title</Heading>)).toMatchObject({ type: "Heading", props: { level: 2 }, children: ["Title"] });
+    expect(lowered(<Heading fontWeight={600}>Title</Heading>)?.style).toMatchObject({ fontSize: 22, lineHeight: "140%", fontWeight: 600 });
+  });
+});
+
+describe("a button block", () => {
+  it("is a Button in a Column with the block's padding, placed by its alignment; its hover on a page only", () => {
+    const button = <Button href="https://example.com" backgroundColor="#111" color="#fff" hoverBackgroundColor="#222" borderRadius="6px" padding="12px 24px" textAlign="left">Go</Button>;
+    expect(lowered(button)).toEqual({
+      type: "Column",
+      style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
+      children: [
+        {
+          type: "Button",
+          props: { href: { href: "https://example.com", target: "_blank" } },
+          style: { color: "#fff", backgroundColor: "#111", fontSize: 14, lineHeight: "120%", padding: { top: 12, right: 24, bottom: 12, left: 24 }, borderRadius: 6 },
+          children: ["Go"],
+        },
+      ],
+    });
+    expect((lowered(button, Page)?.children as TreeNode[])[0].hover).toEqual({ color: "#FFFFFF", backgroundColor: "#222" });
+  });
+
+  it("keeps its legacy HTML where it has no link (legacy's href=\"\")", () => {
+    expect(lowered(<Button>Go</Button>)?.type).toBe("Raw");
+  });
+});
+
+describe("an image block", () => {
+  it("is an Image in a Column, its width a share of its place at most the width legacy works out", () => {
+    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 1200, height: 600 }} altText="A" />);
+    expect(node).toMatchObject({ type: "Column", style: { alignItems: "center" } });
+    expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
+  });
+
+  it("puts a linked image's size on a box around its link", () => {
+    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />, Page);
+    const box = (node?.children as TreeNode[])[0];
+    expect(box).toMatchObject({ type: "Column", style: { width: "40%" }, children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", style: { width: "100%" } }] }] });
+  });
+});
+
+describe("a divider block", () => {
+  it("is a Divider of its line, padding and length, placed by its alignment where it's shorter than its column", () => {
+    expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />)).toEqual({ type: "Divider", style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+    expect(lowered(<Divider width="60%" textAlign="left" />)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
+  });
+});
+
+describe("a menu block", () => {
+  const menu = <Menu items={[{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }]} separator="|" padding="5px 15px" />;
+
+  it("is on a page a Row of its links and separators, each in the links' padding, separators left out on phones", () => {
+    const row = (lowered(menu, Page)?.children as TreeNode[])[0];
+    expect(row).toMatchObject({ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap", justifyContent: "center" } });
+    expect((row.children as TreeNode[]).map((c) => [c.type, c.hidden, c.style?.padding, typeof c.children?.[0] === "string" ? c.children[0] : (c.children?.[0] as TreeNode).type])).toEqual([
+      ["Text", undefined, { top: 5, right: 15, bottom: 5, left: 15 }, "Link"],
+      ["Text", { mobile: true }, { top: 5, right: 15, bottom: 5, left: 15 }, "|"],
+      ["Text", undefined, { top: 5, right: 15, bottom: 5, left: 15 }, "Link"],
+    ]);
+  });
+
+  it("keeps its legacy HTML in an email, whose lines are the font's own height", () => {
+    expect(lowered(menu)?.type).toBe("Raw");
+  });
+});
+
+describe("a social block", () => {
+  it("is on a page a Row of its icons, each a link around its icon from the CDN", () => {
+    const row = (lowered(<Social icons={[{ name: "Facebook", url: "https://facebook.com/acme" }]} iconSize={32} spacing={8} />, Page)?.children as TreeNode[])[0];
+    expect(row).toEqual({
+      type: "Row",
+      props: { stackOnMobile: false },
+      style: { gap: 8, justifyContent: "center" },
+      children: [
+        {
+          type: "Link",
+          props: { href: { href: "https://facebook.com/acme", target: "_blank" }, "aria-label": "Facebook icon" },
+          style: { flex: "none" },
+          children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon" }, style: { width: 32, height: 32 } }],
+        },
+      ],
+    });
+  });
+});
+
+describe("a video block", () => {
+  const video = <Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />;
+
+  it("is its player on a page, its thumbnail (with no link, as legacy's) in an email", () => {
+    expect((lowered(video, Page)?.children as TreeNode[])[0]).toEqual({ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
+    expect((lowered(video)?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg", alt: "Video" } });
+  });
+});
+
+describe("a page break", () => {
+  it("draws nothing in an email or on a page (with nothing written by legacy's exporters), and keeps its legacy HTML in a printed document", () => {
+    for (const Root of [Email, Page]) {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row><Column><Paragraph>A</Paragraph><PageBreak /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+      expect(result.legacyHead).toBeUndefined();
+      expect(lowered(<PageBreak />, Root)).toBeUndefined();
+    }
+    expect(lowered(<PageBreak />, Document as Root)?.type).toBe("Raw");
+  });
+});
