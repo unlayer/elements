@@ -39,6 +39,12 @@ async function example(name: string, release: "current" | "previous"): Promise<{
   return { element: stories[name](), render };
 }
 
+/** This build's legacy renderer: today's components' own HTML, which blocks the new engine keeps as they are use. */
+async function legacy(): Promise<Pick<Renderers, "renderToHtml">> {
+  const { legacyRenderToHtml } = await import("../utils/render-to-html");
+  return { renderToHtml: (element) => legacyRenderToHtml(element) };
+}
+
 
 describe.each(EXAMPLES)("%s", (name) => {
   it("gives the design and plain text the previous release gives", async () => {
@@ -53,22 +59,27 @@ describe.each(EXAMPLES)("%s", (name) => {
   });
 
   it("renders the reviewed HTML", async () => {
+    const { element } = await example(name, "current");
+    await expect(lines((await legacy()).renderToHtml(element))).toMatchFileSnapshot(`__snapshots__/examples/${name}.html`);
+  });
+
+  // renderToHtml() writes it through the new engine (RFC 0001 step 7): other HTML, which test:compare checks draws the same.
+  it("renders the reviewed HTML through the new engine", async () => {
     const { element, render } = await example(name, "current");
-    await expect(lines(render.renderToHtml(element))).toMatchFileSnapshot(`__snapshots__/examples/${name}.html`);
+    await expect(lines(render.renderToHtml(element))).toMatchFileSnapshot(`__snapshots__/examples/${name}.next.html`);
   });
 });
 
 describe("a component that renders plain HTML in a Column", () => {
   it("renders its HTML as the previous release does", async () => {
+    const { legacyRenderToHtml } = await import("../utils/render-to-html");
     const releases = [await import("../index"), await import("@unlayer/react-elements-previous")] as any[];
-    const [current, previous] = releases.map((E) => {
-      const Footer = () => <div dangerouslySetInnerHTML={{ __html: '<p>Footer copy</p><a href="https://example.com/unsubscribe">Unsubscribe</a>' }} />;
-      const html: string = E.renderToHtml(
-        <E.Email><E.Row><E.Column><E.Paragraph>Start</E.Paragraph><Footer /><E.Paragraph>End</E.Paragraph></E.Column></E.Row></E.Email>
-      );
-      return html.slice(html.indexOf("Start"), html.indexOf("End"));
-    });
+    const Footer = () => <div dangerouslySetInnerHTML={{ __html: '<p>Footer copy</p><a href="https://example.com/unsubscribe">Unsubscribe</a>' }} />;
+    const template = (E: any) => <E.Email><E.Row><E.Column><E.Paragraph>Start</E.Paragraph><Footer /><E.Paragraph>End</E.Paragraph></E.Column></E.Row></E.Email>;
+    const [current, previous] = [legacyRenderToHtml(template(releases[0])), releases[1].renderToHtml(template(releases[1]))].map((html: string) => html.slice(html.indexOf("Start"), html.indexOf("End")));
     expect(current).toContain('<a href="https://example.com/unsubscribe">Unsubscribe</a>');
     expect(current).toBe(previous);
+    // Through the new engine, it's an HTML block the new engine keeps as legacy writes it.
+    expect(releases[0].renderToHtml(template(releases[0]))).toContain(previous.slice(previous.indexOf("<table"), previous.lastIndexOf("</table>")));
   });
 });

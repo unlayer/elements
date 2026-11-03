@@ -30,8 +30,10 @@ describe("text children of Heading and Button", () => {
         <Button href="https://example.com" text="Buy <strong>now</strong>" />
       </Column></Row></Email>
     );
-    expect(html).toContain("Hi <strong>there</strong>");
-    expect(html).toContain("Buy <strong>now</strong>");
+    // Not escaped: markup, bold (as <strong> by today's components, a bold span by the new engine).
+    expect(html).not.toContain("&lt;strong");
+    expect(html).toMatch(/(<strong>|font-weight:700[^>]*>)there</);
+    expect(html).toMatch(/(<strong>|font-weight:700[^>]*>)now</);
   });
 
   it("store escaped text in the design, which the editor shows as typed", () => {
@@ -102,10 +104,11 @@ describe("link URLs", () => {
         <Button href="https://example.com/plain?a=1&b=2">Plain</Button>
       </Column></Row></Root>
     );
-    expect(html).not.toContain("<img src=x");
-    expect(html).toContain('https://example.com/?a=1&b=2%22%3E%3Cimg');
-    // An ordinary URL is written as before.
-    expect(html).toContain('href="https://example.com/plain?a=1&b=2"');
+    // No element in the link, and it goes where its URL says (the browser encodes the quote and the brackets).
+    const page = new DOMParser().parseFromString(html, "text/html");
+    expect(page.querySelector("img")).toBeNull();
+    const hrefs = [...page.querySelectorAll("a")].map((a) => new URL(a.getAttribute("href")!).href);
+    expect(hrefs).toEqual([new URL('https://example.com/?a=1&b=2"><img src=x onerror="alert(1)">').href, "https://example.com/plain?a=1&b=2"]);
   });
 
   it.each([["email", Email], ["web", Page]] as const)("keep an email service's <%name%> placeholder as written, for it to fill in (%s)", (_, Root) => {

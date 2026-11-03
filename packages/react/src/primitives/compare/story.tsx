@@ -1,11 +1,11 @@
 /**
- * A Storybook story drawing a design both ways, side by side: main's template with renderToHtml(), and the same
+ * A Storybook story drawing a design both ways, side by side: main's template as today's components render it, and the same
  * design in the new components with render(). The comparison gate (scripts/storybook-compare.mjs) checks the two
  * draw the same.
  */
 import type { StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { renderToHtml } from "../../index";
+import { legacyRenderToHtml } from "../../utils/render-to-html";
 import { Email, Page, render } from "../index";
 import { SideBySide, type Width } from "./SideBySide";
 
@@ -27,12 +27,12 @@ export interface Design {
   allowance?: { x?: number; y?: number };
 }
 
-/** A story rendering a design both ways: main's template with renderToHtml(), the new one with render(). */
+/** A story rendering a design both ways: main's template as today's components render it, the new one with render(). */
 export const compare = (design: Design): StoryObj<Args> => ({
   loaders: [
     async ({ args }) => {
       const next = await render(args.quirks && design.nextAsMain ? design.nextAsMain : design.next);
-      return { main: renderToHtml(design.main), next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
+      return { main: legacyRenderToHtml(design.main), next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
     },
   ],
   render: ({ width, quirks }, { loaded }) => (

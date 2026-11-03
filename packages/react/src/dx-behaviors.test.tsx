@@ -145,8 +145,9 @@ describe("DX: font / CSS-idiom normalization", () => {
   });
 
   it("letterSpacing accepts em and a bare number (→px)", () => {
+    // em of the font size (22px): as written by today's components, or in px by the new engine.
     expect(html(<Heading letterSpacing={"-0.01em" as any}>x</Heading>)).toMatch(
-      /letter-spacing: ?-0\.01em/
+      /letter-spacing: ?(-0\.01em|-0\.22px)/
     );
     expect(html(<Heading letterSpacing={2 as any}>x</Heading>)).toMatch(/letter-spacing: ?2px/);
   });
@@ -165,10 +166,8 @@ describe("DX: text components", () => {
     expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/<p[^>]*>Hi<\/p>/);
   });
 
-  it("Paragraph <p> carries the editor's inline margin reset", () => {
-    expect(html(<Paragraph>Hi</Paragraph>)).toMatch(
-      /<p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hi<\/p>/
-    );
+  it("Paragraph <p> has no margins", () => {
+    expect(html(<Paragraph>Hi</Paragraph>)).toMatch(/<p style="margin: ?0[^"]*">Hi<\/p>/);
   });
 
   it("JSX children flatten to text instead of [object Object]", () => {

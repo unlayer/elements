@@ -143,7 +143,8 @@ describe("border widths render with a px unit (number → Npx)", () => {
     const html = renderToHtml(
       <Email contentWidth="600px"><Row layout={ColumnLayouts.OneColumn}><Column border={border}><Image src="u" /></Column></Row></Email>
     );
-    return (html.match(/border-top:[^;"]*/i) || [""])[0];
+    // As written by today's components ("border-top: 1px …") or by the new engine ("border-top:1px …").
+    return (html.match(/border-top:[^;"]*/i) || [""])[0].replace(/^border-top:\s*/, "border-top: ");
   };
   it("a number border width gets px (not unitless)", () => {
     expect(borderTop({ borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: "#000" })).toBe("border-top: 1px solid #000");
@@ -157,6 +158,6 @@ describe("border widths render with a px unit (number → Npx)", () => {
         <Column borderBottomWidth={2 as any} borderBottomStyle={"solid" as any} borderBottomColor={"#abc" as any}><Image src="u" /></Column>
       </Row></Email>
     );
-    expect(html).toContain("border-bottom: 2px solid #abc");
+    expect(html).toMatch(/border-bottom: ?2px solid #abc/);
   });
 });

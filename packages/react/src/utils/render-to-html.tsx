@@ -8,6 +8,7 @@ import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot } from "./unwrap-root";
 import { normalizedRoot } from "./normalize";
 import { withRenderScope } from "./render-scope";
+import { renderThroughNewEngine, type Rendered } from "../compat/render";
 import { textDirectionOf } from "./create-component";
 import {
   emailLayout,
@@ -151,12 +152,46 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
+  return withRenderScope(() => throughNewEngine(element, options, "renderToHtml")?.html ?? htmlDocument(element, options));
+}
+
+/**
+ * renderToHtml(), renderToHtmlParts() and renderToPlainText() as today's components render them, without the new
+ * engine: what a template the new engine can't draw renders as, and what the new engine's output is compared with.
+ */
+export function legacyRenderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   return withRenderScope(() => htmlDocument(element, options));
 }
 
-/** renderToHtml() as today's components render it: what the new engine's rendering of the same template is compared with. */
-export function legacyRenderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions): string {
-  return withRenderScope(() => htmlDocument(element, options));
+export function legacyRenderToHtmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
+  return withRenderScope(() => htmlParts(element, config));
+}
+
+export function legacyRenderToPlainText(element: React.ReactElement, config?: Partial<UnlayerConfig>): string {
+  return htmlToPlainText(withRenderScope(() => legacyBodyHtml(element, config)));
+}
+
+/** The body's HTML legacy's plain text is made from. */
+function legacyBodyHtml(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined): string {
+  const root = htmlRoot(element, "renderToPlainText");
+  // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
+  // empty text (Body leaves out what fails, for a live preview).
+  normalizedRoot(root);
+  return renderBody(root, config, "renderToPlainText");
+}
+
+/**
+ * A template rendered through the new engine (RFC 0001 step 7): its HTML is the new engine's, what a reader gets is
+ * today's. Undefined where it renders as today: a root that isn't one of today's (a block on its own), a frame the new
+ * engine can't draw as legacy does, or a template that fails to render, which today's render then reports as it does.
+ */
+function throughNewEngine(element: React.ReactElement, options: RenderToHtmlOptions | undefined, name: string): Rendered | undefined {
+  try {
+    const rendered = renderThroughNewEngine(element, options, name);
+    return rendered && rendered.unlowered === undefined ? rendered : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
@@ -241,14 +276,7 @@ export function renderToPlainText(
   config?: Partial<UnlayerConfig>
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  const html = withRenderScope(() => {
-    const root = htmlRoot(element, "renderToPlainText");
-    // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
-    // empty text (Body leaves out what fails, for a live preview).
-    normalizedRoot(root);
-    return renderBody(root, config, "renderToPlainText");
-  });
-  return htmlToPlainText(html);
+  return withRenderScope(() => throughNewEngine(element, config, "renderToPlainText")?.text ?? htmlToPlainText(legacyBodyHtml(element, config)));
 }
 
 /**
@@ -320,7 +348,10 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withRenderScope(() => htmlParts(element, config));
+  return withRenderScope(() => {
+    const next = throughNewEngine(element, config, "renderToHtmlParts");
+    return next ? { head: next.head, body: next.body, css: next.css, js: next.js, tags: next.tags } : htmlParts(element, config);
+  });
 }
 
 function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {

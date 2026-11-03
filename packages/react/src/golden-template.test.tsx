@@ -8,9 +8,7 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import {
-  renderToHtml,
   renderToPlainText,
-  renderToHtmlParts,
   renderToJson,
   Email,
   Page,
@@ -27,6 +25,9 @@ import {
   Html,
   ColumnLayouts,
 } from "./index";
+// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
+// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
+import { legacyRenderToHtml as renderToHtml, legacyRenderToHtmlParts as renderToHtmlParts } from "./utils/render-to-html";
 
 // -- The golden template: a realistic marketing email --
 

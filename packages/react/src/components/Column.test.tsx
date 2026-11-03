@@ -7,7 +7,9 @@ import { Column } from "./Column";
 import Heading from "./Heading";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
-import { renderToHtml } from "../utils/render-to-html";
+// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
+// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
+import { legacyRenderToHtml as renderToHtml } from "../utils/render-to-html";
 
 describe("Column Component", () => {
   it("renders column container with correct ID", () => {

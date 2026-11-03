@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import React, { memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
+import { legacyRenderToHtml, renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
 
@@ -30,11 +30,14 @@ const order = ["Header", "Fragment", "Pair one", "Pair two", "Gappy", "Memo", "N
 
 describe("Fragments and user components among the blocks", () => {
   it("render every block once, in order, each with its own id", () => {
-    const html = renderToHtml(template);
-    const body = html.slice(html.indexOf("<body"));
-    const texts = order.map((t) => body.indexOf(`>${t}<`));
-    expect(texts.every((at) => at > 0)).toBe(true);
-    expect([...texts].sort((a, b) => a - b)).toEqual(texts);
+    for (const html of [renderToHtml(template), legacyRenderToHtml(template)]) {
+      const body = html.slice(html.indexOf("<body"));
+      const texts = order.map((t) => body.indexOf(`>${t}<`));
+      expect(texts.every((at) => at > 0)).toBe(true);
+      expect([...texts].sort((a, b) => a - b)).toEqual(texts);
+    }
+    // Today's components' own HTML numbers each row, column and block (the new engine writes only an author's ids).
+    const body = legacyRenderToHtml(template).slice(legacyRenderToHtml(template).indexOf("<body"));
     const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
     expect(new Set(ids).size).toBe(ids.length);
     // Every row renders as an email row, a user component's too.

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { renderToHtml, Body, Row, Column, Paragraph } from "../index";
+import { Body, Row, Column, Paragraph } from "../index";
+// Today's components' own HTML (the legacy renderer): the html prop reaches their exporter as markup. Through the new
+// engine it's runs of text (src/compat/text.test.tsx).
+import { legacyRenderToHtml as renderToHtml } from "./render-to-html";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("Paragraph html prop integration", () => {

@@ -1,6 +1,8 @@
 import React from "react";
 import { describe, it, expect } from "vitest";
-import { renderToHtmlParts, renderToHtml } from "./render-to-html";
+// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
+// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
+import { legacyRenderToHtmlParts as renderToHtmlParts, legacyRenderToHtml as renderToHtml } from "./render-to-html";
 import Email from "../components/Email";
 import Page from "../components/Page";
 import Row from "../components/Row";

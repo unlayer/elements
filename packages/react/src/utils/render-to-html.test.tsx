@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { renderToHtml } from "./render-to-html";
+import { legacyRenderToHtml, renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Body from "../components/Body";
 import Row from "../components/Row";
@@ -15,8 +15,9 @@ import Document from "../components/Document";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToHtml", () => {
-  it("generates unique element ids across the whole tree (no duplicates)", () => {
-    const html = renderToHtml(
+  // Today's components' own HTML numbers every element (the new engine writes only the ids authors give).
+  it("generates unique element ids across the whole tree (no duplicates), in today's components' own HTML", () => {
+    const html = legacyRenderToHtml(
       <Email contentWidth="600px">
         <Row layout={ColumnLayouts.OneColumn}>
           <Column>
@@ -107,7 +108,8 @@ describe("renderToHtml", () => {
   });
 });
 
-describe("renderToHtml: full document shell", () => {
+// Today's components' own document shell (the legacy renderer's): a template the new engine can't draw renders in it.
+describe("today's components' own HTML: full document shell", () => {
   const emailTree = (
     <Email>
       <Row>
@@ -119,7 +121,7 @@ describe("renderToHtml: full document shell", () => {
   );
 
   it("email mode returns a complete XHTML document with MSO support", () => {
-    const html = renderToHtml(emailTree);
+    const html = legacyRenderToHtml(emailTree);
     expect(html.startsWith('<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN"')).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
     expect(html).toContain('xmlns:v="urn:schemas-microsoft-com:vml"');
@@ -133,7 +135,7 @@ describe("renderToHtml: full document shell", () => {
   });
 
   it("web mode returns an HTML5 document with the shell's <body>", () => {
-    const html = renderToHtml(
+    const html = legacyRenderToHtml(
       <Body mode="web">
         <Row>
           <Column>
@@ -149,7 +151,7 @@ describe("renderToHtml: full document shell", () => {
   });
 
   it("renders the title escaped", () => {
-    const html = renderToHtml(emailTree, { title: 'Hi <"world"> & co' });
+    const html = legacyRenderToHtml(emailTree, { title: 'Hi <"world"> & co' });
     expect(html).toContain("<title>Hi &lt;&quot;world&quot;&gt; &amp; co</title>");
   });
 
@@ -186,7 +188,7 @@ describe("renderToHtml: full document shell", () => {
   });
 
   it("every <p> in the document carries the inline margin reset", () => {
-    const html = renderToHtml(emailTree);
+    const html = legacyRenderToHtml(emailTree);
     const pTags = html.match(/<p[^>]*>/g) ?? [];
     expect(pTags.length).toBeGreaterThan(0);
     for (const tag of pTags) {
@@ -196,7 +198,7 @@ describe("renderToHtml: full document shell", () => {
 
   it("document mode returns a print-ready XHTML document", async () => {
     const { default: Document } = await import("../components/Document");
-    const html = renderToHtml(
+    const html = legacyRenderToHtml(
       <Document>
         <Row>
           <Column>
@@ -217,7 +219,7 @@ describe("renderToHtml: full document shell", () => {
   });
 
   it("renders an empty tree to a valid document without crashing", () => {
-    const html = renderToHtml(<Email />);
+    const html = legacyRenderToHtml(<Email />);
     expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
     expect(html.match(/<body[\s>]/g)).toHaveLength(1);
@@ -231,7 +233,7 @@ describe("renderToHtml: full document shell", () => {
   });
 
   it("strips the Body renderer's wrapper even when the root has className/style", () => {
-    const html = renderToHtml(
+    const html = legacyRenderToHtml(
       <Email className="my-email" style={{ outline: "1px solid red" }}>
         <Row>
           <Column>
@@ -243,6 +245,46 @@ describe("renderToHtml: full document shell", () => {
     expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
     expect(html.match(/<body[\s>]/g)).toHaveLength(1);
     expect(html).not.toMatch(/<\/head>\s*<div/);
+  });
+});
+
+describe("renderToHtml: the new engine's document", () => {
+  const tree = (Root: typeof Email) => (
+    <Root>
+      <Row>
+        <Column>
+          <Paragraph>Hello</Paragraph>
+        </Column>
+      </Row>
+    </Root>
+  );
+
+  it("is a whole document, an email's with Outlook's settings, each with one <body>", () => {
+    for (const Root of [Email, Page, Document]) {
+      const html = renderToHtml(tree(Root));
+      expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+      expect(html.trimEnd().endsWith("</html>")).toBe(true);
+      expect(html.match(/<body[\s>]/g)).toHaveLength(1);
+      expect(html.includes("<o:PixelsPerInch>96</o:PixelsPerInch>")).toBe(Root === Email);
+    }
+    expect(renderToHtml(tree(Email))).toContain('<meta name="x-apple-disable-message-reformatting">');
+  });
+
+  it("renders the title escaped", () => {
+    const html = renderToHtml(tree(Email), { title: 'Hi <"world"> & co' });
+    expect(html).toMatch(/<title>Hi &lt;("|&quot;)world("|&quot;)&gt; &amp; co<\/title>/);
+  });
+
+  it("sets every <p>'s margins to 0", () => {
+    const tags = renderToHtml(tree(Email)).match(/<p[\s>][^>]*>/g) ?? [];
+    expect(tags.length).toBeGreaterThan(0);
+    for (const tag of tags) expect(tag).toContain("margin:0");
+  });
+
+  it("renders an empty tree to a valid document without crashing", () => {
+    const html = renderToHtml(<Email />);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
   });
 });
 
@@ -303,12 +345,14 @@ describe("renderToPlainText: unaffected by the document shell", () => {
 describe("document direction and language", () => {
   it.each([Email, Page, Document])("uses root metadata without requiring renderer options", (Root) => {
     const html = renderToHtml(<Root textDirection="rtl" lang="ar"><Row><Column><Paragraph>مرحبا</Paragraph></Column></Row></Root>);
-    expect(html).toMatch(/<html[^>]*dir="rtl"[^>]*lang="ar"/);
+    expect(html).toMatch(/<html[^>]*dir="rtl"/);
+    expect(html).toMatch(/<html[^>]*lang="ar"/);
   });
 
   it("allows renderer options to override root metadata and escapes language", () => {
     const html = renderToHtml(<Email textDirection="rtl" lang="ar"><Row><Column /></Row></Email>, { textDirection: "ltr", lang: 'en" data-injected="yes' });
-    expect(html).toContain('dir="ltr" lang="en&quot; data-injected=&quot;yes"');
+    expect(html).toMatch(/<html[^>]*dir="ltr"/);
+    expect(html).toContain('lang="en&quot; data-injected=&quot;yes"');
   });
 
   it("reads direction from design body values", () => {

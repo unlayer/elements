@@ -187,7 +187,8 @@ describe("a component of the user's own that calls a hook, in React's developmen
     const html = renderToHtml(<Counted />);
     expect(html).toContain("n=1");
     expect(html).toContain("Ready");
-    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+    // An email (Outlook's settings are an email's).
+    expect(html).toContain("<o:PixelsPerInch>96</o:PixelsPerInch>");
     expect(JSON.stringify(renderToJson(<Counted />))).toContain("n=1");
   });
 
@@ -202,7 +203,7 @@ describe("a component of the user's own that calls a hook, in React's developmen
       const template = <OrderTemplate items={["Shoes", "Hat"]} />;
       const [first, second] = [renderToHtml(template), renderToHtml(template)];
       expect(first).toBe(second);
-      expect(first.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+      expect(first).toContain("<o:PixelsPerInch>96</o:PixelsPerInch>");
       expect(warn).not.toHaveBeenCalled();
       expect(JSON.stringify(renderToJson(template))).toContain("Hat");
     } finally {
