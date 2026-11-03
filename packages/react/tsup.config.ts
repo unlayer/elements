@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', primitives: 'src/primitives/index.ts', builder: 'src/builder/index.ts' },
+  entry: { index: 'src/index.ts', primitives: 'src/primitives/index.ts' },
   format: ['cjs', 'esm'],
   dts: {
     // Inline types from private workspace packages and their type deps

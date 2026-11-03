@@ -3,8 +3,8 @@
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
 every step below is done. Built so far: the API, 38 components, the layout resolver, the email, page
 and print writers, PDF and image output, plain text, custom components, web fonts, validation, support
-data for every output, the codemod from today's components, and the builder adapter (see
-[Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
+data for every output, and the codemod from today's components; the builder adapter follows in a pull
+request of its own (see [Status and order of work](#status-and-order-of-work)). It ships as an internal entry,
 `@unlayer/react-elements/primitives`, until it becomes the package's main import in a new major
 version.
 
@@ -56,9 +56,8 @@ The decisions behind the design, with the date each was taken.
    `width` centers the content); `Section` is a band whose background spans the window.
 4. **JSX only; no public JSON** (2026-11-01): templates are written as JSX. There's no JSON input, no
    published schema and no document format to version. Agents learn the components from their types,
-   a reference generated from the definitions, and `validate()`'s messages. The one exception is what
-   a template keeps in the builder's design JSON (`values._elements`, see the builder adapter below):
-   saved designs hold it, so it's versioned and, once frozen, read forever. It's experimental till then.
+   a reference generated from the definitions, and `validate()`'s messages. The builder's design JSON
+   holds no Elements data either (decision 12).
 5. **An internal tree** (2026-11-01): rendering collects the JSX into plain data first, because layout
    needs the whole template before anything is written, and React context isn't available where
    Elements must run (see [Why rendering goes through a tree](#why-rendering-goes-through-a-tree)).
@@ -84,12 +83,13 @@ The decisions behind the design, with the date each was taken.
 11. **Support is data, for every output** (2026-11-01): each style and prop declares how each output
     shows it, a test keeps that true, and features are built for every root, current and future
     (see [Support for each output](#support-for-each-output)).
-12. **The builder** (2026-10, revised 2026-11-02): it covers Email, Page and Document, not Canvas.
-    Elements doesn't wait for the builder: a style or prop the builder has no editor for is kept in the
-    design, which the builder keeps and shows no editor for, until it gets one. Each item of the design
-    carries the node it was made from (`values._elements`), so the design alone brings the template back,
-    with the builder's changes (see [Builder adapter](#builder-adapter)). This replaces "no Elements data
-    in the JSON, the rest from the original JSX", which needed the original to come back.
+12. **The builder** (2026-10, revised 2026-11-03): it covers Email, Page and Document, not Canvas.
+    Elements doesn't wait for the builder, and the builder's design JSON holds no Elements data: a style
+    or prop a tool has no editor for is a hidden property of that tool, kept in the design and drawn,
+    with no editor until it gets one. What the builder can't arrange (a Section around several rows, a
+    box in a column, a Grid) comes back as the builder holds it: the same look, flatter. See
+    [Builder adapter](#builder-adapter). An earlier version (2026-11-02) kept each item's node in
+    `values._elements`; it was withdrawn before release.
 13. **Existing components move to the new engine** (2026-10). Their HTML may change; what a reader gets
     (content, links, images, styles, layout on desktop and phones) may not.
 
@@ -115,7 +115,6 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter: `toDesign(<Email>…</Email>)` to the builder's design JSON, `fromDesign(design)` back to the new components, as an element and as JSX source |
 | `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing |
 
@@ -459,87 +458,34 @@ the major after), ships the codemod and the migration guide, and drops `@unlayer
 
 ## Builder adapter
 
-Last, once the API and components are final. It converts templates to the Unlayer builder's design
-JSON for Email, Page and Document, and edited designs back.
+Next, in a pull request of its own. It converts templates to the Unlayer builder's design JSON for
+Email, Page and Document (`toDesign(element)`), and edited designs back (`fromDesign(design, { displayMode })`),
+as an element to render and as JSX source. The builder's design holds no Elements data (decision 12).
 
-**Built so far:** `toDesign(element)` and `fromDesign(design)` from `@unlayer/react-elements/builder`,
-for an Email, a Page or a Document. To the builder, a template goes through today's components (`raise`): each
-new component becomes the tool the builder edits it with, with the values that draw it as the new
-engine does, and today's `renderToJson` writes the design the builder has opened for years. A Row's gap
-and side padding become its columns' padding and widths (the builder's row padding is outside the
-content), a line along every column of a Row its columns' borders (the builder stretches columns to the
-row's height), an image its desktop width as a px pin and its phone width as an override. A Layer, an
-Svg or a box nested in a column is an HTML block of the new engine's own markup. `fromDesign()` gives
-the template back as an element to render and as JSX source. Storybook's "Primitives/Builder" draws
-main's examples (as the codemod migrated them) as the builder draws them and as the template that comes
-back from the design draws, and the comparison gate checks the two match at desktop and phone widths.
-
-A Document goes to the builder's document mode: its size, orientation and margin as the builder's
-page settings (one margin for every side: the widest; the design is written at the schema version whose
-margin is the one written), each page its rows with a page break before it, a `PageBreak` the builder's
-page break, and its `PageHeader` and `PageFooter` the design's `headers` and `footers`, which the
-builder repeats on every page. The builder has no page numbers: a `PageNumber` is written as
-`{{page_number}}` (or `{{page_count}}`), read back as one, and listed. On the way back a page break
-added inside a page ends it there, and what follows is a page of its own.
-
-- **To the builder:** through the tree. A `Section` is a full-width row, a `Row` at the top or in a
-  Section is a row with its `Column`s as columns, content directly under the root is a one-column row,
-  and each component is the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text,
-  `Button` → button, `Image` → image, `Divider` → divider, `Table` → table). What no tool can show
-  (nested layouts, a `Layer`) is a locked block with its HTML: it can be moved, duplicated or deleted,
-  not edited.
-- **The format is experimental** till it's frozen as version 1, once: a test sets every field of every
-  tool to another value, to its default, and removes it, each read as a whole copy of what was written
-  reads it; designs saved by the real builder for every tool read back as written; the format's table
-  of defaults is checked against what today's components write; and a review finds nothing new.
-- **What the builder has no editor for stays in the design, and nothing else.** The builder's values
-  are the design: what the builder holds (a heading's words, size and color) is written there only.
-  Each item (the body, a row, a column, a block) carries, in its `values._elements`, only what the
-  builder can't hold: the props and styles of its node with no builder field (a heading's background),
-  and how much of a value the builder shows is the node's place rather than the node's own (a Section's
-  space, written into the spacing of the blocks in it). A value the builder can't give back exactly
-  (a width it measures its own way) is kept as written, and only that one. The builder keeps any key
-  in `values` through loading, editing, saving and duplicating, and shows no editor for one it doesn't
-  know; a key beside `values` it drops. A row also names the Section and Grid it's a row of, and a
-  block the boxes that were flattened into its column. A design is about a quarter bigger than the
-  builder's own (each value once: an embedded image isn't kept twice).
-- **Back from the builder:** `fromDesign()`, as an element and as JSX source. Each builder value is
-  read as the node's, less its place: a block's spacing of 46px where 36px is its Section's is 10px of
-  its own, and 56px after a change in the builder is 20px. A value that's still what the builder has
-  where a template sets nothing (its defaults, a frozen table of the format's) is nothing set, and one
-  a node takes from what it's in (a heading's font, the body's) is left out where it still is, against
-  what's around it as read back. Text is read from the HTML the builder keeps, as it rewrites it (a
-  paragraph around it, `<strong>` for bold); text whose runs its HTML can't hold (a link's hover) keeps
-  them, and the HTML written. Order and nesting come from the builder: rows of a Section next to
-  each other are that Section again (moved apart, a Section each), a one-column row of blocks is those
-  blocks; a block or row the builder duplicated comes in twice (a repeated id numbered), and one deleted
-  is gone. A block made in the builder comes from its values; one of a tool Elements has no component
-  for (a form) is left out and said.
-- **Props without a builder field** are closed over time in the builder: first a hidden option it
-  stores and renders, then an editor. Each step changes one mapping (`builder/fields.ts`); the format
-  doesn't change. A field the builder gains, and fills with its default in designs written before it,
-  has that default added to the format's table: those designs never wrote it, so it reads as nothing
-  set. A default already in the table never changes (a design written with it would read otherwise):
-  writing another is a format of its own. Every conversion reports what's kept with no editor, and
-  what's an HTML block.
-- **A change where the template has no node of its own** comes back as one that holds it: a row of
-  blocks, or a column around a Row's block, the builder changed (padding, background, hiding) is a Row
-  or Column; a Grid's row it changed is a Row of its own; a row given its own background is a Section
-  of its own (in a header or footer, a Column). A row added between rows of a Section or on a page is
-  in it. An image link set in the builder is a Link around the Image.
-- **Known limits:** a Grid re-flows its children when a row of it holds more or fewer than its
-  columns; a heading whose level alone changes keeps the size the builder shows, and a body's font or
-  text color changed in the builder leaves each block's as the builder shows it (it holds one on each
-  block); deleting or duplicating the
-  page break between two pages isn't read; an empty Grid isn't kept; a template's own components
-  need passing to `fromDesign()` to render. A text edit drops what the builder's HTML can't hold (a
-  link's hover), and says so.
-- **Builder-only data** (display conditions and the like) goes back out unchanged (`compat.builder`).
-- **Tested** with unit tests (main's 10 examples back as they went; text rewritten by the builder;
-  changes; rows moved, deleted and duplicated; blocks made in the builder; the printed source run back
-  into the same template) and with the real builder in a browser: a design loaded and saved comes back
-  as it went, and a heading edited there (its text, its level, its size) comes back with those changes
-  and the styles the builder has no editor for.
+- **To the builder:** through today's components, whose design JSON the builder has opened for years.
+  A `Section` is a full-width row, a `Row` a row with its children as columns (their gap and side padding
+  the columns' padding and widths), content directly under the root a one-column row, and each component
+  the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text, `Button` → button, `Image` →
+  image, `Divider` → divider). What no tool can show (a box with a background nested in a column, a
+  `Layer`, an `Svg`, a template's own component) is a locked HTML block of the new engine's markup: it
+  can be moved, duplicated or deleted, not edited.
+- **Hidden properties:** a style or prop a tool has no field for is a property of that tool with no
+  editor yet, in the item's `values` under its own name and written as the builder's editor for it would
+  write it (`"8px"`, not `8`), so showing its editor later changes nothing in saved designs. A name the
+  tool already uses for something else gets a prefix; a checked-in list of every key written, with a
+  test, keeps each collision a reviewed decision. A value is written in one place only: what's folded
+  into a field the builder shows (a Section's space, in its rows' padding) isn't also hidden.
+- **Back from the builder:** from the builder's values alone. A row with a background is a `Section`, a
+  row of several columns a `Row` of `Column`s with their shares, and a block with spacing or alignment
+  of its own a `Column` around it with that padding and `alignItems`, as the codemod does for today's
+  components. A value equal to what the node would take anyway (a heading's font, the body's) is left
+  out. The root is the builder's display mode, given to `fromDesign()`.
+- **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same
+  look: a Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of
+  Columns, a locked block as an `Html` block. Bringing structure back is a builder feature.
+- **Tested** by what a reader gets, not by the tree: a template, to the builder and back, draws the same
+  boxes, text, images and links (and a second trip changes nothing); each builder edit has its expected
+  change written in its test; designs saved by the real builder read as expected.
 
 ## Status and order of work
 
@@ -557,7 +503,7 @@ Each step ends with its tests in CI.
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
-| 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done |
+| 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | next, in a pull request of its own |
 
 ## Open questions
 
