@@ -9,7 +9,7 @@ import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
-import { blockHtml, nextBlock } from "../utils/block-html";
+import { blockHtml, nextBlock, outsideRecording } from "../utils/block-html";
 
 /** Unlayer's default content-block padding when a block sets none. */
 
@@ -146,16 +146,19 @@ export const Column: React.FC<ColumnProps> = (props) => {
             // can size against the real available width (contentWidth × column
             // fraction) instead of the fallback. Mirrors the editor, which passes
             // this context to the content exporters.
-            const rendered = renderFn({
-              ...child.props,
-              _config,
-              _metaHtmlId: contentHtmlId,
-              colIndex: index,
-              cells,
-              bodyValues,
-              rowValues,
-              columnValues: valuesWithMeta,
-            });
+            // (Its own renders, a nested Row's blocks, aren't the template's: see block-html.ts.)
+            const rendered = outsideRecording(() =>
+              renderFn({
+                ...child.props,
+                _config,
+                _metaHtmlId: contentHtmlId,
+                colIndex: index,
+                cells,
+                bodyValues,
+                rowValues,
+                columnValues: valuesWithMeta,
+              })
+            );
 
             // Extract HTML from dangerouslySetInnerHTML
             if (

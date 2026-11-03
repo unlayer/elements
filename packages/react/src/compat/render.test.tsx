@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
@@ -138,6 +139,25 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(body.endsWith("</div>")).toBe(true);
     }
     expect(renderToHtmlParts(<Email><Row><Column><Paragraph>x</Paragraph></Column></Row></Email>).body).toMatch(/^<div>\n<body[^>]*>[\s\S]*<\/body>\n<\/div>$/);
+  });
+
+  it.each(["a Row of today's components", "renderToHtmlParts() of a template that renders as today"])("keep each block of the template where a custom tool's exporter renders %s of its own", (kind) => {
+    const Nested = registerTool({
+      name: kind.startsWith("a Row") ? "nested_row" : "nested_parts",
+      renderer: {
+        exporters: {
+          email: () =>
+            kind.startsWith("a Row")
+              ? renderToStaticMarkup(<Row mode="email"><Column><Paragraph>Inner words</Paragraph></Column></Row>)
+              : renderToHtmlParts(<Page><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Inner words</Paragraph></Column></Row></Page>).body,
+        },
+      },
+    });
+    const template = <Email><Row><Column><Nested /><Html html="<p>Critical final notice</p>" /></Column></Row></Email>;
+    const html = renderToHtml(template);
+    expect(legacyRenderToHtml(template)).toContain("Critical final notice");
+    expect(html).toContain("Inner words");
+    expect(html).toContain("Critical final notice");
   });
 
   it("add a custom tool's script to the head whole, whatever it holds ($& and $' are text)", () => {

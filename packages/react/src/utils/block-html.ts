@@ -26,6 +26,21 @@ export function recordingBlockHtml<T>(wants: (n: number) => boolean, block: (n: 
 }
 
 /**
+ * Runs a block's own render (its exporter) outside the recording: a render it does of its own (a custom tool's exporter
+ * rendering a Row of today's components, or calling renderToHtml) numbers and writes its blocks for itself, not as the
+ * template's. The recording is back when it returns.
+ */
+export function outsideRecording<T>(render: () => T): T {
+  const previous = recording;
+  recording = undefined;
+  try {
+    return render();
+  } finally {
+    recording = previous;
+  }
+}
+
+/**
  * The next block's number in a render that records them, and whether it's written: undefined where nothing records
  * (it's written).
  */
