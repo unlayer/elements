@@ -71,7 +71,7 @@ export const textHtml = (values: Values, place: Place): string => {
  * says none. Null where it can't be drawn: on a page, a hover style other than its links' own (legacy's head CSS
  * draws it; a printed document and an email have none).
  */
-function linkStyleOf(values: Values, mode: Place["mode"]): Record<string, Json> | undefined | null {
+export function linkStyleOf(values: Values, mode: Place["mode"]): Record<string, Json> | undefined | null {
   const style = values.linkStyle;
   if (!style || style.inherit !== false) return undefined;
   const color = typeof style.linkColor === "string" && style.linkColor ? style.linkColor : undefined;
@@ -81,7 +81,7 @@ function linkStyleOf(values: Values, mode: Place["mode"]): Record<string, Json> 
 }
 
 /** The links among runs in the block's link style (in what a link doesn't set itself). */
-function styled(runs: Array<TreeNode | string>, style: Record<string, Json> | undefined): Array<TreeNode | string> {
+export function styled(runs: Array<TreeNode | string>, style: Record<string, Json> | undefined): Array<TreeNode | string> {
   if (!style || !Object.keys(style).length) return runs;
   return runs.map((run) => {
     if (typeof run === "string") return run;

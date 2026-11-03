@@ -37,6 +37,7 @@ export function readDesign(design: unknown, displayMode: DisplayMode | undefined
   const root = rootOf(mode, values, (message) => report.push(`body: ${message}`));
   const context = (where: string): Context => ({
     inherited: { color: (root.style?.color as string | undefined) ?? "#000000", fontFamily: (root.style?.fontFamily as string | undefined) ?? "Arial, Helvetica, sans-serif", fontWeight: (root.style?.fontWeight as number | undefined) ?? 400 },
+    mode,
     dir: (root.props?.dir as string | undefined) ?? "ltr",
     safe: (html) => (toSafeHtml ? toSafeHtml(html) : html),
     document: mode === "document",

@@ -494,6 +494,21 @@ describe("an edit this adapter's review found lost", () => {
     expect(JSON.stringify(tree(back.element))).not.toContain('"textAlign":"right"');
   });
 
+  it("reads a text's own link style (its links' color and underline), and says a hover style a page draws", () => {
+    const { design, values } = one(
+      <Email>
+        <Paragraph>Hello</Paragraph>
+      </Email>
+    );
+    values.text = 'See <a href="https://x.test">help</a>';
+    values.linkStyle = { inherit: false, linkColor: "#aabbcc", linkUnderline: false, linkHoverColor: "#aabbcc", linkHoverUnderline: false };
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    expect((tree(back.element).children as Node[])[0].children).toEqual(["See ", { type: "Link", props: { href: "https://x.test" }, style: { color: "#aabbcc", textDecoration: "none" }, children: ["help"] }]);
+    values.linkStyle.linkHoverColor = "#000000";
+    expect(fromDesign(design, { displayMode: "web" }).report).toEqual([expect.stringContaining("its links' hover style, which a page draws, has no place")]);
+  });
+
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
     const { design, values } = one(
       <Email>

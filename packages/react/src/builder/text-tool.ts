@@ -5,6 +5,7 @@
  * Html block of its markup.
  */
 import { Heading as HeadingDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
+import { linkStyleOf, styled } from "../compat/blocks/text";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, fontWeight, font, serviceTag, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden } from "./hide";
@@ -30,7 +31,12 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   const id = givenId(values);
   const props = defined({ ...(level && level !== 1 ? { level } : {}), dir: str(values.textDirection), ...hidden.props });
   const visibility = { ...hiddenOn(values), ...hidden.hidden };
+  // Its links' style where it's its own (the builder's link style), as compat reads it; a hover style a page draws, said.
+  const linkStyle = linkStyleOf(values, context.mode);
+  if (linkStyle === null) context.say("its links' hover style, which a page draws, has no place: left out");
+  const links = linkStyle ?? linkStyleOf(values, "email");
   if (left.length) {
+    if (links && Object.keys(links).length) context.say("its links' style isn't kept in its markup: left out");
     context.say(`its text has what a ${type} doesn't hold (${[...new Set(left)].join(", ")}): it's an Html block of its markup`);
     return [placed(make("Html", { id, props: { html: markup(html, values) } }), containerPadding, undefined, phonePadding, visibility)];
   }
@@ -50,7 +56,7 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
     const start = (dir ?? blockDir) === "rtl" ? "right" : "left";
     const space = { top: above, bottom: below, [start]: part.indent ?? 0 } as Partial<Sides>;
     const partProps = own === "List" ? part.node.props : defined({ ...props, dir: dir && dir !== blockDir ? dir : props.dir });
-    return { node: make(own, { id: i === 0 ? id : undefined, props: partProps, style: partStyle, mobile, children: part.node.children }), space };
+    return { node: make(own, { id: i === 0 ? id : undefined, props: partProps, style: partStyle, mobile, children: part.node.children && (styled(part.node.children as never, links ?? undefined) as Node["children"]) }), space };
   });
   if (boxed) {
     // Its box's padding is its own (an indent inside it); its place's spacing is a Column's around it.

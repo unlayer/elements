@@ -17,6 +17,8 @@ export interface Slot {
 /** What a block is read in: the root's text styles (what a block inherits) and where to say what's left out. */
 export interface Context {
   inherited: { color: string; fontFamily: string; fontWeight: number };
+  /** The builder's display mode the design is read in. */
+  mode: "email" | "web" | "document";
   /** The root's direction, which a block without one of its own takes. */
   dir: string;
   /** A design's markup through the app's sanitizer (fromDesign()'s `toSafeHtml`), where it gave one. */
