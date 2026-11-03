@@ -103,6 +103,20 @@ function unwrapLines(html: string, dir: string): string {
   return out;
 }
 
+/** How deep markup may nest to be read as runs: deeper than any text's, shallow enough to read and draw. */
+export const DEEPEST = 64;
+const VOID = new Set(["br", "img", "hr", "input", "meta", "link", "wbr", "source", "area", "col", "embed", "param", "track"]);
+
+/** Whether markup nests deeper than DEEPEST (reading it as runs, and drawing them, would run out of stack). */
+export function tooDeep(html: string): boolean {
+  let depth = 0;
+  for (const match of html.matchAll(TAG)) {
+    if (match[1]) depth = Math.max(0, depth - 1);
+    else if (!match[4] && !VOID.has(match[2].toLowerCase()) && ++depth > DEEPEST) return true;
+  }
+  return false;
+}
+
 /** Whether the HTML has blocks of its own (a `<p>`, a list) rather than lines. */
 const blocky = (html: string) => /<\s*(p|ul|ol)\b/i.test(html);
 const P_STYLES = new Set(["line-height", "text-align", "padding-inline-start"]);
@@ -110,6 +124,7 @@ const P_STYLES = new Set(["line-height", "text-align", "padding-inline-start"]);
 /** The HTML as parts, each a block, and what isn't read. */
 export function readText(html: string, { weight = 400, pages = false, links = true, fontSize = 16 } = {}): { parts: TextPart[]; left: string[] } {
   const left: string[] = [];
+  if (tooDeep(html)) return { parts: [], left: [`markup nested more than ${DEEPEST} deep`] };
   const runs = (inner: string): Child[] => {
     const read = parseRuns(inner, { weight, links, builder: true });
     left.push(...read.left);

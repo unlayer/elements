@@ -203,6 +203,15 @@ describe("malformed design JSON", () => {
     );
   });
 
+  it("reads markup nested deeper than any text's as an Html block, and says so, rather than running out of stack", async () => {
+    const nested = (open: string, close: string, n: number) => open.repeat(n) + "x" + close.repeat(n);
+    for (const [type, key, text] of [["text", "text", nested("<ul><li>a", "</li></ul>", 1000)], ["text", "text", nested("<b>", "</b>", 3000)], ["button", "text", nested("<b>", "</b>", 3000)]]) {
+      const back = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type, values: { [key]: text } }] }] }] } });
+      expect(back.report).toEqual(expect.arrayContaining([expect.stringContaining("markup nested more than 64 deep")]));
+      await render(back.element);
+    }
+  });
+
   it("reads JSON that isn't a design as an empty template, and says so", () => {
     for (const design of [null, "x", 5, [], {}, { body: 5 }, { body: { rows: "x" } }, { body: { rows: [null, 5, { columns: "x" }, { columns: [null, { contents: [null, { type: "constructor", values: 5 }, { type: "__proto__" }] }] }] } }]) {
       const back = fromDesign(design);

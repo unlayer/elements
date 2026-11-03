@@ -13,7 +13,7 @@ import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, we
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
-import { mergeTags, richText } from "./text";
+import { DEEPEST, mergeTags, richText, tooDeep } from "./text";
 import { textTool } from "./text-tool";
 import { sayUnread } from "./unread";
 import { readBorder } from "./values";
@@ -62,7 +62,8 @@ function button(values: Values, context: Context): Node[] {
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
   const href = link(values.href, context.say);
   if (!href && webLink(values.href) === null) context.say('its link is empty in the builder: it\'s "#" until one is set');
-  const label = parseRuns(context.safe(richText(values, true, str(values.textDirection) ?? context.dir)), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
+  const labelHtml = context.safe(richText(values, true, str(values.textDirection) ?? context.dir));
+  const label = tooDeep(labelHtml) ? { children: [], left: [`markup nested more than ${DEEPEST} deep`] } : parseRuns(labelHtml, { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
   tagged(richText(values, true, str(values.textDirection) ?? context.dir), "its label", context.say);
   const { textAlign: _label, ...phoneLabel } = phoneText(values);
