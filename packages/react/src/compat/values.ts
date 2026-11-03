@@ -91,3 +91,12 @@ export function webLink(value: unknown): Json | null | undefined {
   const href = url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
   return target ? { href, target } : href;
 }
+
+/**
+ * Whether text holds an email service's tag that the new engine would write otherwise than legacy: <%name%>, a Liquid
+ * tag ({% if orders > 1 %}), or a merge tag holding what it escapes ({{ a > b }}, {{ name | default: "x" }}). A plain
+ * merge tag ({{name}}) is written as it is.
+ */
+export function serviceTag(text: string): boolean {
+  return text.includes("<%") || text.includes("{%") || /\{\{[^}]*[<>&"'][^}]*\}\}/.test(text);
+}

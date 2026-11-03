@@ -8,7 +8,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { safeName, textDirectionOf } from "../utils/create-component";
 import { pageBodyColor, pageMargin, rowColorInEmail, rowPaddingInEmail } from "./quirks";
-import { border, color, px, sides, some, type Values } from "./values";
+import { border, color, px, serviceTag, sides, some, type Values } from "./values";
 
 /** A block of the design: its tool and values. */
 export interface DesignBlock {
@@ -230,8 +230,8 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
   const values: Values = design.body.values ?? {};
   if (values.backgroundImage?.url) throw new Unlowerable("the body's background image");
   if (values.contentAlign !== undefined && values.contentAlign !== "center") throw new Unlowerable(`content aligned ${values.contentAlign}`);
-  // An email service's <%name%> tag, which legacy writes as it is for the service to fill in (the new engine escapes it).
-  if (typeof values.preheaderText === "string" && values.preheaderText.includes("<%")) throw new Unlowerable("an email service's <%name%> tag in the preview text");
+  // An email service's tag, which legacy writes as it is for the service to fill in (the new engine escapes it).
+  if (typeof values.preheaderText === "string" && serviceTag(values.preheaderText)) throw new Unlowerable("an email service's tag in the preview text");
   const place = { mode: options.mode, body: values, config: options.config ?? {} };
   const rows = (design.body.rows ?? []).map((r: Values) => row(r, place, options));
   const email = options.mode === "email";

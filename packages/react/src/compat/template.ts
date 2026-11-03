@@ -20,6 +20,7 @@ import Document from "../components/Document";
 import Email from "../components/Email";
 import Page from "../components/Page";
 import { BLOCKS } from "./blocks";
+import { serviceTag } from "./values";
 import { givenId, hidden, lowerDesign, Unlowerable, type DesignBlock, type Mode, type TreeNode } from "./lower";
 
 /** This copy's root components. */
@@ -129,11 +130,18 @@ function valid(node: TreeNode, mode: Mode): boolean {
  * (its markup hides it as legacy does).
  */
 function legacyOnly(block: DesignBlock, mode: Mode): boolean {
-  // An email service's <%name%> tag (in text, a link), which legacy writes as it is for the service to fill in.
-  if (JSON.stringify(block.values ?? {}).includes("<%")) return true;
+  // An email service's tag (in text, a link), which legacy writes as it is for the service to fill in.
+  if (strings(block.values).some(serviceTag)) return true;
   const override = block.values?._override ?? {};
   if (Object.keys(override.desktop ?? {}).some((key) => key !== "hideDesktop")) return true;
   return mode === "email" && (Object.keys(override.mobile ?? {}).some((key) => key !== "hideMobile") || !!hidden(block.values ?? {}));
+}
+
+/** Every string in a block's values, however deep. */
+function strings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (value && typeof value === "object") return Object.values(value).flatMap(strings);
+  return [];
 }
 
 /** A block in a printed document, without its phone settings: legacy's document has none. */

@@ -26,6 +26,11 @@ describe("a text block", () => {
   it("keeps its legacy HTML where its HTML holds what no run does", () => {
     expect(lowered(<Paragraph html="<ul><li>One</li></ul>" />)?.type).toBe("Raw");
   });
+
+  it("keeps its legacy HTML where it holds an email service's tag the new engine would write otherwise; a plain merge tag is written as it is", () => {
+    for (const html of ["{% if orders > 1 %}Thanks{% endif %}", "Hi {{ name | default: \"there\" }}", "{{ a > b }}", "<%= name %>"]) expect(lowered(<Paragraph html={html} />)?.type).toBe("Raw");
+    expect(lowered(<Paragraph html="Hi {{name}}" />)).toMatchObject({ type: "Paragraph", children: ["Hi {{name}}"] });
+  });
 });
 
 describe("a heading block", () => {
