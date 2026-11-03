@@ -505,85 +505,84 @@ the major after), ships the codemod and the migration guide, and drops `@unlayer
 
 ## Builder adapter
 
-Part of 0.3.0, at `@unlayer/react-elements/builder`. It converts
-templates to the Unlayer builder's design JSON for Email, Page and Document (`toDesign(element)`), and designs
-back (`fromDesign(design, { displayMode })`), as an element to render and as JSX source. The builder's
-design holds no Elements data (decision 12).
+Part of 0.3.0, at `@unlayer/react-elements/builder`. It converts templates to the Unlayer builder's design
+JSON for Email, Page and Document (`toDesign(element)`), and designs back (`fromDesign(design, { displayMode
+})`), as an element to render and as JSX source. The builder's design holds no Elements data (decision 12).
 
-- **To the builder:** through today's components, whose design JSON the builder has opened for years: they
-  and `renderToJson` write each item with its defaults, and each item's fields are written exactly as the
-  builder stores them over those. A `Section` is a full-width row (its band), a `Row` a row with its
-  children as columns (their gap and side padding the columns' padding, their widths and shares the
-  columns' `cells`), a box directly in the root or a Section a one-column row of its own, content directly
-  under the root a one-column row, and each component the matching tool (`Heading` → heading,
-  `Paragraph`/`Text`/`List` → text, `Button` → button, `Image` and a `Link` around one → image, `Divider` →
-  divider, `Menu`, `Social`, `Video`, `Html` → their tools). A block's place is its tool's `containerPadding`
-  (its stack's gap, its box's padding) and `textAlign` (its stack's alignment). Text is HTML the text tools
-  hold: runs as `<span>` with their style, `<sup>`/`<sub>`, `<a>` with its target, title and label, a List
-  as `<ul>`/`<ol>`. What no tool can show (a `Layer`, an `Svg`, a `Table`, a box with a look of its own
-  nested in a column, a Row of children of their own width such as a line of links, a template's own
-  `component()`) is a locked HTML block of the new engine's markup: it can be moved, duplicated or deleted,
-  not edited, and it comes back as an `Html` block. `report` says each, and what has no place at all (a
-  link's hover in text, a Social icon's target).
-- **Hidden properties:** a style or prop a tool has no field for is a property of that tool with no
-  editor yet, in the item's `values` under its own name, written by its kind as the builder's editor
-  for it would write it (`"8px"`, `"10px 20px"`, a border side by side, `"150%"`), its phone value in
-  `_override.mobile`. A name the tool already uses for something else, or that today's writers read, is
-  prefixed by the component whose value it is: a Button's `textAlign` (the builder's places the button)
-  is `buttonTextAlign`, a Section's border on its rows `sectionBorder`, an Image's border `imageBorder`
-  (today's image writer takes a row's and an image's border as room lost). A root's `title` is the builder's
-  accessibility title (`accessibilityTitle`, which its export writes as the page's `<title>`); its `lang` is
-  hidden, as the builder's `language` holds a design's translations, not the language its text is in.
-  `builder/manifest.ts` lists every key written, with the builder's own, and a test holds `toDesign()` to
-  it. A value is written in one place only: what's folded into a field the builder shows (a Section's space in its rows' padding, inherited text
-  styles in each block's own) isn't also hidden. The one exception is a Document's margin, whose sides
-  differ: the builder has one margin (the widest, written), and the sides are hidden beside it; an edit to
-  the builder's margin wins.
-- **Back from the builder:** from the builder's values alone, a value an item doesn't have read as its
-  tool's default (as the builder fills it). A row with a band (a background, or a Section's border hidden
-  on it) is a `Section`; a row of several columns, or with a look of its own, a `Row` of `Column`s with
-  their shares (a line or background every column has, which the builder draws as tall as the row, the
-  Row's); a one-column row its blocks, the row's and column's space folded into them, or a `Column` where
-  the column has a box; a block with spacing or alignment of its own a `Column` around it with that padding
-  and `alignItems`, as the codemod does for today's components. A value equal to what the node would take
-  anyway (its defaults, the body's text) is left out. A value the reader doesn't read that draws something
-  (a row's background image, an anchor, a display condition, the body's own link style, a phone value
-  Elements has no place for) is said, as compat fails closed on one; the editor's own flags and a popup's
-  settings draw nothing. Values are read as compat reads today's designs (what
-  legacy, and so the builder, draws), sharing its value parsers and its run parser (which, read for the
-  builder, also takes what `toDesign()` writes in text); a tool's text is its rich text (`textJson`, what
-  the builder's editor saves) where it has one, as today's exporters write it, else its `text`; each `<p>`
-  in text is a Paragraph of its own, with no margins but those its own style gives it (the builder's export
-  resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with an email service's tag
-  (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder `html` block, is an
-  `Html` block. A design's markup (an `html` block's, a text's before it's read) goes through the app's
-  `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as it is. The root
-  is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a `Document`); without
-  one, a design with a header, a footer or a page break is a
-  `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, a value that can't be read
-  as text (an object whose own `toString` isn't a function) left out first, markup nested deeper than any
-  text's (64 tags) an `Html` block, every value checked against its component, what can't be read left out and said in `report` (a link Elements won't write, a
-  file's or a script's, alone: a Link's words or image kept, a button's, a menu item's or an icon's `#`); the
-  printed JSX never holds a design's data as code.
-- **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same
-  look: a Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of
-  Columns, a `Text` as a `Paragraph`, a `Document.Page` as the content between page breaks, a locked
-  block as an `Html` block. Bringing structure back is a builder feature. Hidden properties aren't drawn
-  by the builder until it has an editor for them (a heading's background shows in Elements, not in the
-  builder). And what the builder draws otherwise than Elements: an image without its size (its `src`'s
-  width and height) is as wide as its column there, at its own size in Elements; an image's width in px is
-  its share of its column there (the builder's editor stores a percentage), so on phones it's that share;
-  a Row whose children have no share of their own (a line of links) is markup; a Row's `justifyContent`
-  is hidden, but its columns fill it; a link's hover in text and a Social icon's target have no place; a
-  button's or an image's alignment on phones, which places it there, comes back said, not read (Elements
-  places a block the same on phones).
+- **To the builder:** through today's components, whose design JSON the builder has opened for years: they and
+  `renderToJson` write each item with its defaults, and each item's fields are written exactly as the builder
+  stores them over those. A `Section` is a full-width row (its band), a `Row` a row with its children as
+  columns (their gap and side padding the columns' padding, their widths and shares the columns' `cells`), a
+  box directly in the root or a Section a one-column row of its own, content directly under the root a
+  one-column row, and each component the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text,
+  `Button` → button, `Image` and a `Link` around one → image, `Divider` → divider, `Menu`, `Social`, `Video`,
+  `Html` → their tools). A block's place is its tool's `containerPadding` (its stack's gap, its box's padding)
+  and `textAlign` (its stack's alignment). Text is HTML the text tools hold: runs as `<span>` with their
+  style, `<sup>`/`<sub>`, `<a>` with its target, title and label, a List as `<ul>`/`<ol>`. What no tool can
+  show (a `Layer`, an `Svg`, a `Table`, a box with a look of its own nested in a column, a Row of children of
+  their own width such as a line of links, a template's own `component()`) is a locked HTML block of the new
+  engine's markup: it can be moved, duplicated or deleted, not edited, and it comes back as an `Html` block.
+  `report` says each, and what has no place at all (a link's hover in text, a Social icon's target).
+- **Hidden properties:** a style or prop a tool has no field for is a property of that tool with no editor
+  yet, in the item's `values` under its own name, written by its kind as the builder's editor for it would
+  write it (`"8px"`, `"10px 20px"`, a border side by side, `"150%"`), its phone value in `_override.mobile`. A
+  name the tool already uses for something else, or that today's writers read, is prefixed by the component
+  whose value it is: a Button's `textAlign` (the builder's places the button) is `buttonTextAlign`, a
+  Section's border on its rows `sectionBorder`, an Image's border `imageBorder` (today's image writer takes a
+  row's and an image's border as room lost). A root's `title` is the builder's accessibility title
+  (`accessibilityTitle`, which its export writes as the page's `<title>`); its `lang` is hidden, as the
+  builder's `language` holds a design's translations, not the language its text is in. `builder/manifest.ts`
+  lists every key written, with the builder's own, and a test holds `toDesign()` to it. A value is written in
+  one place only: what's folded into a field the builder shows (a Section's space in its rows' padding,
+  inherited text styles in each block's own) isn't also hidden. The one exception is a Document's margin,
+  whose sides differ: the builder has one margin (the widest, written), and the sides are hidden beside it; an
+  edit to the builder's margin wins. One edit it can't tell from none is a margin set back to the widest side
+  after another edit (40px, then 60px, then 40px): the hidden sides come back. The builder saves the margin
+  alone, so no value in the design can say it was edited between; this is a limit of one field for four sides
+  until the builder has one for each.
+- **Back from the builder:** from the builder's values alone, a value an item doesn't have read as its tool's
+  default (as the builder fills it). A row with a band (a background, or a Section's border hidden on it) is a
+  `Section`; a row of several columns, or with a look of its own, a `Row` of `Column`s with their shares (a
+  line or background every column has, which the builder draws as tall as the row, the Row's); a one-column
+  row its blocks, the row's and column's space folded into them, or a `Column` where the column has a box; a
+  block with spacing or alignment of its own a `Column` around it with that padding and `alignItems`, as the
+  codemod does for today's components. A value equal to what the node would take anyway (its defaults, the
+  body's text) is left out. A value the reader doesn't read that draws something (a row's background image, an
+  anchor, a display condition, the body's own link style, a phone value Elements has no place for) is said, as
+  compat fails closed on one; the editor's own flags and a popup's settings draw nothing. Values are read as
+  compat reads today's designs (what legacy, and so the builder, draws), sharing its value parsers and its run
+  parser (which, read for the builder, also takes what `toDesign()` writes in text); a tool's text is its rich
+  text (`textJson`, what the builder's editor saves) where it has one, as today's exporters write it, else its
+  `text`; each `<p>` in text is a Paragraph of its own, with no margins but those its own style gives it (the
+  builder's export resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with an email
+  service's tag (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder `html`
+  block, is an `Html` block. A design's markup (an `html` block's, a text's before it's read) goes through the
+  app's `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as it is. The
+  root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a `Document`);
+  without one, a design with a header, a footer or a page break is a `Document`, any other an `Email`.
+  Malformed JSON doesn't throw: own-key lookups only, a value that can't be read as text (an object whose own
+  `toString` isn't a function) left out first, markup nested deeper than any text's (64 tags) an `Html` block,
+  every value checked against its component, what can't be read left out and said in `report` (a link Elements
+  won't write, a file's or a script's, alone: a Link's words or image kept, a button's, a menu item's or an
+  icon's `#`); the printed JSX never holds a design's data as code.
+- **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same look: a
+  Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns, a
+  `Text` as a `Paragraph`, a `Document.Page` as the content between page breaks, a locked block as an `Html`
+  block. Bringing structure back is a builder feature. Hidden properties aren't drawn by the builder until it
+  has an editor for them (a heading's background shows in Elements, not in the builder). And what the builder
+  draws otherwise than Elements: an image without its size (its `src`'s width and height) is as wide as its
+  column there, at its own size in Elements; an image's width in px is its share of its column there (the
+  builder's editor stores a percentage), so on phones it's that share; a Row whose children have no share of
+  their own (a line of links) is markup; a Row's `justifyContent` is hidden, but its columns fill it; a link's
+  hover in text and a Social icon's target have no place; a button's or an image's alignment on phones, which
+  places it there, comes back said, not read (Elements places a block the same on phones).
 - **Tested** by what a reader gets, not by the tree: a template, to the builder and back, draws the same
   boxes, text, images and links (and a second trip changes nothing), over the adapter's templates, main's
   examples, the codemod's and generated ones; each field of each tool edited in the builder has its expected
-  template written in its test; designs saved by the real builder read as expected; malformed JSON reads
-  into a template that validates; a design is at most about 1.1 times the builder's own. The Builder
-  stories put what the builder draws of a design (today's components given its values) beside what
-  `fromDesign()` gives back, and the comparison gate checks they draw the same.
+  template written in its test; designs saved by the real builder read as expected; malformed JSON reads into
+  a template that validates; a design is at most about 1.1 times the builder's own. The Builder stories put
+  what the builder draws of a design (today's components given its values) beside what `fromDesign()` gives
+  back, and the comparison gate checks they draw the same.
 
 ## Status and order of work
 
