@@ -258,6 +258,44 @@ describe("renderPdf", () => {
     expect(embedded(all.pdf).sort()).toEqual(["LiberationSans", "LiberationSans-Bold", "LiberationSans-Italic"]);
   });
 
+  it("says text a standard PDF font can't draw (it draws Western European characters only) where no font file is given for it", async () => {
+    const template = (
+      <Document>
+        <Text>Hello, café — “Ÿ” €5</Text>
+        <Text>Привет, мир</Text>
+        <Text style={{ fontFamily: "Georgia, serif" }}>Ελληνικά</Text>
+        <Text>Łódź</Text>
+      </Document>
+    );
+    const { pdf, diagnostics } = await renderPdf(template);
+    // Once for each standard font, where it's first met.
+    expect(diagnostics.map((d) => [d.code, d.severity, d.path, d.message])).toEqual([
+      [
+        "pdf/font",
+        "warning",
+        "root.children[1]",
+        `Text in Helvetica has characters a standard PDF font can't draw ("П"): it draws Western European characters only, and no font file is given for this text's fontFamily. Give one that has them in renderPdf's fonts option. They come out as other characters meanwhile`,
+      ],
+      [
+        "pdf/font",
+        "warning",
+        "root.children[2]",
+        `Text in Times-Roman has characters a standard PDF font can't draw ("Ε"): it draws Western European characters only, and no font file is given for this text's fontFamily. Give one that has them in renderPdf's fonts option. They come out as other characters meanwhile`,
+      ],
+    ]);
+    const words = (await read(pdf)).pages[0].words;
+    expect(words).toContain("Hello, café — “Ÿ” €5");
+    expect(words).not.toContain("Привет");
+    // In a font file that has them (Liberation Sans has Cyrillic, Greek and Polish), they're drawn, and nothing is said.
+    const given = await renderPdf(<Document style={{ fontFamily: "Liberation Sans" }}>{template.props.children}</Document>, {
+      fonts: [{ family: "Liberation Sans", src: liberation("LiberationSans-Regular.ttf") }],
+    });
+    expect(given.diagnostics.filter((d) => d.code === "pdf/font")).toEqual([
+      expect.objectContaining({ path: "root.children[2]", message: expect.stringMatching(/^Text in Times-Roman has characters/) }),
+    ]);
+    expect((await read(given.pdf)).pages[0].words).toContain("Привет, мир");
+  });
+
   it("says what a PDF can't show that its HTML can: a hover, a Video (and validate() says it too)", async () => {
     const template = (
       <Document>

@@ -57,7 +57,7 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
   const fonts = fontFiles(root, options.fonts ?? [], found);
   const images = imageSources(root, options.images ?? {}, found);
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
-  found.push(...missingFaces(root, fonts, options.fonts ?? []));
+  found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
   const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
   return { pdf: await reactPdf(pages), diagnostics: [...diagnostics, ...found] };
 }
@@ -118,6 +118,37 @@ function missingFaces(root: ResolvedNode, fonts: Font[], given: PdfFont[]): Diag
           code: "pdf/font-weight",
           severity: "warning",
           message: `Text in ${name} at ${weight}${style === "italic" ? " italic" : ""}, which is given at ${has} only: it's drawn in the nearest. Give that file in renderPdf's fonts option`,
+          path: node.path,
+          ...(node.id ? { nodeId: node.id } : {}),
+        });
+      }
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return [...out.values()];
+}
+
+/** What a standard PDF font draws, as react-pdf writes its text (Windows-1252): Western European characters. */
+const WIN_ANSI = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
+const drawnInStandard = (char: string) => {
+  const code = char.codePointAt(0)!;
+  return (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0xff) || WIN_ANSI.includes(char) || char === "\n" || char === "\t" || char === "\r";
+};
+
+/** Text drawn in a standard PDF font (no file given for its stack) with characters it can't draw: once a font. */
+function beyondStandard(root: ResolvedNode, families: ReadonlySet<string>): Diagnostic[] {
+  const out = new Map<string, Diagnostic>();
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    const family = pdfFamily(String(node.text.fontFamily), families);
+    if (!families.has(family) && !out.has(family)) {
+      const char = node.children.flatMap((child) => (typeof child === "string" ? [...child] : [])).find((c) => !drawnInStandard(c));
+      if (char) {
+        out.set(family, {
+          code: "pdf/font",
+          severity: "warning",
+          message: `Text in ${family} has characters a standard PDF font can't draw ("${char}"): it draws Western European characters only, and no font file is given for this text's fontFamily. Give one that has them in renderPdf's fonts option. They come out as other characters meanwhile`,
           path: node.path,
           ...(node.id ? { nodeId: node.id } : {}),
         });
