@@ -551,20 +551,21 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   anchor, a display condition, the body's own link style, a phone value Elements has no place for) is said, as
   compat fails closed on one; the editor's own flags and a popup's settings draw nothing. Values are read as
   compat reads today's designs (what legacy, and so the builder, draws), sharing its value parsers and its run
-  parser (which, read for the builder, also takes what `toDesign()` writes in text); a tool's text is its rich
-  text (`textJson`, what the builder's editor saves) where it has one, as today's exporters write it, else its
-  `text`; each `<p>` in text is a Paragraph of its own, with no margins but those its own style gives it (the
-  builder's export resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with an email
-  service's tag (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder `html`
-  block, is an `Html` block. A design's markup (an `html` block's, a text's before it's read) goes through the
-  app's `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as it is. The
-  root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a `Document`);
-  without one, a design with a header, a footer or a page break is a `Document`, any other an `Email`.
-  Malformed JSON doesn't throw: own-key lookups only, a value that can't be read as text (an object whose own
-  `toString` isn't a function) left out first, markup nested deeper than any text's (64 tags) an `Html` block,
-  every value checked against its component, what can't be read left out and said in `report` (a link Elements
-  won't write, a file's or a script's, alone: a Link's words or image kept, a button's, a menu item's or an
-  icon's `#`); the printed JSX never holds a design's data as code.
+  parser (which, read for the builder, also takes what `toDesign()` writes in text, and a link's `rel` of
+  `noopener` and `noreferrer` only, which its editor writes and Elements writes on a link opening a new
+  window); a tool's text is its rich text (`textJson`, what the builder's editor saves) where it has one, as
+  today's exporters write it, else its `text`; each `<p>` in text is a Paragraph of its own, with no margins
+  but those its own style gives it (the builder's export resets a paragraph's, `p { margin: 0 }`); text with
+  what no run holds or with an email service's tag (`{% if %}`, `<%name%>`, kept as written for the service to
+  fill in), and any builder `html` block, is an `Html` block. A design's markup (an `html` block's, a text's
+  before it's read) goes through the app's `toSafeHtml` where it gives one, as it does in today's exporters;
+  without one it's kept as it is. The root is the builder's display mode (`"email"` an `Email`, `"web"` a
+  `Page`, `"document"` a `Document`); without one, a design with a header, a footer or a page break is a
+  `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, a value that can't be
+  read as text (an object whose own `toString` isn't a function) left out first, markup nested deeper than any
+  text's (64 tags) an `Html` block, every value checked against its component, what can't be read left out and
+  said in `report` (a link Elements won't write, a file's or a script's, alone: a Link's words or image kept,
+  a button's, a menu item's or an icon's `#`); the printed JSX never holds a design's data as code.
 - **Known limits, by design:** structure the builder can't arrange comes back flatter, with the same look: a
   Section of several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns, a
   `Text` as a `Paragraph`, a `Document.Page` as the content between page breaks, a locked block as an `Html`

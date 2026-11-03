@@ -90,4 +90,14 @@ describe("parseRuns()", () => {
     expect(parseRuns(html).left).toEqual(["<sup>", "<sub>", "font-family: 'Courier New', monospace", "a link with no href, or with attributes a Link doesn't take"]);
     expect(parseRuns("a<br><br>").children).toEqual(["a", { type: "LineBreak" }]);
   });
+
+  it("drops, for the builder, a link's rel of noopener and noreferrer only (in any order or case), and fails closed on any other", () => {
+    const link = (rel: string, options = { builder: true }) => parseRuns(`<a href="https://x.test" target="_blank" rel="${rel}">x</a>`, options);
+    for (const rel of ["noopener", "noreferrer", "noopener noreferrer", " NoReferrer\t noopener "]) {
+      expect(link(rel)).toEqual({ children: [{ type: "Link", props: { href: { href: "https://x.test", target: "_blank" } }, children: ["x"] }], left: [] });
+    }
+    for (const rel of ["nofollow", "noopener nofollow", "sponsored", "ugc", "", "noopener,noreferrer"]) expect(link(rel).left).toEqual(["a link with no href, or with attributes a Link doesn't take"]);
+    // Without the option, as legacy is read, any rel fails closed.
+    expect(link("noopener", { builder: false }).left).toEqual(["a link with no href, or with attributes a Link doesn't take"]);
+  });
 });

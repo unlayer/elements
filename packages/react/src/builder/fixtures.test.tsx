@@ -2,6 +2,8 @@
  * Designs from outside the adapter: ones the real builder saved, read as expected; malformed JSON, read without
  * throwing into a template that renders; and a design's size, against what the builder itself saves.
  */
+import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
+import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
@@ -92,7 +94,7 @@ describe("text as the builder's editors write it", () => {
   it("reads each paragraph as a Paragraph, spaced as the builder spaces them: by their margins, none unless their own", () => {
     const back = fromDesign(fixture("paragraphs.builder-editor"));
     expect(back.report).toEqual([]);
-    expect(tree(back.element).children).toEqual([
+    expect((tree(back.element).children as Node[]).slice(0, 7)).toEqual([
       line(["First line"], 10, 0),
       line([{ type: "Span", style: { fontWeight: 700 }, children: ["Second"] }, " line"], 0, 0, { textAlign: "center" }),
       line(["\u200b"], 0, 0),
@@ -101,6 +103,29 @@ describe("text as the builder's editors write it", () => {
       line(["\u00a0"], 0, 0),
       line(["Two"], 0, 10),
     ]);
+  });
+
+  // The third text's rich text has links as the editor saves them, each with a rel of noopener and noreferrer only.
+  it("reads links in rich text, with the rel the editor gives them, as Links in the text's runs", async () => {
+    const design = fixture("paragraphs.builder-editor");
+    const textJson = design.body.rows[0].columns[0].contents[2].values.textJson;
+    expect(generateHtmlFromTextJson(textJson)).toContain('<a href="https://x.test/guide" target="_blank" rel="noopener noreferrer">guide</a>');
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const text = (tree(back.element).children as Node[])[7];
+    expect(text).toEqual(
+      line(["Read the ", { type: "Link", props: { href: { href: "https://x.test/guide", target: "_blank" } }, children: ["guide"] }, " or ", { type: "Link", props: { href: { href: "https://x.test/faq", target: "_self" } }, children: ["FAQ"] }], 10, 10)
+    );
+    // Drawn with the same href, target and rel (Elements' own on a link opening a new window; on one opening in its
+    // own, noopener and noreferrer change nothing).
+    const links = [...new JSDOM((await render(back.element)).html).window.document.querySelectorAll("a")].map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
+    expect(links).toEqual([
+      ["https://x.test/guide", "_blank", "noopener noreferrer"],
+      ["https://x.test/faq", "_self", null],
+    ]);
+    // Another rel (nofollow) is one a Link doesn't write: the text is its markup.
+    design.body.rows[0].columns[0].contents[2].values.textJson = textJson.replace('"noopener noreferrer"', '"noopener nofollow"');
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
   });
 });
 

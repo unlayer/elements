@@ -194,8 +194,12 @@ export function parseRuns(html: string, { weight = 400, links = true, builder = 
       const href = attrs.href ?? "";
       const target = attrs.target;
       // A Link writes its href, where it opens (a new window, "_blank", or its own, "_self") and its style (and, read
-      // for the builder, its title and label): another target, or another attribute (its rel), isn't written.
-      const taken = ["href", "target", "style", ...(builder ? ["title", "aria-label"] : [])];
+      // for the builder, its title and label): another target, or another attribute (its rel), isn't written. Read for
+      // the builder, a rel of noopener and noreferrer only (the builder's editor writes one) is dropped: Elements
+      // writes `noopener noreferrer` on a link opening a new window, and on one opening in its own they change nothing
+      // a reader sees.
+      const safeRel = builder && attrs.rel !== undefined && /^\s*(noopener|noreferrer)(\s+(noopener|noreferrer))*\s*$/i.test(attrs.rel);
+      const taken = ["href", "target", "style", ...(builder ? ["title", "aria-label"] : []), ...(safeRel ? ["rel"] : [])];
       if (!href || Object.keys(attrs).some((name) => !taken.includes(name))) left.push("a link with no href, or with attributes a Link doesn't take");
       if (target !== undefined && target !== "_blank" && target !== "_self") left.push(`a link opening in ${JSON.stringify(target)}`);
       const labels = builder ? Object.fromEntries((["title", "aria-label"] as const).filter((name) => attrs[name] !== undefined).map((name) => [name, attrs[name]])) : {};
