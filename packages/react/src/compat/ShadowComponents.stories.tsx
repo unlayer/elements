@@ -21,7 +21,7 @@ import * as social from "../components/Social.stories";
 import * as table from "../components/Table.stories";
 import * as video from "../components/Video.stories";
 import * as unlayerProvider from "../context/UnlayerProvider.stories";
-import { args, argTypes, shadow, type Allowance, type Args } from "./story";
+import { args, argTypes, LONG_WORDS_WRAP, shadow, type Allowance, type Args } from "./story";
 
 /**
  * Rounded corners at a fraction of a px, on phones: Chromium antialiases them a little differently in the two frames
@@ -74,7 +74,7 @@ export const ColumnPricingCards = shadow(column, "PricingCards");
 export const ColumnFeatureShowcase = shadow(column, "FeatureShowcase");
 export const ColumnTestimonialCards = shadow(column, "TestimonialCards");
 export const ColumnSidebarArticle = shadow(column, "SidebarArticle");
-export const ColumnStatsBar = shadow(column, "StatsBar");
+export const ColumnStatsBar = shadow(column, "StatsBar", undefined, undefined, [LONG_WORDS_WRAP]);
 export const CustomToolsCountdownTool = shadow(customTools, "CountdownTool", undefined, CORNERS);
 export const CustomToolsCountdownCustomized = shadow(customTools, "CountdownCustomized");
 export const CustomToolsProductCardTool = shadow(customTools, "ProductCardTool");

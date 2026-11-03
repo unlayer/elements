@@ -87,23 +87,47 @@ export interface Allowance {
   why: string;
 }
 
+/**
+ * A fix accepted over legacy's drawing (RFC 0001, "Moving the existing components"): its CSS is drawn in main's frame
+ * too, so a story it changes is still compared exactly everywhere else, whatever the fonts make of it.
+ */
+export interface AcceptedFix {
+  css: string;
+  why: string;
+}
+
+/** A word too long for its column wraps inside it, where legacy's page lets it run out of the column. */
+export const LONG_WORDS_WRAP: AcceptedFix = { css: "body{overflow-wrap:break-word}", why: "a word too long for its column wraps inside it (a legacy bug fixed on purpose)" };
+
+/** Main's HTML with the fixes accepted for it drawn in: their rules at the end of its head. */
+const withFixes = (html: string, fixes: AcceptedFix[]) => {
+  if (!fixes.length) return html;
+  const style = `<style>${fixes.map((fix) => fix.css).join("")}</style>`;
+  return html.includes("</head>") ? html.replace("</head>", () => `${style}</head>`) : style + html;
+};
+
 /** A story of today's components (`module[name]`), rendered both ways; `root` puts a story of blocks in an Email or a Page. */
-export const shadow = (module: StoryModule, name: string, root?: "email" | "web", allowance?: Allowance): StoryObj<Args> =>
-  shadowOf(() => {
-    const template = storyTemplate(storyElement(module, name), root);
-    if (!template) throw new Error(`${name} has no template for ${root}`);
-    return template;
-  }, allowance);
+export const shadow = (module: StoryModule, name: string, root?: "email" | "web", allowance?: Allowance, fixes: AcceptedFix[] = []): StoryObj<Args> =>
+  shadowOf(
+    () => {
+      const template = storyTemplate(storyElement(module, name), root);
+      if (!template) throw new Error(`${name} has no template for ${root}`);
+      return template;
+    },
+    allowance,
+    fixes
+  );
 
 /** A template of today's components, rendered both ways. */
-export const shadowOf = (template: () => ReactElement, allowance?: Allowance): StoryObj<Args> => ({
+export const shadowOf = (template: () => ReactElement, allowance?: Allowance, fixes: AcceptedFix[] = []): StoryObj<Args> => ({
   loaders: [
     async () => {
       const next = withRenderScope(() => renderThroughNewEngine(template(), undefined, "renderToHtml"));
       if (!next) throw new Error("Only a template with a root (Email, Page, Document, Body) renders through the new engine");
-      const main = legacyRenderToHtml(template());
-      if (next.unlowered !== undefined) return { main, next: main, notes: [`Rendered as today: the new engine can't draw ${next.unlowered} as legacy does`] };
-      return { main, next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
+      const main = withFixes(legacyRenderToHtml(template()), fixes);
+      const accepted = fixes.map((fix) => `Main drawn with a fix accepted over it: ${fix.why}`);
+      if (next.unlowered !== undefined) return { main, next: main, notes: [`Rendered as today: the new engine can't draw ${next.unlowered} as legacy does`, ...accepted] };
+      return { main, next: next.html, notes: [...next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`), ...accepted] };
     },
   ],
   render: ({ width }, { loaded }) => <SideBySide main={loaded.main} next={loaded.next} notes={allowance ? [...loaded.notes, `Allowance: ${allowance.why}`] : loaded.notes} width={width} labels={labels} allowance={allowance} />,
