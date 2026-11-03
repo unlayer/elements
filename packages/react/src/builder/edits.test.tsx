@@ -418,6 +418,39 @@ describe("an edit this adapter's review found lost", () => {
     expect((b.type === "Button" ? b : (b.children![0] as Node)).children).toEqual(["New label"]);
   });
 
+  it("reads a link in every shape today's writers read: its URL in attrs, an email's", () => {
+    const design = designOf(
+      <Email>
+        <Button href="https://x.test">Go</Button>
+        <Link href="https://x.test/image">
+          <Image src={{ src: "https://x.test/a.png", width: 600, height: 300 }} alt="" />
+        </Link>
+        <Menu items={[{ text: "Docs", href: "https://x.test/docs" }]} />
+      </Email>
+    );
+    const [button, image, menu] = design.body.rows[0].columns[0].contents.map((content: any) => content.values);
+    const email = { name: "email", attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" }, values: { email: "a@b.test", subject: "Hi", body: "" } };
+    button.href = { name: "web", attrs: { href: "https://x.test/attrs", target: "_blank" } };
+    image.action = email;
+    menu.menu.items[0].link = { name: "phone", attrs: { href: "tel:{{phone}}" }, values: { phone: "+15551234" } };
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const [b, i, m] = tree(back.element).children as Node[];
+    expect((b.type === "Button" ? b : (b.children![0] as Node)).props).toEqual({ href: { href: "https://x.test/attrs", target: "_blank" } });
+    expect((i.type === "Link" ? i : (i.children![0] as Node)).props).toEqual({ href: "mailto:{{email}}?subject={{subject}}&body={{body}}" });
+    expect((m.type === "Menu" ? m : (m.children![0] as Node)).props).toEqual({ items: [{ text: "Docs", href: "tel:{{phone}}" }] });
+  });
+
+  it("says a link that holds what a link in Elements can't (a click handler), and isn't empty", () => {
+    const { design, values } = one(
+      <Email>
+        <Button href="https://x.test">Go</Button>
+      </Email>
+    );
+    values.href = { name: "web", values: { href: "https://x.test" }, attrs: { onClick: "track()" } };
+    expect(fromDesign(design).report).toEqual([expect.stringMatching(/^rows\[0\]\.columns\[0\]\.contents\[0\]: its link .* holds what a link in Elements can't/)]);
+  });
+
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
     const { design, values } = one(
       <Email>

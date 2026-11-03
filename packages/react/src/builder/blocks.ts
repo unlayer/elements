@@ -9,7 +9,7 @@ import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDef
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
-import { color, fontWeight, font, letterSpacing, px, sides, some, type Values } from "../compat/values";
+import { color, fontWeight, font, letterSpacing, px, sides, some, webLink, type Values } from "../compat/values";
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
@@ -19,12 +19,20 @@ import { readBorder } from "./values";
 
 export type { Context, Slot };
 
-/** A link as Elements': its target where it's a new window, the URL alone where it opens in its own. */
-function link(value: unknown): Json | undefined {
-  const values = obj(obj(value).values);
-  const href = str(values.href) ?? str(obj(value).url) ?? (typeof value === "string" ? value : undefined);
-  if (!href) return undefined;
-  return values.target === "_blank" ? { href, target: "_blank" } : href;
+/**
+ * A link as Elements', read as compat reads today's (every shape today's writers read: a URL, the builder's
+ * `{ name, values, attrs }`, an email's or a phone's link with its URL in `attrs`, `{ url, target }`): its target
+ * where it says a new window, the URL alone otherwise. None where it has no URL; where it holds what a link here
+ * can't (a class, attributes of its own, a click handler, another target), that's said and it's left out.
+ */
+function link(value: unknown, say: (message: string) => void, what = "its link"): Json | undefined {
+  const read = webLink(value);
+  if (read === undefined) say(`${what} ${JSON.stringify(value) ?? String(typeof value)} holds what a link in Elements can't (a class, attributes or a target of its own, a click handler): left out`);
+  if (!read) return undefined;
+  const href = typeof read === "string" ? read : String((read as { href: unknown }).href);
+  const given = obj(value);
+  const target = str(obj(given.values).target) || str(obj(given.attrs).target) || ("url" in given ? str(given.target) : undefined);
+  return target === "_blank" ? { href, target: "_blank" } : href;
 }
 
 function button(values: Values, context: Context): Node[] {
@@ -45,8 +53,8 @@ function button(values: Values, context: Context): Node[] {
     ...hidden.style,
   });
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
-  const href = link(values.href);
-  if (!href) context.say('its link is empty in the builder: it\'s "#" until one is set');
+  const href = link(values.href, context.say);
+  if (!href && webLink(values.href) === null) context.say('its link is empty in the builder: it\'s "#" until one is set');
   const label = parseRuns(richText(values, true, str(values.textDirection) ?? context.dir), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
   const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile: { ...phoneText(values), ...phonePadding(values, "padding"), ...hidden.mobile }, hover, children: mergeTags(label.children, false) });
@@ -69,7 +77,7 @@ function image(values: Values, context: Context, slot?: Slot): Node[] {
   const mobile = defined({ ...(Object.keys(phone).length ? imageWidth({ ...src, ...phone }) : {}), ...hidden.mobile });
   const alt = str(values.altText) ?? "";
   const node = make("Image", { props: defined({ src: asset, ...(alt ? { alt } : {}), ...hidden.props }), style, mobile });
-  const href = link(values.action);
+  const href = link(values.action, context.say);
   const linked = href ? make("Link", { props: { href }, children: [node] }) : node;
   const withId = givenId(values) ? { ...linked, id: givenId(values) } : linked;
   return [placed(withId, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
@@ -115,8 +123,8 @@ function divider(values: Values, context: Context): Node[] {
 function menu(values: Values, context: Context): Node[] {
   const defaults = MenuDefinition.defaultStyle as Record<string, Json>;
   const hidden = readHidden("menu", "Menu", values, context.say);
-  const items = (Array.isArray(obj(values.menu).items) ? (obj(values.menu).items as unknown[]) : []).map(obj).map((item) => ({ text: str(item.text) ?? "", href: link(item.link) }));
-  if (!items.length || items.some((item) => !item.href)) context.say("a menu item with no link in the builder: it's \"#\" until one is set");
+  const items = (Array.isArray(obj(values.menu).items) ? (obj(values.menu).items as unknown[]) : []).map(obj).map((item, i) => ({ text: str(item.text) ?? "", href: link(item.link, context.say, `its item ${i + 1}'s link`), empty: webLink(item.link) === null }));
+  if (!items.length || items.some((item) => item.empty)) context.say("a menu item with no link in the builder: it's \"#\" until one is set");
   const size = px(values.fontSize ?? "14px");
   const style = defined({
     color: unless(color(values.linkColor), defaults.color),
