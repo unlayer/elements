@@ -2,15 +2,16 @@
  * main's Menu stories (Components/Menu), each in an email, and the same links with the new Menu: main's
  * `linkColor` is the color, `textColor` the separator's, `align` the alignment.
  *
- * main's links are inline-blocks with a space between each in its markup, so each is a space further from the
- * next than their padding says; `nextAsMain` puts a non-breaking space before each link but the first and before
- * the separator (before, not after: a packed cell's width leaves a trailing one out). main's spaces are in its
- * container's font size, and its menu takes the font's normal line height, where Elements writes an exact one (1.2)
- * that every client draws alike: its links may sit up to 3px from main's, across and up and down (`allowance`).
+ * main's links and separators are inline-blocks with a space between each in its markup, each separator in a link's
+ * padding too, so each is further from the next than the new Menu puts them (a link's padding either side of a
+ * separator, not twice); `nextAsMain` draws main's menu (mainMenu.tsx). main's spaces are in its container's font
+ * size, and its menu takes the font's normal line height, where Elements writes an exact one (1.2) that every client
+ * draws alike: its links may sit up to 3px from main's, across and up and down (`allowance`).
  * Its font is main's email default as main writes it.
  */
 import { Column as MainColumn, Email as MainEmail, Menu as MainMenu, Row as MainRow } from "../../index";
 import { Email, Menu, Section } from "../index";
+import { mainMenu } from "./mainMenu";
 
 const ITEMS = [
   { text: "Home", href: "#home" },
@@ -19,17 +20,15 @@ const ITEMS = [
   { text: "Contact", href: "#contact" },
 ];
 
-const NBSP = "\u00a0";
-
 function design(separatorColor?: string) {
   const next = (asMain: boolean) => (
     <Email width={600} style={{ fontFamily: "arial, helvetica, sans-serif" }}>
       <Section style={{ padding: 10 }}>
-        <Menu
-          items={asMain ? ITEMS.map((item, i) => (i > 0 ? { ...item, text: NBSP + item.text } : item)) : ITEMS}
-          separator={asMain ? `${NBSP}|` : "|"}
-          style={{ padding: [10, 16], fontSize: 14, color: "#2563eb", ...(separatorColor ? { separatorColor } : {}) }}
-        />
+        {asMain ? (
+          mainMenu({ items: ITEMS, separator: "|", padding: [10, 16], fontSize: 14, color: "#2563eb", ...(separatorColor ? { separatorColor } : {}) })
+        ) : (
+          <Menu items={ITEMS} separator="|" style={{ padding: [10, 16], fontSize: 14, color: "#2563eb", ...(separatorColor ? { separatorColor } : {}) }} />
+        )}
       </Section>
     </Email>
   );
@@ -45,7 +44,7 @@ function design(separatorColor?: string) {
     ),
     next: next(false),
     nextAsMain: next(true),
-    quirks: "its links are inline-blocks with a space between each, so each is a space further from the next than its padding says.",
+    quirks: "its links and separators are inline-blocks with a space between each, each separator in a link's padding too, so each is further from the next than the new Menu puts them.",
     allowance: { x: 3, y: 3 },
   };
 }

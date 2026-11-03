@@ -4,12 +4,13 @@
  * color is each Link's color here.
  *
  * Three differences are main's: its photo, 100% wide, is at most 504px, as in NotionWelcome.tsx; its body
- * link color isn't its links' (they're the default #0000ee); and its menu's links are a space further apart
- * than their padding says (MenuLinks.tsx). `nextAsMain` draws them as main does.
+ * link color isn't its links' (they're the default #0000ee); and its menu's links and separators are further apart
+ * than the new Menu puts them (MenuLinks.tsx). `nextAsMain` draws them as main does.
  */
 import type { ReactNode } from "react";
 import { MorningBrewDigest } from "../../examples/MorningBrewDigest.stories";
 import { Column, Divider, Email, Heading, Image, Link, Menu, Paragraph, Row, Section, Span } from "../index";
+import { mainMenu } from "./mainMenu";
 
 const INK = "#1A1A1A";
 const BODY = "#3F3F46";
@@ -47,11 +48,13 @@ const hit = (emoji: string, bold: string, rest: string, href: string, color?: st
 
 const rule = (width: number, color: string) => <Divider style={{ borderTop: `${width}px solid ${color}` }} />;
 
-/** A menu's items as main spaces them (`asMain`): a non-breaking space before each but the first, a space wide in any font. */
-const withSpaces = (asMain: boolean, items: Array<{ text: string; href: string }>) =>
-  asMain ? items.map((item, i) => (i > 0 ? { ...item, text: `\u00a0${item.text}` } : item)) : items;
-
 export const main = <MorningBrewDigest />;
+
+const ITEMS = [
+  { text: "Subscribe", href: "https://example.com/subscribe" },
+  { text: "Archive", href: "https://example.com/archive" },
+  { text: "Unsubscribe", href: "https://example.com/unsubscribe" },
+];
 
 /** The design; `asMain` draws the photo and the links as main does. */
 const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
@@ -139,14 +142,11 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
 
     <Section style={{ backgroundColor: PAPER, padding: 10 }}>{rule(1, LINE)}</Section>
     <Section style={{ backgroundColor: PAPER, padding: [34, 10, 18, 10] }}>
-      <Menu
-        items={withSpaces(asMain, [
-          { text: "Subscribe", href: "https://example.com/subscribe" },
-          { text: "Archive", href: "https://example.com/archive" },
-          { text: "Unsubscribe", href: "https://example.com/unsubscribe" },
-        ])}
-        separator={asMain ? "\u00a0·" : "·"}
-      />
+      {asMain ? (
+        mainMenu({ items: ITEMS, separator: "·" })
+      ) : (
+        <Menu items={ITEMS} separator="·" />
+      )}
     </Section>
     <Section style={{ backgroundColor: PAPER, padding: [14, 10, 46, 10] }}>
       <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
@@ -159,7 +159,7 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
 export const next = design(false);
 export const nextAsMain = design(true);
 export const quirks =
-  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF); and its menu's links are a space further apart than their padding says.";
+  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF); and its menu's links and separators are further apart than the new Menu puts them (a space between each, each separator in a link's padding too).";
 
 /** main's menu spaces its links and lines by its font, Elements exactly (MenuLinks.tsx): they may sit up to 3px from main's. */
 export const allowance = { x: 3, y: 3 };
