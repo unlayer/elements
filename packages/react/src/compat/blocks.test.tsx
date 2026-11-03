@@ -46,6 +46,24 @@ describe("a text block's link style", () => {
   });
 });
 
+describe("a text block's direction and fonts", () => {
+  const block = (element: React.ReactElement) => {
+    const result = withRenderScope(() => lowerTemplate(element, undefined, "renderToHtml")) as Lowered;
+    const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+    return find(result.tree.root);
+  };
+
+  it("keeps its legacy HTML where its own direction isn't the template's (legacy writes the template's)", () => {
+    expect(lowered(<Paragraph textDirection="rtl">Hello (world)!</Paragraph>)?.type).toBe("Raw");
+    expect(block(<Email textDirection="rtl"><Row><Column><Paragraph textDirection="rtl">مرحبا</Paragraph></Column></Row></Email>)?.type).toBe("Paragraph");
+  });
+
+  it("keeps a heading's legacy HTML where a run sets its own font size in a line height in % (legacy's is the heading's)", () => {
+    expect(lowered(<Heading values={{ text: 'H <span style="font-size:60px">BIG</span>' } as never} />)?.type).toBe("Raw");
+    expect(lowered(<Paragraph html='a <span style="font-size:28px">BIG</span>' />)?.type).toBe("Paragraph");
+  });
+});
+
 describe("a heading block", () => {
   it("is a Heading of its level, bold where it says no weight", () => {
     expect(lowered(<Heading headingType="h2" values={{ fontWeight: undefined } as never}>Title</Heading>)).toMatchObject({ type: "Heading", props: { level: 2 }, children: ["Title"] });

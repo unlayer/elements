@@ -96,6 +96,8 @@ function textBlock(type: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   // A block given a mode of its own is drawn in that output's markup, whatever its template's.
   if (values.mode !== undefined && values.mode !== place.mode) return undefined;
   if (values.textDirection !== undefined && !DIRECTIONS.has(values.textDirection)) return undefined;
+  // A direction of its own other than the template's: legacy writes the template's (its text is laid out so).
+  if (values.textDirection !== undefined && values.textDirection !== (place.config.textDirection ?? place.body.textDirection ?? "ltr")) return undefined;
   // A heading's tag is bold where it says no weight.
   const style = textStyles(values, type === "Heading" ? { weight: 700 } : {});
   const phone = phoneText(values);
@@ -105,6 +107,9 @@ function textBlock(type: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   if (left.length) return undefined;
   const links = linkStyleOf(values, place.mode);
   if (links === null) return undefined;
+  // A heading's line height in % is legacy's own (inherited as the heading's, in px), where a run in a larger or
+  // smaller font draws its line in the new engine's as tall as its own font makes it.
+  if (type === "Heading" && /%\s*$/.test(String(values.lineHeight ?? "")) && ownFontSize(children)) return undefined;
   const level = type === "Heading" ? Number(/^h([1-6])$/.exec(String(values.headingType ?? "h1"))?.[1]) : undefined;
   if (type === "Heading" && !level) return undefined;
   return {
@@ -115,6 +120,11 @@ function textBlock(type: "Paragraph" | "Heading", block: DesignBlock, place: Pla
     // An empty block is a line of its height, as legacy's.
     children: children.length ? styled(children, links) : ["​"],
   };
+}
+
+/** Whether a run sets its own font size. */
+function ownFontSize(runs: Array<TreeNode | string>): boolean {
+  return runs.some((run) => typeof run !== "string" && (run.style?.fontSize !== undefined || ownFontSize(run.children ?? [])));
 }
 
 export const heading = (block: DesignBlock, place: Place) => textBlock("Heading", block, place);
