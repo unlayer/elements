@@ -72,7 +72,7 @@ const pxOf = (value: string) => (/^-?[\d.]+px$/.test(value.trim()) ? parseFloat(
 const WEIGHTS: Record<string, number> = { normal: 400, bold: 700 };
 
 /** A `style` attribute as a run's style: the properties a Span or a Link takes; the others are said in `left`. */
-function runStyle(css: string | undefined, left: string[]): Record<string, Json> {
+function runStyle(css: string | undefined, left: string[], fonts = false): Record<string, Json> {
   const out: Record<string, Json> = {};
   for (const declaration of (css ?? "").split(";")) {
     const [property, ...rest] = declaration.split(":");
@@ -88,14 +88,18 @@ function runStyle(css: string | undefined, left: string[]): Record<string, Json>
     else if (name === "text-transform" && ["none", "uppercase", "lowercase", "capitalize"].includes(value)) out.textTransform = value;
     else if (name === "font-size" && pxOf(value) !== undefined) out.fontSize = pxOf(value)!;
     else if (name === "letter-spacing" && pxOf(value) !== undefined) out.letterSpacing = pxOf(value)!;
+    else if (name === "font-family" && fonts && !/[!;<>]/.test(value)) out.fontFamily = value.replace(/'/g, '"');
     else left.push(`${name}: ${value}`);
   }
   return out;
 }
 
 /** What a tag adds to the style of the text in it (`<b>` its weight: the browser's bolder than the text around it). */
-function tagStyle(tag: string, weight: number): Record<string, Json> | undefined {
+function tagStyle(tag: string, weight: number, raised = false): Record<string, Json> | undefined {
   switch (tag) {
+    case "sup":
+    case "sub":
+      return raised ? { verticalAlign: tag === "sup" ? "super" : "sub" } : undefined;
     case "b":
     case "strong":
       return { fontWeight: weight < 400 ? 400 : weight < 600 ? 700 : 900 };
@@ -117,9 +121,11 @@ type Frame = { tag: string; node: TreeNode | null; children: Run[]; weight: numb
 
 /**
  * The HTML as runs, and what in it no run holds. `weight` is the block's font weight, which a `<b>` makes bolder;
- * `links` says whether text may hold links (a button's can't: it's one).
+ * `links` says whether text may hold links (a button's can't: it's one). `builder` reads what the builder adapter
+ * writes in a text tool's HTML besides (a run's font, `<sup>` and `<sub>`, a link's title and label), which legacy draws
+ * as the browser does.
  */
-export function parseRuns(html: string, { weight = 400, links = true }: { weight?: number; links?: boolean } = {}): { children: Run[]; left: string[] } {
+export function parseRuns(html: string, { weight = 400, links = true, builder = false }: { weight?: number; links?: boolean; builder?: boolean } = {}): { children: Run[]; left: string[] } {
   const left: string[] = [];
   // A comment, a processing instruction or a declaration (`<!-- -->`, `<?php ?>`, `<![CDATA[`): the browser doesn't show
   // it, or shows it otherwise; it's not read.
@@ -129,11 +135,12 @@ export function parseRuns(html: string, { weight = 400, links = true }: { weight
   const stack: Frame[] = [current];
   const top = () => stack[stack.length - 1];
   /** A paragraph ends: its runs are a line (or none, where it's empty). */
-  const endParagraph = () => {
+  const endParagraph = (last = false) => {
     if (stack.length > 1) left.push("a paragraph inside text that's styled");
     const runs = tidy(current.children);
-    // A line break that ends a paragraph doesn't start another line (unless it's all the paragraph has).
-    if (runs.length > 1 && isBreak(runs[runs.length - 1])) runs.pop();
+    // A line break that ends a paragraph doesn't start another line (unless it's all the paragraph has). Read for the
+    // builder, the last paragraph's is kept: the runs end a block, which drops it again where they're written.
+    if (runs.length > 1 && isBreak(runs[runs.length - 1]) && !(builder && last)) runs.pop();
     if (runs.length) lines.push(runs.length === 1 && isBreak(runs[0]) ? [] : runs);
     current = { tag: "", node: null, children: [], weight };
     stack.splice(0, stack.length, current);
@@ -183,23 +190,25 @@ export function parseRuns(html: string, { weight = 400, links = true }: { weight
     }
     const weightHere = top().weight;
     if (tag === "a" && links) {
-      const style = runStyle(attrs.style, left);
+      const style = runStyle(attrs.style, left, builder);
       const href = attrs.href ?? "";
       const target = attrs.target;
-      // A Link writes its href, where it opens (a new window, "_blank", or its own, "_self") and its style: another
-      // target, or another attribute (its rel), isn't written.
-      if (!href || Object.keys(attrs).some((name) => !["href", "target", "style"].includes(name))) left.push("a link with no href, or with attributes a Link doesn't take");
+      // A Link writes its href, where it opens (a new window, "_blank", or its own, "_self") and its style (and, read
+      // for the builder, its title and label): another target, or another attribute (its rel), isn't written.
+      const taken = ["href", "target", "style", ...(builder ? ["title", "aria-label"] : [])];
+      if (!href || Object.keys(attrs).some((name) => !taken.includes(name))) left.push("a link with no href, or with attributes a Link doesn't take");
       if (target !== undefined && target !== "_blank" && target !== "_self") left.push(`a link opening in ${JSON.stringify(target)}`);
-      stack.push({ tag, node: { type: "Link", props: { href: target === "_blank" || target === "_self" ? { href, target } : href }, ...(Object.keys(style).length ? { style } : {}) }, children: [], weight: (style.fontWeight as number | undefined) ?? weightHere });
+      const labels = builder ? Object.fromEntries((["title", "aria-label"] as const).filter((name) => attrs[name] !== undefined).map((name) => [name, attrs[name]])) : {};
+      stack.push({ tag, node: { type: "Link", props: { href: target === "_blank" || target === "_self" ? { href, target } : href, ...labels }, ...(Object.keys(style).length ? { style } : {}) }, children: [], weight: (style.fontWeight as number | undefined) ?? weightHere });
       continue;
     }
-    const own = tagStyle(tag, weightHere);
+    const own = tagStyle(tag, weightHere, builder);
     if (!own || Object.keys(attrs).some((name) => name !== "style")) {
       left.push(`<${tag}>`);
       stack.push({ tag, node: null, children: [], weight: weightHere });
       continue;
     }
-    const style = { ...own, ...runStyle(attrs.style, left) };
+    const style = { ...own, ...runStyle(attrs.style, left, builder) };
     stack.push({ tag, node: Object.keys(style).length ? { type: "Span", style } : null, children: [], weight: (style.fontWeight as number | undefined) ?? weightHere });
   }
   text(html.slice(last), false);
@@ -208,7 +217,7 @@ export function parseRuns(html: string, { weight = 400, links = true }: { weight
     if (frame.node) top().children.push({ ...frame.node, children: frame.children });
     else top().children.push(...frame.children);
   }
-  endParagraph();
+  endParagraph(true);
   const children: Run[] = [];
   lines.forEach((line, index) => {
     if (index) children.push({ type: "LineBreak" });

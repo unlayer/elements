@@ -71,4 +71,23 @@ describe("parseRuns()", () => {
     // An attribute with no value is one (a hidden span keeps its legacy HTML).
     expect(parseRuns("<span hidden>never shown</span>").left).toEqual(["<span>"]);
   });
+
+  it("reads, for the builder, what the adapter writes in text: a run's font, superscript and subscript, a link's title and label, a last line break", () => {
+    const html = '<sup>2</sup><sub><span style="color:#ff0000">2</span></sub><span style="font-family:\'Courier New\', monospace">c</span><a href="https://x.test" title="T" aria-label="L">x</a>a<br><br>';
+    expect(parseRuns(html, { builder: true })).toEqual({
+      children: [
+        { type: "Span", style: { verticalAlign: "super" }, children: ["2"] },
+        { type: "Span", style: { verticalAlign: "sub", color: "#ff0000" }, children: ["2"] },
+        { type: "Span", style: { fontFamily: '"Courier New", monospace' }, children: ["c"] },
+        { type: "Link", props: { href: "https://x.test", title: "T", "aria-label": "L" }, children: ["x"] },
+        "a",
+        { type: "LineBreak" },
+        { type: "LineBreak" },
+      ],
+      left: [],
+    });
+    // Without the option, as legacy is read: each fails closed, and the last line break is the browser's to drop.
+    expect(parseRuns(html).left).toEqual(["<sup>", "<sub>", "font-family: 'Courier New', monospace", "a link with no href, or with attributes a Link doesn't take"]);
+    expect(parseRuns("a<br><br>").children).toEqual(["a", { type: "LineBreak" }]);
+  });
 });
