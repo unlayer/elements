@@ -55,7 +55,9 @@ export function button(block: DesignBlock, place: Place): TreeNode | undefined {
         width: width === undefined ? undefined : px(width) ?? width,
         // A transparent label is one (a background that's transparent is none).
         color: typeof colors.color === "string" && colors.color ? colors.color : undefined,
-        backgroundColor: color(colors.backgroundColor),
+        // A background given as none (transparent, or empty, which legacy writes as no color) is none, where the new
+        // Button would draw its own default.
+        backgroundColor: colors.backgroundColor === undefined ? undefined : color(colors.backgroundColor) ?? "transparent",
         fontFamily: fontOfValues(values.fontFamily),
         fontSize: size,
         fontWeight: weight,

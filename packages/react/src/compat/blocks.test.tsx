@@ -53,6 +53,13 @@ describe("a button block", () => {
     expect((lowered(button, Page)?.children as TreeNode[])[0].hover).toEqual({ color: "#FFFFFF", backgroundColor: "#222" });
   });
 
+  it("draws no background where its background is transparent or empty, as legacy, not the new Button's default", () => {
+    for (const backgroundColor of ["transparent", ""]) {
+      const node = lowered(<Button href="https://example.com" backgroundColor={backgroundColor}>Go</Button>);
+      expect((node?.children as TreeNode[])[0].style?.backgroundColor).toBe("transparent");
+    }
+  });
+
   it("keeps its legacy HTML where it has no link (legacy's href=\"\")", () => {
     expect(lowered(<Button>Go</Button>)?.type).toBe("Raw");
   });
