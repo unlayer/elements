@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Proof the harness fails when it should. Copies NEW's package to a scratch .new/mutant (never packages/react),
-// breaks it four ways in its dist/index.js, runs the whole corpus against it, and checks the report names exactly:
+// breaks it four ways in what its renderToHtml() returns, runs the whole corpus against it, and checks the report
+// names exactly:
 //   - demo-welcome, email: the word "signing" is gone from "Thanks for signing up." (text);
 //   - demo-welcome, email: its button's link goes elsewhere and opens in the same tab (link);
 //   - demo-password-reset, email: "This link expires in 60 minutes." turns from #a1a1aa to #b91c1c (text style);
 //   - demo-password-reset, email: its button turns from #18181b to #1d4ed8 (paint only);
-// at every width, and nothing else. Then removes the scratch copy. Its report is kept in .selftest/.
+// at every width, and nothing else but the differences expected.json declares, where it declares them (those are
+// allowed, never needed). Then removes the scratch copy. Its report is kept in .selftest/.
 //
 //   node selftest.mjs
 import fs from "node:fs";
@@ -17,20 +19,23 @@ const mutant = path.join(SANDBOX, ".new/mutant");
 const fresh = newPackage({ worktree: REPO, log: console.log });
 fs.rmSync(mutant, { recursive: true, force: true });
 fs.cpSync(fresh.dir, mutant, { recursive: true });
+// The package's own module becomes index.real.js; dist/index.js passes on everything it exports but renderToHtml(),
+// which it breaks after the fact, so the planted changes land whichever writer drew the HTML.
 const index = path.join(mutant, "dist/index.js");
-const source = fs.readFileSync(index, "utf8");
-const anchor = "const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;";
-if (!source.includes(anchor)) throw new Error("selftest: can't find where renderToHtml makes the body in NEW's dist/index.js");
+fs.renameSync(index, path.join(mutant, "dist/index.real.js"));
 fs.writeFileSync(
   index,
-  source.replace(
-    anchor,
-    `let body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
-  if (body.includes("Thanks for signing up.")) body = body.replace('<a href="" target="_blank" class="v-button', '<a href="https://example.test/changed" target="_self" class="v-button');
-  body = body.replace("Thanks for signing up.", "Thanks for up.");
-  body = body.replace(/color: #a1a1aa;([^>]*>\\s*This link expires in 60 minutes)/, "color: #b91c1c;$1");
-  if (body.includes("This link expires in 60 minutes")) body = body.replace("background-color: #18181b; border-radius: 8px", "background-color: #1d4ed8; border-radius: 8px");`
-  )
+  `export * from "./index.real.js";
+import { renderToHtml as real } from "./index.real.js";
+export function renderToHtml(...args) {
+  let html = real(...args);
+  if (html.includes("Thanks for signing up.")) html = html.replace('<a href="" target="_blank" class="v-button', '<a href="https://example.test/changed" target="_self" class="v-button');
+  html = html.replace("Thanks for signing up.", "Thanks for up.");
+  html = html.replace(/(color: ?)#a1a1aa(;[^>]*>\\s*This link expires in 60 minutes)/, "$1#b91c1c$2");
+  if (html.includes("This link expires in 60 minutes")) html = html.replace("background-color: #18181b; border-radius: 8px", "background-color: #1d4ed8; border-radius: 8px");
+  return html;
+}
+`
 );
 
 const out = path.join(SANDBOX, ".selftest");
@@ -56,10 +61,15 @@ const expected = [
   ...widths.map((w) => (line) => line.startsWith(`demo-password-reset email ${w}: style: color: rgb(161, 161, 170) → rgb(185, 28, 28) on 6 word(s), first "This"`)),
   ...widths.map((w) => (line) => line.startsWith(`demo-password-reset email ${w}: paint: `)),
 ];
+// The differences a release means to make (expected.json), at the template, mode and width declared.
+const declared = Object.entries(JSON.parse(fs.readFileSync(path.join(SANDBOX, "expected.json"), "utf8")).expected ?? {}).flatMap(([id, modes]) =>
+  Object.entries(modes).flatMap(([mode, widths]) => Object.keys(widths).map((w) => `${id} ${mode} ${w}: `))
+);
 const allowed = (line) =>
   expected.some((e) => e(line)) ||
   // Removing a word moves the words after it on its line (and maybe the line below).
-  /^demo-welcome email \d+: (position|page height|paint)/.test(line);
+  /^demo-welcome email \d+: (position|page height|paint)/.test(line) ||
+  declared.some((at) => line.startsWith(at));
 const missing = expected.filter((e) => !found.some(e));
 const unexpected = found.filter((line) => !allowed(line));
 const ok = run.status === 1 && !missing.length && !unexpected.length;
