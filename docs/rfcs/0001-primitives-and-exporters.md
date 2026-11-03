@@ -99,7 +99,7 @@ The decisions behind the design, with the date each was taken.
 |---|---|
 | The components | `Email`, `Page`, `Section`, `Row`, `Column`, `Text`, `Paragraph`, `Heading`, `Span`, `Link`, `Button`, `Image`, `Divider`, `LineBreak`, `MergeTag`, `List`, `ListItem`, `Table`, `TableRow`, `TableCell` |
 | `render(element, options?)` | Resolves to `{ html, text, head, body, bodyStyle, diagnostics }`. Rejects with an `ElementsError` listing the errors. Options: `mergeTag` (how a merge tag is written, `{{name}}` by default), `classPrefix` (the stylesheet's class prefix, `e` by default), `pretty` (indented HTML, for reading) |
-| `prepare(element)` | The template laid out (`{ root, diagnostics }`), for a package that writes another output (`@unlayer/elements-pdf`). Its tree is the writers' input, not a format to store |
+| `prepare(element)` | The template laid out (`{ root, diagnostics, layout }`), for a package that writes another output (`@unlayer/elements-pdf`). Its tree is the writers' input, not a format to store; `layout` is its version (`LAYOUT_VERSION`), raised when its shape changes, and the PDF and image packages refuse one they don't read, saying which package to update |
 | `validate(element)` | `{ valid, diagnostics }`: everything `render()` checks before writing. Warnings and notes leave a template valid |
 | `component(spec)`, `prop.*` | Custom components (below) |
 | `ElementsError`, `formatDiagnostics` | The error, and diagnostics as text |
@@ -115,8 +115,8 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing |
-| `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing |
+| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
+| `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
 
 PDF and image output stay out of the main package, its size budget and its Content-Security-Policy
 gate (Satori runs WebAssembly, which a policy without `'wasm-unsafe-eval'` blocks).
@@ -158,10 +158,10 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Section` | A band across the whole window, directly under a root: its background spans the window, its children are stacked at the content width |
 | `Row` | Children side by side; each takes its `width` or a share of what's left (`flex`). Stacks on phones unless `stackOnMobile={false}` |
 | `Column` | Children stacked, with its own box and spacing |
-| `Grid` | Children in columns of equal width (`columns`, 2 by default), row after row; `gap` and `rowGap`; stacked on phones unless `stackOnMobile={false}`. Laid out as the Rows of Columns it is, so every output draws it |
-| `Document` | A printed document's root: `size` (A3, A4, A5, Letter, Legal, Tabloid), `orientation`, `margin`. Its children go on pages: each `Document.Page`, and the rest in runs a `PageBreak` ends; a `PageHeader` and a `PageFooter` are drawn on every page, and a `PageNumber` (inline; `total` for the count) says which. `render()` writes print HTML (a box of the paper's size per page, CSS's `@page`); `@unlayer/elements-pdf` writes the PDF. Nothing flows from one page to the next |
+| `Grid` | Children in columns of equal width (`columns`, 2 by default), row after row; `gap` and `rowGap`; stacked on phones unless `stackOnMobile={false}` (stacked, every two children are `gap` apart; kept side by side, its last row's cells keep their width). Laid out as the Rows of Columns it is, so every output draws it, and what's said of it points at its place in the template |
+| `Document` | A printed document's root: `size` (A3, A4, A5, Letter, Legal, Tabloid), `orientation`, `margin`. Its children go on pages: each `Document.Page`, and the rest in runs a `PageBreak` ends; one `PageHeader` and one `PageFooter` (a second is an error) are drawn on every page, and a `PageNumber` (inline; `total` for the count) says which. `render()` writes print HTML (a box of the paper's size per page, CSS's `@page`); `@unlayer/elements-pdf` writes the PDF. Nothing flows from one page to the next |
 | `Canvas` | An image's root: `width` and `height` in px, its content laid out in it as on a page (no phone layout), what's past it cut. `render()` writes its HTML, to look at; `@unlayer/elements-image` writes the image |
-| `Svg` | Shapes in a box of their own (`width`, `height`, `viewBox`, `title`): `Rect`, `Circle`, `Ellipse`, `Line`, `Polygon` and `Path`, painted by `fill`, `stroke`, `strokeWidth` and `opacity`. On a page, in a Canvas and in a PDF; an email can't show one (Gmail and classic Outlook drop inline SVG), and says so |
+| `Svg` | Shapes in a box of their own (`width`, `height`, `viewBox`, `title`): `Rect`, `Circle`, `Ellipse`, `Line`, `Polygon` and `Path`, painted by `fill`, `stroke`, `strokeWidth` and `opacity`. The drawing keeps its size, with its padding around it (it overflows a narrower room, and says so). On a page, in a Canvas and in a PDF; an email can't show one (Gmail and classic Outlook drop inline SVG), and says so |
 | `Layer` | Children over each other in one box as tall as the tallest (CSS grid's one cell), placed by `alignItems` (down) and `justifyItems` (across); `height` makes its first Image cover it. An email draws one shape of it, an Image as wide as the Layer with one child over it, the image as the cell's background (VML for Outlook): `validate()` reports any other for email |
 | `Text`, `Paragraph`, `Heading` | Blocks of text (`div`, `p`, `h1`–`h6` by `level`); `dir` for their own direction |
 | `Span` | Styled text inside text; `verticalAlign: "super" \| "sub"` for superscript and subscript |
@@ -173,8 +173,8 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `List`, `ListItem` | A bulleted or numbered list (`type`, `start`); items take text and nested `List`s |
 | `Table`, `TableRow`, `TableCell` | A data table. A `header` row heads the columns; cells take text and images, `colSpan`, `dir` |
 | `Video` | A YouTube or Vimeo video (`src`, `title`, `thumbnail`): its player on a page; in an email, its thumbnail linked to it (a YouTube video's own by default, worked out from its link; a Vimeo video's needs giving) |
-| `Menu` | A line of links with a separator between them on desktop, or links down a column (`items` as `{ text, href }`, `separator`, `layout`; the links' `color`, `separatorColor`, each link's `padding`, `justifyContent` and font as styles). Made of primitives: a Row (or Column) of Links |
-| `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
+| `Menu` | A line of links with a separator between them on desktop, or links down a column (`items` as `{ text, href }`, `separator`, `layout`; the links' `color`, `separatorColor`, each link's `padding`, `justifyContent` and font as styles). Made of primitives: a Row (or Column) of Links, each link in its padding and a separator between two links' paddings; a long line of links wraps (on the page and in email; classic Outlook, a PDF and an image keep one line, and say so where it looks too wide). In plain text, one line |
+| `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, a name with a letter or a digit, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
 
  Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand
 into them, as custom components do: a block of their own in a template and in the builder's design, drawn by the
@@ -227,7 +227,7 @@ React's inline styles.
 |---|---|---|
 | Text | `color`, `fontFamily` (a CSS stack), `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`, `letterSpacing`, `textAlign`, `textTransform`; `textDecoration` on text elements only | yes, from the root down |
 | Box | `width`, `minWidth`, `maxWidth`, `height`, `padding` (a number, `"8px 12px"`, `[8, 12]` or `{ top, … }`), `backgroundColor`, `border`, `borderRadius`, `overflow` | no |
-| Layout (root, Section, Row, Column, Grid, Layer) | `gap`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`); `flexWrap` on a Row (page only); `rowGap` on a Grid; `justifyItems` on a Layer | no |
+| Layout (root, Section, Row, Column, Grid, Layer) | `gap`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`); `flexWrap` on a Row (on the page, and in email where the Row stays side by side on phones); `rowGap` on a Grid; `justifyItems` on a Layer | no |
 | Placement (a Row's child) | `width`, or `flex` (its share; `"none"` for its own size) | no |
 | Specific | `verticalAlign` (Span: `super`, `sub`; TableCell: `top`, `middle`, `bottom`), `borderTop` (Divider), `indent` (List: its markers' column), `cellPadding` and `rowBorder` (Table: every cell's padding, a line between rows) | no |
 
@@ -372,7 +372,7 @@ JSX ──collect──▶ tree ──check──▶ expand custom components �
 
 Web, print, PDF and images are all drawn by flexbox engines, so `Row` and `Column` mean the same in
 each; email is the one output that needs a different structure. For PDF and images, fonts must be
-fetched and passed in, and neither reads WOFF2: validation will say so for those outputs.
+fetched and passed in, and neither draws WOFF2: `renderPdf()` and `renderImage()` say so and draw the text in the family's other files, or a standard font.
 
 Each writer is a folder with one file per component (`email/Button.tsx`, `page/Row.tsx`), written in a
 small JSX runtime that writes HTML strings (`exporters/src/jsx.ts`, no React): text and attributes are
@@ -441,7 +441,10 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 | `email/unsupported`, `email/degraded`, `email/outlook-degraded`, `email/width`, `email/image-width`, `email/font-fallback`, `web/unsupported`, `web/degraded` | the support pass |
 | `pdf/unsupported`, `image/unsupported` | a Document's PDF and a Canvas's image: what they can't show that the HTML can (a hover, a Video), in `validate()` and `renderPdf()`/`renderImage()` |
 | `document/overflow`, `canvas/overflow` | a page's or a Canvas's content that looks clearly taller than it, estimated from text length till text is measured (RFC 0002): what doesn't fit is cut off |
-| `pdf/font`, `image/font` | rendering: a font not given, or a file the engine can't draw (WOFF2 in an image) |
+| `pdf/font`, `image/font` | rendering: a font not given, a file the engine can't draw (WOFF2), or text a standard PDF font can't draw (outside Windows-1252) with no file for it |
+| `pdf/font-weight`, `image/font-weight` | rendering: bold or italic text a family has no file for, drawn in its nearest file |
+| `pdf/image` | rendering: an image a PDF can't draw (an SVG), its alternate text shown in its box |
+| `pdf/version`, `image/version` | rendering: a laid-out tree in a layout version the package doesn't read |
 | `email/size`, `email/style-size` | writing |
 
 ## Moving the existing components and the major version
