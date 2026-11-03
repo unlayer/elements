@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { renderToHtml } from "../index";
-import { Button, Canvas, Column, Email, Grid, Heading, Image, Layer, Link, Menu, Page, Paragraph, Row, Section, Social, Text } from "../primitives";
+import { Button, Canvas, Column, Divider, Email, Grid, Heading, Image, Layer, Link, Menu, Page, Paragraph, Row, Section, Social, Text } from "../primitives";
 import * as stripe from "../primitives/codemod/StripeReceipt";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import * as brew from "../primitives/codemod/MorningBrewDigest";
+import { DEFAULTS, PARTED } from "./payload";
 import { raise } from "./raise";
 import { toDesign } from "./index";
 
@@ -91,6 +92,34 @@ describe("toDesign", () => {
       "root.children[0]: kept in the design, with no editor in the builder yet: style.borderRadius",
       "root.children[1]: kept in the design, with no editor in the builder yet: style.borderRadius",
     ]);
+  });
+
+  it("writes, where a template sets nothing, the defaults this format reads as nothing set", () => {
+    // A default today's components write that isn't the table's would read as set in every design: a format of its own.
+    const { design } = toDesign(
+      <Email>
+        <Heading>a</Heading>
+        <Paragraph>b</Paragraph>
+        <Button href="https://x.test">c</Button>
+        <Image src="https://x.test/a.png" alt="" />
+        <Divider />
+      </Email>
+    );
+    const items: Array<[string, Record<string, unknown>]> = [["body", design.body.values]];
+    for (const row of design.body.rows) {
+      items.push(["row", row.values]);
+      for (const column of row.columns) {
+        items.push(["column", column.values]);
+        for (const content of column.contents) items.push([content.type, content.values]);
+      }
+    }
+    expect(items.map(([kind]) => kind)).toEqual(expect.arrayContaining(["body", "row", "column", "heading", "text", "button", "image", "divider"]));
+    for (const [kind, values] of items) {
+      for (const [key, value] of Object.entries(DEFAULTS[kind])) {
+        const written = PARTED.has(`${kind}.${key}`) ? Object.fromEntries(Object.keys(value as object).map((part) => [part, (values[key] as Record<string, unknown>)[part]])) : values[key];
+        expect([kind, key, written]).toEqual([kind, key, value]);
+      }
+    }
   });
 
   it("writes a link given as { href, target } as its URL: a Button's, a link in text, an image's, a Menu's and Social's", () => {

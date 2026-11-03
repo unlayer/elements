@@ -2,6 +2,8 @@
  * A template to the builder and back (toDesign, then fromDesign): as it went where the builder changed nothing, what
  * the builder has no editor for kept, the builder's changes taken, and what's made in the builder made from its values.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
@@ -638,6 +640,110 @@ describe("fromDesign(toDesign())", () => {
       const design = designOf(template);
       expect(blocks(design).map((content) => content.type)).toEqual(["text", "page_break", "text", "page_break"]);
       expect(tree(fromDesign(design).element)).toEqual(tree(template));
+    });
+  });
+
+  describe("a design that keeps only what the builder can't hold", () => {
+    const written = (design: object) => JSON.stringify(design).length;
+    const builderOnly = (design: object) => JSON.stringify(design, (key, value) => (key === "_elements" ? undefined : value)).length;
+
+    it("is at most a quarter bigger than the builder's own design, for the examples", () => {
+      const designs = examples.map((Example) => toDesign(<Example />).design);
+      const ratio = designs.reduce((sum, design) => sum + written(design), 0) / designs.reduce((sum, design) => sum + builderOnly(design), 0);
+      expect(ratio).toBeLessThanOrEqual(1.25);
+    });
+
+    it("writes a value the builder holds once: an embedded image's data isn't kept again", () => {
+      const data = `data:image/png;base64,${"iVBORw0KGgo".repeat(400)}`;
+      const template = (
+        <Email>
+          <Image src={data} alt="" style={{ width: 300 }} />
+        </Email>
+      );
+      const design = designOf(template);
+      expect(JSON.stringify(design).split(data).length - 1).toBe(1);
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+    });
+
+    it("reads a Section's space in a block's spacing as the Section's: a change in the builder moves the block's own", () => {
+      const template = (
+        <Email>
+          <Section style={{ padding: [36, 0, 4, 0] }}>
+            <Heading style={{ padding: 10 }}>Hi</Heading>
+          </Section>
+        </Email>
+      );
+      const design = designOf(template);
+      const [heading] = blocks(design);
+      expect(heading.values.containerPadding).toBe("46px 10px 14px 10px");
+      expect(heading.values._elements.place).toEqual({ containerPadding: { top: 36, bottom: 4 } });
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      heading.values.containerPadding = "56px 10px 14px 10px";
+      const section = tree(fromDesign(design).element).children![0] as Node;
+      expect(section.style?.padding).toEqual({ top: 36, right: 0, bottom: 4, left: 0 });
+      expect((section.children![0] as Node).style?.padding).toEqual({ top: 20, right: 10, bottom: 10, left: 10 });
+    });
+
+    it("takes a block's font from the body where it took it, and keeps the one the builder shows where the body's changed", () => {
+      const template = (
+        <Email>
+          <Heading>Hi</Heading>
+          <Paragraph style={{ fontFamily: "Georgia, serif" }}>Text</Paragraph>
+        </Email>
+      );
+      const design = designOf(template);
+      // The builder holds each block's font; the heading's is the body's, so it isn't the heading's own.
+      expect(blocks(design)[0].values.fontFamily.value).toBe("Arial, Helvetica, sans-serif");
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      design.body.values.fontFamily = { label: "Verdana", value: "Verdana, sans-serif" };
+      const back = tree(fromDesign(design).element);
+      expect(back.style?.fontFamily).toBe("Verdana, sans-serif");
+      // The builder still shows the heading in Arial: it's the heading's own now, as the builder draws it.
+      expect((back.children![0] as Node).style?.fontFamily).toBe("Arial, Helvetica, sans-serif");
+      expect((back.children![1] as Node).style?.fontFamily).toBe("Georgia, serif");
+    });
+
+    it("reads the builder's own defaults as nothing set: a button's hover colors, an image's width, the body's background", () => {
+      const template = (
+        <Email>
+          <Button href="https://x.test">Go</Button>
+          <Image src="https://x.test/a.png" alt="a" />
+        </Email>
+      );
+      const design = designOf(template);
+      const [button, image] = blocks(design);
+      expect(button.values.buttonColors).toMatchObject({ hoverColor: "#FFFFFF", hoverBackgroundColor: "#0879A1" });
+      expect(image.values.src).toMatchObject({ autoWidth: true, maxWidth: "100%" });
+      expect(design.body.values.backgroundColor).toBe("#F7F8F9");
+      // Read from the format's table of defaults, not kept as written.
+      for (const values of [button.values, image.values, design.body.values]) expect(values._elements.w).toBeUndefined();
+      expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      button.values.buttonColors.hoverBackgroundColor = "#111111";
+      expect((tree(fromDesign(design).element).children![0] as Node).hover).toEqual({ backgroundColor: "#111111" });
+    });
+
+    // Designs as this version writes them, kept as they are: every later version reads them as this one does.
+    const FIXTURES: Array<[string, React.ReactElement]> = [
+      ["sample", sample],
+      ["invoice", invoice],
+      ["StripeReceipt", <stripe.StripeReceipt key="stripe" />],
+      ["WarbyOrderShipped", <warby.WarbyOrderShipped key="warby" />],
+      ["MorningBrewDigest", <brew.MorningBrewDigest key="brew" />],
+    ];
+    for (const [name, template] of FIXTURES) {
+      it(`reads ${name} as this version wrote it`, () => {
+        const design = JSON.parse(readFileSync(join(__dirname, "__fixtures__/designs", `${name}.json`), "utf8"));
+        expect(tree(fromDesign(design).element)).toEqual(tree(template));
+      });
+    }
+
+    it("reads a design the builder saved, with a heading's words changed in its editor, as only that change", () => {
+      const design = JSON.parse(readFileSync(join(__dirname, "__fixtures__/designs/SpotifyPremiumWelcome.edited-in-builder.json"), "utf8"));
+      const back = fromDesign(design);
+      const want = tree(<spotify.SpotifyPremiumWelcome />);
+      ((want.children![2] as Node).children![1] as Node).children = ["Premium starts today."];
+      expect(back.report).toEqual([]);
+      expect(tree(back.element)).toEqual(want);
     });
   });
 });
