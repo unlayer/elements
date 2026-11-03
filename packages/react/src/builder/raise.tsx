@@ -11,12 +11,11 @@ import { prepareTemplate } from "@unlayer-internal/elements-exporters";
 import React from "react";
 import { Column, Document, Email, Page, PageBreak, Row } from "../index";
 import { collectTemplate } from "../primitives/collect";
-import { blockTool, type Place } from "./tools";
+import { add, boxRowOf, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { hiddenOf, leftOut, merge } from "./hide";
-import { builderBorder, cssPx, cssSides, builderFont, type Values } from "./values";
 import { lockedHtml } from "./locked";
-
-type Sides = { top: number; right: number; bottom: number; left: number };
+import { blockTool, type Place } from "./tools";
+import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
 
 export interface Raised {
   /** The template in today's components. */
@@ -30,15 +29,6 @@ export interface Raised {
   footers?: React.ReactElement[];
 }
 
-const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
-const add = (a: Sides, b: Partial<Sides>): Sides => ({ top: a.top + (b.top ?? 0), right: a.right + (b.right ?? 0), bottom: a.bottom + (b.bottom ?? 0), left: a.left + (b.left ?? 0) });
-const padding = (node: { style?: Record<string, Json> }): Sides => (node.style?.padding as Sides | undefined) ?? ZERO;
-const gapOf = (node: ResolvedNode) => (typeof node.style.gap === "number" ? node.style.gap : 0);
-/** A box with a look of its own: a Column that can't fold into the blocks around it. */
-const BOX = ["backgroundColor", "border", "borderRadius", "width", "minWidth", "maxWidth", "height", "overflow", "justifyContent"];
-const hasBox = (node: Node) => BOX.some((key) => node.style?.[key] !== undefined) || Boolean(node.hidden);
-/** Stacks whose children are blocks one under another, folded into the column they're in. */
-const STACKS = new Set(["Section", "Column", "DocumentPage"]);
 type Child = { child: Node; path: string };
 
 export function raise(element: React.ReactElement): Raised {
@@ -112,97 +102,9 @@ export function raise(element: React.ReactElement): Raised {
     });
   };
 
-  /** A builder row's hiding, from the node it's made of. */
-  const hiding = (node: Node) => ({ hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined });
-
-  /** A row of the builder's for a Row: each child a column, its width and its share of the gap its column's. */
-  const row = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode): React.ReactElement => {
-    const own = arranged ?? at(path);
-    const gap = gapOf(own);
-    const rowPad = add(padding(node), outer);
-    const all = childrenOf(node, path);
-    const n = all.length;
-    // (A Row's phone border is its columns' phone border, which they have of their own.)
-    if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "mobile.gap", "style.backgroundColor", "style.border", "mobile.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
-    const stacks = node.props?.stackOnMobile !== false;
-    const rowBorder = (own.style.border as Record<string, Json> | undefined) ?? {};
-    const columns = all.map(({ child, path: childPath }, i) => {
-      // A child hidden on desktop takes no room there: the least share a column can have in the builder.
-      const width = child.hidden?.desktop ? 0 : (at(childPath)?.width ?? 0);
-      // The Row's top and bottom padding is the builder's row's; its sides and its gap, the columns' own.
-      const halves: Sides = { top: 0, bottom: 0, left: i > 0 ? gap / 2 : rowPad.left, right: i < n - 1 ? gap / 2 : rowPad.right };
-      const share = width + halves.left + halves.right;
-      const isColumn = child.type === "Column";
-      const style = child.style ?? {};
-      // The Row's border is its columns' in the builder, which stretches them to the row's height: top and bottom on
-      // each, its sides on the first and last. The column's own over it.
-      const fromRow = { top: rowBorder.top, bottom: rowBorder.bottom, ...(i === 0 ? { left: rowBorder.left } : {}), ...(i === n - 1 ? { right: rowBorder.right } : {}) };
-      const lines = Object.fromEntries(Object.entries({ ...fromRow, ...((isColumn ? style.border : undefined) as object) }).filter(([, line]) => line !== undefined));
-      const columnPadding = isColumn ? add(padding(child), halves) : halves;
-      // Where the columns stack on phones, each is as wide as the row (its sides only the Row's), the phone gap above
-      // all but the first.
-      const phoneGap = typeof own.mobile?.gap === "number" ? own.mobile.gap : gap;
-      const ownPhone = isColumn ? ((child.mobile?.padding as Sides | undefined) ?? padding(child)) : ZERO;
-      const phonePadding = stacks && n > 1 ? add(ownPhone, { left: rowPad.left, right: rowPad.right, top: i > 0 ? phoneGap : 0 }) : isColumn ? (child.mobile?.padding as Sides | undefined) : undefined;
-      if (isColumn && !arranged) sayLeftOut("column", child, childPath, ["style.padding", "mobile.padding", "style.backgroundColor", "style.border", "mobile.border", "style.borderRadius", "style.width", "style.flex", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
-      const columnOwn = isColumn ? at(childPath) : own;
-      const contents = isColumn ? stack(withoutPadding(child), childPath, columnOwn, ZERO) : ([] as React.ReactElement[]).concat(blockTool(child, childPath, own, ZERO, place));
-      const element = (
-        <Column
-          key={childPath}
-          padding={cssSides(columnPadding)}
-          backgroundColor={isColumn ? (style.backgroundColor as string | undefined) : undefined}
-          border={builderBorder(lines as never)}
-          borderRadius={isColumn && style.borderRadius !== undefined ? (typeof style.borderRadius === "number" ? cssPx(style.borderRadius) : undefined) : undefined}
-        >
-          {contents}
-        </Column>
-      );
-      // Its phone padding (where the columns stack, the Row's sides and gap in it) and border, as the builder's phone values.
-      const phone = { ...(phonePadding && cssSides(phonePadding) !== cssSides(columnPadding) ? { padding: cssSides(phonePadding) } : {}), ...(isColumn && child.mobile?.border ? { border: builderBorder(child.mobile.border as never) } : {}) };
-      return { share, element: put(element, merge(isColumn ? hiddenOf("column", child) : {}, Object.keys(phone).length ? { _override: { mobile: phone } } : {})) };
-    });
-    const alignItems = own.style.alignItems as string | undefined;
-    const made = (
-      <Row
-        key={path}
-        cells={columns.map((c) => Math.max(1, Math.round(c.share)))}
-        padding={`${cssPx(rowPad.top)} 0px ${cssPx(rowPad.bottom)} 0px`}
-        noStackMobile={node.props?.stackOnMobile === false || undefined}
-        columnsBackgroundColor={own.style.backgroundColor as string | undefined}
-        {...hiding(node)}
-        {...band}
-      >
-        {columns.map((c) => c.element)}
-      </Row>
-    );
-    const values: Values = { ...(alignItems && alignItems !== "start" ? { alignItems: ALIGN_ITEMS[alignItems] } : {}) };
-    return put(made, merge(merge(values, arranged ? {} : hiddenOf("row", node, ["style.border"])), bandHidden));
-  };
-
-  /** A row of its own for a box directly in the root or a Section: one column, the box's. */
-  const boxRow = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values): React.ReactElement => {
-    const own = at(path);
-    sayLeftOut("column", node, path, ["style.padding", "mobile.padding", "style.backgroundColor", "style.border", "mobile.border", "style.borderRadius", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
-    const style = node.style ?? {};
-    const column = (
-      <Column
-        padding={cssSides(padding(node))}
-        backgroundColor={style.backgroundColor as string | undefined}
-        border={builderBorder(style.border as never)}
-        borderRadius={typeof style.borderRadius === "number" ? cssPx(style.borderRadius) : undefined}
-      >
-        {stack(withoutPadding(node), path, own, ZERO)}
-      </Column>
-    );
-    const { hidden: _, ...visible } = node;
-    const made = (
-      <Row key={path} cells={[1]} padding={cssSides(outer)} {...hiding(node)} {...band}>
-        {put(column, merge(hiddenOf("column", visible as Node), phoneBox(node)))}
-      </Row>
-    );
-    return put(made, bandHidden);
-  };
+  const writer: Writer = { at, put, sayLeftOut, place, childrenOf, stack };
+  const row = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode) => rowOf(writer, node, path, band, outer, bandHidden, arranged);
+  const boxRow = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values) => boxRowOf(writer, node, path, band, outer, bandHidden);
 
   /** A one-column row of the builder's holding blocks (content directly in the root, or a Section's). */
   const oneColumn = (blocks: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, key: string, bandHidden: Values, sectionHiding: Values = {}): React.ReactElement => {
@@ -368,12 +270,6 @@ export function raise(element: React.ReactElement): Raised {
   return { element: raised, report, hidden };
 }
 
-/** Text styles a container passes down, which its blocks take as their own in the builder. */
-export const TEXT_FOLDED = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"].map((key) => `style.${key}`);
-
-/** Elements' alignItems as the builder row's. */
-const ALIGN_ITEMS: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
-
 /** How many rows of the builder's children make (a Grid's rows each, runs of blocks one). */
 function countRows(children: Child[]): number {
   let count = 0;
@@ -398,18 +294,6 @@ function countRows(children: Child[]): number {
 
 /** Whether a box holds a layout a builder column can't (a Row, a Grid): it's locked instead. */
 const hasLayout = (node: Node): boolean => (node.children ?? []).some((child) => typeof child !== "string" && (child.type === "Row" || child.type === "Grid" || child.type === "Layer" || (child.type === "Column" && hasLayout(child))));
-
-/** A box's phone padding and border, as its column's phone values. */
-function phoneBox(node: Node): Values {
-  const phone = { ...(node.mobile?.padding ? { padding: cssSides(node.mobile.padding as Sides) } : {}), ...(node.mobile?.border ? { border: builderBorder(node.mobile.border as never) } : {}) };
-  return Object.keys(phone).length ? { _override: { mobile: phone } } : {};
-}
-
-/** A Column's node without its padding (its column's, in the builder). */
-function withoutPadding(node: Node): Node {
-  const { padding: _padding, ...style } = node.style ?? {};
-  return { ...node, style };
-}
 
 /** A resolved node as a template node (a Grid's arranged Rows, which the template doesn't have). */
 export function nodeOf(node: ResolvedNode): Node {

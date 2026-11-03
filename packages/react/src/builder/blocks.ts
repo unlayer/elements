@@ -5,153 +5,19 @@
  * around it with that padding and `alignItems`. Values are read as compat reads them (what legacy, and so the builder,
  * draws), and a tool that isn't one of Elements' is left out, and said.
  */
-import { Button as ButtonDefinition, Heading as HeadingDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
+import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { contentSlotWidth } from "../utils/image-sizing";
 import { parseRuns } from "../compat/runs";
-import { ALIGN, color, fontWeight, font, letterSpacing, lineHeight as legacyLineHeight, px, sides, some, type Sides, type Values } from "../compat/values";
-import { readHidden, type HiddenParts } from "./hide";
-import { mergeTags, readText } from "./text";
+import { color, fontWeight, font, letterSpacing, px, sides, some, type Values } from "../compat/values";
+import { contentSlotWidth } from "../utils/image-sizing";
+import { readHidden } from "./hide";
+import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
+import { mergeTags } from "./text";
+import { textTool } from "./text-tool";
 import { readBorder } from "./values";
 
-/** Where a block is, as today's image writer works out its room: the body, its row and column, the column's share. */
-export interface Slot {
-  body: Values;
-  row: Values;
-  column: Values;
-  cells: number[];
-  index: number;
-  /** Whether the row's columns stack on phones. */
-  stacks: boolean;
-}
-
-/** What a block is read in: the root's text styles (what a block inherits) and where to say what's left out. */
-export interface Context {
-  inherited: { color: string; fontFamily: string; fontWeight: number };
-  document: boolean;
-  say(message: string): void;
-}
-
-const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
-const obj = (value: unknown): Values => (value && typeof value === "object" && !Array.isArray(value) ? (value as Values) : {});
-const str = (value: unknown) => (typeof value === "string" ? value : undefined);
-/** Two values the same, colors in either case ("#BBBBBB" is "#bbbbbb"). */
-const same = (a: unknown, b: unknown) => JSON.stringify(a)?.toLowerCase() === JSON.stringify(b)?.toLowerCase();
-/** A style set where it isn't what the node takes anyway. */
-const unless = (value: Json | undefined, taken: Json | undefined) => (value === undefined || same(value, taken) ? undefined : value);
-/** A line height as Elements': a percentage as the multiple it is ("150%" is 1.5), px as it is. */
-const lineHeight = (value: unknown): Json | undefined => {
-  const read = legacyLineHeight(value);
-  return typeof read === "string" && read.endsWith("%") ? Math.round(parseFloat(read) * 100) / 10000 : read;
-};
-/** The builder's alignment (left, center, right) as Elements' (start, center, end); undefined for anything else. */
-const alignOf = (value: unknown) => (typeof value === "string" && Object.hasOwn(ALIGN, value) ? ALIGN[value] : undefined);
-const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
-
-/** A node with its parts, empty ones left out. */
-function make(type: string, parts: { id?: string; props?: Record<string, Json>; style?: Record<string, Json>; mobile?: Record<string, Json>; hover?: Record<string, Json>; hidden?: { mobile?: boolean; desktop?: boolean }; children?: Node["children"] }): Node {
-  const node: Node = { type };
-  if (parts.id) node.id = parts.id;
-  for (const key of ["props", "style", "mobile", "hover"] as const) if (parts[key] && Object.keys(parts[key]!).length) node[key] = parts[key];
-  if (parts.hidden && (parts.hidden.mobile || parts.hidden.desktop)) node.hidden = defined(parts.hidden as never) as never;
-  if (parts.children) node.children = parts.children;
-  return node;
-}
-
-/** Whether hidden properties give a block a box of its own (its padding inside it). */
-const boxOf = (hidden: HiddenParts) => ["backgroundColor", "border", "borderRadius", "width", "maxWidth", "padding"].some((key) => key in hidden.style);
-
-/** A block in its place: a Column around it with the place's padding and alignment, where it has either. */
-function placed(node: Node, padding: Sides | undefined, align: string | undefined, phonePadding: Sides | undefined, hiddenOn: Node["hidden"]): Node {
-  const alignItems = align && align !== "left" ? alignOf(align) : undefined;
-  const visible = !hiddenOn || (!hiddenOn.mobile && !hiddenOn.desktop);
-  if (!some(padding) && !alignItems && !phonePadding) return visible ? node : { ...node, hidden: { ...node.hidden, ...hiddenOn } };
-  return make("Column", { style: defined({ padding: some(padding), alignItems }), mobile: phonePadding ? { padding: phonePadding } : undefined, hidden: hiddenOn, children: [node] });
-}
-
-/** A block's text styles from its fields, those it takes anyway left out. */
-function textStyle(values: Values, taken: Record<string, Json>, context: Context): Record<string, Json> {
-  const size = px(values.fontSize);
-  return defined({
-    fontFamily: unless(font(values.fontFamily), taken.fontFamily ?? context.inherited.fontFamily),
-    fontSize: unless(size, taken.fontSize ?? 16),
-    fontWeight: unless(fontWeight(values.fontWeight), taken.fontWeight ?? context.inherited.fontWeight),
-    color: unless(color(values.color), taken.color ?? context.inherited.color),
-    lineHeight: unless(lineHeight(values.lineHeight), taken.lineHeight ?? 1.5),
-    letterSpacing: unless(letterSpacing(values.letterSpacing, size) || undefined, taken.letterSpacing),
-    textAlign: unless(str(values.textAlign), taken.textAlign ?? "left"),
-  });
-}
-
-/** Phone values the builder has fields for (a text's size, line height, alignment, letter spacing). */
-function phoneText(values: Values): Record<string, Json> {
-  const m = obj(obj(values._override).mobile);
-  return defined({ fontSize: px(m.fontSize), lineHeight: lineHeight(m.lineHeight), textAlign: str(m.textAlign), letterSpacing: px(m.letterSpacing) });
-}
-
-/** A text or heading tool: a Paragraph or Heading (a `<p>` with margins, or a list, each a block of its own). */
-function text(tool: "text" | "heading", values: Values, context: Context): Node[] {
-  const level = tool === "heading" ? Number(/^h([1-6])$/.exec(String(values.headingType ?? "h1"))?.[1] ?? 1) : undefined;
-  const type = tool === "heading" ? "Heading" : "Paragraph";
-  const hidden = readHidden(tool, type, values, context.say);
-  const taken: Record<string, Json> = tool === "heading" ? { ...(HeadingDefinition.defaultStyle as Record<string, Json>), ...(HeadingDefinition.defaultStyleBy!.values as Record<string, Record<string, Json>>)[String(level)] } : {};
-  const style = { ...textStyle(values, taken, context), ...hidden.style };
-  const mobile = { ...phoneText(values), ...hidden.mobile };
-  const html = typeof values.text === "string" ? values.text : "";
-  const weight = fontWeight(values.fontWeight) ?? (tool === "heading" ? 700 : context.inherited.fontWeight);
-  const { parts, left } = readText(html, { weight, pages: context.document });
-  const containerPadding = sides(values.containerPadding ?? "10px") ?? ZERO;
-  const phonePadding = sides(obj(obj(values._override).mobile).containerPadding);
-  const id = givenId(values);
-  const props = defined({ ...(level && level !== 1 ? { level } : {}), dir: str(values.textDirection), ...hidden.props });
-  const visibility = { ...hiddenOn(values), ...hidden.hidden };
-  if (left.length) {
-    context.say(`its text has what a ${type} doesn't hold (${[...new Set(left)].join(", ")}): it's an Html block of its markup`);
-    return [placed(make("Html", { id, props: { html: markup(html, values) } }), containerPadding, undefined, phonePadding, visibility)];
-  }
-  const boxed = boxOf(hidden);
-  const fontSize = (style.fontSize as number | undefined) ?? (taken.fontSize as number | undefined) ?? 16;
-  const nodes = parts.map((part, i) => {
-    // A list takes the block's text styles; a heading's part beside one is a Paragraph in its styles.
-    const own = part.node.type === "List" ? "List" : type;
-    const partStyle = { ...style, ...part.node.style, ...(own === "List" && type === "Heading" ? headingAsText(taken, style) : {}) };
-    // The margins between parts collapse into one: the larger, above the part below.
-    const above = i === 0 ? part.margin : Math.max(part.margin, parts[i - 1].margin);
-    const below = i === parts.length - 1 ? part.margin : 0;
-    const space = { top: above * fontSize, bottom: below * fontSize };
-    return { node: make(own, { id: i === 0 ? id : undefined, props: own === "List" ? part.node.props : props, style: partStyle, mobile, children: part.node.children }), space };
-  });
-  if (boxed) {
-    // Its box's padding is its own; its place's spacing is a Column's around it.
-    return nodes.map(({ node, space }, i) => {
-      const around = { ...containerPadding, top: i === 0 ? containerPadding.top + space.top : space.top, bottom: i === nodes.length - 1 ? containerPadding.bottom + space.bottom : 0 };
-      return placed(node, around, undefined, phonePadding, visibility);
-    });
-  }
-  return nodes.map(({ node, space }, i) => {
-    const padding = some({ ...containerPadding, top: (i === 0 ? containerPadding.top : 0) + space.top, bottom: (i === nodes.length - 1 ? containerPadding.bottom : 0) + space.bottom });
-    return make(node.type, { ...node, style: defined({ ...node.style, padding }), mobile: defined({ ...node.mobile, padding: phonePadding }), hidden: visibility });
-  });
-}
-
-/** A heading's text styles for a list in it (which has no heading defaults of its own). */
-const headingAsText = (taken: Record<string, Json>, style: Record<string, Json>) => defined({ fontSize: style.fontSize ?? taken.fontSize, fontWeight: style.fontWeight ?? taken.fontWeight, lineHeight: style.lineHeight ?? taken.lineHeight });
-
-/** A text block's markup with the styles its tool draws it in, for an Html block. */
-function markup(html: string, values: Values): string {
-  const css = defined({
-    "font-family": font(values.fontFamily),
-    "font-size": str(values.fontSize),
-    "font-weight": values.fontWeight === undefined ? undefined : String(fontWeight(values.fontWeight) ?? ""),
-    color: color(values.color),
-    "line-height": str(values.lineHeight),
-    "text-align": str(values.textAlign),
-    "letter-spacing": str(values.letterSpacing),
-  });
-  const declarations = Object.entries(css).filter(([, v]) => v !== "").map(([k, v]) => `${k}:${String(v).replace(/"/g, "'")}`).join(";");
-  return `<div style="${declarations}">${html}</div>`;
-}
+export type { Context, Slot };
 
 /** A link as Elements': its target where it's a new window, the URL alone where it opens in its own. */
 function link(value: unknown): Json | undefined {
@@ -305,9 +171,9 @@ function html(values: Values, context: Context): Node[] {
 
 /** Each tool's reader. */
 const READERS = new Map<string, (values: Values, context: Context, slot?: Slot) => Node[]>([
-  ["text", (values, context) => text("text", values, context)],
-  ["paragraph", (values, context) => text("text", values, context)],
-  ["heading", (values, context) => text("heading", values, context)],
+  ["text", (values, context) => textTool("text", values, context)],
+  ["paragraph", (values, context) => textTool("text", values, context)],
+  ["heading", (values, context) => textTool("heading", values, context)],
   ["button", button],
   ["image", image],
   ["divider", divider],
