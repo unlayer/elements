@@ -101,6 +101,9 @@ describe("an edit in the builder", () => {
     buttonColors: [{ color: "#000000", backgroundColor: "#ffcc00", hoverColor: "#ffffff", hoverBackgroundColor: "#000000" }, go({ color: "#000000", backgroundColor: "#ffcc00" }, undefined, { hover: { color: "#ffffff", backgroundColor: "#000000" } }), { color: "#FFFFFF", backgroundColor: "#0879A1", hoverColor: "#FFFFFF", hoverBackgroundColor: "#0879A1" }, go(), go()],
     "buttonColors.hoverBackgroundColor": ["#222222", go(undefined, undefined, { hover: { backgroundColor: "#222222" } }), "#0879A1", go(), go()],
     size: [{ autoWidth: false, width: "50%" }, go({ width: "50%" }), { autoWidth: true, width: "100%" }, go(), go()],
+    "_override.mobile.size": [{ autoWidth: false, width: "33%" }, go(undefined, undefined, { mobile: { width: "33%" } }), { autoWidth: true, width: "100%" }, go(), go()],
+    // Its alignment on phones places the button, which Elements can't there: said, not read as its label's.
+    "_override.mobile.textAlign": ["right", go(), "center", go(), go()],
     fontSize: ["18px", go({ fontSize: 18 }), "14px", go(), go()],
     fontWeight: [700, go({ fontWeight: 700 }), 400, go(), go()],
     lineHeight: ["150%", go({ lineHeight: 1.5 }), "120%", go(), go()],
@@ -124,6 +127,7 @@ describe("an edit in the builder", () => {
     altText: ["A sea", image({ alt: "A sea" }), "", (nodes) => expect((nodes[0].children![0] as Node).props).toEqual({ src: { src: "https://x.test/a.png", width: 600, height: 300 } }), (nodes) => expect((nodes[0].children![0] as Node).props).toEqual({ src: { src: "https://x.test/a.png", width: 600, height: 300 } })],
     action: [{ name: "web", values: { href: "https://x.test", target: "_blank" } }, (nodes) => expect(nodes[0].children![0]).toEqual({ type: "Link", props: { href: { href: "https://x.test", target: "_blank" } }, children: [image()[0].children![0]] }), { name: "web", values: { href: "", target: "_blank" } }, image(), image()],
     textAlign: ["left", [image()[0].children![0] as Node], "center", image(), image()],
+    "_override.mobile.textAlign": ["right", image(), "center", image(), image()],
     "_override.mobile.src": [{ autoWidth: false, maxWidth: "50%" }, [{ ...image()[0], children: [{ ...(image()[0].children![0] as Node), mobile: { width: "50%" } }] }], { autoWidth: true, maxWidth: "100%" }, image(), image()],
     containerPadding: ["16px", image({}, undefined, { padding: { top: 16, right: 16, bottom: 16, left: 16 }, alignItems: "center" }), "10px", image({}, undefined, { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" }), image({}, undefined, { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" })],
   });
@@ -133,6 +137,7 @@ describe("an edit in the builder", () => {
     border: [{ borderTopWidth: "3px", borderTopStyle: "dashed", borderTopColor: "#ff0000" }, line({ borderTop: { width: 3, style: "dashed", color: "#ff0000" } }), { borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: "#BBBBBB" }, line(), line()],
     // A line shorter than its place sits as its textAlign places it: left, as the template's text is.
     width: ["50%", line({ width: "50%" }), "100%", line(), line()],
+    "_override.mobile.width": ["33%", [{ type: "Divider", mobile: { width: "33%" } }], "100%", line(), line()],
     containerPadding: ["8px 0px", line({ padding: { top: 8, right: 0, bottom: 8, left: 0 } }), "10px", line({ padding: { top: 10, right: 10, bottom: 10, left: 10 } }), line({ padding: { top: 10, right: 10, bottom: 10, left: 10 } })],
     textAlign: ["right", line(), "center", line(), line()],
   });
@@ -148,6 +153,7 @@ describe("an edit in the builder", () => {
     align: ["left", menu({ justifyContent: "start" }), "center", menu(), menu()],
     padding: ["2px 8px", menu({ padding: { top: 2, right: 8, bottom: 2, left: 8 } }), "5px 15px", menu(), menu()],
     fontSize: ["16px", menu({ fontSize: 16 }), "14px", menu(), menu()],
+    "_override.mobile.fontSize": ["9px", [{ ...menu()[0], mobile: { fontSize: 9 } }], "14px", menu(), menu()],
     fontWeight: [700, menu({ fontWeight: 700 }), 400, menu(), menu()],
     letterSpacing: ["1px", menu({ letterSpacing: 1 }), "0px", menu(), menu()],
     fontFamily: [{ label: "Georgia", value: "georgia,serif" }, menu({ fontFamily: "georgia,serif" }), { label: "Arial", value: "Arial, Helvetica, sans-serif" }, menu(), menu()],
@@ -185,6 +191,8 @@ describe("an edit in the builder", () => {
     columnsBackgroundColor: ["#ffffff", row({ type: "Row", style: { backgroundColor: "#ffffff" } }, [{ type: "Column", children: hello() }]), "", row(undefined), row(undefined)],
     // A row's side padding set in the builder is kept (the earlier adapter's review).
     padding: ["10px 20px", hello({ padding: { top: 10, right: 20, bottom: 10, left: 20 } }), "0px", hello(), hello()],
+    // Its padding on phones, around its blocks there (the builder's default is its padding on desktop).
+    "_override.mobile.padding": ["30px", [{ type: "Column", mobile: { padding: { top: 30, right: 30, bottom: 30, left: 30 } }, children: hello() }], "0px", hello(), hello()],
     alignItems: ["center", row({ type: "Row", style: { alignItems: "center" } }, [{ type: "Column", children: hello() }]), "flex-start", hello(), hello()],
     noStackMobile: [true, hello(), false, hello(), hello()],
     // Unhiding a row shows it (the earlier adapter's review).
@@ -471,6 +479,19 @@ describe("an edit this adapter's review found lost", () => {
     values.text = "Hi <%name%>";
     design.body.values.preheaderText = "{% if vip %}Early access{% endif %}";
     expect(fromDesign(design).report).toEqual([expect.stringContaining("its preview text has an email service's tag"), expect.stringContaining("its label has an email service's tag")]);
+  });
+
+  it("says a button's or an image's alignment on phones, which places it there, rather than reading it as a label's", () => {
+    const design = designOf(
+      <Email>
+        <Button href="https://x.test">Go</Button>
+        <Image src={{ src: "https://x.test/a.png", width: 600, height: 300 }} alt="" />
+      </Email>
+    );
+    for (const content of design.body.rows[0].columns[0].contents) content.values._override = { mobile: { textAlign: "right" } };
+    const back = fromDesign(design);
+    expect(back.report).toEqual([expect.stringContaining("its alignment on phones (right) places the button there"), expect.stringContaining("its alignment on phones (right) isn't one Elements can place it in")]);
+    expect(JSON.stringify(tree(back.element))).not.toContain('"textAlign":"right"');
   });
 
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {

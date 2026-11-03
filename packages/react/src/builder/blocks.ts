@@ -40,8 +40,14 @@ function button(values: Values, context: Context): Node[] {
   const hidden = readHidden("button", "Button", values, context.say);
   const colors = obj(values.buttonColors);
   const base = { color: color(colors.color) ?? "transparent", backgroundColor: color(colors.backgroundColor) ?? "transparent" };
-  const size = obj(values.size);
-  const width = size.autoWidth === false && size.width !== undefined ? (px(size.width) ?? (typeof size.width === "string" && size.width.trim().endsWith("%") ? size.width.trim() : undefined)) : undefined;
+  const width = sizeOf(values.size);
+  const phone = obj(obj(values._override).mobile);
+  // Its width on phones: a width of its own; its own size there where it has a width on desktop can't be.
+  const phoneWidth = sizeOf(phone.size);
+  if (phone.size !== undefined && phoneWidth === undefined && width !== undefined && obj(phone.size).autoWidth !== false) context.say("its own size on phones, beside a width on desktop, isn't one Elements' Button takes: left out");
+  // Its alignment on phones places the button (today's writers' `.v-text-align`), which a Column's can't on phones.
+  const phoneAlign = str(phone.textAlign);
+  if (phoneAlign !== undefined && phoneAlign !== (str(values.textAlign) ?? "center")) context.say(`its alignment on phones (${phoneAlign}) places the button there, which Elements can't: left out`);
   const style = defined({
     ...textStyle({ ...values, textAlign: undefined, color: undefined }, defaults, context),
     color: unless(base.color, defaults.color),
@@ -58,13 +64,22 @@ function button(values: Values, context: Context): Node[] {
   const label = parseRuns(context.safe(richText(values, true, str(values.textDirection) ?? context.dir)), { weight: fontWeight(values.fontWeight) ?? 400, links: false, builder: true });
   if (label.left.length) context.say(`its label has what a Button doesn't hold (${[...new Set(label.left)].join(", ")}): left out`);
   tagged(richText(values, true, str(values.textDirection) ?? context.dir), "its label", context.say);
-  const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile: { ...phoneText(values), ...phonePadding(values, "padding"), ...hidden.mobile }, hover, children: mergeTags(label.children, false) });
+  const { textAlign: _label, ...phoneLabel } = phoneText(values);
+  const mobile = { ...phoneLabel, ...phonePadding(values, "padding"), ...(phoneWidth !== undefined && phoneWidth !== width ? { width: phoneWidth } : {}), ...hidden.mobile };
+  const node = make("Button", { id: givenId(values), props: { href: href ?? "#", ...hidden.props }, style, mobile, hover, children: mergeTags(label.children, false) });
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 
 /** Says where text holds an email service's tag (<%name%>, {% if %}), which Elements writes escaped: the service can't fill it in. */
 function tagged(text: string, what: string, say: (message: string) => void): void {
   if (serviceTag(text)) say(`${what} has an email service's tag, which today's writers keep as written and Elements writes escaped: the service won't fill it in`);
+}
+
+/** A button's width (its `size`): px or a share, where it isn't its own size. */
+function sizeOf(value: unknown): Json | undefined {
+  const size = obj(value);
+  if (size.autoWidth !== false || size.width === undefined) return undefined;
+  return px(size.width) ?? (typeof size.width === "string" && size.width.trim().endsWith("%") ? size.width.trim() : undefined);
 }
 
 const phonePadding = (values: Values, key: string) => defined({ padding: sides(obj(obj(values._override).mobile)[key]) });
@@ -81,6 +96,8 @@ function image(values: Values, context: Context, slot?: Slot): Node[] {
   const style = defined({ ...imageWidth(src), ...phoneCap(src, values, slot), ...hidden.style });
   const phone = obj(obj(obj(values._override).mobile).src);
   const mobile = defined({ ...(Object.keys(phone).length ? imageWidth({ ...src, ...phone }) : {}), ...hidden.mobile });
+  const phoneAlign = str(obj(obj(values._override).mobile).textAlign);
+  if (phoneAlign !== undefined && phoneAlign !== (str(values.textAlign) ?? "center")) context.say(`its alignment on phones (${phoneAlign}) isn't one Elements can place it in there: left out`);
   const alt = str(values.altText) ?? "";
   const node = make("Image", { props: defined({ src: asset, ...(alt ? { alt } : {}), ...hidden.props }), style, mobile });
   const href = link(values.action, context.say);
@@ -110,15 +127,18 @@ function imageWidth(src: Values): Record<string, Json> {
   return given === undefined ? {} : { width: given };
 }
 
+/** A divider's width: px, or a share of its place. */
+const lineWidth = (value: unknown): Json | undefined => px(value) ?? (typeof value === "string" && /^\s*\d*\.?\d+%\s*$/.test(value) ? value.trim() : undefined);
+
 function divider(values: Values, context: Context): Node[] {
   const hidden = readHidden("divider", "Divider", values, context.say);
   const line = obj(values.border);
   const borderTop = { width: px(line.borderTopWidth) ?? 1, style: str(line.borderTopStyle) ?? "solid", color: str(line.borderTopColor) ?? "#BBBBBB" };
-  const width = values.width === undefined || values.width === "100%" ? undefined : (px(values.width) ?? str(values.width));
+  const width = values.width === undefined || values.width === "100%" ? undefined : lineWidth(values.width);
   const node = make("Divider", {
     id: givenId(values),
     style: defined({ borderTop: unless(borderTop, { width: 1, style: "solid", color: "#bbbbbb" }), width, padding: some(sides(values.containerPadding ?? "10px")), ...hidden.style }),
-    mobile: defined({ padding: sides(obj(obj(values._override).mobile).containerPadding), width: px(obj(obj(values._override).mobile).width), ...hidden.mobile }),
+    mobile: defined({ padding: sides(obj(obj(values._override).mobile).containerPadding), width: unless(lineWidth(obj(obj(values._override).mobile).width), width ?? "100%"), ...hidden.mobile }),
     hidden: { ...hiddenOn(values), ...hidden.hidden },
   });
   // A line shorter than its place sits where its parent's text is aligned.
@@ -145,7 +165,8 @@ function menu(values: Values, context: Context): Node[] {
     ...hidden.style,
   });
   const props = defined({ items: items.map((item) => ({ text: item.text, href: item.href ?? "#" })) as Json, separator: str(values.separator) || undefined, layout: values.layout === "vertical" ? "vertical" : undefined, ...hidden.props });
-  const node = make("Menu", { id: givenId(values), props, style, mobile: hidden.mobile });
+  const phoneSize = px(obj(obj(values._override).mobile).fontSize);
+  const node = make("Menu", { id: givenId(values), props, style, mobile: { ...(phoneSize !== undefined && phoneSize !== size ? { fontSize: phoneSize } : {}), ...hidden.mobile } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 

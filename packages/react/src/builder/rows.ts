@@ -137,6 +137,9 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
   const layout = columns.length > 1 || Object.keys(rowStyle).length > 0;
   const band = color(values.backgroundColor) !== undefined || sectionBorder !== undefined;
   const padding = sides(values.padding) ?? ZERO;
+  // Its padding on phones, where it's another.
+  const given = sides(obj(obj(values._override).mobile).padding);
+  const phonePadding = given && JSON.stringify(given) !== JSON.stringify(padding) ? given : undefined;
 
   const cells = arr(row.cells).map((cell) => (typeof cell === "number" && cell > 0 ? cell : 0));
   const stacks = values.noStackMobile !== true && obj(obj(values._override).mobile).noStackMobile !== true;
@@ -155,7 +158,7 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
       const id = givenId(values);
       const children = columns.map((column, c) => columnOf(obj(column.values), blocks[c], shares ? `${Math.round((cells[c] / total) * 10000) / 100}%` : undefined, say));
       const row = stretched(children, stacks);
-      const mobile = { ...rowHidden.mobile, ...row.mobile };
+      const mobile = { ...rowHidden.mobile, ...row.mobile, ...(phonePadding && !band ? { padding: phonePadding } : {}) };
       return [
         {
           type: "Row",
@@ -169,11 +172,16 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
     }
     const column = columnOf(obj(columns[0].values), blocks[0], undefined, say);
     const space = band ? ZERO : padding;
+    // The row's padding on phones, where no band holds it.
+    const phone = band ? undefined : phonePadding;
     if (BOX.some((key) => column.style?.[key] !== undefined) || column.hidden || column.mobile || column.id) {
       // A box: the row's space around it is a Row's padding, where there's no band to hold it.
-      return some(space) ? [{ type: "Row", style: { padding: space }, children: [column] }] : [column];
+      return some(space) || phone ? [{ type: "Row", ...(some(space) ? { style: { padding: space } } : {}), ...(phone ? { mobile: { padding: phone } } : {}), children: [column] }] : [column];
     }
-    const own = add(space, (column.style?.padding as Sides | undefined) ?? ZERO);
+    const inner = (column.style?.padding as Sides | undefined) ?? ZERO;
+    const own = add(space, inner);
+    // Space that's another on phones is a Column's around the blocks, the column's own inside it.
+    if (phone) return [{ type: "Column", ...(some(own) ? { style: { padding: own } } : {}), mobile: { padding: add(phone, inner) }, ...(blocks[0].length ? { children: blocks[0] } : {}) }];
     // A row with nothing in it but space is that space; with nothing at all, nothing.
     if (!blocks[0].length) return some(own) ? [{ type: "Column", style: { padding: own } }] : [];
     return fold(blocks[0], own);
@@ -185,7 +193,7 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
     if (!band) return visibility ? nodes.map((node) => ({ ...node, hidden: { ...node.hidden, ...visibility } })) : nodes;
     const id = givenId(values);
     const style = defined({ backgroundColor: color(values.backgroundColor), border: sectionBorder, padding: some(padding) });
-    return [{ type: at.part ? "Column" : "Section", ...(id ? { id } : {}), style, ...(visibility ? { hidden: visibility } : {}), children: nodes }];
+    return [{ type: at.part ? "Column" : "Section", ...(id ? { id } : {}), style, ...(phonePadding ? { mobile: { padding: phonePadding } } : {}), ...(visibility ? { hidden: visibility } : {}), children: nodes }];
   };
 
   if (!layout && contents[0].some((node) => node.type === "PageBreak")) {

@@ -568,7 +568,9 @@ design holds no Elements data (decision 12).
   width and height) is as wide as its column there, at its own size in Elements; an image's width in px is
   its share of its column there (the builder's editor stores a percentage), so on phones it's that share;
   a Row whose children have no share of their own (a line of links) is markup; a Row's `justifyContent`
-  is hidden, but its columns fill it; a link's hover in text and a Social icon's target have no place.
+  is hidden, but its columns fill it; a link's hover in text and a Social icon's target have no place; a
+  button's or an image's alignment on phones, which places it there, comes back said, not read (Elements
+  places a block the same on phones).
 - **Tested** by what a reader gets, not by the tree: a template, to the builder and back, draws the same
   boxes, text, images and links (and a second trip changes nothing), over the adapter's templates, main's
   examples, the codemod's and generated ones; each field of each tool edited in the builder has its expected
