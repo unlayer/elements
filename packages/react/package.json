@@ -57,6 +57,16 @@
     },
     "./package.json": "./package.json"
   },
+  "typesVersions": {
+    "*": {
+      "primitives": [
+        "./dist/primitives.d.ts"
+      ],
+      "legacy": [
+        "./dist/index.d.ts"
+      ]
+    }
+  },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
