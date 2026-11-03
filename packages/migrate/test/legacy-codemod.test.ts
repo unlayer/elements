@@ -518,6 +518,20 @@ describe("unlayer-migrate --from elements", () => {
     for (const [file, text] of Object.entries(ui)) expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(text);
   });
 
+  it.each([false, true])("keeps a component the project's module exports by name beside `export *` of today's (the named export first: %s)", async (first) => {
+    const wildcard = 'export * from "@unlayer/react-elements";';
+    const custom = 'export { Paragraph } from "./own";';
+    const ui = { "emails/ui.ts": first ? `${custom}\n${wildcard}\n` : `${wildcard}\n${custom}\n`, "emails/own.tsx": "export const Paragraph = () => <p>Required custom disclosure</p>;\n" };
+    const dir = project({ ...ui, "emails/welcome.tsx": `import { Email, Row, Column, Paragraph } from "./ui";\nexport default function Welcome() { return <Email><Row><Column><Paragraph /></Column></Row></Email>; }\n` });
+    commit(dir);
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    const welcome = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    // The project's own Paragraph stays imported from its module, and as it was written.
+    expect(welcome).toMatch(/import \{ Paragraph \} from "\.\/ui";/);
+    expect(welcome).toContain("<Paragraph />");
+  });
+
   it("fails a template that imports today's components through a namespace another module passes on, naming both, instead of skipping it", async () => {
     const dir = project({
       "emails/ui.ts": `export * as E from "@unlayer/react-elements";\n`,

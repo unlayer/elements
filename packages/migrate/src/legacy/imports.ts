@@ -84,6 +84,14 @@ export function todaysImports(resolve: Resolve): (path: string, source: string) 
         return !inner?.size ? undefined : name === NAMESPACE ? NAMESPACE : inner.get(name);
       };
       const own = ownExports(file, new Set(imports.map((i) => i.local)));
+      // Names the module exports by name, which an `export *` doesn't pass on whatever the order (an explicit export
+      // shadows a star export): each is today's component only where that export is one.
+      const named = new Set<string>();
+      const exportAs = (name: string, component: string | undefined) => {
+        named.add(name);
+        if (component) out.set(name, component);
+        else out.delete(name);
+      };
       for (const statement of file.statements) {
         if (ts.isExportAssignment(statement) && !statement.isExportEquals && ts.isIdentifier(statement.expression)) {
           const from = imports.find((i) => i.local === (statement.expression as ts.Identifier).text);
@@ -95,9 +103,9 @@ export function todaysImports(resolve: Resolve): (path: string, source: string) 
         if (!statement.moduleSpecifier) {
           // An import exported again (`import { Email } from "@unlayer/react-elements"; export { Email }`).
           for (const e of clause && ts.isNamedExports(clause) ? clause.elements : []) {
-            const from = !e.isTypeOnly && imports.find((i) => i.local === (e.propertyName ?? e.name).text);
-            const component = from && (await lookup(from.specifier, from.imported));
-            if (component) out.set(e.name.text, component);
+            if (e.isTypeOnly) continue;
+            const from = imports.find((i) => i.local === (e.propertyName ?? e.name).text);
+            exportAs(e.name.text, from ? await lookup(from.specifier, from.imported) : undefined);
           }
           continue;
         }
@@ -107,15 +115,11 @@ export function todaysImports(resolve: Resolve): (path: string, source: string) 
           // `export *`: every name the other module exports but `default`, and but the ones this one declares itself.
           const target = TODAYS.has(specifier) ? undefined : await resolve(specifier, path);
           const all = TODAYS.has(specifier) ? [...MIGRATED].map((name) => [name, name] as const) : target ? [...(await passedOn(target, next))] : [];
-          for (const [name, component] of all) if (name !== "default" && !own.has(name) && !out.has(name)) out.set(name, component);
+          for (const [name, component] of all) if (name !== "default" && !own.has(name) && !named.has(name) && !out.has(name)) out.set(name, component);
         } else if (ts.isNamedExports(clause)) {
-          for (const e of clause.elements) {
-            const component = !e.isTypeOnly && (await lookup(specifier, (e.propertyName ?? e.name).text));
-            if (component) out.set(e.name.text, component);
-          }
+          for (const e of clause.elements) if (!e.isTypeOnly) exportAs(e.name.text, await lookup(specifier, (e.propertyName ?? e.name).text));
         } else {
-          const component = await lookup(specifier, NAMESPACE);
-          if (component) out.set(clause.name.text, component);
+          exportAs(clause.name.text, await lookup(specifier, NAMESPACE));
         }
       }
     }
