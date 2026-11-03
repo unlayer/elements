@@ -39,7 +39,7 @@ const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "
 const styleText = (css: string) => css.replace(/<\/(style)/gi, "<\\/$1");
 
 /** The new engine's preview text, which isn't the email's text. */
-const PREVIEW = /^<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true">[\s\S]*?<\/div>/;
+const PREVIEW = /^<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">[\s\S]*?<\/div>/;
 /** The new engine's page divider, a line legacy's isn't in plain text (legacy draws its divider with a border). */
 const DIVIDER = /<hr\b[^>]*style="[^"]*border:0;border-top:[^"]*"[^>]*>/g;
 
