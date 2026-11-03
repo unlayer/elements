@@ -1,7 +1,8 @@
 /**
  * The builder's design JSON as a template in the new components (RFC 0001, step 11, the way back). Each item that
- * came from a template carries its node (`values._elements`): the node comes back as it was, with the values changed
- * in the builder applied to it. An item made in the builder comes from its values alone.
+ * came from a template carries what of its node the builder can't hold (`values._elements`): the node is that, with
+ * the builder's values read into it (less the part of each that's its place). An item made in the builder comes from
+ * its values alone.
  *
  * The builder's order is the template's: rows of one Section next to each other are that Section again (rows of it
  * moved apart are a Section each), rows of a Grid are its children in order, a one-column row of blocks is those blocks
@@ -9,12 +10,14 @@
  * the builder changed where the template has no node of its own (a row of blocks, a Grid's row) comes back as one that
  * holds the change; a row added in the builder between rows of one Section (or page) is in it.
  */
-import type { Child, Json, Node } from "@unlayer-internal/elements-core";
+import { linkParts, type Child, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
 import { FIELDS, NEW_BLOCK } from "./fields";
-import { BUILDER_OWN, PAYLOAD_KEY, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
+import { setPaths } from "./paths";
+import { baseline, BUILDER_OWN, fingerprint, PARTED, PAYLOAD_KEY, PAYLOAD_VERSION, type Group, type Payload } from "./payload";
 import { sameText } from "./runs";
+import { dropTaken, mark } from "./taken";
 
-type Values = Record<string, any>;
+export type Values = Record<string, any>;
 type Content = { type: string; values: Values };
 type Column = { contents: Content[]; values: Values };
 type Row = { cells: number[]; columns: Column[]; values: Values };
@@ -34,8 +37,10 @@ const payloadOf = (values: Values | undefined): Payload | undefined => {
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 /** Whether the builder's value is the one written: text by its runs, an object by the keys written (the builder adds its own). */
-function unchanged(key: string, was: unknown, now: unknown): boolean {
+export function unchanged(key: string, was: unknown, now: unknown): boolean {
   if (key === "text") return sameText(was, now);
+  // A padding by its sides ("0px" is "0px 0px 0px 0px").
+  if ((key === "padding" || key === "containerPadding") && typeof was === "string" && typeof now === "string") return sameSides(was, now);
   if (was === null || typeof was !== "object") return was === now || (was === "" && now === undefined);
   if (now === null || typeof now !== "object") return false;
   if (Array.isArray(was)) return Array.isArray(now) && was.length === now.length && was.every((item, i) => unchanged("", item, now[i]));
@@ -44,6 +49,14 @@ function unchanged(key: string, was: unknown, now: unknown): boolean {
   if (!Object.keys(was).length) return !meaningful(now) || noBorder(now);
   return Object.entries(was).every(([k, v]) => unchanged(k, v, (now as Values)[k]));
 }
+
+const sameSides = (a: string, b: string) => {
+  const sides = (css: string) => {
+    const [top = 0, right = top, bottom = top, left = right] = css.trim().split(/\s+/).map((part) => parseFloat(part) || 0);
+    return [top, right, bottom, left].join(" ");
+  };
+  return sides(a) === sides(b);
+};
 
 /** A border the builder writes with every side 0 wide: none. */
 const noBorder = (value: unknown) => {
@@ -61,39 +74,86 @@ const breakRow = (row: Row) => row.columns.length === 1 && row.columns[0].conten
 const BAND = "backgroundColor";
 const notBand = (key: string) => key !== BAND;
 
+/** Says what of an item's values the template can't hold, with the value's key. */
+export type Say = (message: string, key: string) => void;
+
+/**
+ * The keys of an item's values to read into its node: for a template's item, each the node holds (the builder's is
+ * the node's) and each that isn't what it was written as (its default, its place, as kept); for one made in the
+ * builder, each it set.
+ */
+export function changesOf(kind: string, values: Values, payload: Payload | undefined, only?: (key: string) => boolean): string[] {
+  const fields = FIELDS[kind] ?? {};
+  const w = baseline(kind, payload);
+  return Object.keys({ ...w, ...values }).filter((key) => {
+    if (BUILDER_OWN.has(key) || (only && !only(key))) return false;
+    // A long value only told apart from the one written (a block's own markup).
+    if (payload?.h && key in payload.h) return fingerprint(values[key]) !== payload.h[key] && Boolean(fields[key]);
+    // A value with parts of the node's and the builder's: its setter tells them apart.
+    if (payload && PARTED.has(`${kind}.${key}`) && meaningful(values[key])) return Boolean(fields[key]);
+    if (w && key in w ? unchanged(key, w[key], values[key]) : !meaningful(values[key])) return false;
+    return Boolean(fields[key]) || Boolean(w && key in w) || BUILDER_DATA.has(key);
+  });
+}
+
+/** An item's values read into its node; the builder's own data on it kept in `compat.builder`. */
+export function applyTo(kind: string, node: Node, values: Values, payload: Payload | undefined, say: Say, only?: (key: string) => boolean) {
+  const fields = FIELDS[kind] ?? {};
+  const w = baseline(kind, payload);
+  for (const key of changesOf(kind, values, payload, only)) {
+    const set = fields[key];
+    if (set) set({ node, now: values[key], was: w ? w[key] : undefined, say: (message) => say(message, key) });
+    else {
+      if (w && key in w && !BUILDER_DATA.has(key)) say(`its ${key} changed in the builder: kept for the builder, which Elements doesn't draw`, key);
+      // A value the builder removed is no longer the builder's data.
+      const builder = { ...(node.compat?.builder as Values) };
+      if (values[key] === undefined) delete builder[key];
+      else builder[key] = values[key] as Json;
+      const { builder: _builder, ...rest } = node.compat ?? {};
+      node.compat = Object.keys(builder).length ? { ...rest, builder } : Object.keys(rest).length ? rest : undefined;
+      if (!node.compat) delete node.compat;
+    }
+  }
+}
+
+/** The href an image was written with: its Link's, or none. */
+const writtenHref = (node: Node, payload: Payload | undefined): string => {
+  if (payload?.w?.action) return String((payload.w.action as Values).values?.href ?? "");
+  if (node.type === "Link") return String(linkParts(node.props?.href as LinkValue).href ?? "");
+  const action = baseline("image", payload)?.action as Values | undefined;
+  return String(action?.values?.href ?? "");
+};
+
+/**
+ * A template's item read back: its kept node with the builder's values read into it (an image with the builder's
+ * link, a block of its own markup with nothing but its visibility).
+ */
+export function readItem(kind: string, kept: Node, values: Values, payload: Payload | undefined, say: Say): Node {
+  const node = copy(kept);
+  if (kind === "image") {
+    const image = node.type === "Link" ? (node.children ?? []).find((child): child is Node => typeof child !== "string" && child.type === "Image")! : node;
+    const before = copy(image);
+    applyTo("image", image, values, payload, say, (key) => key !== "action");
+    if (payload) mark(image, setPaths(before, image), payload);
+    const href = String(values.action?.values?.href ?? "");
+    if (payload && href === writtenHref(node, payload)) return node;
+    if (node.type === "Link") {
+      if (!href) return image;
+      node.props = { ...node.props, href };
+      return node;
+    }
+    return href ? { type: "Link", props: { href }, children: [image] } : image;
+  }
+  if (payload?.locked) applyTo("html", node, values, payload, say, (key) => key !== "containerPadding");
+  else applyTo(kind, node, values, payload, say, kind === "row" ? notBand : undefined);
+  if (payload) mark(node, setPaths(kept, node), payload);
+  return node;
+}
+
 export function lower(design: Design, report: string[]): Node {
   const say = (where: string) => (message: string) => report.push(`${where}: ${message}`);
-
-  /** The keys of an item's values the builder changed (or, made in the builder, set) that the template holds. */
-  const changes = (kind: string, values: Values, payload: Payload | undefined, only?: (key: string) => boolean): string[] => {
-    const fields = FIELDS[kind] ?? {};
-    const w = payload?.w;
-    return Object.keys({ ...w, ...values }).filter((key) => {
-      if (BUILDER_OWN.has(key) || (only && !only(key))) return false;
-      if (w && key in w ? unchanged(key, w[key], values[key]) : !meaningful(values[key])) return false;
-      return Boolean(fields[key]) || Boolean(w && key in w) || BUILDER_DATA.has(key);
-    });
-  };
-
-  /** The builder's changes to an item applied to its node; the builder's own data on it kept in `compat.builder`. */
-  const apply = (kind: string, node: Node, values: Values, payload: Payload | undefined, where: string, only?: (key: string) => boolean) => {
-    const fields = FIELDS[kind] ?? {};
-    const w = payload?.w;
-    for (const key of changes(kind, values, payload, only)) {
-      const set = fields[key];
-      if (set) set({ node, now: values[key], was: w ? w[key] : undefined, say: say(where) });
-      else {
-        if (w && key in w && !BUILDER_DATA.has(key)) say(where)(`its ${key} changed in the builder: kept for the builder, which Elements doesn't draw`);
-        // A value the builder removed is no longer the builder's data.
-        const builder = { ...(node.compat?.builder as Values) };
-        if (values[key] === undefined) delete builder[key];
-        else builder[key] = values[key] as Json;
-        const { builder: _builder, ...rest } = node.compat ?? {};
-        node.compat = Object.keys(builder).length ? { ...rest, builder } : Object.keys(rest).length ? rest : undefined;
-        if (!node.compat) delete node.compat;
-      }
-    }
-  };
+  const changes = (kind: string, values: Values, payload: Payload | undefined, only?: (key: string) => boolean) => changesOf(kind, values, payload, only);
+  const apply = (kind: string, node: Node, values: Values, payload: Payload | undefined, where: string, only?: (key: string) => boolean) => applyTo(kind, node, values, payload, say(where), only);
 
   const body = design.body;
   const bodyPayload = payloadOf(body.values);
@@ -119,8 +179,8 @@ export function lower(design: Design, report: string[]): Node {
   }
   // A design made in the builder is an Email, or a Document where it has a document's parts (a header, a page break).
   const printed = Boolean(body.headers?.length || body.footers?.length) || body.rows.some((row) => row.columns.some((column) => column.contents.some((content) => content.type === "page_break")));
-  const root: Node = bodyPayload?.node ? copy(bodyPayload.node) : { type: printed ? "Document" : "Email" };
-  apply("body", root, body.values, bodyPayload, "body");
+  const root: Node = bodyPayload?.node ? readItem("body", bodyPayload.node, body.values, bodyPayload, say("body")) : { type: printed ? "Document" : "Email" };
+  if (!bodyPayload?.node) apply("body", root, body.values, bodyPayload, "body");
   const isDocument = root.type === "Document";
 
   /** A column's blocks, the boxes flattened into it put back around theirs. */
@@ -144,30 +204,11 @@ export function lower(design: Design, report: string[]): Node {
   };
   const columnBlocks = (column: Column, where: string) => blocks(column.contents.map((content) => ({ content, wraps: payloadOf(content.values)?.wrap ?? [] })), where);
 
-  /** An image with the builder's link: a Link around it (the template's own, or one the builder set). */
-  const linkedImage = (node: Node, values: Values, payload: Payload | undefined, where: string): Node => {
-    const image = node.type === "Link" ? (node.children ?? []).find((child): child is Node => typeof child !== "string" && child.type === "Image")! : node;
-    apply("image", image, values, payload, where, (key) => key !== "action");
-    const href = String(values.action?.values?.href ?? "");
-    if (payload && href === String(payload.w?.action?.values?.href ?? "")) return node;
-    if (node.type === "Link") {
-      if (!href) return image;
-      node.props = { ...node.props, href };
-      return node;
-    }
-    return href ? { type: "Link", props: { href }, children: [image] } : image;
-  };
-
   const block = (content: Content, where: string): Node | null => {
     const payload = payloadOf(content.values);
-    if (payload?.node) {
-      const node = copy(payload.node);
-      if (payload.locked) apply("html", node, content.values, payload, where, (key) => key !== "containerPadding");
-      else if (content.type === "image") return linkedImage(node, content.values, payload, where);
-      else apply(content.type, node, content.values, payload, where);
-      return node;
-    }
     const type = NEW_BLOCK[content.type];
+    // A template's block: what it kept, or the component its tool is where the builder holds all of it.
+    if (payload && (payload.node || type)) return readItem(content.type, payload.node ?? { type }, content.values, payload, say(where));
     if (!type) {
       say(where)(`a ${content.type} block of the builder's has no component in Elements yet: left out`);
       return null;
@@ -176,7 +217,7 @@ export function lower(design: Design, report: string[]): Node {
       say(where)("a page break is a Document's: left out");
       return null;
     }
-    if (content.type === "image") return linkedImage({ type }, content.values, undefined, where);
+    if (content.type === "image") return readItem("image", { type }, content.values, undefined, say(where));
     const node: Node = { type };
     apply(content.type, node, content.values, undefined, where);
     if (type === "Video" && !node.props?.src) {
@@ -201,11 +242,12 @@ export function lower(design: Design, report: string[]): Node {
       const payload = payloadOf(column.values);
       const inner = noBreaks(columnBlocks(column, at), at);
       if (payload?.direct && inner.length === 1 && typeof inner[0] !== "string" && !changes("column", column.values, payload).length) return inner[0];
-      const node: Node = payload?.node ? copy(payload.node) : { type: "Column" };
-      apply("column", node, column.values, payload, at);
+      // A Row's column: its kept node, or a Column where the builder holds all of it.
+      const node: Node = payload ? readItem("column", payload.node ?? { type: "Column" }, column.values, payload, say(at)) : { type: "Column" };
+      if (!payload) apply("column", node, column.values, payload, at);
       return { ...node, children: inner };
     });
-    const written = rowPayload?.w?.cells as number[] | undefined;
+    const written = baseline("row", rowPayload)?.cells as number[] | undefined;
     if (!written || JSON.stringify(written) !== JSON.stringify(row.cells)) {
       const total = row.cells.reduce((sum, cell) => sum + cell, 0);
       if (written) say(where)("its columns' widths changed in the builder: each takes its share of the row");
@@ -260,7 +302,7 @@ export function lower(design: Design, report: string[]): Node {
       const where = `${prefix}[${r}]`;
       const payload = payloads[r];
       const group = groupOf(r);
-      const w = payload?.w;
+      const w = baseline("row", payload);
       // The row's band changed in the builder (or a row made there has one): a Section's background in Elements. A
       // band cleared there is no background.
       const bandChanged = w && BAND in w ? !unchanged(BAND, w[BAND], row.values[BAND]) : !payload && meaningful(row.values[BAND]);
@@ -317,9 +359,11 @@ export function lower(design: Design, report: string[]): Node {
       }
       grid = null;
 
-      if (payload?.run || (!payload && row.columns.length === 1 && row.columns[0].contents.some((content) => content.type === "page_break"))) {
+      // A row of blocks (no Row or Grid of its own), or one the builder made holding a page break.
+      if (payload?.run || (payload && !payload.node && !payload.grid) || (!payload && row.columns.length === 1 && row.columns[0].contents.some((content) => content.type === "page_break"))) {
         const column = row.columns[0];
-        const columnPayload = payloadOf(column?.values);
+        // A run's column says nothing of its own: it's the run's.
+        const columnPayload = payloadOf(column?.values) ?? (payload && column ? ({ v: payload.v } as Payload) : undefined);
         const rowChanged = payload ? changes("row", row.values, payload, notBand) : [];
         const columnChanged = payload && column ? changes("column", column.values, columnPayload) : [];
         const made = row.columns.flatMap((c, i) => columnBlocks(c, `${where}.columns[${i}]`));
@@ -358,8 +402,8 @@ export function lower(design: Design, report: string[]): Node {
         return;
       }
 
-      const node: Node = payload?.node ? copy(payload.node) : { type: "Row" };
-      apply("row", node, row.values, payload, where, notBand);
+      const node: Node = payload?.node ? readItem("row", payload.node, row.values, payload, say(where)) : { type: "Row" };
+      if (!payload?.node) apply("row", node, row.values, payload, where, notBand);
       target().push({ ...node, children: rowChildren(row, payload, where) });
     });
     return top;
@@ -377,7 +421,7 @@ export function lower(design: Design, report: string[]): Node {
     top.push(...part(place(body.footers ?? [], "footers"), "PageFooter"));
   } else pageNumbersAsMergeTags(top);
 
-  return uniqueIds({ ...root, children: top });
+  return dropTaken(uniqueIds({ ...root, children: top }));
 }
 
 /** Outside a Document, the page number tokens are the merge tags they look like. */

@@ -70,7 +70,7 @@ describe("toDesign", () => {
     expect(row.values._override?.mobile?.hideMobile).toBe(true);
   });
 
-  it("keeps each node in the values the builder keeps (not beside them), and lists what has no editor in the builder yet", () => {
+  it("keeps in the values the builder keeps (not beside them) only what it can't hold, and lists what has no editor in the builder yet", () => {
     const { design, report } = toDesign(
       <Email>
         <Heading style={{ borderRadius: 8 }}>Hi</Heading>
@@ -79,8 +79,13 @@ describe("toDesign", () => {
     );
     expect(design.body.values._elements.node.type).toBe("Email");
     const [heading, image] = design.body.rows[0].columns[0].contents;
-    expect(heading.values._elements).toMatchObject({ v: 1, node: { type: "Heading", style: { borderRadius: 8 }, children: ["Hi"] }, w: { text: "Hi", headingType: "h1" } });
-    expect(image.values._elements.node.style).toEqual({ borderRadius: 16 });
+    // The heading's words, size and color are the builder's values only: what's kept is what it can't hold.
+    expect(heading.values._elements.node).toEqual({ type: "Heading", style: { borderRadius: 8 } });
+    expect(heading.values._elements.w).toBeUndefined();
+    expect(JSON.stringify(heading.values._elements)).not.toContain("Hi");
+    // An empty alt is kept: the builder's empty text can't tell it from none.
+    expect(image.values._elements.node).toEqual({ type: "Image", props: { alt: "" }, style: { borderRadius: 16 } });
+    expect(JSON.stringify(image.values._elements)).not.toContain("example.com");
     expect(Object.keys(design.body.rows[0]).sort()).toEqual(["cells", "columns", "values"]);
     expect(report).toEqual([
       "root.children[0]: kept in the design, with no editor in the builder yet: style.borderRadius",

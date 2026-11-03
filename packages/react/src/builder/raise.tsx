@@ -26,6 +26,8 @@ export interface Raised {
   report: string[];
   /** What each element (the root, a row, a column, a block) was made from. */
   payloads: WeakMap<object, Payload>;
+  /** Each element's node as resolved (its text styles as it takes them, its component's defaults). */
+  resolvedOf: WeakMap<object, ResolvedNode>;
   /** A Document's header and footer, as rows of their own (the builder's `headers` and `footers`). */
   headers?: React.ReactElement[];
   footers?: React.ReactElement[];
@@ -47,18 +49,20 @@ const STACKS = new Set(["Section", "Column", "DocumentPage"]);
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
   const payloads = new WeakMap<object, Payload>();
+  const resolvedOf = new WeakMap<object, ResolvedNode>();
   const { document, diagnostics, components } = collectTemplate(element);
-  if (!document || diagnostics.some((d) => d.severity === "error")) return { element: null, report: diagnostics.map((d) => `${d.path}: ${d.message}`), payloads };
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { element: null, report: diagnostics.map((d) => `${d.path}: ${d.message}`), payloads, resolvedOf };
   const prepared = prepareTemplate(document, { components });
-  if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), payloads };
+  if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), payloads, resolvedOf };
   const root = document.root;
   const resolvedRoot = prepared.resolved.root;
   if (root.type !== "Email" && root.type !== "Page" && root.type !== "Document") {
-    return { element: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`], payloads };
+    return { element: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`], payloads, resolvedOf };
   }
-  /** The element, paired with what it was made from. */
-  const tag = (made: React.ReactElement, payload: Omit<Payload, "v">): React.ReactElement => {
+  /** The element, paired with what it was made from (and its node as resolved, where it's at `path`). */
+  const tag = (made: React.ReactElement, payload: Omit<Payload, "v">, path?: string): React.ReactElement => {
     payloads.set(made, { v: PAYLOAD_VERSION, ...payload });
+    if (path !== undefined) resolvedOf.set(made, at(path));
     return made;
   };
   const wrapped = (wraps: Group[]) => (wraps.length ? { wrap: wraps } : {});
@@ -85,7 +89,7 @@ export function raise(element: React.ReactElement): Raised {
     notePageNumbers(node, path);
     const own = at(path);
     const html = renderSubtree(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components);
-    return tag(<Html key={path} html={html} containerPadding={sidesCss(around)} />, { node, locked: true, ...wrapped(wraps) });
+    return tag(<Html key={path} html={html} containerPadding={sidesCss(around)} />, { node, locked: true, ...wrapped(wraps) }, path);
   };
 
   /** A block in a column, with `around` its space in the column (its stack's gap above it, the column's sides). */
@@ -94,7 +98,7 @@ export function raise(element: React.ReactElement): Raised {
     if (Array.isArray(made) || payloads.has(made)) return made;
     noteKept(node, path);
     notePageNumbers(node, path);
-    return tag(made, { node, ...wrapped(wraps) });
+    return tag(made, { node, ...wrapped(wraps) }, path);
   };
 
   const notePageNumbers = (node: Node, path: string) => {
@@ -297,7 +301,8 @@ export function raise(element: React.ReactElement): Raised {
           >
             {isColumn ? stack(withoutPadding(child), childPath, at(childPath), ZERO) : block(child, childPath, own, ZERO)}
           </Column>,
-          columnPayload
+          columnPayload,
+          isColumn && !cellsOf ? childPath : undefined
         ),
       };
     });
@@ -305,7 +310,8 @@ export function raise(element: React.ReactElement): Raised {
       <Row key={path} cells={columns.map((c) => Math.max(1, Math.round(c.share)))} padding={`${px(rowPad.top)} 0px ${px(rowPad.bottom)} 0px`} noStackMobile={node.props?.stackOnMobile === false || undefined} columnsBackgroundColor={own.style.backgroundColor as string | undefined} hideOnMobile={node.hidden?.mobile || undefined} hideOnDesktop={node.hidden?.desktop || undefined} {...band}>
         {columns.map((c) => c.element)}
       </Row>,
-      { ...(cellsOf ? {} : { node: bare(node) }), ...group, ...(hiddenOnDesktop.length ? { kept: hiddenOnDesktop } : {}) }
+      { ...(cellsOf ? {} : { node: bare(node) }), ...group, ...(hiddenOnDesktop.length ? { kept: hiddenOnDesktop } : {}) },
+      cellsOf ? undefined : path
     );
   };
 
@@ -435,14 +441,16 @@ export function raise(element: React.ReactElement): Raised {
           <Document {...common} documentSize={(root.props?.size as never) ?? "A4"} documentOrientation={(root.props?.orientation as never) ?? "portrait"}>
             {body}
           </Document>,
-          { node: bare(root) }
+          { node: bare(root) },
+          "root"
         )
       : tag(
           React.createElement(root.type === "Email" ? Email : Page, { ...common, ...(root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {}) }, body),
-          { node: bare(root) }
+          { node: bare(root) },
+          "root"
         );
-  if (root.type === "Document") return { element: raised, report, payloads, headers, footers };
-  return { element: raised, report, payloads };
+  if (root.type === "Document") return { element: raised, report, payloads, resolvedOf, headers, footers };
+  return { element: raised, report, payloads, resolvedOf };
 }
 
 /** A phone's column, about: what tells a percentage's width from its cap on a phone. */

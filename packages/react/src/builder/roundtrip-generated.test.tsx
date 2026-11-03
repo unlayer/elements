@@ -91,9 +91,10 @@ describe.each(["Email", "Page", "Document"] as Root[])("%s to the builder and ba
       const design = JSON.parse(JSON.stringify(toDesign(element(tree)).design)) as Design;
       const edits: Array<{ what: string; apply: () => void; allowed: (path: string) => boolean }> = [];
       for (const block of blocks(design)) {
-        const node = (block.values._elements as { node?: Node } | undefined)?.node;
         if (block.type === "menu" && block.values.menu?.items?.length) {
-          const at = node && find(before, (n) => n.type === "Menu" && JSON.stringify(n.props?.items) === JSON.stringify(node.props?.items));
+          // The Menu with the builder's items' words, in their order.
+          const words = JSON.stringify(block.values.menu.items.map((item: { text: string }) => item.text));
+          const at = find(before, (n) => n.type === "Menu" && JSON.stringify((n.props?.items as Array<{ text: string }> | undefined)?.map((item) => item.text)) === words);
           edits.push({ what: "a Menu item's words", apply: () => (block.values.menu.items[0].text = "edited"), allowed: (path) => !!at && path === `${at}.props.items[0].text` });
         }
         if (block.type === "social" && block.values.icons?.icons?.length) {

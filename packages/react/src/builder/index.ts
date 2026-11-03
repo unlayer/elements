@@ -5,12 +5,13 @@
  * the design (the builder keeps it, and shows no editor for it). Back from the builder, the template is those nodes
  * with the builder's changes applied; what was made in the builder comes from its values.
  */
-import type { Node } from "@unlayer-internal/elements-core";
+import type { Node, ResolvedNode } from "@unlayer-internal/elements-core";
 import React from "react";
 import { Document as LegacyDocument, renderToJson } from "../index";
 import { FIELDS } from "./fields";
 import { lower, type Design } from "./lower";
-import { PAYLOAD_KEY, written, type Payload } from "./payload";
+import { minimal } from "./minimal";
+import { PAYLOAD_KEY, type Payload } from "./payload";
 import { printTemplate, toElement } from "./print";
 import { raise } from "./raise";
 
@@ -25,11 +26,11 @@ export interface DesignResult {
 
 /** A template in the new components (an `<Email>`, a `<Page>` or a `<Document>`) as the builder's design JSON. */
 export function toDesign(element: React.ReactElement): DesignResult {
-  const { element: raised, report, payloads, headers, footers } = raise(element);
+  const { element: raised, report, payloads, resolvedOf, headers, footers } = raise(element);
   if (!raised) throw new Error(`[Elements] This template can't go to the builder:\n${report.join("\n")}`);
   const design = renderToJson(raised);
   if (headers && footers) printed(design as unknown as Design & DesignExtras, payloads.get(raised)!.node!, headers, footers, report);
-  keep(raised, design as unknown as Design & DesignExtras, payloads, headers ?? [], footers ?? []);
+  keep(raised, design as unknown as Design & DesignExtras, payloads, resolvedOf, headers ?? [], footers ?? []);
   return { design, report };
 }
 
@@ -105,16 +106,27 @@ function elements(children: unknown): React.ReactElement[] {
 }
 
 /**
- * Each item's node kept in its values, with the values written (to tell the builder's changes on the way back); the
- * builder's own data a node carries back (`compat.builder`) written again, where no value of the template's is.
+ * Each item's node kept in its values: only what the builder can't hold (minimal()); the builder's own data a node
+ * carries back (`compat.builder`) written again, where no value of the template's is.
  */
-function keep(raised: React.ReactElement, design: Design & DesignExtras, payloads: WeakMap<object, Payload>, headers: React.ReactElement[], footers: React.ReactElement[]) {
+function keep(raised: React.ReactElement, design: Design & DesignExtras, payloads: WeakMap<object, Payload>, resolvedOf: WeakMap<object, ResolvedNode>, headers: React.ReactElement[], footers: React.ReactElement[]) {
   const put = (kind: string, values: Record<string, unknown>, made: React.ReactElement) => {
     const payload = payloads.get(made);
     if (!payload) throw new Error("[Elements] toDesign: an item of the design has no template node");
     const builder = (payload.node?.compat?.builder ?? {}) as Record<string, unknown>;
     for (const [key, value] of Object.entries(builder)) if (!FIELDS[kind]?.[key]) values[key] = value;
-    values[PAYLOAD_KEY] = { ...payload, w: written(values) };
+    const kept = minimal(kind, values, payload, resolvedOf.get(made));
+    if (!kept) return;
+    // A Section's, a Grid's or a box's rows and blocks know it by a short key of the design's own.
+    if (kept.sec) kept.sec = { ...kept.sec, key: short(kept.sec.key) };
+    if (kept.grid) kept.grid = { ...kept.grid, key: short(kept.grid.key) };
+    if (kept.wrap) kept.wrap = kept.wrap.map((group) => ({ ...group, key: short(group.key) }));
+    values[PAYLOAD_KEY] = kept;
+  };
+  const keys = new Map<string, string>();
+  const short = (key: string) => {
+    if (!keys.has(key)) keys.set(key, (keys.size + 1).toString(36));
+    return keys.get(key)!;
   };
   const count = (what: string, made: unknown[], json: unknown[]) => {
     if (made.length !== json.length) throw new Error(`[Elements] toDesign: ${made.length} ${what} made, ${json.length} written`);
