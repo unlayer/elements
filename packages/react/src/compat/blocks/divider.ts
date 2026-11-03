@@ -6,7 +6,7 @@
  * up down a page of dividers.
  */
 import { contentSlotWidth } from "../../utils/image-sizing";
-import type { DesignBlock, Place, TreeNode } from "../lower";
+import { Unlowerable, type DesignBlock, type Place, type TreeNode } from "../lower";
 import { dividerLength } from "../quirks";
 import { px, sides, some } from "../values";
 
@@ -23,9 +23,11 @@ export function divider({ values }: DesignBlock, place: Place): TreeNode | undef
   if (lineWidth === undefined || !padding || (width !== undefined && width !== 0 && !/^\d*\.?\d+(px|%)?$/.test(String(width)))) return undefined;
   if (phonePadding !== undefined && !sides(phonePadding)) return undefined;
   const length = width === undefined || width === "100%" ? undefined : px(width) ?? String(width);
-  // A line longer than its place: legacy's table is that long, past its column; the new one is no longer than its place.
+  // A line longer than its place: legacy's table is that long and pushes its row past the email, which scrolls sideways
+  // with the row's other columns moved along; the new email's columns share their row's width, so even legacy's own
+  // divider among them draws otherwise (its neighbours squeezed). The email renders as today.
   const room = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
-  if (typeof length === "number" && length > room) return undefined;
+  if (typeof length === "number" && length > room) throw new Unlowerable("a divider longer than its column, whose row legacy draws past the email");
   const node: TreeNode = {
     type: "Divider",
     style: {

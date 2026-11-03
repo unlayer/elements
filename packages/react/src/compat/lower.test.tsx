@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Column, Document, Email, Heading, Page, Paragraph, Row, renderToJson } from "../index";
+import { Column, Divider, Document, Email, Heading, Page, Paragraph, Row, renderToJson } from "../index";
 import { withRenderScope } from "../utils/render-scope";
 import { lowerDesign, PAGE_WIDTH, type TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -72,6 +72,9 @@ describe("lowerDesign()", () => {
     expect(unlowered(<Email><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("background image");
     expect(unlowered(<Email><Row padding="0 10px 0 20px"><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("side padding");
     expect(unlowered(<Email><Row cells={[1, 1]}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("don't fit");
+    // A divider longer than its column (a 300px line in a third of the email): legacy's row runs past the email.
+    expect(unlowered(<Email><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={300} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toContain("divider longer than its column");
+    expect(unlowered(<Email><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={120} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toBeUndefined();
     expect(unlowered(<Email><Row values={{ _meta: { htmlClassNames: "promo" } } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("class names");
     expect(unlowered(<Email><Row hideOnMobile><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("phones");
     expect(unlowered(<Email><Row cells={[1, 1]}><Column backgroundColor="#eee"><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toContain("as tall as their row");
