@@ -386,3 +386,27 @@ describe("an edit the earlier adapter's reviews found lost", () => {
     ]);
   });
 });
+
+describe("an edit this adapter's review found lost", () => {
+  /** The design of a one-block template, and that block's values. */
+  const one = (element: React.ReactElement) => {
+    const design = designOf(element);
+    return { design, values: design.body.rows[0].columns[0].contents[0].values as Values };
+  };
+
+  it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
+    const { design, values } = one(
+      <Email>
+        <Paragraph>Hello</Paragraph>
+      </Email>
+    );
+    values.text = '<p style="margin:100px 0">First</p><p style="margin:100px 0">Second</p><p>Third</p>';
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    expect(tree(back.element).children).toEqual([
+      { type: "Paragraph", style: { padding: { top: 100, right: 0, bottom: 0, left: 0 } }, children: ["First"] },
+      { type: "Paragraph", style: { padding: { top: 100, right: 0, bottom: 0, left: 0 } }, children: ["Second"] },
+      { type: "Paragraph", style: { padding: { top: 100, right: 0, bottom: 0, left: 0 } }, children: ["Third"] },
+    ]);
+  });
+});

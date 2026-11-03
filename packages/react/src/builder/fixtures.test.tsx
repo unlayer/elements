@@ -82,6 +82,28 @@ describe("designs the real builder saved", () => {
   });
 });
 
+describe("text as the builder's editors write it", () => {
+  // paragraphs.builder-editor: a text block as the builder's editor writes one (each `<p>` with its margins of 0, its
+  // direction, its alignment, an empty line's `<br>`, an indent), and one as its older editor wrote them (each `<p>`
+  // with its line height and no margins: the builder's export resets them, `p { margin: 0 }`).
+  const padding = (top: number, bottom: number, left = 10) => ({ top, right: 10, bottom, left });
+  const line = (children: Node["children"], top: number, bottom: number, style: Record<string, unknown> = {}, left = 10): Node => ({ type: "Paragraph", style: { fontSize: 14, lineHeight: 1.4, ...style, padding: padding(top, bottom, left) } as never, children });
+
+  it("reads each paragraph as a Paragraph, spaced as the builder spaces them: by their margins, none unless their own", () => {
+    const back = fromDesign(fixture("paragraphs.builder-editor"));
+    expect(back.report).toEqual([]);
+    expect(tree(back.element).children).toEqual([
+      line(["First line"], 10, 0),
+      line([{ type: "Span", style: { fontWeight: 700 }, children: ["Second"] }, " line"], 0, 0, { textAlign: "center" }),
+      line(["\u200b"], 0, 0),
+      line(["Indented"], 0, 10, {}, 50),
+      line(["One"], 10, 0),
+      line(["\u00a0"], 0, 0),
+      line(["Two"], 0, 10),
+    ]);
+  });
+});
+
 describe("malformed design JSON", () => {
   /** A seeded random number generator (mulberry32). */
   const random = (seed: number) => {

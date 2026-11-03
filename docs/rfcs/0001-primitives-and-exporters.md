@@ -546,8 +546,9 @@ design holds no Elements data (decision 12).
   and `alignItems`, as the codemod does for today's components. A value equal to what the node would take
   anyway (its defaults, the body's text) is left out. Values are read as compat reads today's designs (what
   legacy, and so the builder, draws), sharing its value parsers and its run parser (which, read for the
-  builder, also takes what `toDesign()` writes in text); text with what no run holds, and any builder `html`
-  block, is an `Html` block. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`,
+  builder, also takes what `toDesign()` writes in text); each `<p>` in text is a Paragraph of its own, with
+  no margins but those its own style gives it (the builder's export resets a paragraph's, `p { margin: 0 }`);
+  text with what no run holds, and any builder `html` block, is an `Html` block. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`,
   `"document"` a `Document`); without one, a design with a header, a footer or a page break is a
   `Document`, any other an `Email`. Malformed JSON doesn't throw: own-key lookups only, every value checked
   against its component, what can't be read left out and said in `report`; the printed JSX never holds a

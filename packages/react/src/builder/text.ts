@@ -1,9 +1,9 @@
 /**
- * A text tool's HTML read back as blocks of runs, as legacy (and so the builder) draws it. Runs are compat's run
- * parser's (it fails closed), with merge tags as MergeTags. A `<p>` without margins of 0 has the browser's (1em above
- * and below, between two of them once): each is a block of its own, its margins its padding. A `<ul>` or `<ol>` is a
- * List, its padding its indent and its items' margin its gap. What isn't read exactly is said in `left`, and the
- * block is kept as its markup.
+ * A text tool's HTML read back as blocks of runs, as the builder draws it. Runs are compat's run parser's (it fails
+ * closed), with merge tags as MergeTags. A `<p>` is a block of its own: the builder's export resets a paragraph's
+ * margins (`p { margin: 0 }`, and its editor writes `margin: 0px` on each), so one has none unless its own style gives
+ * it some, which are its padding. A `<ul>` or `<ol>` is a List, its padding its indent and its items' margin its gap.
+ * What isn't read exactly is said in `left`, and the block is kept as its markup.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
 import { parseRuns, type Run } from "../compat/runs";
@@ -12,14 +12,48 @@ import { px } from "../compat/values";
 export interface TextPart {
   /** A Paragraph's runs, or a List. */
   node: Node;
-  /** The browser's margin above and below it (a `<p>`'s, a list's), in ems. */
-  margin: number;
+  /** Its margins above and below, in px. */
+  margin: { top: number; bottom: number };
+  /** A paragraph's indent (its `padding-inline-start`), in px. */
+  indent?: number;
 }
 
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*?)(\/?)\s*>/g;
 const style = (attrs: string) => /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs)?.slice(1).find((v) => v !== undefined) ?? "";
 const declarations = (css: string) => Object.fromEntries(css.split(";").map((d) => d.split(":")).filter((p) => p.length >= 2 && p[0].trim()).map(([name, ...rest]) => [name.trim().toLowerCase(), rest.join(":").trim()]));
-const zero = (value: string | undefined) => value !== undefined && /^0(px)?$/.test(value);
+/** The attributes of a tag (their names), but its style. */
+const attributeNames = (attrs: string) => [...attrs.matchAll(/([a-zA-Z][\w-]*)\s*=/g)].map((m) => m[1].toLowerCase()).filter((name) => name !== "style");
+
+/** A margin's length in px (0, px, or ems of the text's size); undefined for anything else. */
+const length = (value: string, fontSize: number): number | undefined => {
+  const em = /^(\d*\.?\d+)em$/.exec(value.trim());
+  if (em) return Number(em[1]) * fontSize;
+  const read = px(value);
+  return read !== undefined && read >= 0 ? read : undefined;
+};
+
+/** The margins above and below that a block's declarations give it (`given` where they don't), or null where one isn't read (a side margin, a length it doesn't take). */
+function margins(d: Record<string, string>, given: number, fontSize: number): { top: number; bottom: number } | null {
+  const out = { top: given, bottom: given };
+  for (const [name, value] of Object.entries(d)) {
+    if (!name.startsWith("margin")) continue;
+    const values = value.split(/\s+/).map((v) => length(v, fontSize));
+    if (values.some((v) => v === undefined) || !values.length) return null;
+    const [a, b = a, c = a, e = b] = values as number[];
+    if (name === "margin") {
+      if (values.length > 4 || b !== 0 || e !== 0) return null;
+      out.top = a;
+      out.bottom = c;
+    } else if (name === "margin-block") {
+      if (values.length > 2) return null;
+      out.top = a;
+      out.bottom = b;
+    } else if (name === "margin-top" || name === "margin-block-start") out.top = a;
+    else if (name === "margin-bottom" || name === "margin-block-end") out.bottom = a;
+    else if (values.length > 1 || a !== 0) return null;
+  }
+  return out;
+}
 
 /** Text with merge tags (`{{name}}`) as MergeTags; a Document's page tokens as PageNumbers, where `pages`. */
 export function mergeTags(runs: Run[], pages: boolean): Child[] {
@@ -39,26 +73,24 @@ export function mergeTags(runs: Run[], pages: boolean): Child[] {
   });
 }
 
-/** Whether the HTML has blocks of its own (a `<p>` with the browser's margins, a list) rather than lines. */
-const blocky = (html: string) => /<\s*(ul|ol)\b/i.test(html) || [...html.matchAll(/<\s*p\b([^>]*)>/gi)].some((m) => !margins0(m[1]));
-const margins0 = (attrs: string) => {
-  const d = declarations(style(attrs));
-  return zero(d.margin) || ((zero(d["margin-top"]) || zero(d["margin-block-start"])) && (zero(d["margin-bottom"]) || zero(d["margin-block-end"])));
-};
+/** Whether the HTML has blocks of its own (a `<p>`, a list) rather than lines. */
+const blocky = (html: string) => /<\s*(p|ul|ol)\b/i.test(html);
+const P_STYLES = new Set(["line-height", "text-align", "padding-inline-start"]);
 
 /** The HTML as parts, each a block, and what isn't read. */
-export function readText(html: string, { weight = 400, pages = false, links = true } = {}): { parts: TextPart[]; left: string[] } {
+export function readText(html: string, { weight = 400, pages = false, links = true, fontSize = 16 } = {}): { parts: TextPart[]; left: string[] } {
   const left: string[] = [];
   const runs = (inner: string): Child[] => {
     const read = parseRuns(inner, { weight, links, builder: true });
     left.push(...read.left);
     return mergeTags(read.children, pages);
   };
-  if (!blocky(html)) return { parts: [{ node: { type: "Paragraph", children: runs(html) }, margin: 0 }], left };
+  const NONE = { top: 0, bottom: 0 };
+  if (!blocky(html)) return { parts: [{ node: { type: "Paragraph", children: runs(html) }, margin: NONE }], left };
   const parts: TextPart[] = [];
   let inline = "";
   const flush = () => {
-    if (inline.trim()) parts.push({ node: { type: "Paragraph", children: runs(inline) }, margin: 0 });
+    if (inline.trim()) parts.push({ node: { type: "Paragraph", children: runs(inline) }, margin: NONE });
     inline = "";
   };
   // The top level: `<p>`s and lists as blocks, what's between them as lines.
@@ -76,27 +108,39 @@ export function readText(html: string, { weight = 400, pages = false, links = tr
     const inner = html.slice(match.index! + match[0].length, end.start);
     flush();
     if (tag === "p") {
-      const d = declarations(style(match[3]));
-      const own: Record<string, Json> = {};
-      if (d["line-height"] !== undefined) {
-        const height = /^(\d*\.?\d+)%$/.exec(d["line-height"]);
-        if (height) own.lineHeight = Number(height[1]) / 100;
-        else if (px(d["line-height"]) !== undefined) own.lineHeight = `${px(d["line-height"])}px`;
-        else left.push(`a paragraph's line height ${d["line-height"]}`);
-      }
-      if (d["text-align"] !== undefined) own.textAlign = d["text-align"];
-      const other = Object.keys(d).filter((name) => !["line-height", "text-align", "margin", "margin-top", "margin-bottom", "margin-block-start", "margin-block-end"].includes(name));
-      if (other.length || /\b(class|id|dir)\s*=/.test(match[3])) left.push("a paragraph with attributes of its own");
-      parts.push({ node: { type: "Paragraph", ...(Object.keys(own).length ? { style: own } : {}), children: runs(inner) }, margin: margins0(match[3]) ? 0 : 1 });
-    } else {
-      const list = readList(tag, match[3], inner, runs, left);
-      parts.push({ node: list.node, margin: list.margin });
-    }
+      const part = readParagraph(match[3], inner, runs, fontSize, left);
+      if (part) parts.push(part);
+    } else parts.push(readList(tag, match[3], inner, runs, fontSize, left));
     at = end.end;
   }
   inline += html.slice(at);
   flush();
   return { parts, left };
+}
+
+/** A `<p>` as a Paragraph: its line height, alignment, direction and indent its own, its margins none but its style's. */
+function readParagraph(attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart | undefined {
+  const d = declarations(style(attrs));
+  const own: Record<string, Json> = {};
+  if (d["line-height"] !== undefined) {
+    const height = /^(\d*\.?\d+)%$/.exec(d["line-height"]);
+    if (height) own.lineHeight = Number(height[1]) / 100;
+    else if (px(d["line-height"]) !== undefined) own.lineHeight = `${px(d["line-height"])}px`;
+    else left.push(`a paragraph's line height ${d["line-height"]}`);
+  }
+  if (d["text-align"] !== undefined) own.textAlign = d["text-align"];
+  const indent = d["padding-inline-start"] === undefined ? 0 : length(d["padding-inline-start"], fontSize);
+  if (indent === undefined) left.push(`a paragraph's indent ${d["padding-inline-start"]}`);
+  const margin = margins(d, 0, fontSize);
+  if (!margin) left.push("a paragraph's margins");
+  const dir = /\bdir\s*=\s*"?(ltr|rtl|auto)\b/i.exec(attrs)?.[1].toLowerCase();
+  const other = Object.keys(d).filter((name) => !P_STYLES.has(name) && !name.startsWith("margin"));
+  if (other.length || attributeNames(attrs).some((name) => name !== "dir") || (/\bdir\s*=/.test(attrs) && !dir)) left.push("a paragraph with attributes of its own");
+  const children = runs(inner);
+  // An empty paragraph is nothing; one with only a line break, a line of its height.
+  if (!children.length && !/<\s*br\b/i.test(inner)) return undefined;
+  const node: Node = { type: "Paragraph", ...(dir ? { props: { dir } } : {}), ...(Object.keys(own).length ? { style: own } : {}), children: children.length ? children : ["\u200b"] };
+  return { node, margin: margin ?? { top: 0, bottom: 0 }, ...(indent ? { indent } : {}) };
 }
 
 /** Where the element opened before `from` closes (nested ones of its kind skipped), or null. */
@@ -111,8 +155,8 @@ function closing(html: string, tag: string, from: number): { start: number; end:
   return null;
 }
 
-/** A `<ul>` or `<ol>` as a List: its padding its indent (the browser's 40px), its items' margin above its gap. */
-function readList(tag: string, attrs: string, inner: string, runs: (html: string) => Child[], left: string[]): { node: Node; margin: number } {
+/** A `<ul>` or `<ol>` as a List: its padding its indent (the browser's 40px), its items' margin above its gap, its margins the browser's but where its style says otherwise. */
+function readList(tag: string, attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart {
   const d = declarations(style(attrs));
   const indent = px(d["padding-left"] ?? d.padding ?? "40px");
   if (indent === undefined) left.push(`a list's indent ${d["padding-left"]}`);
@@ -142,7 +186,7 @@ function readList(tag: string, attrs: string, inner: string, runs: (html: string
         rest = "";
         break;
       }
-      children.push(readList(tag, nested[2], rest.slice(nested.index + nested[0].length, close.start), runs, left).node);
+      children.push(readList(tag, nested[2], rest.slice(nested.index + nested[0].length, close.start), runs, fontSize, left).node);
       rest = rest.slice(close.end);
     }
     if (rest) children.push(...runs(rest));
@@ -156,5 +200,8 @@ function readList(tag: string, attrs: string, inner: string, runs: (html: string
   if (tag === "ol") props.type = "number";
   if (tag === "ol" && start && Number(start) !== 1) props.start = Number(start);
   const node: Node = { type: "List", ...(Object.keys(props).length ? { props } : {}), ...(Object.keys(own).length ? { style: own } : {}), children: items };
-  return { node, margin: zero(d.margin) || (zero(d["margin-top"]) && zero(d["margin-bottom"])) ? 0 : 1 };
+  // A list has the browser's margins (1em above and below) but where its style says otherwise.
+  const margin = margins(d, fontSize, fontSize);
+  if (!margin) left.push("a list's margins");
+  return { node, margin: margin ?? { top: fontSize, bottom: fontSize } };
 }
