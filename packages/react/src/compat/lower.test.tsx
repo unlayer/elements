@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { Column, Email, Heading, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
-import { lowerDesign } from "./lower";
-import { rowPaddingInEmail } from "./quirks";
-import { renderWithNewEngine } from "./shadow";
+import { Column, Document, Email, Heading, Page, Paragraph, Row, renderToJson } from "../index";
+import { withRenderScope } from "../utils/render-scope";
+import { lowerDesign, PAGE_WIDTH, type TreeNode } from "./lower";
+import { lowerTemplate, type Lowered } from "./template";
 
 const template = (
   <Email backgroundColor="#eeeeee" contentWidth="560px" textColor="#222222" previewText="Hi">
@@ -11,11 +11,14 @@ const template = (
         <Heading>Left</Heading>
       </Column>
       <Column>
-        <Paragraph hideOnMobile>Right</Paragraph>
+        <Paragraph>Right</Paragraph>
       </Column>
     </Row>
   </Email>
 );
+
+const lowered = (element: React.ReactElement) => withRenderScope(() => lowerTemplate(element, undefined, "renderToHtml")) as Lowered | { unlowered: string };
+const tree = (element: React.ReactElement) => (lowered(element) as Lowered).tree.root;
 
 describe("lowerDesign()", () => {
   it("makes the body the Email, a row a Section around a Row, its columns' shares percentages, a block what block() makes", () => {
@@ -27,26 +30,45 @@ describe("lowerDesign()", () => {
     const [left, right] = section.children[0].children;
     expect([left.style.width, right.style.width]).toEqual(["33.3333%", "66.6667%"]);
     expect(left.style.padding).toEqual({ top: 8, right: 8, bottom: 8, left: 8 });
-    expect(right.children[0]).toEqual({ type: "Raw", props: { html: "text" }, hidden: { mobile: true } });
+    expect(right.children[0]).toEqual({ type: "Raw", props: { html: "text" } });
     expect(blocks).toEqual(["heading", "text"]);
   });
-});
 
-describe("quirks", () => {
-  it("leaves a row's sides out in an email, where legacy writes them outside the content", () => {
-    expect(rowPaddingInEmail({ top: 20, right: 40, bottom: 10, left: 40 })).toEqual({ top: 20, right: 0, bottom: 10, left: 0 });
+  it("draws a page as legacy lays one out: its rows bands of the window in its 8px margin, their columns at the content width", () => {
+    const root = tree(<Page contentWidth="600px"><Row padding="20px 40px" backgroundColor="#fafafa"><Column><Paragraph>A</Paragraph></Column></Row></Page>);
+    expect(root).toMatchObject({ type: "Page", props: { width: PAGE_WIDTH } });
+    const [margin] = root.children as TreeNode[];
+    expect(margin.style).toEqual({ padding: { top: 8, right: 8, bottom: 8, left: 8 } });
+    const [band] = margin.children as TreeNode[];
+    expect(band.style).toEqual({ backgroundColor: "#fafafa", padding: { top: 20, right: 40, bottom: 20, left: 40 }, alignItems: "center" });
+    expect((band.children as TreeNode[])[0].style).toEqual({ width: "100%", maxWidth: 600 });
   });
-});
 
-describe("renderWithNewEngine()", () => {
-  it("renders each block as legacy writes it, in its place, and the plain text legacy writes", () => {
-    const { html, text } = renderWithNewEngine(template);
-    const legacy = renderToHtml(template);
-    for (const id of ["u_content_heading_1", "u_content_paragraph_1"]) {
-      expect(html).toContain(`id="${id}"`);
-      expect(legacy).toContain(`id="${id}"`);
-    }
-    expect(html.indexOf(">Left<")).toBeLessThan(html.indexOf(">Right<"));
-    expect(text).toBe(renderToPlainText(template));
+  it("draws a line every column of a row has along its top or bottom as the row's (legacy's columns are as tall as their row)", () => {
+    const line = { borderBottomWidth: "1px", borderBottomStyle: "solid", borderBottomColor: "#ddd" };
+    const root = tree(<Email><Row cells={[1, 1]}><Column border={line}><Paragraph>A</Paragraph></Column><Column border={line}><Paragraph>B</Paragraph></Column></Row></Email>);
+    const row = ((root.children as TreeNode[])[0].children as TreeNode[])[0];
+    expect(row.style?.border).toEqual({ bottom: { width: 1, style: "solid", color: "#ddd" } });
+    expect(row.mobile).toEqual({ border: { bottom: "none" } });
+    expect((row.children as TreeNode[]).map((c) => [c.style?.border, c.mobile?.border])).toEqual([[undefined, { bottom: { width: 1, style: "solid", color: "#ddd" } }], [undefined, { bottom: { width: 1, style: "solid", color: "#ddd" } }]]);
+  });
+
+  it("never stacks a printed document's columns, its text 15px", () => {
+    const root = tree(<Document><Row cells={[1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></Row></Document>);
+    expect(root.style?.fontSize).toBe(15);
+    const row = ((((root.children as TreeNode[])[0].children as TreeNode[])[0].children as TreeNode[])[0].children as TreeNode[])[0];
+    expect(row).toMatchObject({ type: "Row", props: { stackOnMobile: false } });
+  });
+
+  it("says what in a template's frame it can't draw as legacy does", () => {
+    const unlowered = (element: React.ReactElement) => (lowered(element) as { unlowered?: string }).unlowered;
+    expect(unlowered(<Email><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("background image");
+    expect(unlowered(<Email><Row padding="0 10px 0 20px"><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("side padding");
+    expect(unlowered(<Email><Row cells={[1, 1]}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("don't fit");
+    expect(unlowered(<Email><Row values={{ _meta: { htmlClassNames: "promo" } } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("class names");
+    expect(unlowered(<Email><Row hideOnMobile><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("phones");
+    expect(unlowered(<Email><Row cells={[1, 1]}><Column backgroundColor="#eee"><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toContain("as tall as their row");
+    expect(unlowered(<Email>{"Loose"}<Row><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("among the rows");
+    expect(unlowered(<Email previewText="Hi <%name%>"><Row><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("<%name%>");
   });
 });

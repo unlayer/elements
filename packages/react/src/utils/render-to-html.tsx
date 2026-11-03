@@ -27,7 +27,7 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
 };
 
 /** A template's direction follows its root props; explicit renderer options still win. */
-function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
+export function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
   const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
   const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
   return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
@@ -37,7 +37,7 @@ function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConf
  * Resolve the display mode for a tree: wrapper component type first
  * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
  */
-function resolveDisplayMode(
+export function resolveDisplayMode(
   element: React.ReactElement,
   mergedConfig: Partial<UnlayerConfig>
 ): RenderMode {
@@ -58,7 +58,7 @@ function resolveDisplayMode(
  *   Server Components)
  * - Uses `renderToStaticMarkup` — no React hydration markers
  */
-function renderBody(
+export function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>,
   name = "renderToHtml"
@@ -151,6 +151,11 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
+  return withRenderScope(() => htmlDocument(element, options));
+}
+
+/** renderToHtml() as today's components render it: what the new engine's rendering of the same template is compared with. */
+export function legacyRenderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   return withRenderScope(() => htmlDocument(element, options));
 }
 

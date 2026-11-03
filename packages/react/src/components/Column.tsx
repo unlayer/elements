@@ -9,7 +9,7 @@ import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
-import { blockHtml } from "../utils/block-html";
+import { blockHtml, nextBlock } from "../utils/block-html";
 
 /** Unlayer's default content-block padding when a block sets none. */
 
@@ -139,6 +139,9 @@ export const Column: React.FC<ColumnProps> = (props) => {
                 "component"
               ).toLowerCase();
             const contentHtmlId = nextHtmlId(_config, `u_content_${componentName}`);
+            // A render recording its blocks' HTML writes only those it asks for (see block-html.ts).
+            const slot = nextBlock();
+            if (slot && !slot.wanted) return;
             // Thread the column/body context so width-aware item exporters (Image)
             // can size against the real available width (contentWidth × column
             // fraction) instead of the fallback. Mirrors the editor, which passes
@@ -169,7 +172,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
               if (
                 !componentHTML &&
                 ComponentType?.[UNLAYER_CONFIG_KEY]?.omitEmptyOutput
-              ) return;
+              ) return blockHtml(slot?.n, "");
 
               // Resolve the block's OWN containerPadding directly from props.
               // `containerPadding` is a universal base-content prop: it passes
@@ -220,7 +223,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
                 },
               };
               const block = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
-              blockHtml(contentValues._meta.htmlID, block);
+              blockHtml(slot?.n, block);
               innerHTML += block;
             } else if (rendered) {
               const name = (child.type as any)?.displayName || (child.type as any)?.name || "Unknown";
