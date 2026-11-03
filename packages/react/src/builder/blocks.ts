@@ -8,11 +8,23 @@
 import { Button as ButtonDefinition, Heading as HeadingDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
+import { contentSlotWidth } from "../utils/image-sizing";
 import { parseRuns } from "../compat/runs";
 import { ALIGN, color, fontWeight, font, letterSpacing, lineHeight as legacyLineHeight, px, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden, type HiddenParts } from "./hide";
 import { mergeTags, readText } from "./text";
 import { readBorder } from "./values";
+
+/** Where a block is, as today's image writer works out its room: the body, its row and column, the column's share. */
+export interface Slot {
+  body: Values;
+  row: Values;
+  column: Values;
+  cells: number[];
+  index: number;
+  /** Whether the row's columns stack on phones. */
+  stacks: boolean;
+}
 
 /** What a block is read in: the root's text styles (what a block inherits) and where to say what's left out. */
 export interface Context {
@@ -177,7 +189,7 @@ function button(values: Values, context: Context): Node[] {
 
 const phonePadding = (values: Values, key: string) => defined({ padding: sides(obj(obj(values._override).mobile)[key]) });
 
-function image(values: Values, context: Context): Node[] {
+function image(values: Values, context: Context, slot?: Slot): Node[] {
   const src = obj(values.src);
   const url = str(src.url);
   if (!url) {
@@ -186,7 +198,7 @@ function image(values: Values, context: Context): Node[] {
   }
   const hidden = readHidden("image", "Image", values, context.say);
   const asset = typeof src.width === "number" && src.width > 0 && typeof src.height === "number" && src.height > 0 ? { src: url, width: src.width, height: src.height } : url;
-  const style = defined({ ...imageWidth(src), ...hidden.style });
+  const style = defined({ ...imageWidth(src), ...phoneCap(src, values, slot), ...hidden.style });
   const phone = obj(obj(obj(values._override).mobile).src);
   const mobile = defined({ ...(Object.keys(phone).length ? imageWidth({ ...src, ...phone }) : {}), ...hidden.mobile });
   const alt = str(values.altText) ?? "";
@@ -195,6 +207,19 @@ function image(values: Values, context: Context): Node[] {
   const linked = href ? make("Link", { props: { href }, children: [node] }) : node;
   const withId = givenId(values) ? { ...linked, id: givenId(values) } : linked;
   return [placed(withId, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
+}
+
+/**
+ * Where a row's columns stack, today's image writer keeps an image with a share of its place no wider on phones than
+ * that share of its place on desktop (its maximum is in px): the template's maximum, so it's no wider there either.
+ */
+function phoneCap(src: Values, values: Values, slot: Slot | undefined): Record<string, Json> {
+  const share = typeof src.maxWidth === "string" && /^\s*\d*\.?\d+%\s*$/.test(src.maxWidth) ? parseFloat(src.maxWidth) : undefined;
+  if (src.autoWidth !== false || share === undefined || !slot || slot.cells.length < 2 || !slot.stacks) return {};
+  const border = obj(values.imageBorder);
+  const borders = (px(border.borderLeftWidth) ?? 0) + (px(border.borderRightWidth) ?? 0);
+  const room = contentSlotWidth({ bodyValues: slot.body, rowValues: slot.row, rowCells: slot.cells, columnIndex: slot.index, columnValues: slot.column, containerPadding: values.containerPadding ?? "10px" }) - borders;
+  return room > 0 ? { maxWidth: Math.round(((room * share) / 100) * 100) / 100 } : {};
 }
 
 /** An image's width: none where it takes its own size, else its share of its place. */
@@ -279,7 +304,7 @@ function html(values: Values, context: Context): Node[] {
 }
 
 /** Each tool's reader. */
-const READERS = new Map<string, (values: Values, context: Context) => Node[]>([
+const READERS = new Map<string, (values: Values, context: Context, slot?: Slot) => Node[]>([
   ["text", (values, context) => text("text", values, context)],
   ["paragraph", (values, context) => text("text", values, context)],
   ["heading", (values, context) => text("heading", values, context)],
@@ -307,11 +332,11 @@ const DEFAULTS = new Map<string, Values>([
 ]);
 
 /** A builder block as nodes: its component, in a Column for its place where it needs one; none for a tool Elements has no component for. */
-export function readBlock(type: unknown, values: Values, context: Context): Node[] {
+export function readBlock(type: unknown, values: Values, context: Context, slot?: Slot): Node[] {
   const read = typeof type === "string" ? READERS.get(type) : undefined;
   if (!read) {
     context.say(`a ${typeof type === "string" ? type : "block"} of the builder's has no component in Elements: left out`);
     return [];
   }
-  return read({ ...DEFAULTS.get(type as string), ...values }, context);
+  return read({ ...DEFAULTS.get(type as string), ...values }, context, slot);
 }

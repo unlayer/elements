@@ -122,7 +122,8 @@ export function raise(element: React.ReactElement): Raised {
     const rowPad = add(padding(node), outer);
     const all = childrenOf(node, path);
     const n = all.length;
-    if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "style.backgroundColor", "style.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
+    // (A Row's phone border is its columns' phone border, which they have of their own.)
+    if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "mobile.gap", "style.backgroundColor", "style.border", "mobile.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
     const stacks = node.props?.stackOnMobile !== false;
     const rowBorder = (own.style.border as Record<string, Json> | undefined) ?? {};
     const columns = all.map(({ child, path: childPath }, i) => {

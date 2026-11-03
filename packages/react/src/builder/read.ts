@@ -41,7 +41,7 @@ export function readDesign(design: unknown, displayMode: DisplayMode | undefined
     say: (message) => report.push(`${where}: ${message}`),
   });
   const children: Child[] = [];
-  const place = (list: unknown[], part: string) => list.flatMap((row, r) => readRow(obj(row), `${part}[${r}]`, { context, document: mode === "document", part: part !== "rows" }));
+  const place = (list: unknown[], part: string) => list.flatMap((row, r) => readRow(obj(row), `${part}[${r}]`, { context, body: values, document: mode === "document", part: part !== "rows" }));
   if (mode === "document") {
     const header = place(headers, "headers");
     if (header.length) children.push({ type: "PageHeader", children: header.filter((c) => c.type !== "PageBreak") });

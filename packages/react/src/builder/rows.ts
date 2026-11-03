@@ -9,7 +9,7 @@ import type { Json, Node } from "@unlayer-internal/elements-core";
 import { ColumnDefaults, RowDefaults } from "@unlayer/exporters";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, px, sides, some, type Sides, type Values } from "../compat/values";
-import { readBlock, type Context } from "./blocks";
+import { readBlock, type Context, type Slot } from "./blocks";
 import { readHidden } from "./hide";
 import { readBorder } from "./values";
 
@@ -24,6 +24,8 @@ const BOX = ["backgroundColor", "border", "borderRadius", "width", "maxWidth"];
 
 export interface Where {
   context(where: string): Context;
+  /** The body's values (its content width, which an image's place is a share of). */
+  body: Values;
   /** In a Document: page breaks are its. */
   document: boolean;
   /** In a Document's header or footer, which hold no Section. */
@@ -31,7 +33,7 @@ export interface Where {
 }
 
 /** A column's blocks, page breaks among them where it's a Document's. */
-function blocksOf(column: Values, where: string, at: Where): Node[] {
+function blocksOf(column: Values, where: string, at: Where, slot: Omit<Slot, "column">): Node[] {
   return arr(column.contents).flatMap((content, i) => {
     const path = `${where}.contents[${i}]`;
     const { type, values } = obj(content);
@@ -40,7 +42,7 @@ function blocksOf(column: Values, where: string, at: Where): Node[] {
       at.context(path).say("a page break is a Document's, between its pages: left out");
       return [];
     }
-    return readBlock(type, obj(values), at.context(path));
+    return readBlock(type, obj(values), at.context(path), { ...slot, column: obj(column.values) });
   });
 }
 
@@ -88,6 +90,37 @@ function columnOf(columnValues: Values, children: Node[], share: string | undefi
   };
 }
 
+/**
+ * What the builder draws as tall as its row, a Row's: its columns are stretched to the row's height, so a background
+ * every column has, and a line along the top or the bottom of each, are one across the row (the new email's columns
+ * end with their content), taken off the columns. Where the columns stack on phones, each draws the lines again
+ * there, as the builder's do, and the Row none (as compat lowers today's rows).
+ */
+function stretched(columns: Node[], stacks: boolean): { style: Record<string, Json>; mobile?: Record<string, Json> } {
+  if (columns.length < 2) return { style: {} };
+  const style = (column: Node) => (column.style ?? {}) as Record<string, any>;
+  const same = (values: unknown[]) => values[0] !== undefined && values.every((value) => JSON.stringify(value) === JSON.stringify(values[0]));
+  const out: Record<string, Json> = {};
+  const backgrounds = columns.map((column) => style(column).backgroundColor);
+  if (same(backgrounds) && columns.every((column) => style(column).borderRadius === undefined)) out.backgroundColor = backgrounds[0];
+  const lines: Record<string, Json> = {};
+  for (const side of ["top", "bottom"] as const) {
+    const each = columns.map((column) => style(column).border?.[side]);
+    if (same(each)) lines[side] = each[0];
+  }
+  if (!out.backgroundColor && !Object.keys(lines).length) return { style: {} };
+  for (const column of columns) {
+    const { backgroundColor, border, ...rest } = style(column);
+    const own = Object.fromEntries(Object.entries(border ?? {}).filter(([side]) => !(side in lines)));
+    const kept = { ...rest, ...(out.backgroundColor === undefined && backgroundColor !== undefined ? { backgroundColor } : {}), ...(Object.keys(own).length ? { border: own } : {}) };
+    if (Object.keys(kept).length) column.style = kept as Record<string, Json>;
+    else delete column.style;
+    if (stacks && Object.keys(lines).length && !column.mobile?.border) column.mobile = { ...column.mobile, border: { ...own, ...lines } as Json };
+  }
+  if (!Object.keys(lines).length) return { style: out };
+  return { style: { ...out, border: lines }, ...(stacks ? { mobile: { border: Object.fromEntries(Object.keys(lines).map((side) => [side, "none"])) } } : {}) };
+}
+
 export function readRow(row: Values, where: string, at: Where): Node[] {
   // A value an item doesn't have is its tool's default, as the builder gives it.
   const values = { ...RowDefaults, ...obj(row.values) } as Values;
@@ -105,7 +138,9 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
   const band = color(values.backgroundColor) !== undefined || sectionBorder !== undefined;
   const padding = sides(values.padding) ?? ZERO;
 
-  const contents = columns.map((column, c) => blocksOf(column, `${where}.columns[${c}]`, at));
+  const cells = arr(row.cells).map((cell) => (typeof cell === "number" && cell > 0 ? cell : 0));
+  const stacks = values.noStackMobile !== true && obj(obj(values._override).mobile).noStackMobile !== true;
+  const contents = columns.map((column, c) => blocksOf(column, `${where}.columns[${c}]`, at, { body: at.body, row: values, cells: cells.length === columns.length ? cells : columns.map(() => 1), index: c, stacks }));
   if (layout && contents.some((blocks) => blocks.some((node) => node.type === "PageBreak"))) {
     say("a page break in a column beside others: a page break is the Document's, between its pages: left out");
     contents.forEach((blocks, c) => (contents[c] = blocks.filter((node) => node.type !== "PageBreak")));
@@ -114,20 +149,21 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
   /** The row's content: a Row of its columns, a box, or its blocks with its space. */
   const content = (blocks: Node[][]): Node[] => {
     if (layout) {
-      const cells = arr(row.cells).map((cell) => (typeof cell === "number" && cell > 0 ? cell : 0));
       const total = cells.reduce((sum, cell) => sum + cell, 0);
       const shares = columns.length > 1 && total > 0 && cells.length === columns.length;
       if (columns.length > 1 && !shares) say("its columns' widths can't be read: they share the row equally");
       const id = givenId(values);
-      const stacks = values.noStackMobile !== true && obj(obj(values._override).mobile).noStackMobile !== true;
+      const children = columns.map((column, c) => columnOf(obj(column.values), blocks[c], shares ? `${Math.round((cells[c] / total) * 10000) / 100}%` : undefined, say));
+      const row = stretched(children, stacks);
+      const mobile = { ...rowHidden.mobile, ...row.mobile };
       return [
         {
           type: "Row",
           ...(id && !band ? { id } : {}),
           ...(stacks ? {} : { props: { stackOnMobile: false } }),
-          style: defined({ ...rowStyle, padding: band ? undefined : some(padding) }),
-          ...(Object.keys(rowHidden.mobile).length ? { mobile: rowHidden.mobile } : {}),
-          children: columns.map((column, c) => columnOf(obj(column.values), blocks[c], shares ? `${Math.round((cells[c] / total) * 10000) / 100}%` : undefined, say)),
+          style: defined({ ...rowStyle, ...row.style, padding: band ? undefined : some(padding) }),
+          ...(Object.keys(mobile).length ? { mobile } : {}),
+          children,
         },
       ];
     }
