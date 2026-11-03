@@ -44,9 +44,5 @@ export const LumaEventInvite = compare({ main: <MainLuma />, next: <luma.LumaEve
 export const WarbyOrderShipped = compare({ main: <MainWarby />, next: <warby.WarbyOrderShipped /> });
 export const NotionWelcome = compare({ main: <MainNotion />, next: <notion.NotionWelcome /> });
 export const NikeDrop = compare({ main: <MainNike />, next: <nike.NikeDrop /> });
-// main puts a space between its menu's links on top of their padding, in the font of what's around the menu, which the
-// new Menu doesn't (the codemod reports it): their links sit up to a few px across from main's, more where the font's
-// space is wider.
-const menu = { x: 12, y: 3 };
-export const MorningBrewDigest = compare({ main: <MainBrew />, next: <brew.MorningBrewDigest />, allowance: menu });
-export const ProductDigest = compare({ main: <MainDigest />, next: <digest.ProductDigest />, allowance: menu });
+export const MorningBrewDigest = compare({ main: <MainBrew />, next: <brew.MorningBrewDigest /> });
+export const ProductDigest = compare({ main: <MainDigest />, next: <digest.ProductDigest /> });

@@ -154,12 +154,36 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     const { code } = await migrate(`export const T = () => <Email><Row><Column>
       <Button href="https://example.com" textAlign="left" backgroundColor="#000000">Go</Button>
       <Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }]} iconSize="24px" />
-      <Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} linkColor="#123456" textColor="#999999" separator="|" />
+      <Menu items={[{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }]} linkColor="#123456" textColor="#999999" separator="|" />
     </Column></Row></Email>;`);
     const flat = squash(code);
     expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref="https://example.com"style={{backgroundColor:"#000000"}}>Go</Button>');
     expect(flat).toContain('icons={[{name:"Facebook",href:"https://facebook.com/x"}]}size={24}');
-    expect(flat).toContain('style={{color:"#123456",separatorColor:"#999999",fontSize:14}}');
+    expect(flat).toContain('<Linkhref="https://example.com/docs"style={{color:"#123456",textDecoration:"none"}}>Docs</Link>');
+    expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Text>');
+  });
+
+  it("writes a horizontal menu of known links spaced as today's: a space before each link and separator but the first, separators hidden on phones", async () => {
+    const { code } = await migrate(`export const T = ({ links = [{ text: "Home", href: "/" }] }: { links?: Array<{ text: string; href: string }> }) => <Email><Row><Column>
+      <Menu items={[{ text: "Docs", href: "/docs" }, { text: "Blog", href: "/blog" }]} separator="·" padding="4px 12px" align="left" />
+      <Menu items={[{ text: "Docs", href: "/docs" }, { text: "Blog", href: "/blog" }]} />
+      <Menu items={[{ text: "Docs", href: "/docs" }]} layout="vertical" />
+      <Menu items={links} />
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    const link = (href: string, text: string) => `<Textstyle={{flex:"none",padding:"4px12px"}}><Linkhref="${href}"style={{color:"#0068A5",textDecoration:"none"}}>${text}</Link></Text>`;
+    expect(flat).toContain(
+      '<RowstackOnMobile={false}style={{flexWrap:"wrap",justifyContent:"start",fontSize:14,lineHeight:1.2}}>' +
+        link("/docs", "Docs") +
+        '<Texthidden={{mobile:true}}style={{flex:"none",padding:"4px12px",color:"#444444"}}>{"\\u00a0·"}</Text>' +
+        link("/blog", '{"\\u00a0Blog"}') +
+        "</Row>"
+    );
+    // Without a separator, the space alone; a vertical menu, or links worked out at run time, stay a Menu.
+    expect(flat).toContain('<Textstyle={{flex:"none",padding:[5,15]}}><Linkhref="/blog"style={{color:"#0068A5",textDecoration:"none"}}>{"\\u00a0Blog"}</Link></Text></Row>');
+    expect(flat).toContain('layout="vertical"');
+    expect(flat).toContain("items={links}");
+    expect(errors(code)).toEqual([]);
   });
 
   it("writes JavaScript into a JavaScript module: an alignment read at run time has no TypeScript in it", async () => {
@@ -315,9 +339,10 @@ export const T = () => (
     const squashed = squash(code);
     expect(squashed).toContain("fontWeight:700,lineHeight");
     expect(squashed).toContain('<Spanstyle={{fontWeight:600}}>Bold</Span>{"and"}<Spanstyle={{fontWeight:700}}>more</Span>');
-    expect(squashed).toContain('{text:"Home",href:{href:"/",target:"_self"}},{text:"Top",href:"/top"},{text:"Docs",href:"/docs"},]');
-    expect(squashed).toContain('items={[{text:"Blog",href:{href:"/blog",target:"_blank"}}]}');
-    expect(report.filter((line) => !line.includes("today's Menu puts a space"))).toEqual([
+    expect(squashed).toContain('<Linkhref={{href:"/",target:"_self"}}');
+    expect(squashed).toContain('<Linkhref="/top"');
+    expect(squashed).toContain('<Linkhref={{href:"/blog",target:"_blank"}}');
+    expect(report.filter((line) => !line.includes("written as a Row of its links"))).toEqual([
       "line 7: its fontWeight 650 is 700: the new components take 100 to 900 in hundreds",
       'line 8: a Menu item\'s target "_top" is left out: a link opens in a new window ("_blank") or in its own ("_self")',
       "line 9: MORE's items are written here, each target part of its link",
@@ -360,7 +385,9 @@ export const T = () => (
     expect(squashed).toContain("mobile={{lineHeight:2}}");
     expect(report).toContain("line 5: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
     expect(report).toContain("line 6: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
-    expect(report).toContain("line 8: its phone padding is left out: the new Menu's links keep their padding on phones");
+    // A menu's phone padding is each of its links' (and separators') on phones, as today's.
+    expect(squashed).toContain('<Textstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
+    expect(report.join("\n")).not.toContain("phone padding is left out");
     expect(errors(code)).toEqual([]);
   });
 

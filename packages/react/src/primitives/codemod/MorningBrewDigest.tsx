@@ -3,7 +3,7 @@
 //
 // What the codemod reported:
 // - line 37: <Email>'s linkStyle isn't migrated: it's left out (the new components have nothing it becomes)
-// - line 246: today's Menu puts a space between its links on top of their padding (a few px); the new one spaces them by their padding alone
+// - line 246: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu
 import {
   Column,
   Divider,
@@ -11,11 +11,11 @@ import {
   Heading,
   Image,
   Link,
-  Menu,
   Paragraph,
   Row,
   Section,
   Span,
+  Text,
 } from "../index";
 
 // Morning-Brew-style daily digest. Friendly, editorial, readable.
@@ -241,16 +241,47 @@ export function MorningBrewDigest() {
       {/* Footer menu */}
       <Section style={{ backgroundColor: PAPER, padding: [24, 0, 8, 0] }}>
         <Column style={{ padding: 10 }}>
-          <Menu
-            items={[
-              { text: "Subscribe", href: "https://example.com/subscribe" },
-              { text: "Archive", href: "https://example.com/archive" },
-              { text: "Unsubscribe", href: "https://example.com/unsubscribe" },
-            ]}
-            separator="·"
-            layout="horizontal"
-            style={{ fontSize: 14, justifyContent: "center" }}
-          />
+          <Row
+            stackOnMobile={false}
+            style={{ flexWrap: "wrap", justifyContent: "center", fontSize: 14, lineHeight: 1.2 }}
+          >
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://example.com/subscribe"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                Subscribe
+              </Link>
+            </Text>
+            <Text
+              hidden={{ mobile: true }}
+              style={{ flex: "none", padding: [5, 15], color: "#444444" }}
+            >
+              {"\u00a0·"}
+            </Text>
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://example.com/archive"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                {"\u00a0Archive"}
+              </Link>
+            </Text>
+            <Text
+              hidden={{ mobile: true }}
+              style={{ flex: "none", padding: [5, 15], color: "#444444" }}
+            >
+              {"\u00a0·"}
+            </Text>
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://example.com/unsubscribe"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                {"\u00a0Unsubscribe"}
+              </Link>
+            </Text>
+          </Row>
         </Column>
       </Section>
 

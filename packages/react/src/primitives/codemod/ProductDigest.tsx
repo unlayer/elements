@@ -2,8 +2,8 @@
 // Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @unlayer/migrate test legacy-examples
 //
 // What the codemod reported:
-// - line 102: today's Menu puts a space between its links on top of their padding (a few px); the new one spaces them by their padding alone
-import { Column, Divider, Email, Heading, Link, Menu, Paragraph, Row, Section } from "../index";
+// - line 102: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu
+import { Column, Divider, Email, Heading, Link, Paragraph, Row, Section, Text } from "../index";
 
 // Reconstructed from the "fresh agent" SaaS-digest build — verbatim natural
 // forms: heading fonts, inline <a> via Paragraph html, ColumnLayouts.TwoEqual,
@@ -102,16 +102,47 @@ export function ProductDigest() {
       {/* Footer menu */}
       <Section style={{ backgroundColor: "#FFFFFF", padding: [16, 0, 8, 0] }}>
         <Column style={{ padding: 10 }}>
-          <Menu
-            items={[
-              { text: "Docs", href: "https://linear.app/docs" },
-              { text: "Blog", href: "https://linear.app/blog" },
-              { text: "Careers", href: "https://linear.app/careers" },
-            ]}
-            separator="•"
-            layout="horizontal"
-            style={{ fontSize: 14, justifyContent: "center" }}
-          />
+          <Row
+            stackOnMobile={false}
+            style={{ flexWrap: "wrap", justifyContent: "center", fontSize: 14, lineHeight: 1.2 }}
+          >
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://linear.app/docs"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                Docs
+              </Link>
+            </Text>
+            <Text
+              hidden={{ mobile: true }}
+              style={{ flex: "none", padding: [5, 15], color: "#444444" }}
+            >
+              {"\u00a0•"}
+            </Text>
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://linear.app/blog"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                {"\u00a0Blog"}
+              </Link>
+            </Text>
+            <Text
+              hidden={{ mobile: true }}
+              style={{ flex: "none", padding: [5, 15], color: "#444444" }}
+            >
+              {"\u00a0•"}
+            </Text>
+            <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Link
+                href="https://linear.app/careers"
+                style={{ color: "#0068A5", textDecoration: "none" }}
+              >
+                {"\u00a0Careers"}
+              </Link>
+            </Text>
+          </Row>
         </Column>
       </Section>
       <Section style={{ backgroundColor: "#FFFFFF", padding: [0, 0, 36, 0] }}>

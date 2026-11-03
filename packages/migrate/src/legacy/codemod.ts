@@ -883,6 +883,13 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const items = menuItems(props.get("items"), node);
     const fontSize = given(props, "fontSize", "14px");
     const m = phone(props, node);
+    const layout = props.get("layout");
+    const separator = props.get("separator");
+    const links = isLiteral(items) && Array.isArray(items.literal) ? (items.literal as Array<{ text?: unknown; href?: unknown }>) : undefined;
+    const known = (value: Value | undefined) => !value || (isLiteral(value) && value.code === undefined);
+    if (links && links.every((item) => item && typeof item === "object" && typeof item.text === "string") && known(separator) && (!layout || (isLiteral(layout) && layout.literal === "horizontal"))) {
+      return wrapped(props, menuRow(node, props, links as Array<{ text: string; href?: unknown }>, separator && String((separator as { literal: unknown }).literal), fontSize, m, items!), undefined, node);
+    }
     const block = element("Menu", [
       attr("items", items ?? lit([])),
       attr("separator", props.get("separator")),
@@ -902,6 +909,46 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     if (m.get("padding")) report.push(`${where(node)}: its phone padding is left out: the new Menu's links keep their padding on phones`);
     report.push(`${where(node)}: today's Menu puts a space between its links on top of their padding (a few px); the new one spaces them by their padding alone`);
     return wrapped(props, block, undefined, node);
+  }
+
+  /**
+   * A horizontal menu of known links as today's draws it: each link, and each separator, in the links' padding, with a
+   * space between each two on top of it, in the font around them. The new Menu spaces its links by their padding alone
+   * (a separator has none of its own), and no style of its holds a font's space; so the menu is written as the new
+   * Menu draws one (a Row that wraps, each link and separator a Text in the links' padding, separators left out on
+   * phones), with a non-breaking space before each but the first where today's space is. On phones today's separators
+   * are gone and one space stays between two links, as here.
+   */
+  function menuRow(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, links: Array<{ text: string; href?: unknown }>, separator: string | undefined, fontSize: Value | undefined, m: Props, items: Value) {
+    if (isLiteral(items) && items.code) report.push(`${where(node)}: ${items.code}'s links are written here, each a Link of its own`);
+    report.push(`${where(node)}: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu`);
+    const box = (extra: Array<[string, Value | undefined]> = []) => [
+      styleAttr([["flex", lit("none")], ["padding", n(props.get("padding")) ?? lit([5, 15])], ...extra]),
+      mobileAttr([["padding", n(m.get("padding"))]]),
+    ];
+    const nbsp = (text: string) => `{${JSON.stringify(`\u00a0${text}`).replace(/\u00a0/g, "\\u00a0")}}`;
+    const linkColor = color(props, "linkColor") ?? lit("#0068A5");
+    const children = links.flatMap((item, index) => [
+      ...(index && separator ? [element("Text", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
+      element("Text", box(), [element("Link", [attr("href", lit(item.href ?? "")), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
+    ]);
+    return element(
+      "Row",
+      [
+        "stackOnMobile={false}",
+        styleAttr([
+          ["flexWrap", lit("wrap")],
+          ["justifyContent", alignOf(props.get("align")) ?? lit("center")],
+          ["fontFamily", font(props)],
+          ["fontSize", n(fontSize)],
+          ["fontWeight", fontWeight(props.get("fontWeight"), node)],
+          ["letterSpacing", letterSpacing(props, fontSize, node)],
+          ["lineHeight", lit(1.2)],
+        ]),
+        mobileAttr([["fontSize", n(m.get("fontSize"))]]),
+      ],
+      children
+    );
   }
 
   function video(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
