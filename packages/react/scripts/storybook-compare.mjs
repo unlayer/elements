@@ -8,7 +8,7 @@
 // This loads each one in headless Chromium at the desktop and phone widths, with main's quirks drawn
 // (where main draws something other than what its template asks, the story's `nextAsMain`), and checks
 // that every run of text and every image sits in the same place, at the same size and in the same style
-// on both sides, within a pixel, and each image is the same file.
+// on both sides, within a pixel, each image is the same file, and each link goes to the same place.
 //
 // Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes, background images
 // drawn as the placeholder):
@@ -31,7 +31,7 @@ const PORT = 6008;
 const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
 // main's designs next to the same written with the new components, and next to the codemod's migration of them; and
 // templates drawn as a Page next to the same drawn as an Email; and main's templates lowered into the new engine.
-const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--", "primitives-main-through-the-new-engine--"];
+const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--", "primitives-main-through-the-new-engine"];
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
 // Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
@@ -101,7 +101,9 @@ function measure(styles) {
       const url = /^url\("?(.*?)"?\)$/.exec(doc.defaultView.getComputedStyle(element).backgroundImage)?.[1];
       return url ? [{ box: box(rect), src: url }] : [];
     });
-    return { texts, images };
+    // Where each link goes, in order: what a reader who clicks it gets.
+    const links = [...doc.querySelectorAll("a[href]")].map((a) => `${a.getAttribute("href")}${a.getAttribute("target") === "_blank" ? " (new window)" : ""}`);
+    return { texts, images, links };
   });
 }
 
@@ -112,7 +114,8 @@ async function paintDifferences(page, allowance) {
   for (const index of [0, 1]) {
     await frames.nth(index).evaluate(async (frame, placeholder) => {
       const style = frame.contentDocument.createElement("style");
-      style.textContent = "*{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important}";
+      // Transitions off, or text fading out (a template's transition) would be caught at another point in each frame.
+      style.textContent = "*{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important;transition:none!important;animation:none!important}";
       frame.contentDocument.head.append(style);
       // Each image keeps its box (one without a height would take the square placeholder's).
       const images = [...frame.contentDocument.images].map((img) => [img, img.getBoundingClientRect()]);
@@ -174,8 +177,12 @@ async function paintDifferences(page, allowance) {
 const near = (a, b, allowance = { x: TOLERANCE, y: TOLERANCE }) =>
   a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= (i === 0 ? allowance.x : i === 1 ? allowance.y : TOLERANCE));
 
-/** What differs between main's frame and the new engine's. */
-function differences([main, next], allowance) {
+/**
+ * What differs between main's frame and the new engine's. `links`: where each link goes too, for main's templates
+ * through the new engine (the same template, so the same links); a design written with the new components, or
+ * migrated by the codemod, says its links' targets itself.
+ */
+function differences([main, next], allowance, links) {
   const out = [];
   for (const words of new Set([...Object.keys(main.texts), ...Object.keys(next.texts)])) {
     const a = main.texts[words] ?? [];
@@ -192,6 +199,10 @@ function differences([main, next], allowance) {
         out.push(`${label}: ${run.style.split(";").filter((s) => !theirs.has(s)).join(", ")} in main; ${b[i].style.split(";").filter((s) => !run.style.includes(s)).join(", ")} in the new engine`);
       }
     });
+  }
+  if (links && JSON.stringify(main.links) !== JSON.stringify(next.links)) {
+    const at = main.links.findIndex((link, i) => link !== next.links[i]);
+    out.push(`links differ: ${main.links.length} in main, ${next.links.length} in the new engine; first at ${at < 0 ? main.links.length : at}: ${JSON.stringify(main.links[at])} in main, ${JSON.stringify(next.links[at])} in the new engine`);
   }
   if (main.images.length !== next.images.length) out.push(`${main.images.length} images in main, ${next.images.length} in the new engine`);
   else
@@ -236,7 +247,7 @@ try {
         return { x: Number(at?.getAttribute("data-allowance-x") ?? 0), y: Number(at?.getAttribute("data-allowance-y") ?? 0) };
       });
       const allowance = { x: Math.max(TOLERANCE, declared.x), y: Math.max(TOLERANCE, declared.y) };
-      const found = differences(await page.evaluate(measure, TEXT_STYLES), allowance);
+      const found = differences(await page.evaluate(measure, TEXT_STYLES), allowance, id.startsWith("primitives-main-through-the-new-engine"));
       const paint = await paintDifferences(page, allowance);
       if (Math.abs(paint.heights[0] - paint.heights[1]) > allowance.y) found.push(`main is ${paint.heights[0]}px tall, the new engine ${paint.heights[1]}px`);
       if (paint.count > PAINT_TOLERANCE) found.push(`${paint.count} pixels painted differently (text left out), within ${paint.box.join(",")}`);
