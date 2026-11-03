@@ -1,4 +1,4 @@
-import { documentPages, pageBox, parseDocument, resolveDocument, type ResolvedNode } from "../src";
+import { checkDocument, documentPages, pageBox, parseDocument, resolveDocument, type ResolvedNode } from "../src";
 
 describe("pageBox", () => {
   it("gives the paper's size in CSS px (96 to the inch), turned for landscape, and what's inside the margins", () => {
@@ -25,6 +25,16 @@ describe("documentPages", () => {
 });
 
 describe("a Document", () => {
+  it("has one PageHeader and one PageFooter, drawn on every page: a second of either is an error, not a silent replacement", () => {
+    const part = (type: string, words: string) => ({ type, children: [{ type: "Text", children: [words] }] });
+    const check = (children: unknown[]) => checkDocument({ root: { type: "Document", children } }).diagnostics.map((d) => [d.code, d.severity, d.path]);
+    expect(check([part("PageHeader", "a"), part("PageFooter", "b"), { type: "Text", children: ["c"] }])).toEqual([]);
+    expect(check([part("PageHeader", "a"), { type: "Text", children: ["c"] }, part("PageHeader", "b"), part("PageFooter", "d"), part("PageFooter", "e")])).toEqual([
+      ["children/one-only", "error", "root.children[2]"],
+      ["children/one-only", "error", "root.children[4]"],
+    ]);
+  });
+
   it("lays its content out at its page's width inside the margins", () => {
     const { root } = resolveDocument(parseDocument({ root: { type: "Document", props: { size: "A5", margin: [40, 30] }, children: [{ type: "Text", children: ["Hi"] }] } }));
     expect(root.width).toBe(Math.round(148 / 25.4 * 96 - 60));

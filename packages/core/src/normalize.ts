@@ -333,7 +333,12 @@ function readChildren(input: unknown, definition: ComponentDefinition, path: str
       return;
     }
     const node = readNode(child, at, definition, context);
-    if (node) out.push(node);
+    if (!node) return;
+    // A Document's header and footer are drawn on every page: it has one of each, and a second would replace the first.
+    if (definition.type === "Document" && (node.type === "PageHeader" || node.type === "PageFooter") && out.some((other) => typeof other !== "string" && other.type === node.type)) {
+      d.error("children/one-only", `A Document has one ${node.type}, drawn on every page: this is a second (put what both hold in one)`, at, node.id);
+    }
+    out.push(node);
   });
   return out;
 }
