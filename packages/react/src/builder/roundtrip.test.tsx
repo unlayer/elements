@@ -847,6 +847,31 @@ describe("fromDesign(toDesign())", () => {
       expect((lower(design as never, []).children![0] as Node).style).toBeUndefined();
     });
 
+    it("keeps a Column hidden on phones when its phone padding changes in the builder, and shows a block the builder stopped hiding", () => {
+      const design = designOf(
+        <Email>
+          <Row>
+            <Column hidden={{ mobile: true }}>
+              <Text>Desktop only</Text>
+            </Column>
+            <Column>
+              <Image src="https://x.test/a.png" alt="" hidden={{ mobile: true }} style={{ width: "50%" }} />
+            </Column>
+          </Row>
+        </Email>
+      );
+      const [first, second] = design.body.rows[0].columns;
+      first.values._override = { ...first.values._override, mobile: { ...first.values._override?.mobile, padding: "8px" } };
+      // The image's phone values (its width there, its hiding) are told apart by a fingerprint.
+      const image = second.contents[0];
+      expect(image.values._elements.h._override).toBeDefined();
+      expect(image.values._override.mobile.hideMobile).toBe(true);
+      delete image.values._override.mobile.hideMobile;
+      const row = tree(fromDesign(design).element).children![0] as Node;
+      expect((row.children![0] as Node).hidden).toEqual({ mobile: true });
+      expect(((row.children![1] as Node).children![0] as Node).hidden).toBeUndefined();
+    });
+
     // Designs as this version writes them, kept as they are: every later version reads them as this one does.
     const FIXTURES: Array<[string, React.ReactElement]> = [
       ["sample", sample],

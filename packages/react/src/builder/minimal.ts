@@ -105,13 +105,22 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     if (held.length) out.held = held.join(" ");
     return { ...out, ...structure };
   };
+  /**
+   * Phone values are only told apart (they're said where they change): by a fingerprint, with the hiding on phones
+   * written, which is read (a block hidden there that the builder shows again is shown).
+   */
+  const phoneSaid = () => {
+    h._override = fingerprint(values._override);
+    const hiding = (values._override as Values | undefined)?.mobile?.hideMobile;
+    if (hiding !== undefined) w._override = { mobile: { hideMobile: hiding } };
+    else delete w._override;
+  };
   const bandChanged = () => kind === "row" && !unchanged("backgroundColor", baseline("row", assemble(undefined))?.backgroundColor, values.backgroundColor);
 
   // An item standing for no node of its own (a run of blocks' row, a Grid's row): nothing reads as changed.
   if (!node) {
     for (const key of changesOf(kind, values, assemble(undefined), kind === "row" ? (key) => key !== "backgroundColor" : undefined)) {
-      // Phone values are only told apart (they're said where they change, but for hiding): by a fingerprint.
-      if (key === "_override") h[key] = fingerprint(values[key]);
+      if (key === "_override") phoneSaid();
       else w[key] = copy(values[key] as Json);
     }
     if (bandChanged()) w.backgroundColor = values.backgroundColor;
@@ -159,8 +168,7 @@ export function minimal(kind: string, values: Values, full: Payload, resolved: R
     if (w._override === undefined || !touched.has("_override")) return assemble(hidden, found);
     const written = w._override;
     const keptPaths = (touched.get("_override") ?? []).filter((path) => valueAt(want, path) !== undefined);
-    delete w._override;
-    h._override = fingerprint(values._override);
+    phoneSaid();
     for (const path of keptPaths) setAt(target, path, valueAt(want, path));
     const again = reads();
     if (!again.found.differ.length && !again.heard.size) return assemble(hidden, again.found);

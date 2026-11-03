@@ -102,9 +102,7 @@ export function applyTo(kind: string, node: Node, values: Values, payload: Paylo
   const w = baseline(kind, payload);
   for (const key of changesOf(kind, values, payload, only)) {
     const set = fields[key];
-    // Phone values told apart by a fingerprint: hidden on phones as the node is, the rest said where they change.
-    const was = key === "_override" && payload?.h?._override !== undefined ? { mobile: { hideMobile: node.hidden?.mobile } } : w ? w[key] : undefined;
-    if (set) set({ node, now: values[key], was, say: (message) => say(message, key) });
+    if (set) set({ node, now: values[key], was: w ? w[key] : undefined, say: (message) => say(message, key) });
     else {
       if (w && key in w && !BUILDER_DATA.has(key)) say(`its ${key} changed in the builder: kept for the builder, which Elements doesn't draw`, key);
       // A value the builder removed is no longer the builder's data.
