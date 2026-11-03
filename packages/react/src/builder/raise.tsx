@@ -65,6 +65,13 @@ export function raise(element: React.ReactElement): Raised {
   const childrenOf = (node: Node, path: string): Child[] =>
     (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is Child => typeof c.child !== "string");
 
+  /** The text styles a node inherits from its ancestors (its parent's, as resolved) that the root's don't give it. */
+  const inheritedText = (path: string): Record<string, Json> => {
+    const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
+    if (!parent) return {};
+    const { lineHeightPx: _px, ...text } = parent.text;
+    return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(resolvedRoot.text[key as keyof typeof text]))) as Record<string, Json>;
+  };
   const place: Place = {
     at,
     report,
@@ -73,7 +80,7 @@ export function raise(element: React.ReactElement): Raised {
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`);
       const own = at(path);
-      return put(lockedHtml(node, path, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around));
+      return put(lockedHtml(node, path, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path)));
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
   };

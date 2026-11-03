@@ -6,6 +6,7 @@
  * templates put together at random (ROUNDTRIP_SEEDS=1000 for a longer run).
  */
 import type { Node } from "@unlayer-internal/elements-core";
+import { JSDOM } from "jsdom";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
@@ -140,6 +141,30 @@ describe("to the builder and back", () => {
     expect(changed((design) => (text(design).fontSize = "17px"))).toEqual([expect.stringContaining("runs")]);
     expect(changed((design) => (design.body.rows[1].cells = [1, 1]))).not.toEqual([]);
     expect(changed((design) => (design.body.rows[0].values.backgroundColor = "#ff0000"))).toEqual(expect.arrayContaining([expect.stringContaining("behind")]));
+  });
+
+  it("draws a block locked as markup in the text styles every ancestor gives it, not only the root's", async () => {
+    const template = (
+      <primitives.Page width={600}>
+        <primitives.Column style={{ color: "#b91c1c", fontSize: 30 }}>
+          <primitives.Layer style={{ height: 100 }}>
+            <primitives.Paragraph>Locked label</primitives.Paragraph>
+          </primitives.Layer>
+        </primitives.Column>
+      </primitives.Page>
+    );
+    /** The locked words' color and size, as a browser draws them (jsdom computes no inherited size: the nearest declared). */
+    const drawn = async (element: React.ReactElement) => {
+      const { window } = new JSDOM((await primitives.render(element)).html);
+      const words = [...window.document.querySelectorAll("p")].find((p) => p.textContent === "Locked label")!;
+      let at: Element | null = words;
+      let fontSize = "";
+      while (at && !fontSize) [fontSize, at] = [window.getComputedStyle(at).fontSize, at.parentElement];
+      return { color: window.getComputedStyle(words).color, fontSize };
+    };
+    const once = trip(template);
+    expect(once.locked.size).toBe(1);
+    expect(await drawn(once.element)).toEqual({ color: "rgb(185, 28, 28)", fontSize: "30px" });
   });
 
   describe("templates put together at random", () => {
