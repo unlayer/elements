@@ -3,7 +3,7 @@
  * (100% of its cell, its width at most), its height in proportion where the
  * file's size is known.
  */
-import { assetParts, type Asset } from "@unlayer-internal/elements-core";
+import { assetParts, type Asset, type Json } from "@unlayer-internal/elements-core";
 import { h } from "../jsx";
 import type { Component } from "./context";
 import { toNumber } from "./layout";
@@ -17,6 +17,10 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
   // as written and its size in px as the cap.
   const percent = !fill && typeof style.width === "string" && style.width.endsWith("%") ? style.width : undefined;
   const capped = percent !== undefined && style.maxWidth !== undefined;
+  // The cap: its width, or the maximum as given where its width is that maximum rounded (a share of a column can be a
+  // fraction of a pixel, which the cap keeps so the image is as wide as the share).
+  const given = typeof style.maxWidth === "number" || /^\d*\.?\d+px$/.test(String(style.maxWidth)) ? toNumber(style.maxWidth as Json) : undefined;
+  const cap = given !== undefined && width !== undefined && Math.round(given) === width ? given : width;
   // In a stack or a Row its cell hides it; in a link, its own style.
   const hidden = parent.type === "Link" ? hiding(node, "block") : { style: {} };
   return (
@@ -32,7 +36,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
       height={height ?? (width !== undefined && fileWidth && fileHeight ? Math.round((fileHeight * width) / fileWidth) : undefined)}
       border="0"
       style={[
-        { display: "block", width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? width : (percent ?? width ?? "100%"), height: height ?? "auto", border: "0" },
+        { display: "block", width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? cap : (percent ?? width ?? "100%"), height: height ?? "auto", border: "0" },
         { border: style.border, borderRadius: style.borderRadius },
         hidden.style,
       ]}

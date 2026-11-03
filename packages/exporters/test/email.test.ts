@@ -122,13 +122,16 @@ describe("email HTML", () => {
         { type: "Image", props: { src: "https://example.com/b.png" }, style: { width: "50%" } },
         { type: "Image", props: { src: "https://example.com/c.png" } },
         { type: "Image", props: { src: "https://example.com/d.png" }, style: { width: "24%", maxWidth: 124.8 } },
+        { type: "Image", props: { src: "https://example.com/e.png" }, style: { width: "24%", maxWidth: 400 } },
       ])
     );
     expect(body).toContain('<img src="https://example.com/a.png" alt="Hero" width="600" height="300" border="0" style="display:block;width:100%;max-width:600px;height:auto;border:0">');
     expect(body).toContain('<img src="https://example.com/b.png" alt="" width="300" border="0" style="display:block;width:100%;max-width:50%;height:auto;border:0">');
     expect(body).toContain('<img src="https://example.com/c.png" alt="" border="0" style="display:block;max-width:100%;height:auto;border:0">');
-    // A percentage with a maximum stays a percentage on phones (24% of a phone's column), the maximum in px.
-    expect(body).toContain('<img src="https://example.com/d.png" alt="" width="125" border="0" style="display:block;width:24%;max-width:125px;height:auto;border:0">');
+    // A percentage with a maximum stays a percentage on phones (24% of a phone's column), the maximum in px: as given
+    // where it's the image's width (to the fraction of a pixel), else the width it's drawn at.
+    expect(body).toContain('<img src="https://example.com/d.png" alt="" width="125" border="0" style="display:block;width:24%;max-width:124.8px;height:auto;border:0">');
+    expect(body).toContain('<img src="https://example.com/e.png" alt="" width="144" border="0" style="display:block;width:24%;max-width:144px;height:auto;border:0">');
     expect(diagnostics.filter((d) => d.code === "email/image-width").map((d) => d.path)).toEqual(["root.children[2].props.src"]);
   });
 
