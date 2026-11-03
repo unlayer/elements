@@ -106,7 +106,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       const { href, target } = linkParts(own.props.href as LinkValue);
       const color = own.text.color;
       const background = (style.backgroundColor as string | undefined) ?? "transparent";
-      place.sayLeftOut("button", node, path, [...TEXT_FIELDS.filter((p) => p !== "style.textAlign" && p !== "mobile.textAlign"), "props.href", "style.backgroundColor", "hover.color", "hover.backgroundColor", "style.width", "style.padding", "mobile.padding", "style.border", "style.borderRadius"]);
+      place.sayLeftOut("button", node, path, [...TEXT_FIELDS.filter((p) => p !== "style.textAlign" && p !== "mobile.textAlign"), "props.href", "style.backgroundColor", "hover.color", "hover.backgroundColor", "style.width", "mobile.width", "style.padding", "mobile.padding", "style.border", "style.borderRadius"]);
       const text = runsHtml(node, lost);
       said();
       // Its colors are the button's own field (buttonColors).
@@ -124,8 +124,9 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         text,
         ...id,
       };
-      const phone: Values = phoneText({ ...node, mobile: { ...node.mobile, textAlign: undefined } as never });
-      if (node.mobile?.padding) phone._override = merge(phone._override ?? {}, { mobile: { padding: cssSides(node.mobile.padding as Sides) } })._override ?? phone._override;
+      // Its phone values: its text's, its padding and its width (its size there).
+      const phoneBox: Values = { ...(node.mobile?.padding ? { padding: cssSides(node.mobile.padding as Sides) } : {}), ...(node.mobile?.width !== undefined ? { size: { autoWidth: false, width: length(node.mobile.width) } } : {}) };
+      const phone = merge(phoneText({ ...node, mobile: { ...node.mobile, textAlign: undefined } as never }), Object.keys(phoneBox).length ? { _override: { mobile: phoneBox } } : {});
       // Its label's alignment, where it isn't a button's own (centered).
       const inner = own.style.textAlign !== undefined && own.style.textAlign !== "center" ? { buttonTextAlign: own.style.textAlign } : {};
       return place.put(<Button key={path} {...hiding} />, merge(merge(values, phone), { ...hiddenOf("button", node, ["style.textAlign"], inheritedHidden(own)), ...inner }));

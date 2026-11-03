@@ -143,6 +143,23 @@ describe("to the builder and back", () => {
     expect(changed((design) => (design.body.rows[0].values.backgroundColor = "#ff0000"))).toEqual(expect.arrayContaining([expect.stringContaining("behind")]));
   });
 
+  it("keeps the phone values the builder has fields for: a Divider's width in %, a Button's width and padding", () => {
+    const template = (
+      <primitives.Email>
+        <primitives.Divider mobile={{ width: "50%" }} />
+        <primitives.Button href="https://x.test" mobile={{ width: "40%", padding: [4, 8, 4, 8] }}>
+          Go
+        </primitives.Button>
+      </primitives.Email>
+    );
+    const { design, report } = toDesign(template);
+    expect(report).toEqual([]);
+    const back = tree(fromDesign(JSON.parse(JSON.stringify(design))).element).children as Node[];
+    expect(back[0].mobile).toEqual({ width: "50%" });
+    const button = (back[1].type === "Button" ? back[1] : back[1].children![0]) as Node;
+    expect(button.mobile).toEqual({ width: "40%", padding: { top: 4, right: 8, bottom: 4, left: 8 } });
+  });
+
   it("draws a block locked as markup in the text styles every ancestor gives it, not only the root's", async () => {
     const template = (
       <primitives.Page width={600}>
