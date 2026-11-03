@@ -536,6 +536,19 @@ describe("an edit this adapter's review found lost", () => {
     expect(said((d) => Object.assign(d.body.values, { popupWidth: "400px", contentAlign: "center", language: {}, backgroundImage: { url: "", size: "custom" } }))).toEqual([]);
   });
 
+  it("keeps a heading kept as markup in its tag and direction, and says what its markup can't hold", () => {
+    const { design, values } = one(
+      <Email>
+        <Heading level={2}>Title</Heading>
+      </Email>
+    );
+    Object.assign(values, { text: "<marquee>Sale</marquee>", textDirection: "rtl", _override: { mobile: { fontSize: "12px" } } });
+    const back = fromDesign(design);
+    expect(back.report).toEqual([expect.stringContaining("it's an Html block of its markup"), expect.stringContaining("its fontSize on phones aren't kept in its markup")]);
+    const [html] = tree(back.element).children as Node[];
+    expect(String((html.type === "Html" ? html : (html.children![0] as Node)).props!.html)).toMatch(/^<h2 dir="rtl" style="margin:0;[^"]*"><marquee>Sale<\/marquee><\/h2>$/);
+  });
+
   it("keeps a paragraph's own margins, collapsing between two, and gives one without any none", () => {
     const { design, values } = one(
       <Email>

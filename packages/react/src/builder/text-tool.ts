@@ -38,7 +38,10 @@ export function textTool(tool: "text" | "heading", values: Values, context: Cont
   if (left.length) {
     if (links && Object.keys(links).length) context.say("its links' style isn't kept in its markup: left out");
     context.say(`its text has what a ${type} doesn't hold (${[...new Set(left)].join(", ")}): it's an Html block of its markup`);
-    return [placed(make("Html", { id, props: { html: markup(html, values) } }), containerPadding, undefined, phonePadding, visibility)];
+    // What its markup can't hold: its values on phones, its hidden properties.
+    const lost = [...Object.keys(phoneText(values)).map((key) => `${key} on phones`), ...Object.keys(hidden.style)];
+    if (lost.length) context.say(`its ${lost.join(", ")} aren't kept in its markup: left out`);
+    return [placed(make("Html", { id, props: { html: markup(html, values, level) } }), containerPadding, undefined, phonePadding, visibility)];
   }
   const boxed = boxOf(hidden);
   const blockDir = str(values.textDirection) ?? context.dir;
@@ -77,9 +80,10 @@ const add = (a: Sides, b: Sides): Sides => ({ top: a.top + b.top, right: a.right
 /** A heading's text styles for a list in it (which has no heading defaults of its own). */
 const headingAsText = (taken: Record<string, Json>, style: Record<string, Json>) => defined({ fontSize: style.fontSize ?? taken.fontSize, fontWeight: style.fontWeight ?? taken.fontWeight, lineHeight: style.lineHeight ?? taken.lineHeight });
 
-/** A text block's markup with the styles its tool draws it in, for an Html block. */
-function markup(html: string, values: Values): string {
+/** A text block's markup with the styles its tool draws it in, for an Html block: a heading's in its tag (h1 to h6), without its margins. */
+function markup(html: string, values: Values, level: number | undefined): string {
   const css = defined({
+    margin: level ? "0" : undefined,
     "font-family": font(values.fontFamily),
     "font-size": str(values.fontSize),
     "font-weight": values.fontWeight === undefined ? undefined : String(fontWeight(values.fontWeight) ?? ""),
@@ -89,5 +93,7 @@ function markup(html: string, values: Values): string {
     "letter-spacing": str(values.letterSpacing),
   });
   const declarations = Object.entries(css).filter(([, v]) => v !== "").map(([k, v]) => `${k}:${String(v).replace(/"/g, "'")}`).join(";");
-  return `<div style="${declarations}">${html}</div>`;
+  const tag = level ? `h${level}` : "div";
+  const dir = ["ltr", "rtl", "auto"].includes(values.textDirection) ? ` dir="${values.textDirection}"` : "";
+  return `<${tag}${dir} style="${declarations}">${html}</${tag}>`;
 }
