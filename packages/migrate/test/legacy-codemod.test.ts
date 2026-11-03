@@ -81,6 +81,36 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     expect(errors(code)).toEqual([]);
   });
 
+  it("writes what today's draw of a text block: a Paragraph's children, else its text (as text), else its html; a Heading's or a Button's text (as markup), else its children", async () => {
+    const { code, report } = await migrate(
+      `export const T = ({ note }: { note?: string }) => <Email><Row><Column>
+      <Paragraph html="<b>Not drawn</b>">From children</Paragraph>
+      <Paragraph text="Tom &amp; <b>Jerry</b>" html="<i>Not drawn</i>" />
+      <Paragraph html="<b>Only where there's no note</b>">{note}</Paragraph>
+      <Heading text="<b>Bold</b> title" html="<i>Not drawn</i>">Not drawn</Heading>
+      <Button href="#" text="Go &amp; see">Not drawn</Button>
+    </Column></Row></Email>;`,
+      "Email, Row, Column, Heading, Paragraph, Button"
+    );
+    const flat = squash(code);
+    expect(flat).toContain(">Fromchildren</Paragraph>");
+    // Today's draw a Paragraph's text as it is: its markup shows, and so does its entity.
+    expect(code).toContain('{"Tom &amp; <b>Jerry</b>"}');
+    expect(flat).toContain(">{note}</Paragraph>");
+    expect(flat).toContain('<Spanstyle={{fontWeight:700}}>Bold</Span>{"title"}</Heading>');
+    expect(flat).toContain(">Go&see</Button>");
+    expect(code).not.toContain("Not drawn");
+    expect(report).toEqual([
+      "line 3: its html isn't drawn by today's Paragraph, which draws its children: it's left out",
+      "line 4: its html isn't drawn by today's Paragraph, which draws its text: it's left out",
+      "line 5: its html is drawn by today's Paragraph only where its children are undefined: it's left out",
+      "line 6: its children aren't drawn by today's Heading, which draws its text: they're left out",
+      "line 6: its html isn't drawn by today's Heading, which draws its text: it's left out",
+      "line 7: its children aren't drawn by today's Button, which draws its text: they're left out",
+    ]);
+    expect(errors(code)).toEqual([]);
+  });
+
   it("makes a Row a band across the email: its top and bottom padding the Section's, its sides (outside the content) dropped", async () => {
     const { code } = await migrate(`export const T = () => <Email><Row backgroundColor="#eeeeee" padding="20px 40px 8px"><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;`);
     expect(squash(code)).toContain('<Sectionstyle={{backgroundColor:"#eeeeee",padding:[20,0,8,0]}}><Paragraph');

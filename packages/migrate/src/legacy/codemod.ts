@@ -13,7 +13,7 @@
 import * as prettier from "prettier";
 import ts from "typescript";
 import { formatTsx } from "@unlayer/convert-core";
-import { hole, inlineHtml } from "./html";
+import { hole, inlineHtml, plain } from "./html";
 
 export interface MigrateElementsOptions {
   /** Module specifiers today's components are imported from (default: the package and its /legacy entry). */
@@ -424,28 +424,51 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const value = object(entries);
     return value && `mobile=${value}`;
   };
-  const textChildren = (node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, at: ts.Node): string[] => {
-    const html = props.get("html") ?? props.get("text");
-    if (html) {
-      // Markup in a string, or in a template literal with expressions in it (`<b>${value}</b>`).
-      const template = !isLiteral(html) && html.node ? bare(html.node) : undefined;
-      let markup: string;
-      let holes: string[] = [];
-      if (isLiteral(html) && typeof html.literal === "string") markup = html.literal;
-      else if (template && ts.isTemplateExpression(template)) {
-        markup = template.head.text + template.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
-        holes = template.templateSpans.map((span) => rewrite(span.expression));
-      } else {
-        report.push(`${where(at)}: its html comes from an expression (${code(html)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
-        return [`{${code(html)}}`];
-      }
-      // What the new components hold is written with them; what they don't is named, each on a line of the report.
-      const parsed = inlineHtml(markup, holes, nameOf);
-      for (const left of parsed.dropped) report.push(`${where(at)}: its html's ${left}`);
-      parsed.used.forEach((name) => used.add(name));
-      return [parsed.jsx];
+  /**
+   * A text block's words as today's draw them: a Paragraph's children, else its `text` (plain text: markup in it
+   * shows), else its `html`; a Heading's or a Button's `text` (markup), else its children (an `html` they don't draw).
+   * What today's don't draw beside it is left out, and said.
+   */
+  const textChildren = (node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, at: ts.Node, component: string): string[] => {
+    // Children as JSX gives them: not the line breaks and indentation between tags, nor a comment in braces.
+    const children = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces) && !(ts.isJsxExpression(c) && !c.expression)) : [];
+    const sources = { children: children.length ? ({ code: "" } as Value) : undefined, text: props.get("text"), html: props.get("html") };
+    const paragraph = component === "Paragraph" || component === "Text";
+    const order: Array<keyof typeof sources> = paragraph ? ["children", "text", "html"] : ["text", "children"];
+    const drawn = order.find((source) => sources[source]);
+    // Where what's drawn may be undefined (an expression), today's draw what comes after it in its place.
+    const maybe = drawn === "children" ? children.every((c) => ts.isJsxExpression(c)) : !!drawn && !isLiteral(sources[drawn]);
+    for (const source of ["children", "text", "html"] as const) {
+      if (!sources[source] || source === drawn) continue;
+      const is = source === "children" ? ["children", "are", "aren't", "they're"] : [source, "is", "isn't", "it's"];
+      const later = drawn && order.indexOf(source) > order.indexOf(drawn);
+      report.push(
+        maybe && later
+          ? `${where(at)}: its ${is[0]} ${is[1]} drawn by today's ${component} only where its ${drawn} ${drawn === "children" ? "are" : "is"} undefined: ${is[3]} left out`
+          : `${where(at)}: its ${is[0]} ${is[2]} drawn by today's ${component}, which draws its ${drawn ?? order.join(" or its ")}: ${is[3]} left out`
+      );
     }
-    return ts.isJsxElement(node) ? node.children.map((c) => child(c)).filter(Boolean) : [];
+    if (drawn === "children" && ts.isJsxElement(node)) return node.children.map((c) => child(c)).filter(Boolean);
+    const value = drawn && sources[drawn]!;
+    if (!value) return [];
+    if (drawn === "text" && paragraph) return [isLiteral(value) && typeof value.literal === "string" ? plain(value.literal) : `{${code(value)}}`];
+    // Markup in a string, or in a template literal with expressions in it (`<b>${value}</b>`).
+    const template = !isLiteral(value) && value.node ? bare(value.node) : undefined;
+    let markup: string;
+    let holes: string[] = [];
+    if (isLiteral(value) && typeof value.literal === "string") markup = value.literal;
+    else if (template && ts.isTemplateExpression(template)) {
+      markup = template.head.text + template.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
+      holes = template.templateSpans.map((span) => rewrite(span.expression));
+    } else {
+      report.push(`${where(at)}: its ${drawn} comes from an expression (${code(value)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
+      return [`{${code(value)}}`];
+    }
+    // What the new components hold is written with them; what they don't is named, each on a line of the report.
+    const parsed = inlineHtml(markup, holes, nameOf);
+    for (const left of parsed.dropped) report.push(`${where(at)}: its ${drawn}'s ${left}`);
+    parsed.used.forEach((name) => used.add(name));
+    return [parsed.jsx];
   };
   /** A block's padding (today's containerPadding, 10px by default): the block's own, or a Column around it. */
   const padding = (props: Props) => given(props, "containerPadding", "10px")!;
@@ -624,7 +647,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       styleAttr(textStyle(props, fontSize, "400", "140%", node)),
       textPhone(props, node),
       hidden(props),
-    ], textChildren(node, props, node));
+    ], textChildren(node, props, node, "Heading"));
   }
 
   /** Today's font weight (a number, a numeric string, normal, bold, lighter or bolder) as the new one's: 100 to 900 in hundreds, normal or bold. */
@@ -684,7 +707,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function paragraph(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, tag: "Paragraph" | "Text") {
     const fontSize = given(props, "fontSize", "14px");
-    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], textChildren(node, props, node));
+    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], textChildren(node, props, node, tag));
   }
 
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
@@ -707,7 +730,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["borderRadius", n(radius)],
       ]),
       mobileAttr([["width", isLiteral(m.get("autoWidth")) && (m.get("autoWidth") as { literal: unknown }).literal === true ? undefined : n(m.get("width"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", lineHeightOf(m.get("lineHeight"), node)], ["padding", n(m.get("padding"))]]),
-    ], textChildren(node, props, node));
+    ], textChildren(node, props, node, "Button"));
     if (!href) report.push(`${where(node)}: this Button has no href: it links to "#"`);
     return wrapped(props, block, align(props, "textAlign", "center"), node);
   }

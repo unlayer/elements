@@ -141,7 +141,8 @@ function template(seed: number): string {
     const spec = BLOCKS[type];
     const attrs = attributes(spec.props, 4);
     if (spec.phone && r.chance(0.3)) attrs.push(`mobile={{ ${attributes(spec.phone, 2).map((a) => a.replace(/^(\w+)=\{([\s\S]*)\}$/, "$1: $2")).join(", ")} }}`);
-    const body = spec.body?.();
+    // A text block with html draws its html only without children (a Paragraph; a Heading never draws it).
+    const body = attrs.some((a) => a.startsWith("html=")) && r.chance(0.5) ? undefined : spec.body?.();
     return body ? `<${type} ${attrs.join(" ")}>${body}</${type}>` : `<${type} ${attrs.join(" ")} />`;
   };
   const row = () => {

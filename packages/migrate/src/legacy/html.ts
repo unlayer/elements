@@ -93,7 +93,7 @@ const HOLE = /\uE000(\d+)\uE001/;
 const HOLES = /\uE000(\d+)\uE001/g;
 
 /** Text as JSX source: as it is where JSX keeps it so, else a string expression (spaces at its ends, braces, angle brackets). */
-function plain(value: string): string {
+export function plain(value: string): string {
   if (!value) return "";
   return /^[^{}<>\s][^{}<>]*[^{}<>\s]$|^[^{}<>\s]$/.test(value) && !/\s{2,}/.test(value) ? value : `{${JSON.stringify(value)}}`;
 }
