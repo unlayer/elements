@@ -1,0 +1,8 @@
+// Generated from seed 36 by corpus/generator.mjs. Do not edit; rerun `node corpus/sync.mjs`.
+import { Page, Row, Column, ColumnLayouts, Heading, Paragraph, Button, Image, Divider, Social, Menu, Video, Html, Table } from "@unlayer/react-elements";
+export const T = () => (
+  <Page backgroundColor={"#123456"} fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}>
+    <Row layout={ColumnLayouts.FourEqual} columnsBackgroundColor={"#123456"}><Column padding={"10px 20px"} borderTopWidth={"1px"}><Heading html={'<span style="line-height:2">Spaced</span>'} letterSpacing={"0.1em"} fontWeight={"700"} mobile={{  }}>Title</Heading><Html html={'<table><tr><td>Raw</td></tr></table>'} /></Column><Column ><Menu layout={"horizontal"} mobile={{ fontSize: 14, padding: 4 }} /></Column><Column borderTopColor={"#cccccc"}><Social iconType={"rounded"} align={"left"} /><Video videoUrl={"https://vimeo.com/76979871"} /></Column><Column borderRadius={6}><Paragraph textTransform={"uppercase"} fontWeight={400} containerPadding={"0px"} html={'<a href="https://example.test/l" style="color:#0000ee">a link</a> &amp; more'}>Words</Paragraph><Image src={{ url: "https://example.test/i.png", width: 600, height: 300 }} action={{ name: "web", values: { href: "https://example.test/go", target: "_self" } }} /></Column></Row>
+    <Row layout={ColumnLayouts.OneThirdTwoThirds} padding={"10px 20px"}><Column borderRadius={6} borderTopStyle={"solid"}><Social iconSize={32} /><Social spacing={5} iconSize={"32px"} align={"right"} /></Column><Column borderTopColor={"#cccccc"}><Image maxWidth={"400px"} altText={"A photo"} src={undefined} action={{ name: "web", values: { href: "https://example.test/go", target: "_self" } }} /></Column></Row>
+  </Page>
+);

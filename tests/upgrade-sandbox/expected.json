@@ -1,0 +1,20 @@
+{
+  "reasons": {
+    "row-side-padding": "an email row's side padding: 0.2 wrote it outside the content width, so in a window wider than the content but narrower than the content plus those sides the email scrolled sideways or sat off centre; the new engine keeps the content centred at its width with no sideways scroll. Accepted as a fix; pinned by the react package's end-to-end gate (row-side-padding)",
+    "long-words": "a word too long for its column (a large figure such as 99.99% or 2.4M): 0.2 let it run out of its column on a page; the new engine wraps it inside the column. Accepted as a fix; pinned by the exporters' Chromium test that breaks a word too long for its column"
+  },
+  "expected": {
+    "demo-welcome": { "email": { "600": "row-side-padding" } },
+    "demo-order-confirmation": { "email": { "600": "row-side-padding" } },
+    "demo-review-request": { "email": { "600": "row-side-padding" } },
+    "demo-newsletter-digest": { "email": { "600": "row-side-padding" } },
+    "demo-abandoned-cart": { "email": { "600": "row-side-padding" } },
+    "demo-shipping-update": { "email": { "600": "row-side-padding" } },
+    "demo-product-launch": { "email": { "600": "row-side-padding" } },
+    "demo-usage-report": { "email": { "600": "row-side-padding" } },
+    "story-Body-Receipt": { "email": { "600": "row-side-padding" } },
+    "ex-MercuryReceipt-Default": { "email": { "600": "row-side-padding" } },
+    "story-Body-SaaSLanding": { "web": { "600": "long-words" } },
+    "story-Column-StatsBar": { "web": { "600": "long-words" } }
+  }
+}

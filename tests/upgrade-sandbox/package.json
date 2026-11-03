@@ -1,0 +1,22 @@
+{
+  "name": "elements-upgrade-sandbox",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Upgrade sandbox: templates on today's @unlayer/react-elements components rendered with the published 0.2.1 (OLD) and with this repository's build (NEW), compared in Chromium.",
+  "scripts": {
+    "compare": "node run.mjs --pack",
+    "compare:fast": "node run.mjs",
+    "selftest": "node selftest.mjs",
+    "sync": "node corpus/sync.mjs"
+  },
+  "dependencies": {
+    "old-elements": "npm:@unlayer/react-elements@0.2.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11",
+    "playwright": "1.60.0"
+  }
+}
