@@ -62,7 +62,6 @@ export function button(block: DesignBlock, place: Place): TreeNode {
   const width = widthOf(values.size, note, "width");
   const phoneValues = phoneStyles(phone, note);
   if (values.textAlign !== undefined && !ALIGN[values.textAlign]) note("alignment", values.textAlign);
-  const onPage = place.mode !== "email" && (width !== undefined || phoneValues.button.width !== undefined);
 
   const link = drawnLink(values.href, place.keep, place.note);
   if (webLink(values.href) === null) place.note(`A button says no link: it's a link to nothing, as it was.`, "info");
@@ -82,7 +81,8 @@ export function button(block: DesignBlock, place: Place): TreeNode {
     style: Object.fromEntries(
       Object.entries({
         width,
-        ...(onPage ? buttonWidthOnPage() : {}),
+        // A page's holds its padding on top, whatever its width, and runs past the end of a place too narrow for it.
+        ...(place.mode !== "email" ? buttonWidthOnPage() : {}),
         // A transparent label is one (a background that's transparent is none).
         color: typeof colors.color === "string" && colors.color ? colors.color : undefined,
         // A background given as none (transparent, or empty, which legacy writes as no color) is none, where the new

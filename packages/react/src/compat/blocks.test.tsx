@@ -458,6 +458,13 @@ describe("a button block", () => {
     expect(drawn(button).style?.boxSizing).toBeUndefined();
   });
 
+  it("runs past the end of a place too narrow for it on a page or in a printed document, whatever its width, as legacy's", () => {
+    const button = <Button href="https://example.com">Go</Button>;
+    for (const Root of [Page, Document] as Root[]) expect(drawn(button, Root).style).toMatchObject({ boxSizing: "content-box", maxWidth: "100%" });
+    expect(drawn(button).style?.boxSizing).toBeUndefined();
+    expect(renderToHtml(<Page><Row><Column>{button}</Column></Row></Page>)).toContain("align-self:safe center");
+  });
+
   it("links to nothing where it has no link, as legacy's href=\"\": said only for those who look", () => {
     expect(drawn(<Button>Go</Button>).props?.href).toEqual({ href: "", target: "_blank" });
     expect(drawn(<Button values={{ href: undefined } as never}>Go</Button>).props?.href).toEqual({ href: "" });
