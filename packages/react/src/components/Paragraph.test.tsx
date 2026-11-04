@@ -40,6 +40,14 @@ describe("Paragraph Component", () => {
     expect(email.querySelector("p")?.textContent).toBe("Text");
   });
 
+  // Known bug: compat/blocks/text.ts gives a block with no text a zero-width space, a line of its height. 0.2.1 draws
+  // only its padding, so what follows sits 19.6px lower in Chromium, on a page and in an email. Measured with
+  // <Paragraph /><Paragraph>then</Paragraph> in a Page: "then" at y=39 on 0.2.1, y=58.6 here. Remove `.fails` with the fix.
+  it.fails("draws no line of its own with no text", () => {
+    const { container } = render(<Paragraph />);
+    expect(container.querySelector("p")?.textContent ?? "").toBe("");
+  });
+
   it("has correct displayName", () => {
     expect(Paragraph.displayName).toBe("Paragraph");
   });
