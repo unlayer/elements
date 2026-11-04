@@ -7,7 +7,7 @@ import { Column } from "../components/Column";
 import Paragraph from "../components/Paragraph";
 import Button from "../components/Button";
 import Heading from "../components/Heading";
-import Menu from "../components/Menu";
+import Html from "../components/Html";
 import Image from "../components/Image";
 
 describe("renderToPlainText", () => {
@@ -105,17 +105,17 @@ describe("renderToHtmlParts", () => {
     expect(body).toContain("Content here");
   });
 
-  it("head includes the body's text color and link styles, on a template that keeps its legacy HTML", () => {
+  it("head includes the body's text color, on a template with markup of its own", () => {
     const { head } = renderToHtmlParts(
       <Body mode="email" textColor="#333333">
         <Row>
           <Column>
-            <Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} />
+            <Html html="<table><tr><td>Mine</td></tr></table>" />
           </Column>
         </Row>
       </Body>
     );
-    // Body head generates table/td color and link styles
+    // What today's body gives a user's markup: its table cells' color.
     expect(head).toMatch(/table, td \{\s*color: #333333;/);
   });
 

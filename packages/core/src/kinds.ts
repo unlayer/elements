@@ -639,23 +639,24 @@ export function fontWeight(): Kind<FontWeightInput, number> {
   });
 }
 
-export type LineHeightInput = number | `${number}px` | `${number}%`;
+export type LineHeightInput = number | `${number}px` | `${number}%` | "normal";
 /** A multiple of the font size (1.5), or a fixed height in px ("24px"). */
-export type LineHeight = number | `${number}px`;
+export type LineHeight = number | `${number}px` | "normal";
 
 export function lineHeight(): Kind<LineHeightInput, LineHeight> {
-  const accepts = 'a multiple of the font size (1.5), a percentage ("150%") or px ("24px")';
-  return kind({
+  const accepts = 'a multiple of the font size (1.5), a percentage ("150%"), px ("24px") or "normal" (the font\'s own)';
+  return kind<LineHeightInput, LineHeight>({
     name: "lineHeight",
     editor: "lineHeight",
     accepts,
     parse(input) {
+      if (input === "normal") return ok("normal");
       if (typeof input === "number") return input > 0 && Number.isFinite(input) ? ok(input) : fail(`expected ${accepts}, not ${show(input)}`);
       const parsed = typeof input === "string" && /^\s*-?[\d.]+\s*$/.test(input) ? undefined : readLength(input);
       if (!parsed || parsed.value <= 0 || (parsed.unit !== "px" && parsed.unit !== "%")) return fail(`expected ${accepts}, not ${show(input)}`);
       return ok(parsed.unit === "%" ? Math.round(parsed.value * 1000) / 100000 : (`${parsed.value}px` as const));
     },
-    jsonSchema: () => ({ anyOf: [{ type: "number", exclusiveMinimum: 0 }, { type: "string", pattern: `^${NUMBER}(px|%)$` }] }),
+    jsonSchema: () => ({ anyOf: [{ type: "number", exclusiveMinimum: 0 }, { type: "string", pattern: `^${NUMBER}(px|%)$` }, { const: "normal" }] }),
   });
 }
 

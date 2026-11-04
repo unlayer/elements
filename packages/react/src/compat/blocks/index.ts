@@ -15,8 +15,17 @@ import { table } from "./table";
 import { heading, text } from "./text";
 import { video } from "./video";
 
-export type Lowering = (block: DesignBlock, place: Place & { id?: string }) => TreeNode | null | undefined;
+/** Where a block is, with what a tool that always lowers says. */
+export type DrawnPlace = Place & {
+  id?: string;
+  /** Says what's drawn otherwise than the block asks: a diagnostic of the render. */
+  note(message: string, severity?: "warning" | "info"): void;
+  /** Text with its email service's tags (or what `pattern` finds) kept out of the writers' escaping (render.ts puts them back). */
+  keep(text: string, pattern?: RegExp): string;
+};
+
+export type Lowering = (block: DesignBlock, place: DrawnPlace) => TreeNode | null | undefined;
 
 export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, menu, page_break: pageBreak, social, table, text, video };
 
-export const DRAWN: ReadonlySet<string> = new Set(["button", "divider", "heading", "table", "text"]);
+export const DRAWN: ReadonlySet<string> = new Set(["button", "divider", "heading", "image", "menu", "page_break", "social", "table", "text", "video"]);

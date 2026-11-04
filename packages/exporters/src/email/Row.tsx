@@ -8,7 +8,8 @@
  * phones, where the children stack). A Row that stays side by side
  * (`stackOnMobile` false) is a table row; one that wraps (`flexWrap`, a
  * Menu's) is the same inline-blocks, onto another line where they don't fit
- * (classic Outlook's table keeps them on one).
+ * (classic Outlook's table keeps them on one). Where they wrap as words do,
+ * they're a space of the text's font apart, on lines at least as tall as its.
  */
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
@@ -16,6 +17,7 @@ import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, toNumber, valignO
 import { bgcolor, Table, TABLE } from "./markup";
 import { gapCell, spacer } from "./spacers";
 import { hiding } from "./styles";
+import { fontFamily } from "../shared/css";
 import { gapsBefore, gapShown } from "../shared/gaps";
 
 const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "right" };
@@ -23,7 +25,8 @@ const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "ri
 export const Row: Component = (props) => {
   const { node, style, mobile, fill } = props;
   const stacks = node.props.stackOnMobile !== false;
-  const wraps = !stacks && style.flexWrap === "wrap";
+  const words = !stacks && style.flexWrap === "words";
+  const wraps = (!stacks && style.flexWrap === "wrap") || words;
   const width = boxWidth(node, fill);
   return (
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
@@ -33,11 +36,14 @@ export const Row: Component = (props) => {
           class={stacks ? rule("phone", "&>div{width:100%!important;max-width:100%!important}", "layout") : undefined}
           phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
           align={JUSTIFY[style.justifyContent as string]}
+          dir={node.props.dir as string | undefined}
           bgcolor={bgcolor(style.backgroundColor)}
           height={style.height !== undefined ? toNumber(style.height) : undefined}
           style={{
-            // No line boxes between the children: their inline-blocks touch.
-            fontSize: stacks || wraps ? 0 : undefined,
+            // No line boxes between the children: their inline-blocks touch. (Words have this font's spaces between them.)
+            fontFamily: words ? fontFamily(node.text.fontFamily) : undefined,
+            fontSize: words ? node.text.fontSize : stacks || wraps ? 0 : undefined,
+            letterSpacing: words ? node.text.letterSpacing || undefined : undefined,
             textAlign: wraps ? (JUSTIFY[style.justifyContent as string] ?? "left") : undefined,
             padding: style.padding,
             backgroundColor: style.backgroundColor,
@@ -47,7 +53,7 @@ export const Row: Component = (props) => {
             overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
-          {stacks || wraps ? fluidHybrid(props, stacks) : sideBySide(props)}
+          {stacks || wraps ? fluidHybrid(props, stacks, words) : sideBySide(props)}
         </td>
       </tr>
     </Table>
@@ -55,7 +61,7 @@ export const Row: Component = (props) => {
 };
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
-function fluidHybrid(props: Props, stacks: boolean): Html {
+function fluidHybrid(props: Props, stacks: boolean, words: boolean): Html {
   const { node, render } = props;
   const [gap, phoneGap] = [gapOf(props), phoneGapOf(props)];
   const valign = valignOf(props);
@@ -83,6 +89,7 @@ function fluidHybrid(props: Props, stacks: boolean): Html {
         const inOutlook = !child.hidden?.desktop;
         return (
           <>
+            {words && index > 0 && " "}
             {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap, stacks)}
             {inOutlook ? (
               <>

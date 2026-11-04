@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
 import * as compat from "./render";
-import { renderThroughNewEngine } from "./render";
+import { renderThroughNewEngine, type Rendered } from "./render";
 import { storyElement, storyTemplate } from "./story";
 
 const modules = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"], { eager: true }) as Record<string, any>;
@@ -101,9 +101,8 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     try {
       renderToHtml(<Email><Row><Column><Paragraph>One</Paragraph><Button href="https://example.com">Two</Button></Column></Row></Email>);
       expect(write).not.toHaveBeenCalled();
-      // A block that keeps its legacy HTML (a menu in an email, until it moves over) is the only one written by them.
       renderToHtml(<Email><Row><Column><Button href="https://example.com">One</Button><Table /><Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} /></Column></Row></Email>);
-      expect(menu).toHaveBeenCalledTimes(1);
+      expect(menu).not.toHaveBeenCalled();
       expect(table).not.toHaveBeenCalled();
       expect(button).not.toHaveBeenCalled();
     } finally {
@@ -498,6 +497,64 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(html.match(/<\/head>/g)).toHaveLength(1);
       expect(html).toContain(script);
     }
+  });
+
+  it("say what's drawn otherwise than a block asks, in the render's diagnostics and on the console, and draw the rest", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const template = <Page><Row><Column><Social containerPadding="lots" icons={[{ name: "X", url: "https://x.example" }]} /></Column></Row></Page>;
+      const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml")) as Rendered;
+      expect(rendered.diagnostics.map((d) => d.message)).toContain('A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
+      expect(warn).toHaveBeenCalledWith('[Elements] A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
+      expect(rendered.html).toContain('href="https://x.example"');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("write no social, menu, image or video with today's exporters, whatever they hold", () => {
+    const spies = [exporters.SocialExporters, exporters.MenuExporters, exporters.ImageExporters, exporters.VideoExporters, exporters.BodyExporters].flatMap((tool: Record<string, any>) => Object.keys(tool).map((mode) => vi.spyOn(tool, mode)));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const Root of [Email, Page, Document]) {
+        renderToHtml(
+          <Root>
+            <Row>
+              <Column>
+                <Social icons={[]} />
+                <Social icons={[{ name: "X", url: "https://x.example/<%id%>", imgUrl: 7 } as never]} hideOnMobile containerPadding="lots" mobile={{ containerPadding: "1px" } as never} values={{ _override: { desktop: { containerPadding: "2px" }, tablet: { containerPadding: "3px" } } } as never} />
+                <Menu items={[]} />
+                <Menu layout="vertical" items={[{ text: "<%a%>", href: "https://a.example" }]} hideOnDesktop mobile={{ fontSize: "20px" } as never} />
+                <Image values={{ src: { url: "" } } as never} />
+                <Image src={{ url: "https://a.example/a.png", width: 100, height: 10 }} alt="<%a%>" action={{ url: "https://a.example" } as never} hideOnMobile mobile={{ textAlign: "left" } as never} />
+                <Video values={{ video: { type: "dailymotion", videoId: "x" } } as never} hideOnMobile />
+                <PageBreak />
+              </Column>
+            </Row>
+          </Root>
+        );
+      }
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  it("hide on phones in an email at legacy's 480px, whatever its width, its columns still stacking at its width", () => {
+    const html = renderToHtml(<Email contentWidth="600px"><Row cells={[1, 1]}><Column><Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} /></Column><Column><Paragraph>Text</Paragraph></Column></Row></Email>);
+    expect(html).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
+    expect(html).toContain("@media (max-width: 620px)");
+  });
+
+  it("put an email service's tag back after reading the plain text: in a link's address, one reads as a tag of its own", () => {
+    expect(renderToPlainText(<Page><Row><Column><Menu items={[{ text: "Docs", href: "https://a.example/<%id%>" }]} /></Column></Row></Page>)).toContain("(https://a.example/<%id%>)");
+  });
+
+  it("can't be ended by a double quote in an email service's tag, in an attribute", () => {
+    const html = renderToHtml(<Email><Row><Column><Image src={`https://a.example/{{ " }}x.png`} alt={'{{ " }} x-pwn=1 y'} /></Column></Row></Email>);
+    expect(new DOMParser().parseFromString(html, "text/html").querySelector("[x-pwn]")).toBeNull();
+    expect(html).toContain("{{ &quot; }} x-pwn=1 y");
   });
 
   it("draw an image a template links as legacy links it", () => {

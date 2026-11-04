@@ -52,9 +52,8 @@ describe("PageBreak", () => {
       </Document>,
     );
 
-    expect(html).toContain("break-after: page");
-    expect(html).toContain("page-break-after: always");
-    expect(html).toContain('class="u-content-page-break"');
+    expect(html).toContain("break-after:page");
+    expect(html).toContain("page-break-after:always");
   });
 
   it("round-trips to the editor page_break content type", () => {

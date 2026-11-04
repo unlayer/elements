@@ -34,7 +34,8 @@ export function phoneText(node: ResolvedNode, mobile: MobileText): Declarations 
     const written = textValue(key, value);
     if (written !== undefined) out.push([key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`), written]);
   }
-  if (mobile.fontSize !== undefined || mobile.lineHeight !== undefined) {
+  // (A font's own line height needs nothing: it goes with its size.)
+  if ((mobile.fontSize !== undefined || mobile.lineHeight !== undefined) && (mobile.lineHeight ?? node.text.lineHeight) !== "normal") {
     const size = (mobile.fontSize as number | undefined) ?? node.text.fontSize;
     out.push(["line-height", px(lineHeightPx((mobile.lineHeight as never) ?? node.text.lineHeight, size))]);
   }
@@ -63,8 +64,9 @@ export function fullText(node: ResolvedNode, { weight = false, align = true } = 
     fontSize: text.fontSize,
     fontWeight: weight || text.fontWeight !== 400 ? text.fontWeight : undefined,
     fontStyle: text.fontStyle === "italic" ? "italic" : undefined,
-    lineHeight: px(text.lineHeightPx),
-    msoLineHeightRule: "exactly",
+    // A font's own ("normal") is what a line has with none written.
+    lineHeight: text.lineHeight === "normal" ? undefined : px(text.lineHeightPx),
+    msoLineHeightRule: text.lineHeight === "normal" ? undefined : "exactly",
     letterSpacing: text.letterSpacing || undefined,
     textAlign: align ? text.textAlign : undefined,
     textTransform: text.textTransform !== "none" ? text.textTransform : undefined,

@@ -110,6 +110,8 @@ export function toPx(value: Json | undefined, of: number | null): number | null 
 }
 
 export function lineHeightPx(lineHeight: LineHeight, fontSize: number): number {
+  // A font's own ("normal") is about this: for what can't leave it to the font (a PDF's lines, an estimate of a height).
+  if (lineHeight === "normal") return Math.round(1.2 * fontSize * 100) / 100;
   return typeof lineHeight === "number" ? Math.round(lineHeight * fontSize * 100) / 100 : Number.parseFloat(lineHeight);
 }
 

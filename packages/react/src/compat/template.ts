@@ -82,7 +82,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
         };
         const drawn = DRAWN.has(block.type);
         const shown = drawn ? withoutPhone(block, mode) : onDevices(withoutPhone(block, mode), mode);
-        const lowered = BLOCKS[block.type]?.(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text) => keepServiceTags(text, tags) });
+        const lowered = BLOCKS[block.type]?.(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern?: RegExp) => keepServiceTags(text, tags, pattern) });
         // The block's own HTML in its box, as its tool writes it (it says what its head needs).
         if (lowered?.type === "Raw") {
           raw.set(n, lowered);

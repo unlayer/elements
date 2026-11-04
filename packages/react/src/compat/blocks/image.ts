@@ -1,14 +1,16 @@
 /**
- * An image block as an Image (in a Link where its action is a web link) in a Column with the block's padding, placed
+ * An image block as an Image (in a Link where its action is a link) in a Column with the block's padding, placed
  * by its alignment. Its width and maximum width are legacy's: a share of its place (100% where it takes its own size)
  * at most its own width or that share of the place legacy works out from the design (the content width, the row's and
- * column's padding and the column's share), as legacy writes them.
+ * column's padding and the column's share), as legacy writes them. It always draws: what can't be read is said; with
+ * no URL its block has its padding and nothing in it.
  */
 import type { Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
-import type { DesignBlock, Place, TreeNode } from "../lower";
+import type { TreeNode } from "../lower";
 import { imageBox, imagePadding, outlookCopy } from "../quirks";
-import { ALIGN, px, sides, some, webLink, type Values } from "../values";
+import { ALIGN, deviceValues, drawnImageUrl, drawnLink, inAttribute, sides, some, webLink, type Values } from "../values";
+import type { Lowering } from "./index";
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
@@ -35,47 +37,64 @@ export function imageSize(src: Values, room: number): { width: Json; maxWidth: J
   return { width: css(given), maxWidth: round(max) };
 }
 
-export function image(block: DesignBlock, place: Place): TreeNode | undefined {
-  const { values } = block;
-  if (values.mode !== undefined && values.mode !== place.mode) return undefined;
-  const src: Values = values.src ?? {};
+export const image: Lowering = (block, place): TreeNode => {
+  const { values, phone } = deviceValues(block.values, ["containerPadding", "src", "textAlign"], place.mode);
+  const asEmail = (values.mode ?? place.mode) === "email";
+  const said = (what: string, value: unknown) => place.note(`An image's ${what} ${JSON.stringify(value)} can't be read: it's drawn without it.`);
+  const src: Values = values.src && typeof values.src === "object" ? values.src : {};
   const padding = sides(values.containerPadding ?? "10px");
-  // A dynamic image's URL is resized by legacy; a full-width one sits past the column's padding.
-  if (typeof src.url !== "string" || !src.url || src.dynamic || values.fullWidth || !padding || (values.textAlign !== undefined && !ALIGN[values.textAlign])) return undefined;
-  // A linked image keeps its legacy HTML: legacy's link holds the image at the size its place gives it (on a page a
-  // link the new engine draws shrinks to its image's own size; in an email a share of the place isn't one on phones).
-  const href = webLink(values.action);
-  if (href !== null) return undefined;
+  if (!padding) said("padding", values.containerPadding);
+  let align = ALIGN[values.textAlign ?? "center"];
+  if (!align) {
+    said("alignment", values.textAlign);
+    // An email's markup has it as a cell's align, which "middle" centers; a page's as text-align, which ignores it.
+    align = asEmail && values.textAlign === "middle" ? "center" : "start";
+  }
+  const box = { ...(some(padding) ? { padding: padding! } : {}), alignItems: align };
+  const url = src.url ? drawnImageUrl(src.url, place.keep, (message) => place.note(`An image's URL ${message}`)) : undefined;
+  if (!url) {
+    // Legacy's block has its padding, and nothing in it.
+    if (!src.url) place.note("An image with no URL draws nothing.", "info");
+    return { type: "Column", style: box };
+  }
   const ownBorder = values.border && typeof values.border === "object" ? values.border : {};
   const borders = ["Left", "Right"].map((side) => parseFloat(String(ownBorder[`border${side}Width`] ?? 0)) || 0);
   const room =
     contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: imagePadding(values, place.source) }) -
     borders[0] -
     borders[1];
-  const size = imageSize(src, room);
-  if (!size) return undefined;
-  // An email image shorter than a line of text: legacy's sits in a line of the cell's text (its strut's height, the
-  // font's), which the new email's image doesn't; it keeps its legacy HTML.
-  if (place.mode === "email" && shorterThanALine(src, size.maxWidth, room)) return undefined;
-  // Phone settings (a page's: an email's keep their legacy HTML): the block's padding, and the image's width.
-  const phone: Values = values._override?.mobile ?? {};
+  let size = imageSize(src, room);
+  if (!size) {
+    // A pinned width that can't be read: as wide as its place, at most its own width, as CSS draws it.
+    said("width", src.maxWidth);
+    size = imageSize({ ...src, autoWidth: true }, room)!;
+  }
+  // Phone settings: the block's padding, the image's width and where it sits.
   const columnPhone: Record<string, Json> = {};
   const imagePhone: Record<string, Json> = {};
   for (const [key, value] of Object.entries(phone)) {
-    if (key === "hideMobile") continue;
-    if (key === "containerPadding" && sides(value)) columnPhone.padding = sides(value)!;
-    else if (key === "src" && value && typeof value === "object") {
+    if (key === "containerPadding") {
+      if (sides(value)) columnPhone.padding = sides(value)!;
+      else said("padding on phones", value);
+    } else if (key === "textAlign") {
+      if (ALIGN[value as string]) imagePhone.alignSelf = ALIGN[value as string];
+      else said("alignment on phones", value);
+    } else if (key === "src" && value && typeof value === "object") {
       // Legacy's phone rule: the width given there (or 100%), at most that width or the image's own.
-      const merged = { ...src, ...value };
+      const merged = { ...src, ...(value as Values) };
       const max = merged.autoWidth === false ? length(merged.maxWidth) : undefined;
       const limit = length(max ? css(max) : merged.width ?? "100%");
-      if (!limit) return undefined;
+      if (!limit) {
+        said("width on phones", merged.maxWidth ?? merged.width);
+        continue;
+      }
       imagePhone.width = max ? css(max) : "100%";
       imagePhone.maxWidth = css(limit);
-    } else return undefined;
+    } else if (key === "src") said("width on phones", value);
   }
-  const alt = typeof values.altText === "string" ? values.altText : "";
-  const asset: Record<string, Json> = { src: src.url };
+  for (const key of Object.keys(block.values._override?.mobile ?? {})) if (!["hideMobile", "containerPadding", "src", "textAlign"].includes(key)) place.note(`An image's ${key} on phones isn't read: it's drawn without it.`, "info");
+  const alt = typeof values.altText === "string" ? place.keep(inAttribute(values.altText)) : "";
+  const asset: Record<string, Json> = { src: url };
   for (const side of ["width", "height"] as const) if (typeof src[side] === "number" && src[side] > 0) asset[side] = src[side];
   // In an email, legacy's maximum is the image's own on phones too, where a stacked column is wider than on desktop: the
   // new email's caps an image at the width it's drawn at on desktop, so a maximum past that (legacy's place leaves the
@@ -86,27 +105,50 @@ export function image(block: DesignBlock, place: Place): TreeNode | undefined {
     borders[1];
   const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
   const stacks = place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
-  if (place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5) imagePhone.maxWidth = size.maxWidth;
-  const sized = { style: { width: size.width, maxWidth: size.maxWidth }, ...(Object.keys(imagePhone).length ? { mobile: imagePhone } : {}) };
+  if (place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 && imagePhone.maxWidth === undefined) imagePhone.maxWidth = size.maxWidth;
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
-  const drawn: TreeNode = { type: "Image", props, ...sized, style: { ...sized.style, ...imageBox(values) } };
+  const sized = { width: size.width, maxWidth: size.maxWidth, ...imageBox(values) };
+  const withPhone = Object.keys(imagePhone).length ? { mobile: imagePhone } : {};
+  const drawn: TreeNode = { type: "Image", props, style: sized, ...withPhone };
+  const column = (child: TreeNode): TreeNode => ({ type: "Column", style: box, ...(Object.keys(columnPhone).length ? { mobile: columnPhone } : {}), children: [child] });
+  const action = webLink(values.action) === null ? undefined : drawnLink(values.action, place.keep, place.note);
+  const href = (action?.href as { href?: string } | undefined)?.href ? (action as Record<string, Json>) : undefined;
+  // As legacy's plain text reads it: a link's address, or its alternate text.
+  const text: TreeNode | undefined = place.mode !== "email" && !asEmail ? undefined : href ? { type: "Paragraph", children: [{ type: "Link", props: href, children: [] }] } : imageText(src, alt, asEmail);
+  const reading = text ? { textAs: text } : {};
+  if (place.mode === "email") {
+    // An email image shorter than a line of text: legacy's sits in a line of the cell's text, as tall as its font makes
+    // it, by its middle where it's centered and its top where it's to a side.
+    const short = asEmail && shorterThanALine(src, size.maxWidth, room);
+    const image = short ? { ...drawn, style: { ...sized, verticalAlign: align === "center" ? "middle" : "top" } } : drawn;
+    const linked = href ? { type: "Link", props: href, children: [image] } : image;
+    return { ...column(short ? { type: "Text", style: { lineHeight: "normal", textAlign: align === "start" ? "left" : align === "end" ? "right" : "center" }, children: [linked] } : linked), ...reading };
+  }
+  if (!href) return { ...column(drawn), ...reading };
+  // On a page, a link shrinks to what it holds: the box that sizes the image is around it, as legacy's link is as wide
+  // as its place gives the image.
+  const { alignSelf: _, ...boxPhone } = imagePhone;
+  const inBox: TreeNode = { type: "Image", props, style: { width: "100%", ...imageBox(values) } };
   return {
-    type: "Column",
-    style: { ...(some(padding) ? { padding } : {}), alignItems: ALIGN[values.textAlign ?? "center"] },
-    ...(Object.keys(columnPhone).length ? { mobile: columnPhone } : {}),
-    children: [place.mode === "email" ? { ...drawn, textAs: imageText(src, alt) } : drawn],
+    ...column({
+      type: "Column",
+      style: { width: size.width, maxWidth: size.maxWidth, alignItems: "stretch" },
+      ...(Object.keys(boxPhone).length ? { mobile: boxPhone } : {}),
+      children: [{ type: "Link", props: href, children: [inBox] }],
+    }),
+    ...reading,
   };
-}
+};
 
 /**
  * An email image as legacy's plain text reads it: legacy writes a second image for classic Outlook (in a conditional
  * comment, which the plain text reads too) where it knows the image's height, so its alternate text is there twice.
  */
-function imageText(src: Values, alt: string): TreeNode {
+function imageText(src: Values, alt: string, asEmail: boolean): TreeNode {
   const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   const img = `<img alt="${escape(alt)}">`;
-  return { type: "Raw", props: { html: img.repeat(outlookCopy(src) ? 2 : 1) } };
+  return { type: "Column", children: [{ type: "Raw", props: { html: img.repeat(asEmail && outlookCopy(src) ? 2 : 1) } }] };
 }
 
 /** Whether an email image is drawn shorter than a line of 16px text (its height known from its own size). */

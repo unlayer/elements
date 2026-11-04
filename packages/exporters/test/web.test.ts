@@ -460,4 +460,20 @@ describe("web HTML", () => {
     expect(body).toContain('<p>Sale <b>now</b></p><div id="own"><hr></div>');
     expect(text).toBe("Sale now\n\nOur own words");
   });
+
+  it("writes a Row's direction, a page break after a Column, and a line height of the font's own", () => {
+    const { body } = web(page([
+      { type: "Row", props: { dir: "ltr" }, children: [{ type: "Text", children: ["A"] }] },
+      { type: "Column", style: { breakAfter: "page" }, children: [] },
+      { type: "Text", style: { lineHeight: "normal" }, children: ["B"] },
+    ]));
+    expect(body).toMatch(/<div class="\w+" dir="ltr" style="display:flex/);
+    expect(body).toContain("break-after:page;page-break-after:always");
+    expect(body).toContain("line-height:normal");
+  });
+
+  it("places an Image on phones", () => {
+    const { head } = web(page([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, mobile: { alignSelf: "end" } }]));
+    expect(head).toContain("align-self:end!important");
+  });
 });

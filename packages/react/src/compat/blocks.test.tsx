@@ -23,6 +23,13 @@ const whole = (block: React.ReactElement, Root: Root = Email) => withRenderScope
 /** What a block's lowering says, in words. */
 const said = (block: React.ReactElement, Root: Root = Email) => whole(block, Root).diagnostics.filter((d) => d.severity === "warning").map((d) => d.message).join("\n");
 
+/** The node a block lowers to and what it says, in an Email or a Page. */
+function drawn(block: React.ReactElement, Root: Root = Email): { node: TreeNode | undefined; said: string[] } {
+  const result = whole(block, Root);
+  const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+  return { node: find(result.tree.root), said: result.diagnostics.map((d) => d.message) };
+}
+
 describe("a text block", () => {
   it("is a Paragraph of its HTML's runs, in its padding and text styles", () => {
     const node = lowered(<Paragraph html='Hi <b>there</b>, <a href="https://example.com">a link</a>' color="#333" fontSize="15px" lineHeight="150%" letterSpacing="0.1em" containerPadding="4px 8px" />);
@@ -240,9 +247,104 @@ describe("an image block", () => {
     expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
   });
 
-  it("keeps its legacy HTML where it links somewhere: legacy's link holds it at the size its place gives it", () => {
-    const linked = <Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
-    for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
+  const asset = { url: "https://example.com/a.png", width: 600, height: 300 };
+  const inner = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+
+  it("in a link on a page has its size on a box around the link, which fills it, as legacy's link holds it at the size its place gives it", () => {
+    const linked = <Image src={asset} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
+    for (const Root of [Page, Document as Root]) {
+      expect(inner(lowered(linked, Root))).toEqual({
+        type: "Column",
+        style: { width: "40%", maxWidth: expect.any(Number), alignItems: "stretch" },
+        children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", props: expect.objectContaining({ alt: "A" }), style: { width: "100%" } }] }],
+      });
+    }
+  });
+
+  it("in a link in an email is the Image of its size in a Link, and reads as the link's address in plain text", () => {
+    const node = lowered(<Image src={asset} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />);
+    expect(inner(node)).toMatchObject({ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", style: { width: "40%" } }] });
+    expect(node?.textAs).toEqual({ type: "Paragraph", children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [] }] });
+  });
+
+  it("keeps a target legacy writes though a link here has no such target", () => {
+    const node = inner(lowered(<Image src={asset} action={{ url: "https://example.com", target: "_top" } as never} />));
+    expect(node.props).toEqual({ href: { href: "https://example.com" }, attrs: { target: "_top" } });
+  });
+
+  it("in an email, drawn shorter than a line of text, sits in a line of the template's text: by its middle where it's centered, its top at a side", () => {
+    const short = { url: "https://example.com/a.png", width: 100, height: 10 };
+    expect(inner(lowered(<Image src={short} />))).toMatchObject({ type: "Text", style: { lineHeight: "normal", textAlign: "center" }, children: [{ type: "Image", style: { verticalAlign: "middle" } }] });
+    expect(inner(lowered(<Image src={short} textAlign="left" />))).toMatchObject({ type: "Text", style: { textAlign: "left" }, children: [{ type: "Image", style: { verticalAlign: "top" } }] });
+    expect(inner(lowered(<Image src={short} action={{ url: "https://example.com" } as never} />))).toMatchObject({ type: "Text", children: [{ type: "Link", children: [{ type: "Image" }] }] });
+    // A line of its own height isn't one: a page's has none, nor does an image as tall as a line.
+    expect(inner(lowered(<Image src={short} />, Page)).type).toBe("Image");
+    expect(inner(lowered(<Image src={{ ...short, height: 24 }} />)).type).toBe("Image");
+    expect(inner(lowered(<Image src={short} mode="web" />)).type).toBe("Image");
+  });
+
+  it("with no URL has its padding and nothing in it", () => {
+    const { node, said } = drawn(<Image values={{ src: { url: "" } } as never} />);
+    expect(node).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" } });
+    expect(said).toEqual(["An image with no URL draws nothing."]);
+  });
+
+  it("with a URL that runs a script is left empty, and says so", () => {
+    const { node, said } = drawn(<Image values={{ src: { url: "javascript:alert(1)" } } as never} />);
+    expect(node?.children).toBeUndefined();
+    expect(said.join()).toContain("isn't one Elements writes");
+  });
+
+  it("with a link that can't be read draws no link, and says so", () => {
+    const { node, said } = drawn(<Image src={asset} values={{ action: 7 } as never} />, Page);
+    expect(inner(node).type).toBe("Image");
+    expect(said).toEqual(["A link 7 can't be read: it's a link to nothing."]);
+  });
+
+  it("with a link that runs a script links to nothing, and says so", () => {
+    const { node, said } = drawn(<Image src={asset} action={{ url: "javascript:alert(1)" } as never} />);
+    expect(inner(node)).toMatchObject({ type: "Link", props: { href: { href: "" } } });
+    expect(said.join()).toContain("isn't a link Elements will write");
+  });
+
+  it("draws what's dynamic or full width as any other, its padding kept", () => {
+    const plain = lowered(<Image src={asset} />);
+    expect(lowered(<Image src={{ ...asset, dynamic: true } as never} />)).toEqual(plain);
+    expect(lowered(<Image src={asset} values={{ fullWidth: true } as never} />)).toEqual(plain);
+  });
+
+  it("without what can't be read: padding and alignment, each said; an email's cell centers \"middle\", a page's aligns left", () => {
+    const padded = drawn(<Image src={asset} containerPadding="lots" />);
+    expect(padded.node?.style).toEqual({ alignItems: "center" });
+    expect(padded.said).toEqual(['An image\'s padding "lots" can\'t be read: it\'s drawn without it.']);
+    const align = (Root: Root) => drawn(<Image src={asset} values={{ textAlign: "middle" } as never} />, Root);
+    expect(align(Email).node?.style?.alignItems).toBe("center");
+    expect(align(Page).node?.style?.alignItems).toBe("start");
+    expect(align(Page).said).toEqual(['An image\'s alignment "middle" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("with a width pinned that can't be read is as wide as its place, at most its own width, and says so", () => {
+    const { node, said } = drawn(<Image values={{ src: { ...asset, autoWidth: false, maxWidth: "big" } } as never} />);
+    expect(inner(node).style).toMatchObject({ width: "100%", maxWidth: 500 });
+    expect(said).toEqual(['An image\'s width "big" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("takes phone settings: its padding, its width and where it sits; says what can't be read, and what isn't read", () => {
+    const node = lowered(<Image src={asset} mobile={{ containerPadding: "30px", textAlign: "left", src: { autoWidth: false, maxWidth: "80%" } } as never} />, Page);
+    expect(node?.mobile).toEqual({ padding: { top: 30, right: 30, bottom: 30, left: 30 } });
+    expect(inner(node).mobile).toEqual({ alignSelf: "start", width: "80%", maxWidth: "80%" });
+    expect(drawn(<Image src={asset} values={{ _override: { mobile: { src: "oops" } } } as never} />, Page).said).toEqual(['An image\'s width on phones "oops" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} mobile={{ containerPadding: "lots" } as never} />, Page).said).toEqual(['An image\'s padding on phones "lots" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} mobile={{ textAlign: "nowhere" } as never} />, Page).said).toEqual(['An image\'s alignment on phones "nowhere" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} values={{ _override: { mobile: { altText: "other" } } } as never} />, Page).said).toEqual(["An image's altText on phones isn't read: it's drawn without it."]);
+  });
+
+  it("reads as its alternate text in plain text, twice only where its own markup is an email's with a copy for Outlook", () => {
+    const reads = (element: React.ReactElement, Root: Root) => ((lowered(element, Root)?.textAs?.children as TreeNode[] | undefined)?.[0]?.props?.html);
+    expect(reads(<Image src={asset} altText="A" />, Email)).toBe('<img alt="A"><img alt="A">');
+    expect(reads(<Image src={asset} altText="A" mode="web" />, Email)).toBe('<img alt="A">');
+    expect(reads(<Image src={asset} altText="A" mode="email" />, Page)).toBe('<img alt="A"><img alt="A">');
+    expect(lowered(<Image src={asset} altText="A" />, Page)?.textAs).toBeUndefined();
   });
 
   it("caps an email image at legacy's maximum where its row stacks, where that's past its width on desktop (a stacked column is wider)", () => {
@@ -745,27 +847,223 @@ describe("a menu block", () => {
     ]);
   });
 
-  it("keeps its legacy HTML in an email, whose lines are the font's own height", () => {
-    expect(lowered(menu)?.type).toBe("Raw");
+  const row = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+
+  it("is in an email its links and separators a word space apart, on lines of the font's own height, separators left out on phones", () => {
+    const line = row(lowered(menu));
+    expect(line).toMatchObject({ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "words", lineHeight: "normal", justifyContent: "center" } });
+    expect((line.children as TreeNode[]).map((c) => c.hidden)).toEqual([undefined, { mobile: true }, undefined]);
+    expect(lowered(<Menu items={[{ text: "Docs", href: "https://a.example" }]} letterSpacing="2px" />)?.children?.[0]).toMatchObject({ style: { letterSpacing: 2 } });
+  });
+
+  it("is in a printed document on lines of the font's own height, its separators always there", () => {
+    const line = row(lowered(menu, Document as Root));
+    expect(line.style).toMatchObject({ flexWrap: "wrap", lineHeight: "normal" });
+    expect((line.children as TreeNode[])[1].hidden).toBeUndefined();
+    expect(row(lowered(menu, Page)).style?.lineHeight).toBeUndefined();
+  });
+
+  it("draws as its own markup does where it says it's another output's: a page's in an email has no word spaces, an email's on a page a gap as wide", () => {
+    expect(row(lowered(<Menu items={[{ text: "A", href: "https://a.example" }]} mode="web" />)).style?.flexWrap).toBe("wrap");
+    expect(row(lowered(<Menu items={[{ text: "A", href: "https://a.example" }]} mode="email" />, Page)).style).toMatchObject({ flexWrap: "wrap", gap: 4.45 });
+  });
+
+  it("is vertical its links one under another, no separators", () => {
+    const node = lowered(<Menu layout="vertical" align="left" separator="|" items={[{ text: "Docs", href: "https://a.example" }, { text: "Blog", href: "https://b.example" }]} />, Page);
+    expect((node?.children as TreeNode[]).map((c) => [c.type, c.style?.textAlign, (c.children?.[0] as TreeNode).type])).toEqual([["Text", "left", "Link"], ["Text", "left", "Link"]]);
+  });
+
+  it("with no items has its padding and nothing in it", () => {
+    expect(lowered(<Menu items={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+  });
+
+  it("says items that aren't a list, and draws none", () => {
+    const { node, said } = drawn(<Menu values={{ menu: { items: "Docs" } } as never} />, Page);
+    expect(node?.children).toEqual([]);
+    expect(said).toEqual(['A menu\'s items "Docs" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("is drawn without what can't be read, as CSS draws a value it can't read, each said", () => {
+    const { node, said } = drawn(<Menu values={{ fontSize: "big", fontWeight: "heavy", letterSpacing: "wide", padding: "lots", containerPadding: "lots", align: "middle", menu: { items: [{ text: "Docs", link: { name: "web", values: { href: "https://a.example" } } }] } } as never} />, Page);
+    expect(node?.style).toEqual({});
+    const item = (row(node).children as TreeNode[])[0];
+    expect(item.style).toEqual({ flex: "none" });
+    expect(row(node).style?.justifyContent).toBe("start");
+    expect(said.map((message) => /menu's (.+?) "/.exec(message)?.[1])).toEqual(["links' padding", "padding", "font size", "font weight", "letter spacing", "alignment"]);
+  });
+
+  it("draws a color the new engine refuses without it, and says so", () => {
+    const { node, said } = drawn(<Menu items={[{ text: "A", href: "https://a.example" }]} linkColor="notacolor" />, Page);
+    expect(((row(node).children as TreeNode[])[0].children as TreeNode[])[0].style).toEqual({ textDecoration: "none" });
+    expect(said.join()).toContain("notacolor");
+  });
+
+  it("takes on a page's phones its links' size and padding and the block's padding; says what can't be read", () => {
+    const node = lowered(<Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} mobile={{ fontSize: "20px", padding: "1px 2px", containerPadding: "30px" } as never} />, Page);
+    expect(node?.mobile).toEqual({ padding: { top: 30, right: 30, bottom: 30, left: 30 } });
+    for (const child of row(node).children as TreeNode[]) expect(child.mobile).toEqual({ fontSize: 20, padding: { top: 1, right: 2, bottom: 1, left: 2 } });
+    expect(drawn(<Menu items={[{ text: "A", href: "https://a.example" }]} mobile={{ fontSize: "big" } as never} />, Page).said).toEqual(['A menu\'s font size on phones "big" can\'t be read: it\'s drawn without it.']);
+  });
+
+  const items = (list: unknown[]) => ({ menu: { items: list } }) as never;
+
+  it("draws an item with no URL in the text's color: a link to nothing in a page's markup, plain text in an email's", () => {
+    const plain = (Root: Root) => (row(lowered(<Menu values={items([{ text: "Plain" }])} textColor="#123456" />, Root)).children as TreeNode[])[0];
+    expect(plain(Page).children).toEqual([{ type: "Link", props: { href: { href: "" } }, style: { color: "#123456", textDecoration: "none" }, children: ["Plain"] }]);
+    expect(plain(Email)).toMatchObject({ style: { color: "#123456" }, children: ["Plain"] });
+    // A link of another kind with no URL opens as it says.
+    const phone = (row(lowered(<Menu values={items([{ text: "Call", link: { name: "phone", values: { phone: "+1" } } }])} />, Page)).children as TreeNode[])[0];
+    expect((phone.children as TreeNode[])[0].props).toEqual({ href: { href: "", target: "_blank" } });
+  });
+
+  it("links an item of another kind where it has a URL, and shows what's in an item that isn't text", () => {
+    const [mail, number] = row(lowered(<Menu values={items([{ text: "Mail", link: { name: "email", attrs: { href: "mailto:hi@example.com" }, values: { email: "hi@example.com" } } }, { text: 7, link: { name: "web", values: { href: "https://a.example" } } }])} />, Page)).children as TreeNode[];
+    expect((mail.children as TreeNode[])[0].props).toEqual({ href: { href: "mailto:hi@example.com", target: "_blank" } });
+    expect((number.children as TreeNode[])[0].children).toEqual(["7"]);
+  });
+
+  it("keeps an item with no text as its padding, its link empty; says an item that's nothing", () => {
+    const { node, said } = drawn(<Menu values={items([{ link: { name: "web", values: { href: "https://a.example" } } }, null, { text: "A", link: { name: "web", values: { href: "https://b.example" } } }])} />, Page);
+    const children = row(node).children as TreeNode[];
+    expect(children).toHaveLength(2);
+    expect((children[0].children as TreeNode[])[0]).toMatchObject({ type: "Link", children: [] });
+    expect(said).toEqual(["A menu's item null can't be read: it's drawn without it."]);
+  });
+
+  it("keeps entity references and an email service's tags as written in an email's markup, in plain text as its markup reads", () => {
+    const html = (Root: Root) => renderToHtml(<Root><Row><Column><Menu items={[{ text: "Shop &rarr; <%first%>", href: "https://a.example/<%id%>" }]} /></Column></Row></Root>);
+    expect(html(Email)).toContain("Shop &rarr; <%first%>");
+    expect(html(Email)).toContain('href="https://a.example/<%id%>"');
+    expect(html(Page)).toContain("Shop &amp;rarr; &lt;%first%&gt;");
+    const reading = (Root: Root) => lowered(<Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} />, Root)?.textAs;
+    expect(reading(Email)?.type).toBe("Column");
+    expect(reading(Email)?.children).toHaveLength(3);
+    expect(reading(Page)?.type).toBe("Paragraph");
+  });
+
+  it("is laid out left to right in a template written right to left, as legacy's", () => {
+    const element = (Root: Root) => <Root textDirection="rtl"><Row><Column><Menu items={[{ text: "A", href: "https://a.example" }]} /></Column></Row></Root>;
+    const result = (Root: Root) => withRenderScope(() => lowerTemplate(element(Root), undefined, "renderToHtml")) as Lowered;
+    expect(JSON.stringify(result(Page).tree)).toContain('"dir":"ltr"');
+    expect(JSON.stringify(lowered(menu, Page))).not.toContain('"dir"');
   });
 });
 
 describe("a social block", () => {
-  it("is on a page a Row of its icons, each a link around its icon from the CDN", () => {
-    const row = (lowered(<Social icons={[{ name: "Facebook", url: "https://facebook.com/acme" }]} iconSize={32} spacing={8} />, Page)?.children as TreeNode[])[0];
-    expect(row).toEqual({
+  const icons = [{ name: "Facebook", url: "https://facebook.com/acme" }, { name: "Email", url: "hi@example.com" }];
+  const row = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+  const given = (list: unknown[], extra: Record<string, unknown> = {}) => ({ icons: { icons: list }, ...extra }) as never;
+
+  it("is on a page a Row of its icons that wraps, each a link around its icon from the CDN, the space to the next inside its box", () => {
+    expect(row(lowered(<Social icons={icons} iconSize={32} spacing={8} />, Page))).toEqual({
       type: "Row",
       props: { stackOnMobile: false },
-      style: { gap: 8, justifyContent: "center" },
+      style: { flexWrap: "wrap", justifyContent: "center" },
       children: [
         {
-          type: "Link",
-          props: { href: { href: "https://facebook.com/acme", target: "_blank" }, "aria-label": "Facebook icon" },
-          style: { flex: "none" },
-          children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon" }, style: { width: 32, height: 32 } }],
+          type: "Column",
+          style: { flex: "none", width: 40, padding: { top: 0, right: 8, bottom: 0, left: 0 } },
+          children: [
+            {
+              type: "Link",
+              props: { href: { href: "https://facebook.com/acme", target: "_blank" }, "aria-label": "Facebook icon" },
+              children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon" }, style: { width: 32, height: 32 } }],
+            },
+          ],
         },
+        expect.objectContaining({ type: "Column", style: { flex: "none", width: 32 }, children: [expect.objectContaining({ props: expect.objectContaining({ href: { href: "mailto:hi@example.com", target: "_blank" } }) })] }),
       ],
     });
+  });
+
+  it("is in an email the same, each in a box of the icon's height, its image as tall as its file makes it, with its name as a title", () => {
+    const [first] = row(lowered(<Social icons={icons} iconSize={32} spacing={8} />)).children as TreeNode[];
+    expect(first.style).toEqual({ flex: "none", width: 40, padding: { top: 0, right: 8, bottom: 0, left: 0 }, height: 32 });
+    expect((first.children as TreeNode[])[0]).toEqual({
+      type: "Link",
+      props: { href: { href: "https://facebook.com/acme", target: "_blank" }, title: "Facebook" },
+      children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon", title: "Facebook" }, style: { width: 32 } }],
+    });
+  });
+
+  it("draws as its own markup does where it says it's another output's", () => {
+    expect(((row(lowered(<Social icons={icons} mode="web" />)).children as TreeNode[])[0].children as TreeNode[])[0].props).toHaveProperty("aria-label");
+    expect((row(lowered(<Social icons={icons} mode="email" />, Page)).children as TreeNode[])[0].style).toHaveProperty("height");
+  });
+
+  it("with no icons draws a page's placeholder, placed by its alignment, and in an email's markup nothing", () => {
+    expect(lowered(<Social icons={[]} iconSize={40} align="left" />, Page)).toEqual({
+      type: "Column",
+      style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
+      children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 } }],
+    });
+    expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+  });
+
+  const image = (node: TreeNode | undefined, index = 0) => ((((row(node).children as TreeNode[])[index].children as TreeNode[])[0].children as TreeNode[])[0]);
+
+  it("says icons that aren't a list, and draws as with none", () => {
+    const { node, said } = drawn(<Social values={{ icons: { icons: "X" } } as never} />);
+    expect(node?.children).toEqual([]);
+    expect(said).toEqual(['A social block\'s icons "X" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("draws an icon's own image, and a custom icon's for its style", () => {
+    expect((image(lowered(<Social values={given([{ name: "Mine", url: "https://mine.example", imgUrl: "https://cdn.example/mine.png" }])} />)).props?.src as { src: string }).src).toBe("https://cdn.example/mine.png");
+    const custom = { icons: { iconType: "rounded", icons: [{ name: "Mine", url: "https://mine.example" }, { name: "X", url: "https://x.example" }], editor: { data: { customIcons: [{ name: "Mine", icons: { circle: "https://cdn.example/c.png", rounded: "https://cdn.example/r.png" } }] } } } } as never;
+    const node = lowered(<Social values={custom} />, Page);
+    expect((image(node).props?.src as { src: string }).src).toBe("https://cdn.example/r.png");
+    expect((image(node, 1).props?.src as { src: string }).src).toBe("https://cdn.tools.unlayer.com/social/icons/rounded/x.png");
+  });
+
+  it("draws icons however wide they are: they wrap", () => {
+    const wide = Array.from({ length: 14 }, (_, i) => ({ name: "X", url: `https://x.example/${i}` }));
+    expect(row(lowered(<Social icons={wide} iconSize={48} />)).children).toHaveLength(14);
+  });
+
+  it("is drawn without what can't be read, each said", () => {
+    const { node, said } = drawn(<Social containerPadding="lots" values={given([{ name: "X", url: "https://x.example" }], { iconSize: { no: 1 }, spacing: { no: 1 }, align: "middle" })} />, Page);
+    expect(node?.style).toEqual({});
+    expect(row(node).style?.justifyContent).toBe("start");
+    expect(image(node).style).toEqual({ width: 32, height: 32 });
+    expect(said.map((message) => /social block's (.+?) [{"]/.exec(message)?.[1])).toEqual(["icon size", "spacing", "padding", "alignment"]);
+    expect(row(lowered(<Social values={given([{ name: "X", url: "https://x.example" }], { align: "middle" })} />)).style?.justifyContent).toBe("center");
+  });
+
+  it("draws what it can of a malformed icon, each said: no name (its link kept), no link (no link), a number as a link and as an image, and leaves out what isn't an icon", () => {
+    const { node, said } = drawn(<Social values={given([{ url: "https://noname.example" }, { name: "Facebook" }, { name: "Facebook", url: 42 }, null, { name: "Instagram", url: "https://i.example", imgUrl: 7 }, { name: "X", url: "https://x.example", imgUrl: { no: 1 } }])} />);
+    const boxes = row(node).children as TreeNode[];
+    expect(boxes).toHaveLength(5);
+    const [nameless, noLink, numeric, numericImage, oddImage] = boxes.map((box) => (box.children as TreeNode[])[0]);
+    expect(nameless).toMatchObject({ type: "Link", props: { href: { href: "https://noname.example" } }, children: [{ props: { alt: " icon", src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/.png" } } }] });
+    expect(noLink.type).toBe("Image");
+    expect(numeric.props?.href).toEqual({ href: "42", target: "_blank" });
+    expect(((numericImage.children as TreeNode[])[0].props?.src as { src: string }).src).toBe("7");
+    expect(((oddImage.children as TreeNode[])[0].props?.src as { src: string }).src).toBe("https://cdn.tools.unlayer.com/social/icons/circle/x.png");
+    expect(said).toEqual([
+      "A social block's icon null can't be read: it's drawn without it.",
+      "A social block's icon's name undefined can't be read: it's drawn without it.",
+      "A social icon's 7 isn't a URL: it's written as it is.",
+      'A social icon\'s {"no":1} can\'t be read.',
+    ]);
+  });
+
+  it("draws an icon size of none without a size for its file (which the new engine refuses)", () => {
+    const { node, said } = drawn(<Social values={given([{ name: "X", url: "https://x.example" }], { iconSize: 0 })} />, Page);
+    expect(image(node).props?.src).toBe("https://cdn.tools.unlayer.com/social/icons/circle/x.png");
+    expect(said).toEqual([]);
+  });
+
+  it("is laid out left to right in a template written right to left, as legacy's", () => {
+    const tree = (Root: Root) => (withRenderScope(() => lowerTemplate(<Root textDirection="rtl"><Row><Column><Social icons={icons} /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered).tree;
+    expect(JSON.stringify(tree(Page))).toContain('"dir":"ltr"');
+    expect(JSON.stringify(lowered(<Social icons={icons} />, Page))).not.toContain('"dir"');
+  });
+
+  it("reads as its links' addresses in plain text: on one line in a page's markup, each on its own in an email's", () => {
+    const addresses = (Root: Root) => lowered(<Social icons={icons} />, Root)?.textAs;
+    expect(addresses(Page)).toMatchObject({ type: "Paragraph", children: [{ type: "Link", children: [] }, " ", { type: "Link", children: [] }] });
+    expect(addresses(Email)).toMatchObject({ type: "Column", children: [{ type: "Column" }, { type: "Column" }] });
   });
 });
 
@@ -776,16 +1074,88 @@ describe("a video block", () => {
     expect((lowered(video, Page)?.children as TreeNode[])[0]).toEqual({ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
     expect((lowered(video)?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg", alt: "Video" } });
   });
+
+  const held = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+  const html = (node: TreeNode | undefined) => String(held(node).props?.html);
+  const other = { video: { type: "dailymotion", videoId: "x8abc", thumbnail: "https://cdn.example/t.png" } } as never;
+
+  it("of a kind that has no player leaves its 16:9 place empty on a page and says so; its thumbnail in an email", () => {
+    const { node, said } = drawn(<Video values={other} />, Page);
+    expect(held(node).type).toBe("Raw");
+    expect(html(node)).toContain("padding-bottom:56.25%");
+    expect(html(node)).not.toMatch(/<iframe|<img/);
+    expect(said).toEqual(['A video of type "dailymotion" has no player: its place is left empty.']);
+    expect(held(lowered(<Video values={other} />))).toMatchObject({ type: "Image", props: { src: "https://cdn.example/t.png" } });
+  });
+
+  it("with no video draws the placeholder: in its 16:9 place on a page, as a thumbnail in an email", () => {
+    const empty = <Video values={{ video: { type: "youtube", videoId: "", thumbnail: "" } } as never} />;
+    expect(html(lowered(empty, Page))).toContain('src="https://cdn.tools.unlayer.com/video/placeholder.png"');
+    expect(held(lowered(empty))).toMatchObject({ type: "Image", props: { src: "https://cdn.tools.unlayer.com/video/placeholder.png", alt: "Video" } });
+    expect(drawn(empty, Page).said).toEqual(["A video has no video to play: it's drawn as the placeholder."]);
+  });
+
+  it("with an id the new Video doesn't read writes its player as it is, which that id can't get out of, and says so", () => {
+    const { node, said } = drawn(<Video values={{ video: { type: "youtube", videoId: 'a"><x-pwn>' } } as never} />, Page);
+    expect(html(node)).toContain('src="https://www.youtube.com/embed/a&quot;&gt;&lt;x-pwn&gt;"');
+    expect(said.join()).toContain("can't be read");
+  });
+
+  it("in an email, where it says it's a page's, is a player of its own", () => {
+    expect(html(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" mode="web" />))).toContain('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"');
+  });
+
+  it("on a page, where it says it's an email's, is its thumbnail", () => {
+    expect(held(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" mode="email" />, Page))).toMatchObject({ type: "Image", props: { alt: "Video" } });
+  });
+
+  it("links its thumbnail where it has a link of its own: its href, else its video's URL", () => {
+    expect(held(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" values={{ href: "https://example.com/watch" } as never} />))).toMatchObject({ type: "Link", props: { href: { href: "https://example.com/watch", target: "_blank" } } });
+    expect(held(lowered(<Video values={{ video: { thumbnail: "https://cdn.example/t.png", url: "https://example.com/v" } } as never} />))).toMatchObject({ type: "Link", props: { href: { href: "https://example.com/v" } } });
+  });
+
+  it("draws a thumbnail that runs a script as the placeholder, and says so", () => {
+    const { node, said } = drawn(<Video values={{ video: { thumbnail: "javascript:alert(1)" } } as never} />);
+    expect(held(node).props?.src).toBe("https://cdn.tools.unlayer.com/video/placeholder.png");
+    expect(said.join()).toContain("isn't one Elements writes");
+  });
+
+  it("is drawn without a padding it can't read, and says so", () => {
+    const { node, said } = drawn(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" containerPadding="lots" />, Page);
+    expect(node?.style).toEqual({});
+    expect(said).toEqual(['A video\'s padding "lots" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("caps an email's thumbnail on phones at legacy's maximum where that's past its width on desktop", () => {
+    const image = (Root: Root) => {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column>{video}</Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+      return find(result.tree.root);
+    };
+    expect(image(Email)).toMatchObject({ style: { maxWidth: 250 }, mobile: { maxWidth: 250 } });
+  });
 });
 
 describe("a page break", () => {
-  it("draws nothing in an email or on a page (with nothing written by legacy's exporters), and keeps its legacy HTML in a printed document", () => {
+  it("draws nothing in an email or on a page, and in a printed document is a box of its padding the page breaks after, with no Raw node", () => {
     for (const Root of [Email, Page]) {
       const result = withRenderScope(() => lowerTemplate(<Root><Row><Column><Paragraph>A</Paragraph><PageBreak /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
       expect(result.legacyHead).toBeUndefined();
       expect(lowered(<PageBreak />, Root)).toBeUndefined();
     }
-    expect(lowered(<PageBreak />, Document as Root)?.type).toBe("Raw");
+    expect(lowered(<PageBreak />, Document as Root)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, breakAfter: "page" } });
+    expect((withRenderScope(() => lowerTemplate(<Document><Row><Column><PageBreak /></Column></Row></Document>, undefined, "renderToHtml")) as Lowered).legacyHead).toBeUndefined();
+  });
+
+  it("goes by its own mode: a box in an email where it says it's a document's, nothing in a document where it says it's a page's", () => {
+    expect(lowered(<PageBreak mode="document" />)?.style?.breakAfter).toBe("page");
+    expect(lowered(<PageBreak mode="web" />, Document as Root)).toBeUndefined();
+  });
+
+  it("is drawn without a padding it can't read, and says so", () => {
+    const { node, said } = drawn(<PageBreak containerPadding="lots" />, Document as Root);
+    expect(node).toEqual({ type: "Column", style: { breakAfter: "page" } });
+    expect(said).toEqual(['A page break\'s padding "lots" can\'t be read: it\'s drawn without it.']);
   });
 });
 

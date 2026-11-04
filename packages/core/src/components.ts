@@ -93,6 +93,7 @@ export const Row = defineComponent({
   categories: ["layout", "block"],
   props: {
     stackOnMobile: prop(boolean(), { support: WRITTEN, label: "Stack on phones", description: "Its children stack full-width on phones (in an Email or a Page).", default: true }),
+    ...TEXT_DIR,
   },
   style: {
     ...inheritedTextStyle,
@@ -107,12 +108,12 @@ export const Row = defineComponent({
       support: { email: { level: "none", values: ["space-between"], shows: "children start at the left", source: "writer" }, web: css },
     },
     flexWrap: {
-      kind: enumOf(["nowrap", "wrap"]),
+      kind: enumOf(["nowrap", "wrap", "words"]),
       label: "Wrap",
-      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones).',
+      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones). "words": in an email, also a space of the text\'s font apart, on lines at least as tall as its, as words are.',
       // A Row kept side by side wraps in an email (but classic Outlook, which the email's checks say where it matters).
       support: {
-        email: { level: "none", values: ["wrap"], when: (_, row) => row.props.stackOnMobile !== false, shows: "children on one line on desktop, stacked on phones", source: "writer" },
+        email: { level: "none", values: ["wrap", "words"], when: (_, row) => row.props.stackOnMobile !== false, shows: "children on one line on desktop, stacked on phones", source: "writer" },
         web: css,
       },
     },
@@ -143,6 +144,7 @@ export const Column = defineComponent({
       ...layoutStyle.justifyContent,
       support: { email: { level: "partial", values: ["center", "end", "space-between"], shows: "no effect: its children start at the top", source: "writer" }, web: css },
     },
+    breakAfter: { kind: enumOf(["page"]), label: "Break after", description: "\"page\": a printed page ends after it.", support: { email: { level: "none", shows: "no break: an email has no pages", source: "writer" }, web: css } },
     ...placementStyle,
   },
   children: { categories: ["layout", "block"] },
@@ -170,7 +172,7 @@ export const Text = defineComponent({
   categories: ["block"],
   props: TEXT_DIR,
   style: TEXT_BLOCK_STYLE,
-  children: TEXT_CHILDREN,
+  children: { ...TEXT_CHILDREN, types: ["Image"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
   editor: { groups: [TEXT_EDITOR, SPACING_EDITOR] },
@@ -245,6 +247,7 @@ export const Link = defineComponent({
     href: prop(link(), { support: WRITTEN, label: "Link", required: true }),
     title: prop(text(), { support: WRITTEN, label: "Title", description: "Shown as a tooltip by mail clients and browsers that show one." }),
     "aria-label": prop(text(), { support: WRITTEN, label: "Label for screen readers", description: "What a screen reader says for it, where its text alone doesn't say enough (\"Read more about pricing\")." }),
+    attrs: prop(attributes(), { support: WRITTEN, editable: false, label: "More attributes", description: "More attributes for it: a class, a `data-` attribute." }),
   },
   style: { ...RUN_STYLE, ...placementStyle },
   defaultStyle: { color: "#0000ee", textDecoration: "underline" },
@@ -327,6 +330,8 @@ export const Image = defineComponent({
   style: {
     ...pick(boxStyle, "width", "maxWidth", "height", "border", "borderRadius"),
     ...placementStyle,
+    alignSelf: { kind: enumOf(["start", "center", "end"]), label: "Place", description: "Where it sits in its stack on phones, where that's another place than on desktop.", mobile: true, support: { email: { level: "full", source: "caniemail" }, web: css } },
+    verticalAlign: { kind: enumOf(["top", "middle"]), label: "Place in its line", description: "Where it sits in a line of text it's in.", support: { email: { level: "full", source: "caniemail" }, web: css } },
   },
   children: {},
   sizing: "shrink",

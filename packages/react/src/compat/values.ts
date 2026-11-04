@@ -1,5 +1,5 @@
 /** Legacy design values as the new engine's: lengths, sides, colors, borders, line heights and weights. */
-import type { Json } from "@unlayer-internal/elements-core";
+import { asset, type Json } from "@unlayer-internal/elements-core";
 import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
 
 export type Values = Record<string, any>;
@@ -129,7 +129,7 @@ export function webLink(value: unknown): Json | null | undefined {
 }
 
 /** A URL with its quotes and angle brackets encoded as legacy encodes them, an email service's tag left as it is. */
-const encodedUrl = (url: string) => url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
+export const encodedUrl = (url: string) => url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
 
 /**
  * A block's link where it's always drawn: its URL and how it opens, or a link to nothing (legacy's `href=""`), and the
@@ -138,6 +138,7 @@ const encodedUrl = (url: string) => url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.l
  */
 export function drawnLink(value: unknown, keep: (text: string) => string, note: (message: string) => void): { href: Json; attrs?: Json } {
   const given = normalizeLinkValue(value);
+  if (!given && value !== undefined && value !== null) note(`A link ${JSON.stringify(value)} can't be read: it's a link to nothing.`);
   const target = typeof given?.target === "string" && given.target ? given.target : undefined;
   const opens = target === "_self" || target === "_blank";
   const own = given?.customAttrs && typeof given.customAttrs === "object" ? Object.entries(given.customAttrs as Record<string, unknown>).filter(([name, v]) => typeof v === "string" && v.trim() && !/^on/i.test(name)) : [];
@@ -149,6 +150,22 @@ export function drawnLink(value: unknown, keep: (text: string) => string, note: 
   if (given && typeof given.url !== "string" && given.url) note(`A link's URL ${JSON.stringify(given.url)} can't be read: it's a link to nothing.`);
   const href = url ? keep(encodedUrl(url)) : "";
   return { href: { href, ...(opens ? { target } : {}) } as Json, ...(Object.keys(attrs).length ? { attrs } : {}) };
+}
+
+/**
+ * A URL an image can be drawn from: as it is where it's text, a number as the text legacy writes; undefined where the
+ * new engine won't write it (one that runs a script), which is said.
+ */
+export function drawnImageUrl(value: unknown, keep: (text: string) => string, say: (message: string) => void): string | undefined {
+  if (typeof value !== "string" && typeof value !== "number") {
+    say(`${JSON.stringify(value)} can't be read.`);
+    return undefined;
+  }
+  if (typeof value === "number") say(`${value} isn't a URL: it's written as it is.`);
+  const url = keep(inAttribute(String(value)));
+  if (asset().parse(url).ok) return url;
+  say(`${JSON.stringify(value)} isn't one Elements writes.`);
+  return undefined;
 }
 
 /**
@@ -183,8 +200,11 @@ export function serviceTag(text: string): boolean {
 const SERVICE_TAG = /<%[\s\S]*?%>|\{%[\s\S]*?%\}|\{\{[^}]*[<>&"'][^}]*\}\}/g;
 const KEPT_TAG = /\uE000(\d+)\uE001/g;
 
-/** Text with each email service's tag in it a mark of its place in `tags`, which the writers leave as it is. */
-export const keepServiceTags = (text: string, tags: string[]): string => text.replace(SERVICE_TAG, (tag) => `\uE000${tags.push(tag) - 1}\uE001`);
+/** Text with each email service's tag in it (or what `pattern` finds) a mark of its place in `tags`, which the writers leave as it is. */
+export const keepServiceTags = (text: string, tags: string[], pattern: RegExp = SERVICE_TAG): string => text.replace(pattern, (tag) => `\uE000${tags.push(tag) - 1}\uE001`);
+
+/** Text for an attribute: a double quote in an email service's tag would end it, so it's encoded, as legacy encodes it. */
+export const inAttribute = (text: string): string => text.replace(SERVICE_TAG, (tag) => tag.replace(/"/g, "&quot;"));
 
 /** The marks in written markup as the tags they were, for the service to fill in. */
 export const restoreServiceTags = (text: string, tags: string[]): string => text.replace(KEPT_TAG, (mark, index) => tags[Number(index)] ?? mark);
