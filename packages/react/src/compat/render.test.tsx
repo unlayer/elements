@@ -539,6 +539,24 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       }
     });
 
+    it("write a text block's color over what its Row's own style or class gives, as 0.2.1's", () => {
+      const colorOf = (html: string, words: string) => {
+        const element = Array.from(new DOMParser().parseFromString(html, "text/html").body.querySelectorAll("*")).find((candidate) => candidate.children.length === 0 && candidate.textContent === words);
+        return /(?:^|;)color:([^;]+)/.exec(element?.getAttribute("style") ?? "")?.[1];
+      };
+      const blocks = <Column><Paragraph>Words</Paragraph><Heading text="Title" /><Paragraph color="#123456">Own</Paragraph></Column>;
+      for (const Root of [Page, Document]) {
+        for (const own of [{ style: { color: "#c33" } }, { className: "mine" }]) {
+          const html = renderToHtml(<Root><Row {...own}>{blocks}</Row></Root>);
+          expect(colorOf(html, "Words")).toBe("#000");
+          expect(colorOf(html, "Title")).toBe("#000");
+          expect(colorOf(html, "Own")).toBe("#123456");
+        }
+        // A Row with neither leaves it to what's around it, the same color.
+        expect(colorOf(renderToHtml(<Root><Row>{blocks}</Row></Root>), "Words")).toBeUndefined();
+      }
+    });
+
     it("read an `&amp;` in a URL, and an entity in an image's text or a link's own attribute, as 0.2.1 reads them", () => {
       const url = "https://example.com/a?a=1&amp;b=2&c=3";
       const words = "Tom &amp; Jerry &copy; A&B";

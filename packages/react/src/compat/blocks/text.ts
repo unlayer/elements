@@ -211,6 +211,7 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
     ...(level || dir ? { props: { ...(level ? { level } : {}), ...(dir ? { dir } : {}) } } : {}),
     style: { ...style, ...(some(padding) ? { padding: padding! } : {}) },
     ...(Object.keys(phone).length ? { mobile: phone } : {}),
+    ...(place.inOwnRow && style.color ? { compat: { ownColor: true } } : {}),
     children: styled(children, linkStyleOf(values, "email") ?? undefined, linkHoverOf(values, place.mode)),
   };
   // HTML with nothing to draw (a line break) is a line of its height, as legacy's, with no words in its plain text. No

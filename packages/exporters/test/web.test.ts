@@ -472,6 +472,12 @@ describe("web HTML", () => {
     expect(body).toContain("line-height:normal");
   });
 
+  it("writes a text's color where it's the same as what's around it, where a template of today's components says it's its own", () => {
+    const words = (compat?: Record<string, boolean>) => web(page([{ type: "Text", style: { color: "#000000" }, ...(compat ? { compat } : {}), children: ["A"] }], { style: { color: "#000000" } } as never)).body;
+    expect(words({ ownColor: true })).toMatch(/<div[^>]*style="[^"]*color:#000/);
+    expect(words()).not.toMatch(/<div[^>]*style="[^"]*[;"]color:#000[^>]*>A/);
+  });
+
   it("places an Image on phones", () => {
     const { head } = web(page([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, mobile: { alignSelf: "end" } }]));
     expect(head).toContain("align-self:flex-end!important");

@@ -53,6 +53,8 @@ export interface Place {
   cells: number[];
   index: number;
   config: Partial<UnlayerConfig>;
+  /** Its row has a className or style of its own, on a <div> around it: what text styles those give, legacy's text blocks write over. */
+  inOwnRow?: boolean;
   /**
    * The block's values as its exporter gets them (its props mapped, defaults in), where they hold what the design
    * doesn't: a text's Lexical textJson, whose formatting the design's plain `text` leaves out.
@@ -479,7 +481,7 @@ function row(design: Values, rowIndex: number, place: Omit<FramePlace, "row" | "
   const asCells = email && (holdsText || pastItsShare || (columns.length > 1 && (!stacks || cells.includes(0) || columns.some((c) => drawsBox(c.values)))));
   // On a page, what's more than a row's shares runs past it (legacy's columns keep their shares).
   const rigid = holdsText || columns.length !== cells.length || columns.some((c) => parseFloat(c.values?.border?.borderLeftWidth) > 0 || parseFloat(c.values?.border?.borderRightWidth) > 0);
-  const at = { ...place, row: values, cells };
+  const at = { ...place, row: values, cells, ...(outside?.around ? { inOwnRow: true } : {}) };
   const texts = outside?.columns ?? [];
   const innerRow = defined({
     type: "Row",
