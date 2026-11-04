@@ -380,8 +380,8 @@ describe("images, links and backgrounds", () => {
     const result = await convert(`import { Html, Body, Img, Text } from "@react-email/components";
       export default function T() { return <Html><Body><Text>Images</Text><Img src="https://example.com/a.png" width="600" style={{ width: 120 }} alt="Small" /><Img src="https://example.com/b.png" width="50%" alt="Half" /></Body></Html>; }`);
     for (const html of result.html) {
-      expect(html).toMatch(/<img[^>]*src="https:\/\/example\.com\/a\.png"[^>]*max-width: 120px/);
-      expect(html).not.toMatch(/<img[^>]*src="https:\/\/example\.com\/b\.png"[^>]*max-width: 600px/);
+      expect(html).toMatch(/<img[^>]*src="https:\/\/example\.com\/a\.png"[^>]*max-width:\s*120px/);
+      expect(html).not.toMatch(/<img[^>]*src="https:\/\/example\.com\/b\.png"[^>]*max-width:\s*600px/);
     }
   });
 

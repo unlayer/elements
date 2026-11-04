@@ -65,7 +65,8 @@ describe("phone styles", () => {
         </Section>
       </Container></Body></Html></Tailwind>; }`;
     const { codemod, designs, html } = await convertBoth(source);
-    for (const output of html) expect(output).toContain(".v-src-max-width { max-width: 100% !important; }");
+    // The image's own phone rule (as today's components write it, or the new engine), not its row's stacking.
+    for (const output of html) expect(output).toMatch(/\.v-src-max-width \{ max-width: 100% !important; \}|\.\w+\{[^}]*max-width:100%!important[^}]*\}/);
     expect(codemod.code).toContain("mobile={{");
     expect(codemod.code).toContain("hideOnMobile={true}");
     // Named as the template writes it, not as <Tailwind> renames it (`hover_text-red-500`).

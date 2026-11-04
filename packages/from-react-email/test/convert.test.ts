@@ -1556,7 +1556,7 @@ Template.PreviewProps = { name: "Ana" };`);
     expect(result.code).toMatch(/<Paragraph[^>]*color="#6b7280"[^>]*fontSize="13px"[^>]*fontWeight=\{600\}/);
     expect(result.code).toMatch(/<Button[^>]*backgroundColor="#4f46e5"/);
     const html = renderToHtml(Migrated({ name: "Ana" }));
-    expect(html).toContain("color: #111827");
+    expect(html).toMatch(/color:\s*#111827/);
     expect(html).toMatch(/background-color:\s*#4f46e5/);
   });
 
