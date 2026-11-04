@@ -3,8 +3,8 @@
 //
 // CSP safety gate for @unlayer/react-elements.
 //
-// renderToHtml() pulls in @unlayer/exporters. If any reachable code evaluates a
-// string (eval / new Function) at import or render time, a strict
+// If any code renderToHtml() reaches evaluates a string (eval / new Function) at
+// import or render time, a strict
 // Content-Security-Policy without 'unsafe-eval' blocks it and the package throws
 // in browsers, iframes, and CSP'd SSR — before any render runs. V8's
 // --disallow-code-generation-from-strings is the engine-level equivalent of such
@@ -12,11 +12,8 @@
 // output is CSP-safe.
 //
 // This is a HARD gate. It fails if importing or rendering the built `dist/`
-// evaluates a string anywhere — whether in this package's own code OR in its
-// pinned @unlayer/exporters dependency. It will stay red until the workspace
-// catalog pins an @unlayer/exporters release that precompiles its templates
-// (no `new Function` at import / render). That is intentional: a green check
-// must mean "@unlayer/react-elements is genuinely CSP-safe."
+// evaluates a string anywhere. A green check must mean "@unlayer/react-elements
+// is genuinely CSP-safe."
 
 const CSP_ERROR = /Code generation from strings disallowed/;
 
@@ -117,8 +114,7 @@ try {
   const message = String((err && err.message) || err);
   if (CSP_ERROR.test(message)) {
     console.error(
-      `CSP_FAIL: @unlayer/react-elements (or its pinned @unlayer/exporters ` +
-        `dependency) evaluates a string (eval / new Function) at import or render — ` +
+      `CSP_FAIL: @unlayer/react-elements evaluates a string (eval / new Function) at import or render — ` +
         `it would throw under a Content-Security-Policy without 'unsafe-eval'.\n${message}`,
     );
   } else {

@@ -52,7 +52,7 @@ try {
   browser = await chromium.launch();
 
   // Negative control: prove this is a process-free browser and that the probe
-  // would detect the original exporters failure.
+  // would detect a bundle that reads `process` when it loads.
   const negativePage = await browser.newPage();
   const negativeErrors = [];
   negativePage.on("pageerror", (error) => negativeErrors.push(String(error)));
