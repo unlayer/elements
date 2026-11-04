@@ -111,8 +111,8 @@ describe("phone settings, written into the head's CSS", () => {
     "Row padding": (v) => <Row mobile={{ padding: v } as any}><Column><Paragraph>Hi</Paragraph></Column></Row>,
     "Column padding": (v) => <Row><Column mobile={{ padding: v } as any}><Paragraph>Hi</Paragraph></Column></Row>,
     "Column border": (v) => <Row><Column mobile={{ border: { borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: v } } as any}><Paragraph>Hi</Paragraph></Column></Row>,
-    // The block's id selects it there: one given in values is kept to what an id can hold.
-    "block id given in values": (v) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: `u_content_text_1${v}` } } as never}>Hi</Paragraph></Column></Row>,
+    // The block's id selects it there (markup no run holds, whose rules go by its id): one given in values is kept to what an id can hold.
+    "block id given in values": (v) => <Row><Column><Paragraph html="<ul><li>Hi</li></ul>" mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: `u_content_text_1${v}` } } as never} /></Column></Row>,
   };
   it.each(Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(PHONE).map((name) => [mode, name, Root] as const)))("%s: the %s can't end the style element or add rules", (_, name, Root) => {
     for (const payload of CSS_PAYLOADS) {
