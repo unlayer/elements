@@ -788,10 +788,10 @@ describe("email HTML", () => {
     expect(head).toContain("width:80%!important;max-width:80%!important");
   });
 
-  it("gives an Image marked `stackedMaxWidth` that maximum where its Row stacks, under its own phone styles", () => {
-    const image = { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, compat: { ownPhone: true, stackedMaxWidth: 250 }, mobile: { maxWidth: "50%" } };
+  it("gives an Image marked `fillsOnPhones` its whole place where its Row stacks, under its own phone styles", () => {
+    const image = { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, compat: { ownPhone: true, fillsOnPhones: true }, mobile: { maxWidth: "50%" } };
     const { head, body } = render(email([image]), { hideBelow: 480 });
-    expect(head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{max-width:250px!important\}\}@media \(max-width: 480px\)\{\.e\w+\{max-width:50%!important\}\}/);
+    expect(head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{width:100%!important;max-width:100%!important\}\}@media \(max-width: 480px\)\{\.e\w+\{max-width:50%!important\}\}/);
     expect(body).toMatch(/<img class="e\w+ e\w+"/);
   });
 

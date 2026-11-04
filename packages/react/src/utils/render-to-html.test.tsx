@@ -128,7 +128,7 @@ describe("the full document", () => {
 
   it("email mode returns a complete document with what Outlook and Apple Mail read", () => {
     const html = renderToHtml(emailTree);
-    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
     expect(html).toContain('xmlns:o="urn:schemas-microsoft-com:office:office"');
     expect(html).toContain("<!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->");
@@ -155,10 +155,12 @@ describe("the full document", () => {
     );
     const inOrder = html.slice(html.indexOf("<body")).match(/<!--\[if mso\]>.*?<!\[endif\]-->|>(Left|Right)</g);
     expect(inOrder).toEqual([
+      '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="500" align="center"><tr><td><![endif]-->',
       '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="250" valign="top" style="width:250px"><![endif]-->',
       ">Left<",
       '<!--[if mso]></td><td width="250" valign="top" style="width:250px"><![endif]-->',
       ">Right<",
+      "<!--[if mso]></td></tr></table><![endif]-->",
       "<!--[if mso]></td></tr></table><![endif]-->",
     ]);
   });
@@ -236,7 +238,7 @@ describe("the full document", () => {
 
   it.each(ROOTS)("renders an empty tree to a valid document without crashing: %s", (_, Root) => {
     const html = renderToHtml(<Root />);
-    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html.startsWith("<!DOCTYPE ")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
     expect(bodyTags(html)).toHaveLength(1);
   });
@@ -259,7 +261,7 @@ describe("the full document", () => {
       </Email>
     );
     const html = renderToHtml(element);
-    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
     expect(bodyTags(html)).toHaveLength(1);
     expect(html).not.toContain("my-email");
     expect(html).toMatch(/<\/head><body /);

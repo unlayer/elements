@@ -39,7 +39,7 @@ describe("Fragments and user components among the blocks", () => {
     expect([...texts].sort((a, b) => a - b)).toEqual(texts);
     for (const t of order) expect(body.split(`>${t}<`)).toHaveLength(2);
     // Every row renders as an email row, a user component's too: each has the table Outlook reads around its columns.
-    expect(body.match(/<!--\[if mso\]><table /g)).toHaveLength(8);
+    expect(body.match(/<!--\[if mso\]><table [^>]*width="100%"/g)).toHaveLength(8);
     // The design numbers each row, column and block (the new engine's HTML writes only an author's ids).
     const { rows } = (renderToJson(template) as any).body;
     const columns = rows.flatMap((r: any) => r.columns);

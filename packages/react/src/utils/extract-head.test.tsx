@@ -60,7 +60,7 @@ describe("renderToHtmlParts", () => {
       </Email>
     );
 
-    expect(head).toMatch(/<style>[\s\S]*body\{margin:0;padding:0;background-color:#abcdef\}[\s\S]*<\/style>/);
+    expect(head).toMatch(/<style>[\s\S]*body\{margin:0;padding:0;-webkit-text-size-adjust:100%;background-color:#abcdef\}[\s\S]*<\/style>/);
   });
 
   it("head has a Button's hover CSS on a page, for the class on its link", () => {
@@ -101,7 +101,7 @@ describe("renderToHtmlParts", () => {
     const innerBody = body.replace(/^\s*<div[^>]*>\s*/, "").replace(/\s*<\/div>\s*$/, "");
     expect(innerBody.startsWith("<body")).toBe(true);
     expect(fullDocument).toContain(innerBody);
-    expect(fullDocument.startsWith("<!DOCTYPE html>")).toBe(true);
+    expect(fullDocument.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
     expect(fullDocument.trimEnd().endsWith("</html>")).toBe(true);
   });
 
