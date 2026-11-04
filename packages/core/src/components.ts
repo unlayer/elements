@@ -144,7 +144,6 @@ export const Column = defineComponent({
       ...layoutStyle.justifyContent,
       support: { email: { level: "partial", values: ["center", "end", "space-between"], shows: "no effect: its children start at the top", source: "writer" }, web: css },
     },
-    breakAfter: { kind: enumOf(["page"]), label: "Break after", description: "\"page\": a printed page ends after it.", support: { email: { level: "none", shows: "no break: an email has no pages", source: "writer" }, web: css } },
     ...placementStyle,
   },
   children: { categories: ["layout", "block"] },

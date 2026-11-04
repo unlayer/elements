@@ -68,8 +68,9 @@ export function box(node: ResolvedNode, withWidth = true): Style {
     border: style.border,
     borderRadius: style.borderRadius,
     overflow: style.overflow === "hidden" ? "hidden" : undefined,
-    breakAfter: style.breakAfter,
-    pageBreakAfter: style.breakAfter === "page" ? "always" : undefined,
+    // (A page break of today's components, in a printed document.)
+    breakAfter: node.compat?.breakAfter === "page" ? "page" : undefined,
+    pageBreakAfter: node.compat?.breakAfter === "page" ? "always" : undefined,
   };
 }
 

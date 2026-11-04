@@ -10,5 +10,5 @@ export const pageBreak: Lowering = ({ values }: { values: Values }, place): Tree
   if ((values.mode ?? place.mode) !== "document") return null;
   const padding = sides(values.containerPadding ?? "10px");
   if (!padding) place.note(`A page break's padding ${JSON.stringify(values.containerPadding)} can't be read: it's drawn without it.`);
-  return { type: "Column", style: { ...(some(padding) ? { padding } : {}), breakAfter: "page" } };
+  return { type: "Column", style: some(padding) ? { padding: padding! } : {}, compat: { breakAfter: "page" } };
 };

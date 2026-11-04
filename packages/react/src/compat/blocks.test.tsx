@@ -1255,17 +1255,17 @@ describe("a page break", () => {
     for (const Root of [Email, Page]) {
       expect(lowered(<PageBreak />, Root)).toBeUndefined();
     }
-    expect(lowered(<PageBreak />, Document as Root)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, breakAfter: "page" } });
+    expect(lowered(<PageBreak />, Document as Root)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { breakAfter: "page" } });
   });
 
   it("goes by its own mode: a box in an email where it says it's a document's, nothing in a document where it says it's a page's", () => {
-    expect(lowered(<PageBreak mode="document" />)?.style?.breakAfter).toBe("page");
+    expect(lowered(<PageBreak mode="document" />)?.compat?.breakAfter).toBe("page");
     expect(lowered(<PageBreak mode="web" />, Document as Root)).toBeUndefined();
   });
 
   it("is drawn without a padding it can't read, and says so", () => {
     const { node, said } = drawn(<PageBreak containerPadding="lots" />, Document as Root);
-    expect(node).toEqual({ type: "Column", style: { breakAfter: "page" } });
+    expect(node).toEqual({ type: "Column", style: {}, compat: { breakAfter: "page" } });
     expect(said).toEqual(['A page break\'s padding "lots" can\'t be read: it\'s drawn without it.']);
   });
 });

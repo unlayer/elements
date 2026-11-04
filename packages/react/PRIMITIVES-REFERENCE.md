@@ -251,7 +251,6 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
-- `breakAfter`: one of "page". "page": a printed page ends after it.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`, `gap`.

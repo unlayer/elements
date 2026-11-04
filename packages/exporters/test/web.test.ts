@@ -464,7 +464,7 @@ describe("web HTML", () => {
   it("writes a Row's direction, a page break after a Column, and a line height of the font's own", () => {
     const { body } = web(page([
       { type: "Row", props: { dir: "ltr" }, children: [{ type: "Text", children: ["A"] }] },
-      { type: "Column", style: { breakAfter: "page" }, children: [] },
+      { type: "Column", compat: { breakAfter: "page" }, children: [] },
       { type: "Text", style: { lineHeight: "normal" }, children: ["B"] },
     ]));
     expect(body).toMatch(/<div class="\w+" dir="ltr" style="display:flex/);
