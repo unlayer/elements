@@ -1,1 +1,0 @@
-import{c as o,H as r,m as i,l as p}from"./create-component-Df6eRtdD.js";const t={...r,color:"#000000",fontWeight:400,text:"Heading"},g=o({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...s}=n,e=i(s,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:p});export{g as H};
