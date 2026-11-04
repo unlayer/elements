@@ -76,6 +76,8 @@ export interface OutsideTheDesign {
   rows: Array<{
     /** Its values as its exporter gets them, where they aren't the design's (no defaults). */
     values?: Values;
+    /** The start and end of the <div> a Row's own className and style are on, around it. */
+    around?: [string, string];
     /** Text straight in it, as HTML: what's before each of its columns, and after the last. */
     text: string[];
     /** Each of its columns' text, as HTML: what's before each of its blocks, and after the last. */
@@ -595,7 +597,12 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
     return [looseMarkup(html, frame, email ? { wide: opens > 0 ? "open" : opens < 0 ? "close" : true } : undefined, opens)];
   };
   const anchor = (r: Values): TreeNode[] => (r.values?.anchor ? [{ type: "Raw", props: { html: `<a name="${attribute(r.values.anchor)}"></a>`, text: "" }, ...(email ? { compat: { wide: true } } : {}) }] : []);
-  const rows = ((design.body.rows ?? []) as Values[]).flatMap((r, index) => [...wide(among[index]), ...anchor(r), row(r, index, place, options, frame)]);
+  // (In an email, a table of its own for the row inside it.)
+  const aroundRow = (html: string, wide: "open" | "close"): TreeNode => ({ type: "Raw", props: { html, text: "" }, ...(email ? { compat: { wide } } : {}) });
+  const rows = ((design.body.rows ?? []) as Values[]).flatMap((r, index) => {
+    const around = options.outside?.rows[index]?.around;
+    return [...wide(among[index]), ...(around ? [aroundRow(around[0], "open")] : []), ...anchor(r), row(r, index, place, options, frame), ...(around ? [aroundRow(around[1], "close")] : [])];
+  });
   rows.push(...wide(among[(design.body.rows ?? []).length]));
   const textColor = email ? values.textColor : pageBodyColor(values.textColor, "#000000");
   const preview = email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as previous from "@unlayer/react-elements-previous";
-import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, Row, renderToHtml, renderToJson } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, registerTool, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import { withRenderScope } from "../utils/render-scope";
 import { contentBox, lowerDesign, PAGE_WIDTH, type Mode, type TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -361,6 +361,48 @@ describe("lowerDesign()", () => {
       expect(html).toMatch(/<tr><td><div class="wrap"><table[^>]*width="100%">/);
       expect(html).toContain("</table></div></td></tr>");
       expect(find(tree(<Document><div className="wrap"><Row>{cell}</Row></div></Document>), (n) => n.type === "Raw")?.props?.html).toBe('<div style="line-height:normal"><div class="wrap">');
+    });
+
+    it("writes a Row's className and style on a <div> around it, as 0.2.1, with a table of its own in an email", () => {
+      const styled = (Root: typeof Email) => <Root><Row><Column><Paragraph>Before</Paragraph></Column></Row><Row className="mine" style={{ outline: "3px solid red" }}>{cell}</Row><Row><Column><Paragraph>After</Paragraph></Column></Row></Root>;
+      const open = '<div class="mine" style="outline:3px solid red">';
+      expect(renderToHtml(styled(Email))).toMatch(new RegExp(`<tr><td>${open}<table[^>]*width="100%">`));
+      expect(renderToHtml(styled(Email))).toContain("</table></div></td></tr>");
+      for (const Root of [Page, Document] as unknown as Array<typeof Email>) {
+        const html = renderToHtml(styled(Root));
+        expect(html).toContain(open);
+        // Around that row alone.
+        const inside = html.slice(html.indexOf(open));
+        expect(inside.indexOf(">A<")).toBeGreaterThan(-1);
+        expect(html.indexOf("Before")).toBeLessThan(html.indexOf(open));
+        expect(html.indexOf(open)).toBeLessThan(html.indexOf(">A<"));
+      }
+      expect(renderToPlainText(styled(Email))).toBe(previous.renderToPlainText(<previous.Email><previous.Row><previous.Column><previous.Paragraph>Before</previous.Paragraph></previous.Column></previous.Row><previous.Row className="mine" style={{ outline: "3px solid red" }}><previous.Column><previous.Paragraph>A</previous.Paragraph></previous.Column></previous.Row><previous.Row><previous.Column><previous.Paragraph>After</previous.Paragraph></previous.Column></previous.Row></previous.Email>));
+    });
+
+    it("writes a Row's className and style once where it's a template of its own", () => {
+      const html = renderToHtml(<Row className="mine" style={{ outline: "3px solid red" }}>{cell}</Row>);
+      expect(html.match(/class="mine"/g)).toHaveLength(1);
+    });
+
+    it("says a Column's and a block's className and style draw nothing in a template, where 0.2.1 drew nothing either", () => {
+      const given = { className: "mine", style: { outline: "3px solid red" } };
+      const html = renderToHtml(<Email><Row><Column {...given}><Paragraph {...given}>A</Paragraph></Column></Row></Email>);
+      expect(html).not.toContain("mine");
+      const said = notes(<Email><Row><Column {...given}><Paragraph {...given}>A</Paragraph></Column></Row></Email>);
+      expect(said).toContain("warning: A <Column>'s className and style draws nothing in a template: it's written only where the <Column> is rendered on its own.");
+      expect(said).toContain("warning: A <Paragraph>'s className and style draws nothing in a template: it's written only where the <Paragraph> is rendered on its own.");
+    });
+
+    it("says a root's className and style draw nothing in a whole document, and only there", () => {
+      const styled = <Email className="mine"><Row>{cell}</Row></Email>;
+      expect(notes(styled).join()).toContain("A root's className draws nothing in a whole document");
+      expect(withRenderScope(() => lowerTemplate(styled, undefined, "renderToHtmlParts")).diagnostics.map((d) => d.message).join()).not.toContain("A root's className");
+    });
+
+    it("says nothing of a custom tool's className and style: its props are its values", () => {
+      const Tool = registerTool({ name: "own_props", renderer: { exporters: { web: () => "<b>Tool</b>", email: () => "<b>Tool</b>" } } } as never) as never as React.FC<Record<string, unknown>>;
+      expect(notes(<Email><Row><Column><Tool className="mine" style="tall" /></Column></Row></Email>).join()).not.toContain("draws nothing in a template");
     });
 
     it("draws a block or a Column among the rows, as today's Body renders it", () => {

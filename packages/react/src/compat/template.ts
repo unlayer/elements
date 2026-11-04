@@ -13,6 +13,7 @@ import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container
 import { safeMeta, textDirectionOf, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { amongRows, blockWithoutMarkers, drawnRoot, KEPT } from "../utils/normalize";
 import { looseText } from "../utils/render-scope";
+import { renderToStaticMarkup } from "../utils/server-renderer";
 import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
@@ -98,7 +99,8 @@ function templateRoot(element: React.ReactElement, name: string, config: Partial
   // What it's in has its own background, where it's in something.
   const { className, style } = found.props;
   const body = (values?: Record<string, unknown>) => ({ mode: found.props.mode ?? config?.mode, className, style, values: { ...inReact.body, ...(inReact.piece ? { backgroundColor: "" } : {}), ...values } });
-  if (display === "Row") return { root: React.createElement(Body, body(), found) };
+  // (Its className and style are on the root's host <div>, as what's rendered on its own has them.)
+  if (display === "Row") return { root: React.createElement(Body, body(), React.cloneElement(found, { className: undefined, style: undefined })) };
   // A Column or block on its own is where it's put, not in a content width of its own.
   const alone = (content: React.ReactNode, values?: Record<string, unknown>) => ({ root: React.createElement(Body, body({ contentAlign: "left", ...values }), React.createElement(Row, found.props.cells ? { cells: found.props.cells } : null, content)), wide: true });
   if (display === "Column") return alone(found);
@@ -133,7 +135,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const design = collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> };
   const names = inReact.embedded ? frameNames(mode, design) : undefined;
   const shape = { embedded: inReact.embedded, wide, names };
-  const { blocks: sources, body, rows } = blockSources(collected);
+  const { blocks: sources, body, rows, notDrawn } = blockSources(collected);
   // A Row whose Columns don't fit its layout: today's Body says so and renders without its rows (a mailer that never
   // expected renderToHtml to throw would fail).
   const unfit = layoutThatDoesNotFit(collected);
@@ -148,7 +150,9 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
   const html = new Map<number, string>();
-  const ofBlocks: Diagnostic[] = [];
+  const ofBlocks: Diagnostic[] = notDrawn.map((message) => ({ code: "compat/block", severity: "warning", message, path: "body.rows" }));
+  // (renderToHtmlParts and a React render have a host for them: a whole document doesn't.)
+  if (given && name === "renderToHtml" && ownMarkupProps(root)) ofBlocks.push({ code: "compat/frame", severity: "warning", message: `A root's ${ownMarkupProps(root)} draws nothing in a whole document: renderToHtmlParts() writes it on the host <div> around the body.`, path: "body" });
   const tags: string[] = [];
   let next = 0;
   const { root: lowered, diagnostics: ofFrame } = lowerDesign(design, {
@@ -291,6 +295,19 @@ function withoutPhone(block: DesignBlock, mode: Mode): DesignBlock {
   return { ...block, values: { ...block.values, _override: override } };
 }
 
+/** Which of a component's className and style it's given, in words. */
+function ownMarkupProps(element: React.ReactElement<any>): string | undefined {
+  return [element.props.className ? "className" : "", element.props.style ? "style" : ""].filter(Boolean).join(" and ") || undefined;
+}
+
+/** A Row's className and style as legacy writes them: on a <div> around it, whose start and end are returned. Undefined where it has neither. */
+function aroundRow(row: React.ReactElement<any>): [string, string] | undefined {
+  const { className, style } = row.props;
+  if (!className && !style) return undefined;
+  const MARK = "\uE002";
+  return renderToStaticMarkup(React.createElement("div", { className, style, dangerouslySetInnerHTML: { __html: MARK } })).split(MARK) as [string, string];
+}
+
 /** A block of the template, as a Column gives it to its exporter. */
 interface BlockSource {
   /** Its values as its exporter gets them (its props mapped, its defaults in); undefined where it has no tool. */
@@ -306,8 +323,14 @@ interface BlockSource {
  * Each block of the template, in the design's order (rows, their columns, their blocks, as renderToJson walks the same
  * collected template), and the body's values.
  */
-function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource[]; body: Record<string, any>; rows: OutsideTheDesign["rows"] } {
+function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource[]; body: Record<string, any>; rows: OutsideTheDesign["rows"]; notDrawn: string[] } {
   const out: BlockSource[] = [];
+  const notDrawn: string[] = [];
+  // Legacy draws a Column's and a block's className and style only where it's rendered on its own.
+  const said = (element: React.ReactElement<any>, name: string) => {
+    const own = ownMarkupProps(element);
+    if (own) notDrawn.push(`A <${name}>'s ${own} draws nothing in a template: it's written only where the <${name}> is rendered on its own.`);
+  };
   const rows: OutsideTheDesign["rows"] = [];
   // What's in a Row or a Column that isn't one of its children in the design, as today's Row and Column write it.
   const all = (element: React.ReactElement<any>) => React.Children.toArray(element.props.children);
@@ -330,6 +353,7 @@ function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource
     }
     rows.push({
       values: ownRow,
+      around: aroundRow(row),
       text: rowText.map((text) => (text.trim() ? text : "")),
       columns: columns.map((column) => {
         const texts = [""];
@@ -343,6 +367,7 @@ function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource
     columns.forEach((column, colIndex) => {
       const ownColumn = mapped(column, COLUMN_DEFAULTS, "Column");
       const columnValues = { ...ownColumn, _meta: safeMeta({ htmlID: nextId("u_column"), htmlClassNames: "u_column", ...ownColumn._meta }) };
+      said(column, "Column");
       for (const element of elements(column.props.children)) {
         const type = element.type as any;
         const block = !type?.[UNLAYER_CONFIG_KEY] && type?.[KEPT] ? (type[KEPT] as React.ReactElement<any>) : element;
@@ -351,12 +376,14 @@ function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource
         if (config) {
           const { children, ...props } = block.props;
           values = mergeValues(config.defaultValues, config.propMapper({ children, ...props }));
+          // (A custom tool's props are its own values.)
+          if (config.contentType !== "custom") said(block, getDisplayName(block) ?? "block");
         }
         out.push({ values, element, id: nextId(`u_content_${blockName(type)}`), frame: { colIndex, cells, bodyValues, rowValues, columnValues } });
       }
     });
   }
-  return { blocks: out, body: bodyValues, rows };
+  return { blocks: out, body: bodyValues, rows, notDrawn };
 }
 
 /** The tree without Raw nodes that hold nothing (a block that writes nothing in this output). */
