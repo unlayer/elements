@@ -1,20 +1,17 @@
 /**
- * extractHeadFromTree — Walk a React element tree and collect <head> CSS/JS
- * from the exporters' head functions.
- *
- * Mirrors the editor's extractHead.ts but works with the React element tree
- * instead of the Redux design state. Uses the same pattern as render-to-json.ts
- * to walk Body > Row > Column > Item structure.
+ * extractHeadFromTree: what a template's blocks of open HTML (a custom tool's, an Html block's, markup kept from a
+ * component of the user's) need in `<head>`: their own head functions' CSS, JS and tags, and their settings for a device.
+ * The new engine writes what its own blocks need (hover, phone settings) with them. Walks the same collected template
+ * as the render (Body > Row > Column > Item).
  */
 
 import React from "react";
 import { collectDeviceStyles, deviceStylesCss, deviceVisibilityCss } from "./device-overrides";
-import { heads } from "@unlayer/exporters";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
-import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
+import { BODY_DEFAULTS } from "./container-defaults";
 import { KEPT, normalizedRoot } from "./normalize";
 import { getDisplayName } from "./unwrap-root";
 import { extractSemanticProps, nextCounter } from "./render-to-json";
@@ -70,15 +67,10 @@ export interface ExtractHeadOptions {
   displayMode: RenderMode;
   /** Optional head config for feature flags and initial values */
   headConfig?: HeadConfig;
-  /**
-   * Only what a template's blocks of open HTML need (see `writesOpenHtml`), with no closed head function run: their
-   * own head and their settings for a device. A block a new component draws writes none of the classes those select.
-   */
-  open?: boolean;
 }
 
 /** A block whose HTML is the user's own (a custom tool's exporter, an Html block, markup kept from a component of theirs). */
-export function writesOpenHtml(type: any): boolean {
+function writesOpenHtml(type: any): boolean {
   const config = type?.[UNLAYER_CONFIG_KEY];
   return config ? config.contentType === "custom" || config.name === "Html" : !!type?.[KEPT];
 }
@@ -133,8 +125,7 @@ function walkItem(
   styles: string[],
   scripts: string[],
   tags: string[],
-  deviceStyles: Record<string, string[]>,
-  open = false
+  deviceStyles: Record<string, string[]>
 ): void {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
@@ -149,7 +140,8 @@ function walkItem(
   // Track component index (same counter pattern as render-to-json.ts)
   const contentType = config.metaName ?? name.toLowerCase();
   const count = nextCounter(counters, `u_content_${contentType}`);
-  if (open && !writesOpenHtml(componentType)) return;
+  // A block a new component draws writes none of the classes these select.
+  if (!writesOpenHtml(componentType)) return;
 
   // Map and merge values (same as render-to-json and create-component)
   const { children, ...restProps } = element.props;
@@ -159,74 +151,7 @@ function walkItem(
 
   collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles);
 
-  // The component's own head (custom tools) wins over the registry lookup
-  const head =
-    (config.head as ComponentHead | undefined) ??
-    (open ? undefined : (heads as Record<string, ComponentHead | undefined>)[name]);
-  callHead(head, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-}
-
-function walkColumn(
-  element: React.ReactElement,
-  bodyValues: Record<string, any>,
-  rowValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  counters: Record<string, number>,
-  styles: string[],
-  scripts: string[],
-  tags: string[],
-  deviceStyles: Record<string, string[]>
-): void {
-  // Column head
-  const semanticProps = extractSemanticProps(element.props);
-  const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
-  const count = nextCounter(counters, "u_column");
-  const columnValues = ensureMeta(mergeValues(COLUMN_DEFAULTS, mapped), "column", count - 1);
-
-  collectDeviceStyles(columnValues, "columns", "Column", displayMode, deviceStyles);
-
-  const columnHead = (heads as Record<string, ComponentHead | undefined>)["Column"];
-  callHead(columnHead, columnValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-  // Walk item children
-  const children = collectChildren(element.props.children);
-  for (const child of children) {
-    walkItem(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
-  }
-}
-
-function walkRow(
-  element: React.ReactElement,
-  bodyValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  counters: Record<string, number>,
-  styles: string[],
-  scripts: string[],
-  tags: string[],
-  deviceStyles: Record<string, string[]>
-): void {
-  // Row head
-  const semanticProps = extractSemanticProps(element.props, ["layout"]);
-  const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
-  const count = nextCounter(counters, "u_row");
-  const rowValues = ensureMeta(mergeValues(ROW_DEFAULTS, mapped), "row", count - 1);
-
-  collectDeviceStyles(rowValues, "rows", "Row", displayMode, deviceStyles);
-
-  const rowHead = (heads as Record<string, ComponentHead | undefined>)["Row"];
-  callHead(rowHead, rowValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-  // Walk column children
-  const children = collectChildren(element.props.children);
-  for (const child of children) {
-    const name = getDisplayName(child);
-    if (name === "Column") {
-      walkColumn(child, bodyValues, rowValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
-    }
-  }
+  callHead(config.head as ComponentHead | undefined, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
 }
 
 // ============================================
@@ -235,9 +160,6 @@ function walkRow(
 
 /**
  * Extract head CSS/JS/tags from a React element tree.
- *
- * Walks the tree statically (same approach as renderToJson) and calls
- * each component's head function from @unlayer/exporters.
  *
  * @param element - Root element (Body, Email, Page, or Document)
  * @param options - Display mode and optional head config
@@ -268,21 +190,8 @@ export function extractHeadFromTree(
 
   // Walk rows
   const children = collectChildren(element.props.children);
-  if (options.open) {
-    const named = (parents: React.ReactElement[], name: string) => parents.filter((c) => getDisplayName(c) === name).flatMap((c) => collectChildren((c.props as { children?: React.ReactNode }).children));
-    for (const block of named(named(children, "Row"), "Column")) walkItem(block, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles, true);
-  } else {
-    // Body head
-    const bodyHead = (heads as Record<string, ComponentHead | undefined>)["Body"];
-    callHead(bodyHead, bodyValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-    for (const child of children) {
-      const name = getDisplayName(child);
-      if (name === "Row") {
-        walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
-      }
-    }
-  }
+  const named = (parents: React.ReactElement[], name: string) => parents.filter((c) => getDisplayName(c) === name).flatMap((c) => collectChildren((c.props as { children?: React.ReactNode }).children));
+  for (const block of named(named(children, "Row"), "Column")) walkItem(block, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
 
   styles.unshift(deviceVisibilityCss(displayMode));
   const overrides = deviceStylesCss(deviceStyles, displayMode);

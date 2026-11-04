@@ -19,22 +19,6 @@ const pageBreakExporters = {
   document: () => '<div class="u-content-page-break" aria-hidden="true"></div>',
 };
 
-const pageBreakHead = {
-  css: (
-    _values: Record<string, unknown>,
-    _bodyValues: Record<string, unknown>,
-    meta: { displayMode?: string },
-  ) =>
-    meta.displayMode === "document"
-      ? `
-      .u-content-page-break {
-        break-after: page;
-        page-break-after: always;
-      }
-    `
-      : undefined,
-};
-
 /**
  * PageBreak - Forces subsequent document content onto a new PDF page.
  *
@@ -52,8 +36,6 @@ const PageBreak = createItemComponent<
   propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "PageBreak"),
   displayName: "PageBreak",
   exporters: pageBreakExporters,
-  head: pageBreakHead,
-  omitEmptyOutput: true,
 });
 
 export default PageBreak;

@@ -197,7 +197,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     // A Row or Column in a Column reads as it does on its own.
     if (written?.text !== undefined) raw.get(n)!.textAs = { type: "Raw", props: { html: written.text } };
   }
-  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig, open: true });
+  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig });
   // (A printed document's own markup CSS is on its root.)
   const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
   for (const [n, node] of raw) {
