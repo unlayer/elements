@@ -83,6 +83,7 @@ export function raise(element: React.ReactElement): Raised {
       return put(lockedHtml(node, path, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path)));
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
+    textAround: inheritedText,
   };
 
   /** A stack's blocks, its gap above each but the first, its padding around them. */

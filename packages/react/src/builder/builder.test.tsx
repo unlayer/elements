@@ -182,3 +182,19 @@ describe("a link's window", () => {
     expect(fromDesign(design, { displayMode: "email" }).code).toMatch(/href="https:\/\/example\.com"/);
   });
 });
+
+describe("an Html block", () => {
+  it("takes the text styles around it to the builder, whose HTML block has none", () => {
+    const { design } = toDesign(<Email><Column style={{ textAlign: "center", color: "#123456", fontSize: 18 }}><Html html="<b>x</b>" /></Column></Email>);
+    const html = blocks(design).find((block) => block.type === "html")!.values.html;
+    expect(html).toContain("text-align:center");
+    expect(html).toContain("color:#123456");
+    expect(html).toContain("font-size:18px");
+    expect(html).toContain("<b>x</b>");
+  });
+
+  it("is as it is where nothing around it sets a text style", () => {
+    const { design } = toDesign(<Email><Html html="<b>x</b>" /></Email>);
+    expect(blocks(design).find((block) => block.type === "html")!.values.html).toBe("<b>x</b>");
+  });
+});

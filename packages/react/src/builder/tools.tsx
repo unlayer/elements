@@ -21,6 +21,8 @@ export interface Place {
   sayLeftOut(tool: string, node: Node, path: string, fields: readonly string[]): void;
   locked(node: Node, path: string, why: string, around: Sides): React.ReactElement;
   stack(node: Node, path: string, around: Sides): React.ReactElement[];
+  /** The text styles a block takes from its parents that the root's don't give it. */
+  textAround(path: string): Record<string, Json>;
 }
 
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -240,7 +242,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
-      return place.put(<Html key={path} {...hiding} />, merge({ html: String(node.props?.html ?? ""), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
+      return place.put(<Html key={path} {...hiding} />, merge({ html: inText(String(node.props?.html ?? ""), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
     case "PageBreak":
       return place.put(<PageBreak key={path} />);
     default:
@@ -253,6 +255,18 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
 }
 
 /** The tool each block is, for its id's class (`u_content_text`). */
+/** Markup in the text styles it takes from around it: the builder's HTML block has none of its own, and an edit there leaves them. */
+function inText(html: string, text: Record<string, Json>): string {
+  const px = (value: Json) => (typeof value === "number" ? `${value}px` : String(value));
+  const css = Object.entries(text).flatMap(([key, value]): string[] => {
+    if (value === undefined || value === null) return [];
+    if (key === "fontSize" || key === "letterSpacing") return [`${key === "fontSize" ? "font-size" : "letter-spacing"}:${px(value)}`];
+    const property = ({ color: "color", fontFamily: "font-family", fontWeight: "font-weight", fontStyle: "font-style", lineHeight: "line-height", textAlign: "text-align", textTransform: "text-transform" } as Record<string, string>)[key];
+    return property ? [`${property}:${String(value).replace(/"/g, "'")}`] : [];
+  });
+  return css.length ? `<div style="${css.join(";")}">${html}</div>` : html;
+}
+
 const TOOLS: Record<string, string> = { Heading: "heading", Text: "text", Paragraph: "text", List: "text", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html" };
 
 /** An id the template gives a block, as the builder's (its element's id). */
