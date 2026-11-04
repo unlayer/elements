@@ -65,10 +65,10 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 413.5KB.
-      # Buttons, dividers and tables drawn through the new engine whatever they
-      # hold (their values on desktop and phones, tables' sections and cells, what
-      # can't be read said) added about 20KB, for now: the legacy render paths
+      # Fail if the react-elements ESM bundle exceeds 420KB.
+      # Buttons, dividers, tables and text drawn through the new engine whatever
+      # they hold (their values on desktop and phones, tables' sections and cells,
+      # text's own markup, what can't be read said) added about 27KB, for now: the legacy render paths
       # still in it go with @unlayer/exporters.
       # Today's components' default values as data in this package added about
       # 5KB, and writing custom tools, Html blocks and a user's own markup without
@@ -99,7 +99,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=413500
+          MAX_SIZE=420000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -108,7 +108,7 @@ jobs:
           fi
           echo "✅ Bundle size within budget"
 
-      # The new engine's entry (/primitives) has its own budget: about 235KB
+      # The new engine's entry (/primitives) has its own budget: about 236KB
       # unminified ESM, its core, writers and JSX API bundled (a Table's shared
       # borders, row heights and footer; a Button's width with its padding on
       # top, its place and its link's other attributes; Social, Menu,
@@ -125,7 +125,7 @@ jobs:
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=236000
+          MAX_SIZE=236500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -139,7 +139,7 @@ jobs:
           echo "✅ /primitives bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 455KB unminified ESM. It writes the builder's design
+      # own budget: about 456KB unminified ESM. It writes the builder's design
       # through today's components and renderToJson, so it bundles the main
       # entry's (today's components, the new engine they render through, the
       # lowering of their designs) and the /primitives entry's JSX API, with
@@ -161,7 +161,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=456500
+          MAX_SIZE=457000
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
