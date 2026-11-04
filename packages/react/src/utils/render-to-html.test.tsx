@@ -379,7 +379,7 @@ describe("renderToHtml with a template component", () => {
     expect(direct).toContain('lang="ar"');
     expect(direct).toContain('dir="rtl"');
     expect(direct).toContain("family=Inter");
-    expect(direct).toContain("font-size: 12px");
+    expect(direct).toMatch(/font-size:\s*12px/);
   });
 
   it("unwraps memo and forwardRef, nested in any order", () => {
@@ -522,7 +522,7 @@ describe("renderToHtml inside a React render", () => {
     expect(html).toContain("Hello Linus");
     expect(html).toContain('lang="ar"');
     expect(html).toContain('dir="rtl"');
-    expect(html).toContain("font-size: 12px");
+    expect(html).toMatch(/font-size:\s*12px/);
   });
 
   it("leaves the app's render working when the template throws", () => {

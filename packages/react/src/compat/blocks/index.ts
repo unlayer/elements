@@ -15,8 +15,8 @@ import { table } from "./table";
 import { heading, text } from "./text";
 import { video } from "./video";
 
-export type Lowering = (block: DesignBlock, place: Place) => TreeNode | null | undefined;
+export type Lowering = (block: DesignBlock, place: Place & { id?: string }) => TreeNode | null | undefined;
 
 export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, menu, page_break: pageBreak, social, table, text, video };
 
-export const DRAWN: ReadonlySet<string> = new Set(["button", "divider", "table"]);
+export const DRAWN: ReadonlySet<string> = new Set(["button", "divider", "heading", "table", "text"]);

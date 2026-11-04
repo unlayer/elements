@@ -85,6 +85,14 @@ export function nearestWeight(value: unknown): number | undefined {
   return number >= 1 && number <= 1000 ? Math.min(900, Math.max(100, Math.round(number / 100) * 100)) : undefined;
 }
 
+/** A font weight where it's always drawn: bolder, lighter or another number at the nearest hundred, which is said; what can't be read is said too. */
+export function drawnWeight(value: unknown, what: string, note: (message: string) => void): number | undefined {
+  const out = fontWeight(value) ?? nearestWeight(value);
+  if (out === undefined) note(`${what}'s font weight ${JSON.stringify(value)} can't be read: it's drawn without it.`);
+  else if (fontWeight(value) === undefined && !/er$/.test(String(value))) note(`${what}'s font weight ${JSON.stringify(value)} is drawn at the nearest hundred.`);
+  return out;
+}
+
 /** A font: legacy's `{ label, value }`, or a stack. */
 export const font = (value: unknown): string | undefined =>
   typeof value === "string" ? value || undefined : value && typeof value === "object" && typeof (value as { value?: unknown }).value === "string" ? (value as { value: string }).value || undefined : undefined;

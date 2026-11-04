@@ -9,7 +9,7 @@ import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { buttonHover, buttonWidthOnPage, fontOfValues } from "../quirks";
 import { parseRuns } from "../runs";
-import { ALIGN, color, deviceValues, drawnBorder, drawnLink, fontWeight, letterSpacing, lineHeight, nearestWeight, px, sides, some, webLink, type Values } from "../values";
+import { ALIGN, color, deviceValues, drawnBorder, drawnLink, drawnWeight, letterSpacing, lineHeight, px, sides, some, webLink, type Values } from "../values";
 
 /** A width legacy's button reads: px or a share of its place; else what's said, and none. */
 function widthOf(size: Values | undefined, note: (what: string, value: unknown) => void, what: string): Json | undefined {
@@ -53,8 +53,7 @@ export function button(block: DesignBlock, place: Place): TreeNode {
   };
   const colors: Values = values.buttonColors ?? {};
   const size = read(values.fontSize, "font size", px);
-  const weight = read(values.fontWeight, "font weight", (value) => fontWeight(value) ?? nearestWeight(value));
-  if (fontWeight(values.fontWeight) === undefined && nearestWeight(values.fontWeight) !== undefined && !/er$/.test(String(values.fontWeight))) place.note(`A button's font weight ${JSON.stringify(values.fontWeight)} is drawn at the nearest hundred.`);
+  const weight = values.fontWeight === undefined || values.fontWeight === null || values.fontWeight === "" ? undefined : drawnWeight(values.fontWeight, "A button", place.note);
   const padding = read(values.padding, "label's padding", sides);
   const blockPadding = read(values.containerPadding ?? "10px", "padding", sides) ?? sides("10px");
   const height = read(values.lineHeight ?? "120%", "line height", lineHeight) ?? "120%";

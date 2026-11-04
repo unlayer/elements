@@ -1,7 +1,7 @@
 /**
  * A template of today's components as the new engine's tree (RFC 0001 step 7): its design lowered (lower.ts), each
  * block in the new components where its tool has moved over and it can be drawn as legacy draws it (blocks/), else a
- * Raw node; a tool that always draws (DRAWN) says what it can't read instead. A Raw node of a custom tool, an Html block or a user's own markup holds that HTML in its box (contentBox),
+ * Raw node; a tool that always draws (DRAWN) says what it can't read instead, and may write HTML no node holds as a Raw node of its own. A Raw node of a custom tool, an Html block or a user's own markup holds that HTML in its box (contentBox),
  * with what its head needs from the blocks themselves: nothing of the closed exporters runs. Any other Raw node holds
  * the HTML its exporter writes and the legacy stylesheet; only those blocks are written by today's exporters.
  */
@@ -64,6 +64,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const { blocks: sources, body } = blockSources(root);
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
+  const html = new Map<number, string>();
   const diagnostics: Diagnostic[] = [];
   const tags: string[] = [];
   let next = 0;
@@ -80,7 +81,13 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
           if (!diagnostics.some((d) => d.path === path && d.message === message)) diagnostics.push({ code: "compat/block", severity, message, path });
         };
         const drawn = DRAWN.has(block.type);
-        const lowered = !drawn && legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, source: sources[n]?.values, note, keep: (text) => keepServiceTags(text, tags) });
+        const lowered = !drawn && legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text) => keepServiceTags(text, tags) });
+        // The block's own HTML in its box, as its tool writes it (it says what its head needs).
+        if (lowered?.type === "Raw") {
+          raw.set(n, lowered);
+          html.set(n, String(lowered.props?.html ?? ""));
+          return lowered;
+        }
         const id = lowered ? givenId(block.values ?? {}) : undefined;
         const node = lowered && id ? { ...lowered, id } : lowered;
         if (node && drawn) return drawable(node, mode, note);
@@ -96,10 +103,10 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   }
   if (!raw.size) return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: undefined, diagnostics, tags };
   // Each is written here, once the template is lowered (a template that isn't renders as today, which writes them).
-  const html = new Map<number, string>();
   const closed = new Set<number>();
   const { children } = root.props as { children?: React.ReactNode };
   for (const n of raw.keys()) {
+    if (html.has(n)) continue;
     const source = sources[n];
     if (!source || !writesOpenHtml(source.element.type)) closed.add(n);
     else html.set(n, blockWithoutMarkers(children, writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode }) ?? ""));
@@ -111,7 +118,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     const written = html.get(n) ?? "";
     // In a printed document, legacy's text is in the font's own line height ("normal"), where a page's root has 1.5.
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
-    node.props = { html: markup, css, text: htmlToPlainText(written) };
+    node.props = { html: markup, css: [css, node.props?.css].filter(Boolean).join("\n"), text: htmlToPlainText(written) };
   }
   return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: head, diagnostics, tags };
 }

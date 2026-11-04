@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HtmlExporters } from "@unlayer/exporters";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToPlainText } from "../index";
 import { recordingBlockHtml } from "../utils/block-html";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { legacyRenderToPlainText, renderBody } from "../utils/render-to-html";
@@ -33,13 +33,153 @@ describe("a text block", () => {
     });
   });
 
-  it("keeps its legacy HTML where its HTML holds what no run does", () => {
-    expect(lowered(<Paragraph html="<ul><li>One</li></ul>" />)?.type).toBe("Raw");
+  it("draws an email service's tag in its words, as it is once written; a plain merge tag is words", () => {
+    for (const html of ["{% if orders > 1 %}Thanks{% endif %}", "Hi {{ name | default: \"there\" }}", "{{ a > b }}", "<%= name %>"]) {
+      expect(lowered(<Paragraph html={html} />)?.type).toBe("Paragraph");
+      expect(renderToHtml(<Email><Row><Column><Paragraph html={html} /></Column></Row></Email>)).toContain(html);
+    }
+    expect(lowered(<Paragraph html="Hi {{name}}" />)).toMatchObject({ type: "Paragraph", children: ["Hi {{name}}"] });
+    expect(renderToHtml(<Email><Row><Column><Paragraph html='A <a href="<%url%>">link</a>' /></Column></Row></Email>)).toContain('href="<%url%>"');
   });
 
-  it("keeps its legacy HTML where it holds an email service's tag the new engine would write otherwise; a plain merge tag is written as it is", () => {
-    for (const html of ["{% if orders > 1 %}Thanks{% endif %}", "Hi {{ name | default: \"there\" }}", "{{ a > b }}", "<%= name %>"]) expect(lowered(<Paragraph html={html} />)?.type).toBe("Raw");
-    expect(lowered(<Paragraph html="Hi {{name}}" />)).toMatchObject({ type: "Paragraph", children: ["Hi {{name}}"] });
+  it("writes as it is a run's style that's an email service's tag: it's only known once it's filled in", () => {
+    const html = '<span style="color:<%c%>">Words</span>';
+    expect(lowered(<Paragraph html={html} />)?.type).toBe("Raw");
+    expect(renderToHtml(<Email><Row><Column><Paragraph html={html} /></Column></Row></Email>)).toContain(html);
+  });
+
+  it("takes settings for desktop windows as its values, its own being the phones' (legacy's break at 480px); a printed document has only its desktop's, but its padding", () => {
+    const override = { desktop: { fontSize: "23px", textAlign: "right", lineHeight: "200%", containerPadding: "21px", color: "#ff0000" } };
+    const block = <Paragraph html="Hi" fontSize="15px" textAlign="center" lineHeight="150%" containerPadding="4px" color="#333" values={{ _override: override } as never} />;
+    expect(lowered(block)).toMatchObject({
+      style: { fontSize: 23, textAlign: "right", lineHeight: "200%", color: "#333", padding: { top: 21, right: 21, bottom: 21, left: 21 } },
+      mobile: { fontSize: 15, textAlign: "center", lineHeight: "150%", padding: { top: 4, right: 4, bottom: 4, left: 4 } },
+    });
+    const printed = lowered(block, Document as Root);
+    expect(printed?.style).toMatchObject({ fontSize: 23, padding: { top: 4, right: 4, bottom: 4, left: 4 } });
+    expect(printed?.mobile).toBeUndefined();
+  });
+
+  it("takes the settings for phones legacy's stylesheet reads, says one it can't read, and takes none for tablets", () => {
+    const phone = { fontSize: "23px", lineHeight: "200%", textAlign: "center", containerPadding: "4px", color: "#ff0000", hideMobile: true };
+    const node = lowered(<Paragraph html="Hi" values={{ _override: { mobile: phone, tablet: { fontSize: "41px", hideTablet: true } } } as never} />);
+    expect(node?.mobile).toEqual({ fontSize: 23, lineHeight: "200%", textAlign: "center", padding: { top: 4, right: 4, bottom: 4, left: 4 } });
+    expect(node?.hidden).toEqual({ mobile: true });
+    expect(JSON.stringify(node)).not.toContain("41");
+    expect(whole(<Paragraph html="Hi" values={{ _override: { mobile: { color: "#ff0000" } } } as never} />).diagnostics[0]).toMatchObject({ severity: "info", message: expect.stringContaining("color on phones") });
+    for (const [key, value] of [["fontSize", "big"], ["lineHeight", "tall"], ["textAlign", "middle"], ["containerPadding", "wide"]]) {
+      const block = <Paragraph html="Hi" values={{ _override: { mobile: { [key]: value } } } as never} />;
+      expect(lowered(block)?.mobile).toBeUndefined();
+      expect(said(block)).toContain(`${key} on phones "${value}"`);
+    }
+  });
+
+  it("draws a value it can't read as the browser does without it, and says so", () => {
+    const block = <Paragraph html="Hi" values={{ fontSize: "big", lineHeight: "tall", letterSpacing: "wide", fontWeight: "heavy", textAlign: "middle" } as never} />;
+    const node = lowered(block);
+    expect(node?.type).toBe("Paragraph");
+    expect(node?.style).toEqual({ lineHeight: 1.15, color: "#000000", padding: { top: 10, right: 10, bottom: 10, left: 10 } });
+    expect(lowered(block, Page)?.style?.lineHeight).toBe(1.5);
+    for (const words of ['font size "big"', 'line height "tall"', 'letter spacing "wide"', 'font weight "heavy"', 'alignment "middle"']) expect(said(block)).toContain(words);
+  });
+
+  it("draws a font size in em, rem, % or pt at the px the browser works out, of what's around it; a line height of the font's own", () => {
+    const size = (fontSize: string, Root: Root = Email) => lowered(<Paragraph html="Hi" values={{ fontSize } as never} />, Root)?.style?.fontSize;
+    expect(size("1.5em")).toBe(24);
+    expect(size("1.5em", Document as Root)).toBe(22.5);
+    expect(size("1.25rem", Document as Root)).toBe(20);
+    expect(size("120%")).toBe(19.2);
+    expect(size("12pt")).toBe(16);
+    expect(lowered(<Paragraph html="Hi" values={{ fontSize: "1.5em", lineHeight: "normal" } as never} />, Page)?.style?.lineHeight).toBe(1.15);
+    expect(said(<Paragraph html="Hi" values={{ fontSize: "1.5em", lineHeight: "normal" } as never} />)).toBe("");
+  });
+
+  it("draws a padding in em or pt at its px; one it can't read, or a share of its place, at the default, and says so", () => {
+    expect(lowered(<Paragraph html="Hi" values={{ containerPadding: "1em 3pt" } as never} />)?.style?.padding).toEqual({ top: 16, right: 4, bottom: 16, left: 4 });
+    for (const containerPadding of ["5%", "wide"]) {
+      const block = <Paragraph html="Hi" values={{ containerPadding } as never} />;
+      expect(lowered(block)?.style?.padding).toEqual({ top: 10, right: 10, bottom: 10, left: 10 });
+      expect(said(block)).toContain(`padding "${containerPadding}"`);
+    }
+  });
+
+  it("draws a font weight that isn't a hundred at the nearest, and says so", () => {
+    const block = <Paragraph html="Hi" values={{ fontWeight: 650 } as never} />;
+    expect(lowered(block)?.style?.fontWeight).toBe(700);
+    expect(said(block)).toContain("nearest hundred");
+    expect(lowered(<Paragraph html="Hi" values={{ fontWeight: "bolder" } as never} />)?.style?.fontWeight).toBe(700);
+  });
+
+  it("leaves out a color it can't read in a run, and says so", () => {
+    const block = <Paragraph html='<span style="color:notacolor">Hi</span>' />;
+    expect(lowered(block)?.type).toBe("Paragraph");
+    expect(JSON.stringify(lowered(block))).not.toContain("notacolor");
+    expect(said(block)).toContain("notacolor");
+  });
+});
+
+describe("a text block whose HTML no run holds", () => {
+  const inHead = (block: React.ReactElement, Root: Root = Email) => lowered(block, Root)!.props as { html: string; css: string };
+
+  it.each([
+    ["an image", 'Before <img src="https://example.com/i.png" alt="i"> after'],
+    ["a list", "<ul><li>One</li></ul>"],
+    ["a paragraph's own style", '<p style="text-align:center;margin:0">Centered</p>'],
+    ["a comment", "Hello <!-- note --> world"],
+    ["an entity it doesn't know", "An &spades; here"],
+    ["a link's other attributes", '<a href="https://example.com" data-x="1">A</a>'],
+    ["a link with no address", '<a name="here">B</a>'],
+  ])("is %s as it is, in the box today's components write around it", (_, html) => {
+    for (const Root of [Email, Page, Document] as Root[]) {
+      const node = lowered(<Paragraph html={html} />, Root);
+      expect(node?.type).toBe("Raw");
+      expect(node?.props?.html).toContain(html);
+      expect(node?.props?.html).toContain('id="u_content_paragraph_1"');
+    }
+    expect(said(<Paragraph html={html} />)).toBe("");
+  });
+
+  it("has the block's text styles as they're written, for the browser to read; a paragraph's line height in % a multiple, as legacy writes it", () => {
+    const { html } = inHead(<Paragraph html="<ul><li>A</li></ul>" fontSize="18px" lineHeight="150%" color="#123456" letterSpacing="1px" fontWeight={700} textAlign="center" fontFamily={{ label: "G", value: "Georgia, serif" } as never} />);
+    expect(html).toContain('<div class="v-line-height v-font-size v-text-align" style="font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: #123456; letter-spacing: 1px; line-height: 1.5; text-align: center; word-wrap: break-word;"><ul>');
+    expect(inHead(<Paragraph html="<ul><li>A</li></ul>" values={{ fontSize: "x;y", color: 'red"><script>' } as never} />).html).not.toMatch(/x;y|<script>/);
+  });
+
+  it("is a heading's tag, with Outlook's table in an email", () => {
+    const heading = <Heading values={{ text: "<ul><li>A</li></ul>", headingType: "h3" } as never} />;
+    expect(inHead(heading).html).toMatch(/<!--\[if mso\]><table role="presentation" width="100%"><tr><td><!\[endif\]--><h3 class="v-line-height[^>]*style="margin: 0px; [^>]*><ul>.*<\/h3><!--\[if mso\]><\/td><\/tr><\/table><!\[endif\]-->/s);
+    expect(inHead(heading, Page).html).not.toContain("mso");
+    expect(inHead(<Heading values={{ text: "<ul><li>A</li></ul>" } as never} />).html).toContain('id="u_content_heading_1" class="u_content_heading');
+  });
+
+  it("selects its phone and desktop settings by its id, as legacy's stylesheet does, and its link style", () => {
+    const links = { inherit: false, linkColor: "#00ff00", linkHoverColor: "#ff0000", linkUnderline: false, linkHoverUnderline: true };
+    const block = <Paragraph html="<ul><li>A</li></ul>" linkStyle={links as never} values={{ _override: { mobile: { fontSize: "23px", containerPadding: "4px" }, desktop: { textAlign: "right" } } } as never} />;
+    const { css } = inHead(block);
+    expect(css).toContain("@media (max-width: 480px) { #u_content_paragraph_1 .v-container-padding-padding { padding: 4px !important; } #u_content_paragraph_1 .v-font-size { font-size: 23px !important; } }");
+    expect(css).toContain("@media (min-width: 481px) { #u_content_paragraph_1 .v-text-align { text-align: right !important; } }");
+    expect(css).toContain("#u_content_paragraph_1 a { color: #00ff00; text-decoration: none; }");
+    expect(css).not.toContain("a:hover");
+    expect(inHead(block, Page).css).toContain("#u_content_paragraph_1 a:hover { color: #ff0000; text-decoration: underline; }");
+  });
+
+  it("takes the id its author gave it, and the template's own CSS for its markup", () => {
+    const { html, css } = inHead(<Paragraph html="<table><tr><td>A</td></tr></table>" values={{ _meta: { htmlID: "mine" }, _override: { mobile: { fontSize: "23px" } } } as never} />);
+    expect(html).toContain('<table id="mine"');
+    expect(css).toContain("#mine .v-font-size");
+    expect(css).toContain("table, td { color: #000000; }");
+  });
+
+  it("is hidden by its box's classes", () => {
+    const { html } = inHead(<Paragraph html="<ul><li>A</li></ul>" hideOnMobile />);
+    expect(html).toContain('class="u_content_paragraph hide-mobile"');
+    expect(inHead(<Paragraph html="<ul><li>A</li></ul>" hideOnMobile />).css).toContain(".hide-mobile");
+  });
+
+  it("is as it is where a paragraph's line height on phones reaches a run in another size, which legacy's CSS draws at that height", () => {
+    const html = 'a <span style="font-size:28px">BIG</span>';
+    expect(lowered(<Paragraph html={html} values={{ _override: { mobile: { lineHeight: "100%" } } } as never} />)?.type).toBe("Raw");
+    expect(lowered(<Paragraph html={html} values={{ _override: { mobile: { fontSize: "11px" } } } as never} />)?.type).toBe("Paragraph");
   });
 });
 
@@ -51,8 +191,12 @@ describe("a text block's link style", () => {
     expect(link(Page, { inherit: false, linkColor: "#00ff00", linkHoverColor: "#00ff00", linkUnderline: false, linkHoverUnderline: false })?.children?.[0]).toMatchObject({ type: "Link", style: { color: "#00ff00", textDecoration: "none" } });
   });
 
-  it("keeps its legacy HTML on a page where its links' hover style is another (legacy's head CSS draws it)", () => {
-    expect(link(Page, { inherit: false, linkColor: "#00ff00", linkUnderline: false })?.type).toBe("Raw");
+  it("gives them their style under the pointer on a page and in a printed document, what differs from it; an email's has none", () => {
+    const style = { inherit: false, linkColor: "#00ff00", linkHoverColor: "#ff0000", linkUnderline: false, linkHoverUnderline: true };
+    expect(link(Page, style)?.children?.[0]).toMatchObject({ type: "Link", style: { color: "#00ff00", textDecoration: "none" }, hover: { color: "#ff0000", textDecoration: "underline" } });
+    expect(link(Document as Root, style)?.children?.[0]).toMatchObject({ hover: { color: "#ff0000", textDecoration: "underline" } });
+    expect((link(Email, style)?.children?.[0] as TreeNode).hover).toBeUndefined();
+    expect((link(Page, { ...style, linkHoverColor: "#00ff00", linkHoverUnderline: false })?.children?.[0] as TreeNode).hover).toBeUndefined();
   });
 });
 
@@ -63,14 +207,53 @@ describe("a text block's direction and fonts", () => {
     return find(result.tree.root);
   };
 
-  it("keeps its legacy HTML where its own direction isn't the template's (legacy writes the template's)", () => {
-    expect(lowered(<Paragraph textDirection="rtl">Hello (world)!</Paragraph>)?.type).toBe("Raw");
-    expect(block(<Email textDirection="rtl"><Row><Column><Paragraph textDirection="rtl">مرحبا</Paragraph></Column></Row></Email>)?.type).toBe("Paragraph");
+  it("is in its template's direction where its own is another or can't be read, as legacy writes it; a direction that's the template's it says", () => {
+    const own = <Paragraph textDirection="rtl">Hello (world)!</Paragraph>;
+    expect(lowered(own)).toMatchObject({ type: "Paragraph" });
+    expect(lowered(own)?.props).toBeUndefined();
+    expect(whole(own).diagnostics[0]).toMatchObject({ severity: "info", message: expect.stringContaining('direction "rtl"') });
+    const invalid = <Paragraph html="Hi" values={{ textDirection: "sideways" } as never} />;
+    expect(lowered(invalid)?.props).toBeUndefined();
+    expect(said(invalid)).toContain('direction "sideways"');
+    expect(block(<Email textDirection="rtl"><Row><Column><Paragraph textDirection="rtl">مرحبا</Paragraph></Column></Row></Email>)).toMatchObject({ type: "Paragraph", props: { dir: "rtl" } });
   });
 
-  it("keeps a heading's legacy HTML where a run sets its own font size in a line height in % (legacy's is the heading's)", () => {
-    expect(lowered(<Heading values={{ text: 'H <span style="font-size:60px">BIG</span>' } as never} />)?.type).toBe("Raw");
+  it("is drawn in its template's output where it's given a mode of its own, as legacy's", () => {
+    expect(lowered(<Paragraph html="Hi" values={{ mode: "web" } as never} />)).toMatchObject({ type: "Paragraph", children: ["Hi"] });
+    expect(lowered(<Heading values={{ text: "Hi", mode: "document" } as never} />, Page)).toMatchObject({ type: "Heading" });
+  });
+
+  it("keeps a heading's line height in % one height for its text, a run in its own font size too (legacy's is the heading's)", () => {
+    const heading = (values: Record<string, unknown>) => lowered(<Heading values={{ text: 'H <span style="font-size:60px">BIG</span>', ...values } as never} />);
+    expect(heading({ fontSize: "22px", lineHeight: "140%" })).toMatchObject({ type: "Heading", style: { lineHeight: "30.8px" } });
+    expect(lowered(<Heading values={{ text: "H", fontSize: "22px", lineHeight: "140%" } as never} />)?.style?.lineHeight).toBe("140%");
+    expect(heading({ fontSize: "22px", lineHeight: "140%", _override: { mobile: { fontSize: "10px" } } })?.mobile).toEqual({ fontSize: 10, lineHeight: "14px" });
+    expect(heading({ fontSize: "22px", lineHeight: "140%", _override: { mobile: { lineHeight: "200%" } } })?.mobile).toEqual({ lineHeight: "44px" });
     expect(lowered(<Paragraph html='a <span style="font-size:28px">BIG</span>' />)?.type).toBe("Paragraph");
+  });
+});
+
+describe("an image block", () => {
+  it("is an Image in a Column, its width a share of its place at most the width legacy works out", () => {
+    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 1200, height: 600 }} altText="A" />);
+    expect(node).toMatchObject({ type: "Column", style: { alignItems: "center" } });
+    expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
+  });
+
+  it("keeps its legacy HTML where it links somewhere: legacy's link holds it at the size its place gives it", () => {
+    const linked = <Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
+    for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
+  });
+
+  it("caps an email image on phones at legacy's maximum where that's past its width on desktop (a stacked column is wider)", () => {
+    const image = (Root: Root) => {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+      return find(result.tree.root);
+    };
+    // A 500px email's half is 250px: legacy's image is at most that, drawn 230px wide in its padding on desktop.
+    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, mobile: { maxWidth: 250 } });
+    expect(image(Page)?.mobile).toBeUndefined();
   });
 });
 
@@ -78,6 +261,25 @@ describe("a heading block", () => {
   it("is a Heading of its level, bold where it says no weight", () => {
     expect(lowered(<Heading headingType="h2" values={{ fontWeight: undefined } as never}>Title</Heading>)).toMatchObject({ type: "Heading", props: { level: 2 }, children: ["Title"] });
     expect(lowered(<Heading fontWeight={600}>Title</Heading>)?.style).toMatchObject({ fontSize: 22, lineHeight: "140%", fontWeight: 600 });
+  });
+
+  it("is bold where its weight is none or can't be read: its tag's own", () => {
+    for (const fontWeight of ["", "heavy"]) expect(lowered(<Heading values={{ text: "Title", fontWeight } as never} />)?.style?.fontWeight).toBe(700);
+  });
+
+  it("is text in its styles where its level can't be read (no heading, to the browser or in plain text), and says so", () => {
+    const block = <Heading values={{ text: "Title", headingType: "h7", fontWeight: undefined } as never} />;
+    expect(lowered(block)).toMatchObject({ type: "Paragraph", children: ["Title"] });
+    expect(lowered(block)?.style?.fontWeight).toBeUndefined();
+    expect(lowered(block)?.props).toBeUndefined();
+    expect(said(block)).toContain('heading level "h7"');
+  });
+
+  it("is in the browser's size for its level where its own can't be read: of a printed document's 15px there", () => {
+    const size = (Root: Root, headingType: string) => lowered(<Heading values={{ text: "Title", fontSize: "big", headingType } as never} />, Root)?.style?.fontSize;
+    expect(size(Email, "h1")).toBe(32);
+    expect(size(Document as Root, "h1")).toBe(30);
+    expect(size(Email, "h3")).toBe(18.72);
   });
 });
 
@@ -234,30 +436,6 @@ describe("a button block", () => {
   it("is hidden where it says, in an email too", () => {
     expect(lowered(<Button href="https://example.com" hideOnMobile>Go</Button>)?.hidden).toEqual({ mobile: true });
     expect(lowered(<Button href="https://example.com" hideOnDesktop>Go</Button>)?.hidden).toEqual({ desktop: true });
-  });
-});
-
-describe("an image block", () => {
-  it("is an Image in a Column, its width a share of its place at most the width legacy works out", () => {
-    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 1200, height: 600 }} altText="A" />);
-    expect(node).toMatchObject({ type: "Column", style: { alignItems: "center" } });
-    expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
-  });
-
-  it("keeps its legacy HTML where it links somewhere: legacy's link holds it at the size its place gives it", () => {
-    const linked = <Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
-    for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
-  });
-
-  it("caps an email image on phones at legacy's maximum where that's past its width on desktop (a stacked column is wider)", () => {
-    const image = (Root: Root) => {
-      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
-      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
-      return find(result.tree.root);
-    };
-    // A 500px email's half is 250px: legacy's image is at most that, drawn 230px wide in its padding on desktop.
-    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, mobile: { maxWidth: 250 } });
-    expect(image(Page)?.mobile).toBeUndefined();
   });
 });
 

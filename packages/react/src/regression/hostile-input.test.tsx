@@ -126,7 +126,8 @@ describe("phone settings, written into the head's CSS", () => {
 
   it("select the block by the id its HTML has, also when the id given in values has a selector's characters", () => {
     // The id is written as 0.1.22 wrote it, and the head's CSS escapes it: its selector finds the block in a browser.
-    const block = (htmlID: string) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID } } as never}>Hi</Paragraph></Column></Row>;
+    // (Markup no run holds: a block drawn in the new components has no id to select it by.)
+    const block = (htmlID: string) => <Row><Column><Paragraph html="<ul><li>Hi</li></ul>" mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID } } as never} /></Column></Row>;
     const column = (htmlID: string) => <Row><Column mobile={{ padding: "4px" }} values={{ _meta: { htmlID } } as never}><Paragraph>Hi</Paragraph></Column></Row>;
     // A leading digit is escaped as CSS.escape does (`#\31 st`), which browsers read and jsdom's selectors don't.
     expect(renderToHtml(<Email>{block("1st")}</Email>)).toContain("#\\31 st .v-font-size { font-size: 12px !important; }");
@@ -146,13 +147,13 @@ describe("phone settings, written into the head's CSS", () => {
   it("can't open a comment that hides the phone rules after it", () => {
     const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "16px /*" } as any}>Hi</Paragraph><Paragraph mobile={{ fontSize: "20px" }}>There</Paragraph></Column></Row></Email>);
     expect(html).not.toContain("/*");
-    expect(html).toMatch(/font-size:\s*20px !important/);
+    expect(html).toMatch(/font-size:\s*20px\s*!important/);
   });
 
   it("can't leave a bracket open with one of another kind (`16px (]`), which swallows the rules after it", () => {
     const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "16px (]" } as any}>Hi</Paragraph><Paragraph mobile={{ fontSize: "20px" }}>There</Paragraph></Column></Row></Email>);
     expect(html).not.toContain("16px (]");
-    expect(html).toMatch(/font-size:\s*20px !important/);
+    expect(html).toMatch(/font-size:\s*20px\s*!important/);
   });
 
   it("aren't kept in the design either, where the editor writes them into its export's <style> as they are", () => {

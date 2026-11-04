@@ -8,6 +8,7 @@ import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { linesInHeaderAndFooter, spaceBeforeTag } from "../quirks";
 import { parseRuns } from "../runs";
+import { styled } from "./text";
 import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, type Values } from "../values";
 
 const ALIGNS = new Set(["left", "center", "right", "justify"]);
@@ -62,17 +63,6 @@ function linkStyle(values: Values, place: Place): { style: Record<string, Json>;
   return { style, hover };
 }
 
-/** The links among runs in the table's link style. */
-function styledLinks(runs: Array<TreeNode | string>, link: ReturnType<typeof linkStyle>): Array<TreeNode | string> {
-  return runs.map((run) => {
-    if (typeof run === "string") return run;
-    const children = run.children && styledLinks(run.children, link);
-    const style = { ...link.style, ...run.style };
-    const own = run.type === "Link" ? { ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(link.hover).length ? { hover: link.hover } : {}) } : {};
-    return { ...run, ...own, ...(children ? { children } : {}) };
-  });
-}
-
 /** A cell's HTML: its Lexical textJson's, or its own; a cell that says nothing is a line of its height. */
 function cellHtml(cell: Values, place: Place): string {
   const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : String(cell.text ?? ""));
@@ -83,7 +73,7 @@ function cellHtml(cell: Values, place: Place): string {
 function cellRuns(html: string, weight: number, link: ReturnType<typeof linkStyle>): Array<TreeNode | string> {
   const { children, left } = parseRuns(html, { weight });
   if (left.length) return [{ type: "Raw", props: { html } }];
-  return children.length ? styledLinks(children, link) : ["​"];
+  return children.length ? styled(children, link.style, link.hover) : ["​"];
 }
 
 /**

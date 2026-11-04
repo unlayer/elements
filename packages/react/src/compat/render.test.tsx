@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, Document, Email, Html, Image, Menu, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -125,9 +125,14 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
         <Divider values={{ containerPadding: "1em", width: "auto", border: { borderTopWidth: "thin", borderTopStyle: "double" } } as never} />
         <Divider mode="web" mobile={{ containerPadding: "2px", width: "20%" }} />
         <Table values={{ table: { headers: [{ cells: [{ text: "<%name%>" }] }], rows: [{ cells: [{ text: "<ul><li>Markup</li></ul>", padding: "5%" }] }], footers: [] }, contentFontSize: "large", contentColor: "not a color" } as never} />
+        <Paragraph html="<ul><li>Paragraph markup</li></ul>" mobile={{ fontSize: "20px" }} hideOnMobile />
+        <Paragraph html="Paragraph values" textDirection="rtl" mode="web" values={{ fontSize: "big", lineHeight: "tall", containerPadding: "wide", _override: { mobile: { fontSize: "big" }, desktop: { fontSize: "23px" }, tablet: { fontSize: "43px" } } } as never} />
+        <Paragraph html="Paragraph {% if a > 1 %}tag{% endif %} <%name%>" />
+        <Heading values={{ text: "Heading level", headingType: "h7", textDirection: "sideways" } as never} />
+        <Heading values={{ text: '<a href="https://example.com" data-x="1">Heading markup</a>' } as never} />
       </>
     );
-    const closed = () => [exporters.ButtonExporters, exporters.DividerExporters, exporters.TableExporters, exporters.BodyExporters, exporters.RowExporters, exporters.ColumnExporters].flatMap((tool) => (["email", "web", "document"] as const).map((mode) => vi.spyOn(tool, mode)));
+    const closed = () => [exporters.ParagraphExporters, exporters.HeadingExporters, exporters.ButtonExporters, exporters.DividerExporters, exporters.TableExporters, exporters.BodyExporters, exporters.RowExporters, exporters.ColumnExporters].flatMap((tool) => (["email", "web", "document"] as const).map((mode) => vi.spyOn(tool, mode)));
 
     it.each([["Email", Email], ["Page", Page], ["Document", Document]])("write none of it with today's exporters in a %s", (_, Root) => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -135,7 +140,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       try {
         const template = <Root><Row><Column>{everything}</Column></Row></Root>;
         const html = renderToHtml(template);
-        for (const words of ["No link", "Unread", "Devices", "Markup", "name"]) expect(html).toContain(words);
+        for (const words of ["No link", "Unread", "Devices", "Markup", "name", "Paragraph markup", "Paragraph values", "<%name%>", "Heading level", "Heading markup"]) expect(html).toContain(words);
         renderToPlainText(template);
         for (const spy of spies) expect(spy).not.toHaveBeenCalled();
       } finally {

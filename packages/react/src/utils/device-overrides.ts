@@ -27,7 +27,7 @@ function css(value: unknown): string | undefined {
 }
 
 /** An id as a selector writes it, as `CSS.escape` does: `section.2` is `section\\.2`, not the id `section` and a class. */
-function ident(id: string): string {
+export function cssIdent(id: string): string {
   return id.replace(/^-?\d|^-$|[^\w\u0080-\uffff-]/g, (c) =>
     /\d/.test(c.slice(-1)) ? `${c.slice(0, -1)}\\${c.slice(-1).charCodeAt(0).toString(16)} ` : `\\${c}`);
 }
@@ -44,7 +44,7 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
   // The id the block's HTML has, escaped.
   const given = safeName(values._meta?.htmlID);
   if (!given) return;
-  const id = ident(given);
+  const id = cssIdent(given);
   const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? ["padding", "border"] : ["padding"];
   for (const device of mode === "document" ? ["desktop"] : ["desktop", "mobile"]) {
     const overrides = values._override?.[device];

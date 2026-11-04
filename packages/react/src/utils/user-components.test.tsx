@@ -47,11 +47,14 @@ describe("Fragments and user components among the blocks", () => {
 
   it("put the phone CSS on the block that asked for it, and the design has the same blocks", () => {
     const html = renderToHtml(template);
-    const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1];
-    const targetId = new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(html)?.[1];
-    expect(selector).toBeDefined();
-    expect(selector).toBe(targetId);
-    expect(html.match(new RegExp(`id="${selector}"`, "g"))).toHaveLength(1);
+    const rule = /\.(e\w+)\{font-size:30px/.exec(html)?.[1];
+    expect(rule).toBeDefined();
+    // Only the block that asked has the rule's class.
+    expect(html.match(new RegExp(`class="${rule}"`, "g"))).toHaveLength(1);
+    expect(html).toMatch(new RegExp(`class="${rule}"[^>]*>Target<`));
+    const legacy = legacyRenderToHtml(template);
+    const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(legacy)?.[1];
+    expect(selector).toBe(new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(legacy)?.[1]);
 
     const design = renderToJson(template) as any;
     const paragraphs = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
@@ -63,7 +66,9 @@ describe("Fragments and user components among the blocks", () => {
   it("leave a template without them as it was", () => {
     const plain = <Email>{block("One")}{block("Two", { mobile: { fontSize: "30px" } })}</Email>;
     const html = renderToHtml(plain);
-    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
+    const rule = /\.(e\w+)\{font-size:30px/.exec(html)?.[1];
+    expect(html).toMatch(new RegExp(`class="${rule}"[^>]*>Two<`));
+    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(legacyRenderToHtml(plain))?.[1]).toBe("u_content_paragraph_2");
   });
 });
 

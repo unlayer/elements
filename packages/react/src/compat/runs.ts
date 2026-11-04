@@ -79,6 +79,11 @@ function runStyle(css: string | undefined, left: string[], fonts = false): Recor
     const name = property?.trim().toLowerCase();
     const value = rest.join(":").trim();
     if (!name || !value) continue;
+    // An email service's tag as a value: it's only known once it's filled in.
+    if (value.includes("\uE000")) {
+      left.push(`${name} from an email service's tag`);
+      continue;
+    }
     const weight = WEIGHTS[value] ?? (/^[1-9]00$/.test(value) ? Number(value) : undefined);
     if (name === "color" && !/[!;]/.test(value)) out.color = value;
     else if (name === "background-color" && !/[!;]/.test(value)) out.backgroundColor = value;
