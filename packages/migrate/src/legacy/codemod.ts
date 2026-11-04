@@ -121,7 +121,7 @@ export const DEFAULT_FROM = ["@unlayer/react-elements", "@unlayer/react-elements
 const DEFAULT_TO = "@unlayer/react-elements/primitives";
 
 /** Today's components that have a new one (by the same name, or the one they become). */
-const COMPONENTS = new Set(["Email", "Page", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
+const COMPONENTS = new Set(["Email", "Page", "Document", "PageBreak", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
 /** What the codemod migrates of today's exports: its components and its layouts. */
 export const MIGRATED = new Set([...COMPONENTS, "ColumnLayouts"]);
 /** A record's own value for a key (never one from Object.prototype, as `constructor` would be). */
@@ -620,10 +620,13 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   // ─── Each of today's components ────────────────────────────────────────────
 
-  function root(type: "Email" | "Page", props: Props, children: string[]) {
+  function root(type: "Email" | "Page" | "Document", props: Props, children: string[], at?: ts.Node) {
     const width = props.get("contentWidth");
+    if (type === "Document" && width && at) report.push(`${where(at)}: its contentWidth is left out: a Document's content is as wide as its page less its margin`);
     return element(type, [
-      `width={${width ? (isLiteral(width) && px(width.literal) !== undefined ? px(width.literal) : code(width)) : 500}}`,
+      type === "Document"
+        ? [attr("size", props.get("documentSize")), attr("orientation", props.get("documentOrientation")), attr("margin", n(props.get("documentMargin")))].filter(Boolean).join(" ")
+        : `width={${width ? (isLiteral(width) && px(width.literal) !== undefined ? px(width.literal) : code(width)) : 500}}`,
       type === "Email" && attr("previewText", props.get("previewText")),
       attr("lang", props.get("lang")),
       dir(props),
@@ -694,6 +697,11 @@ export async function migrateElements(source: string, options: MigrateElementsOp
             ], written),
           ]
         : written;
+    // A page ends between the new components' Sections, not in one.
+    const pageBreak = `<${nameOf("PageBreak")} />`;
+    const pages = inner.join("").split(pageBreak);
+    const balanced = (part: string) => (part.match(/<[A-Z][\w.]*[\s>]/g) ?? []).length - (part.match(/\/>/g) ?? []).length === (part.match(/<\/[A-Z]/g) ?? []).length;
+    if (pages.length > 1 && pages.every(balanced)) return pages.map((page) => element("Section", [section, hidden(props)], [page])).join(pageBreak);
     return element("Section", [section, hidden(props)], inner);
   }
 
@@ -837,7 +845,86 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
   }
 
+  /** A Button's colors, given together as `buttonColors`, as the props they also are. */
+  function buttonColors(props: Props) {
+    const colors = props.get("buttonColors");
+    if (!colors) return;
+    for (const key of ["color", "backgroundColor", "hoverColor", "hoverBackgroundColor"]) {
+      if (props.has(key)) continue;
+      if (!isLiteral(colors)) props.set(key, { code: `(${code(colors)}).${key}` });
+      else if ((colors.literal as Record<string, unknown> | null)?.[key] !== undefined) props.set(key, lit((colors.literal as Record<string, unknown>)[key]));
+    }
+  }
+
+  /** A block of markup: in a Column with its padding, as a string or its children's JSX. */
+  function htmlBlock(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
+    const inner = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces)).map((c) => c.getText()) : [];
+    const html = props.get("html");
+    return element("Column", [styleAttr([["padding", n(padding(props))]]), hidden(props)], [element("Html", html ? [attr("html", html)] : inner.length ? [] : ['html=""'], html ? [] : inner)]);
+  }
+
+  /**
+   * A table: its rows from `headers` and `data` (as they're written, or lists from code), or from `values`'s table where
+   * that can be read here. In today's section styles, with today's defaults for them.
+   */
+  function table(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
+    const given_ = (value: Value | undefined): unknown => {
+      if (isLiteral(value)) return value.literal;
+      const source = value && "node" in value && value.node ? bare(value.node) : undefined;
+      const known = source && ts.isIdentifier(source) ? constant(source) : source;
+      const read = known ? valueOf(bare(known)) : undefined;
+      return read && isLiteral(read) ? read.literal : undefined;
+    };
+    const values = given_(props.get("values")) as { table?: { headers?: Row[]; rows?: Row[]; footers?: Row[] } } | undefined;
+    type Row = { cells?: Array<{ text?: unknown; width?: unknown; textAlign?: unknown }> };
+    if (props.get("values") && !values?.table) report.push(`${where(node)}: its values can't be read here: its rows are left out (write them with TableRow and TableCell)`);
+    const border = '1px solid #CCC';
+    const section = (name: "header" | "content" | "footer"): string | undefined =>
+      styleAttr([
+        ["backgroundColor", color(props, `${name}BackgroundColor`) ?? lit(name === "content" ? "#FFFFFF" : "#DDDDDD")],
+        ["color", props.get(`${name}Color`)],
+        ["fontSize", n(given(props, `${name}FontSize`, "14px"))],
+        ["fontWeight", fontWeight(props.get(`${name}FontWeight`) ?? (name === "content" ? undefined : lit(700)), node)],
+      ]);
+    const cellPadding = n(given(props, "contentPadding", "10px"));
+    const cell = (text: string, width?: unknown, align?: unknown) =>
+      element("TableCell", [styleAttr([["border", lit(border)], ["width", typeof width === "number" && width > 0 ? lit(`${width}%`) : undefined], ["textAlign", typeof align === "string" ? lit(align) : undefined]])], [text]);
+    const words = (text: unknown) => {
+      const parsed = inlineHtml(String(text ?? ""), [], nameOf);
+      parsed.used.forEach((name) => used.add(name));
+      for (const left of parsed.dropped) report.push(`${where(node)}: its text's ${left}`);
+      return parsed.jsx;
+    };
+    const row = (name: "header" | "content" | "footer", cells: string[]) => element("TableRow", [name === "header" ? "header" : name === "footer" ? "footer" : undefined, section(name)], cells);
+    const rows: string[] = [];
+    const fromValues = (name: "header" | "content" | "footer", list: Row[] | undefined) => {
+      for (const one of list ?? []) rows.push(row(name, (one.cells ?? []).map((c) => cell(words(c.text), c.width, c.textAlign))));
+    };
+    if (values?.table) {
+      fromValues("header", values.table.headers);
+      fromValues("content", values.table.rows);
+      fromValues("footer", values.table.footers);
+    }
+    const headers = props.get("headers");
+    if (headers) {
+      const list = isLiteral(headers) ? (headers.literal as unknown[]) : undefined;
+      rows.push(row("header", list ? list.map((h) => cell(words(h))) : [`{(${code(headers)}).map((text${typescript ? ": string" : ""}, index${typescript ? ": number" : ""}) => ${element("TableCell", ["key={index}", styleAttr([["border", lit(border)]])], ["{text}"])})}`]));
+    }
+    const data = props.get("data");
+    if (data) {
+      const list = isLiteral(data) ? (data.literal as unknown[][]) : undefined;
+      if (list) for (const one of list) rows.push(row("content", one.map((c) => cell(words(c)))));
+      else {
+        const inner = element("TableCell", ["key={column}", styleAttr([["border", lit(border)]])], ["{text}"]);
+        rows.push(`{(${code(data)}).map((cells${typescript ? ": string[]" : ""}, line${typescript ? ": number" : ""}) => ${element("TableRow", ["key={line}", section("content")], [`{cells.map((text${typescript ? ": string" : ""}, column${typescript ? ": number" : ""}) => ${inner})}`])})}`);
+      }
+    }
+    for (const unread of ["columns", "rows", "enableHeader", "enableFooter", "repeatHeaderOnEachPage", "repeatFooterOnEachPage", "headerPadding", "footerPadding", "contentLineHeight", "headerTextAlign", "contentTextAlign", "footerTextAlign", "headerVerticalAlign", "contentVerticalAlign", "footerVerticalAlign"]) props.get(unread);
+    return element("Column", [styleAttr([["padding", n(padding(props))]]), hidden(props)], [element("Table", [styleAttr([["borderCollapse", lit("collapse")], ["cellPadding", cellPadding]])], rows)]);
+  }
+
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
+    buttonColors(props);
     const href = props.get("href");
     const fontSize = props.get("fontSize");
     const radius = props.get("borderRadius");
@@ -1135,14 +1222,21 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const children = () => (ts.isJsxElement(node) ? node.children.map((c) => child(c, place)).filter(Boolean) : []);
     switch (name) {
       case "Email":
-      case "Page": {
+      case "Page":
+      case "Document": {
         const width = props.get("contentWidth");
         const outer = body;
-        body = width ? (isLiteral(width) ? px(width.literal) : undefined) : 500;
-        const out = root(name, props, children());
+        body = name === "Document" ? undefined : width ? (isLiteral(width) ? px(width.literal) : undefined) : 500;
+        const out = root(name, props, children(), node);
         body = outer;
         return out;
       }
+      case "PageBreak":
+        return element("PageBreak", []);
+      case "Html":
+        return htmlBlock(node, props);
+      case "Table":
+        return table(node, props);
       case "Row":
         return row(node, props, body);
       case "Column":

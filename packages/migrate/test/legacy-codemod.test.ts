@@ -21,6 +21,53 @@ const syntaxErrors = (code: string, fileName: string) =>
   (ts.transpileModule(code, { fileName, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve, allowJs: true } }).diagnostics ?? []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 
 describe("migrateElements", () => {
+  it("writes a Document as the new root, with its page's size and orientation", async () => {
+    const { code, report } = await migrateElements(`import { Document, Row, Column, Paragraph, PageBreak } from "@unlayer/react-elements";
+export const T = () => <Document documentSize="Letter" documentOrientation="landscape" contentWidth="700px"><Row><Column><Paragraph>One</Paragraph><PageBreak /><Paragraph>Two</Paragraph></Column></Row></Document>;`);
+    expect(code).toContain('from "@unlayer/react-elements/primitives"');
+    expect(code).not.toMatch(/from "@unlayer\/react-elements";/);
+    expect(squash(code)).toContain('<Documentsize="Letter"orientation="landscape"');
+    expect(code).toContain("<PageBreak />");
+    expect(report.join("\n")).toContain("contentWidth is left out");
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("writes today's Html block in a Column with its padding, as a string or as JSX", async () => {
+    const { code, report } = await migrate('export const T = () => <Email><Row><Column><Html html="<b>x</b>" containerPadding="4px" /><Html><i>y</i></Html></Column></Row></Email>;');
+    const flat = squash(code);
+    expect(flat).toContain('<Htmlhtml="<b>x</b>"/>');
+    expect(flat).toContain("<Html><i>y</i></Html>");
+    expect(report).toEqual([]);
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("writes a Button's colors given together as buttonColors", async () => {
+    const { code, report } = await migrate('export const T = ({ c }: { c: { color: string; backgroundColor: string } }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ backgroundColor: "#111111", color: "#eeeeee" }}>A</Button><Button href="https://example.com" buttonColors={c}>B</Button></Column></Row></Email>;');
+    expect(code).toContain('backgroundColor: "#111111"');
+    expect(code).toContain('color: "#eeeeee"');
+    expect(code).toContain("backgroundColor: c.backgroundColor");
+    expect(report.join("\n")).not.toContain("buttonColors");
+  });
+
+  it("writes a Table from headers and data, as written or from code, and from values it can read", async () => {
+    const { code, report } = await migrate(`const invoice = { table: { headers: [{ cells: [{ text: "Item", width: 80 }, { text: "Price", width: 20, textAlign: "right" }] }], rows: [{ cells: [{ text: "Shirt" }, { text: "$48.00", textAlign: "right" }] }] } };
+export const T = ({ rows = [["x"]] }: { rows?: string[][] }) => <Email><Row><Column>
+      <Table headers={["A", "B"]} data={[["1", "2"]]} />
+      <Table headers={["C"]} data={rows} />
+      <Table values={invoice} headerBackgroundColor="#f6f8fa" contentColor="#1a1f36" />
+    </Column></Row></Email>;`, "Email, Row, Column, Table");
+    const flat = squash(code);
+    expect(flat).toContain("<TableRowheader");
+    expect(flat).toContain(">A</TableCell>");
+    expect(code).toContain("rows.map(");
+    expect(code).toContain('"80%"');
+    expect(code).toContain('backgroundColor: "#f6f8fa"');
+    expect(code).toContain('color: "#1a1f36"');
+    expect(code).toContain("$48.00");
+    expect(report.join("\n")).not.toContain("isn't migrated");
+    expect(errors(code)).toEqual([]);
+  });
+
   it("keeps a root's language", async () => {
     const { code, report } = await migrate('export const T = () => <Email lang="es"><Row><Column><Paragraph>Hola</Paragraph></Column></Row></Email>;');
     expect(code).toContain('lang="es"');
@@ -424,19 +471,19 @@ export const Nav = () => <Link href="/">Home</Link>;`);
   });
 
   it("leaves a component it doesn't migrate out, loudly: a comment where it was and a line in the report", async () => {
-    const { code, report } = await migrate(`export const T = () => <Email><Row><Column><Html html="<table></table>" /></Column></Row></Email>;`);
-    expect(code).toContain("@unlayer/migrate: <Html> isn't migrated");
-    expect(report.join("\n")).toMatch(/<Html> isn't migrated: it's left out/);
+    const { code, report } = await migrate(`export const T = () => <Email><Row><Column><Spacer /></Column></Row></Email>;`, "Email, Row, Column, Spacer");
+    expect(code).toContain("@unlayer/migrate: <Spacer> isn't migrated");
+    expect(report.join("\n")).toMatch(/<Spacer> isn't migrated: it's left out/);
   });
 
   it("leaves a component it doesn't migrate out where an expression goes as null, so the template still renders", async () => {
     const { code, report } = await migrate(
-      `function Legal() { return <Html html="<b>Terms</b>" />; }
-export const T = ({ show }: { show: boolean }) => <Email>{show && <Html html="<b>x</b>" />}{show ? <Video /> : null}<Legal /></Email>;`,
-      "Email, Html, Video"
+      `function Legal() { return <Spacer />; }
+export const T = ({ show }: { show: boolean }) => <Email>{show && <Spacer />}{show ? <Video /> : null}<Legal /></Email>;`,
+      "Email, Spacer, Video"
     );
-    expect(code).toMatch(/show && \/\* @unlayer\/migrate: <Html> isn't migrated: [^*]*\*\/ null/);
-    expect(code).toMatch(/return \/\* @unlayer\/migrate: <Html> isn't migrated: [^*]*\*\/ null;/);
+    expect(code).toMatch(/show && \/\* @unlayer\/migrate: <Spacer> isn't migrated: [^*]*\*\/ null/);
+    expect(code).toMatch(/return \/\* @unlayer\/migrate: <Spacer> isn't migrated: [^*]*\*\/ null;/);
     expect(squash(code)).toContain("{show?null:null}");
     expect(report).toHaveLength(3);
     expect(errors(code, { show: true })).toEqual([]);

@@ -473,7 +473,8 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
       }
     }
     const fixed = set.reduce<number>((sum, width) => sum + (width ?? 0), 0);
-    if (fixed > available + 0.5) {
+    // (Each column's width is rounded: by half a pixel at most.)
+    if (fixed > available + count / 2) {
       context.d.warning("layout/overflow", `The Table's columns are ${Math.round(fixed - available)}px wider than the ${Math.round(available)}px it has`, path, table.id);
     }
     const free = set.map((width, index) => (width === null ? index : -1)).filter((index) => index >= 0);
