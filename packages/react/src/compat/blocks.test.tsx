@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { HtmlExporters } from "@unlayer/exporters";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video, registerTool } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToPlainText } from "../index";
 import { recordingBlockHtml } from "../utils/block-html";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
-import { renderBody } from "../utils/render-to-html";
+import { legacyRenderToPlainText, renderBody } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -309,6 +309,227 @@ describe("a divider block", () => {
 
   it("is hidden where it says, in an email too", () => {
     expect(lowered(<Divider hideOnMobile />)?.hidden).toEqual({ mobile: true });
+  });
+});
+
+describe("a table block", () => {
+  const cells = (...texts: Array<string | Record<string, unknown>>) => ({ cells: texts.map((text) => (typeof text === "string" ? { text } : text)) });
+  const data = { headers: [cells("H1", "H2")], rows: [cells("A1", "A2"), cells("B1", "B2"), cells("C1", "C2")], footers: [cells("F1", "F2")] };
+  const block = (values: Record<string, unknown>, Root: Root = Email) => lowered(<Table values={{ table: data, ...values } as never} />, Root) as TreeNode;
+  const rowsOf = (node: TreeNode) => (node.children as TreeNode[])[0].children as TreeNode[];
+  const cellOf = (row: TreeNode, index = 0) => (row.children as TreeNode[])[index];
+  const textsOf = (node: TreeNode) => rowsOf(node).map((row) => (row.children as TreeNode[]).map((cell) => cell.children));
+
+  it("is a Table of its rows in a Column with its padding, whose cells share their borders", () => {
+    const node = lowered(<Table headers={["Name", "Mail"]} data={[["Ada", "a@x.com"]]} containerPadding="4px" />) as TreeNode;
+    expect(node).toMatchObject({ type: "Column", style: { padding: { top: 4, right: 4, bottom: 4, left: 4 } }, children: [{ type: "Table", style: { borderCollapse: "collapse" } }] });
+    expect(textsOf(node)).toEqual([[["Name"], ["Mail"]], [["Ada"], ["a@x.com"]]]);
+    expect(rowsOf(node)[0].props).toEqual({ header: true });
+    expect(rowsOf(node)[1].props).toBeUndefined();
+  });
+
+  it("gives a cell its section's styles: the header's, the rows' and the footer's", () => {
+    const node = block({ enableFooter: true, headerColor: "#111111", headerFontSize: "18px", headerFontWeight: 400, headerTextAlign: "right", headerVerticalAlign: "bottom", headerPadding: "4px", headerBackgroundColor: "#aaaaaa", headerFontFamily: { value: "Georgia" }, contentColor: "#222222", contentFontSize: "12px", contentFontWeight: 700, contentTextAlign: "center", contentVerticalAlign: "top", contentPadding: "2px", contentBackgroundColor: "#bbbbbb", contentLineHeight: "200%", contentLetterSpacing: "2px", footerColor: "#333333", footerFontSize: "10px", footerFontWeight: 300, footerTextAlign: "justify", footerPadding: "20px", footerBackgroundColor: "#cccccc" });
+    const [header, row, , , footer] = rowsOf(node);
+    const side = (n: number) => ({ top: n, right: n, bottom: n, left: n });
+    expect(cellOf(header).style).toMatchObject({ color: "#111111", fontSize: 18, fontWeight: 400, textAlign: "right", verticalAlign: "bottom", padding: side(4), backgroundColor: "#aaaaaa", fontFamily: "Georgia" });
+    expect(cellOf(row).style).toMatchObject({ color: "#222222", fontSize: 12, fontWeight: 700, textAlign: "center", verticalAlign: "top", padding: side(2), backgroundColor: "#bbbbbb", lineHeight: "200%", letterSpacing: 2 });
+    expect(cellOf(footer).style).toMatchObject({ color: "#333333", fontSize: 10, fontWeight: 300, textAlign: "justify", verticalAlign: "middle", padding: side(20), backgroundColor: "#cccccc" });
+    expect(footer.props).toEqual({ footer: true });
+    // A header's and a footer's text has no letter spacing of its own, whatever it says.
+    expect(cellOf(rowsOf(block({ headerLetterSpacing: "9px" }))[0]).style?.letterSpacing).toBeUndefined();
+  });
+
+  it("gives a header and a footer the line height legacy leaves them: a page's, or the font's own elsewhere", () => {
+    expect(cellOf(rowsOf(block({}))[0]).style?.lineHeight).toBe(1.15);
+    expect(cellOf(rowsOf(block({}, Document as Root))[0]).style?.lineHeight).toBe(1.15);
+    expect(cellOf(rowsOf(block({}, Page))[0]).style?.lineHeight).toBeUndefined();
+  });
+
+  it("gives what says no style the browser's own: 1px of padding, in the middle, a header's bold and centered", () => {
+    const node = block({ headerFontWeight: "", headerTextAlign: "", headerPadding: "", headerVerticalAlign: "", contentPadding: "" });
+    const one = { top: 1, right: 1, bottom: 1, left: 1 };
+    expect(cellOf(rowsOf(node)[0]).style).toMatchObject({ fontWeight: 700, textAlign: "center", padding: one, verticalAlign: "middle" });
+    expect(cellOf(rowsOf(node)[1]).style).toMatchObject({ padding: one });
+  });
+
+  it("gives a cell its own background, color, alignment and padding over its section's", () => {
+    const own = { text: "A", backgroundColor: "#ff0000", color: "#00ff00", textAlign: "right", verticalAlign: "bottom", padding: "3px" };
+    expect(cellOf(rowsOf(block({ table: { headers: [], rows: [cells(own)], footers: [] } }))[0]).style).toMatchObject({ backgroundColor: "#ff0000", color: "#00ff00", textAlign: "right", verticalAlign: "bottom", padding: { top: 3, right: 3, bottom: 3, left: 3 } });
+  });
+
+  it("draws its border on its cells, side by side", () => {
+    const border = { borderTopWidth: "2px", borderTopStyle: "dashed", borderTopColor: "#111111", borderLeftWidth: "0px", borderRightWidth: "3px", borderRightStyle: "dotted", borderRightColor: "#222222", borderBottomWidth: "1px", borderBottomStyle: "solid", borderBottomColor: "#999999" };
+    expect(cellOf(rowsOf(block({ border }))[1]).style?.border).toEqual({ top: { width: 2, style: "dashed", color: "#111111" }, right: { width: 3, style: "dotted", color: "#222222" }, bottom: { width: 1, style: "solid", color: "#999999" } });
+    expect((block({ border }).children as TreeNode[])[0].style?.border).toBeUndefined();
+  });
+
+  it("stripes every other row from the first, under a cell's own background", () => {
+    const node = block({ stripedRows: true, stripedRowsBackgroundColor: "#eeeeee", table: { headers: [cells("H")], rows: [cells("A"), cells("B"), cells({ text: "C", backgroundColor: "#ff0000" })], footers: [] } });
+    const [header, a, b, c] = rowsOf(node);
+    expect(cellOf(header).style?.backgroundColor).toBe("#DDDDDD");
+    expect(a.style).toEqual({ backgroundColor: "#eeeeee" });
+    expect(cellOf(a).style?.backgroundColor).toBe("#eeeeee");
+    expect(b.style).toBeUndefined();
+    expect(cellOf(b).style?.backgroundColor).toBe("#FFFFFF");
+    expect(cellOf(c).style?.backgroundColor).toBe("#ff0000");
+  });
+
+  it("gives its columns the first row's shares (each 50 where it says none), in proportion", () => {
+    const width = (node: TreeNode, cell: number) => cellOf(rowsOf(node)[0], cell).style?.width;
+    const shares = block({ table: { headers: [cells({ text: "A", width: 20 }, { text: "B", width: 30 }, "C")], rows: [cells("1", "2", "3")], footers: [] } });
+    expect([width(shares, 0), width(shares, 1), width(shares, 2)]).toEqual(["20%", "30%", "50%"]);
+    expect(cellOf(rowsOf(shares)[1]).style?.width).toBeUndefined();
+    // The first row's are the header's, drawn or not; a table with none shares evenly.
+    expect(width(block({ table: { headers: [], rows: [cells({ text: "A", width: 70 }, { text: "B", width: 30 })], footers: [] } }), 0)).toBe("70%");
+    expect(width(block({}), 0)).toBeUndefined();
+    // Past the first row's, a row's cells share what's left.
+    const more = block({ table: { headers: [cells("H")], rows: [cells("1", "2", "3")], footers: [] } });
+    expect(cellOf(rowsOf(more)[1], 0).style?.width).toBe("50%");
+    expect(cellOf(rowsOf(more)[1], 1).style?.width).toBe("25%");
+    expect(said(<Table values={{ table: { headers: [cells("H")], rows: [cells("1", "2", "3")], footers: [] } } as never} />)).toContain("more cells");
+    // Where nothing is left, they all share the table.
+    expect(width(block({ table: { headers: [cells({ text: "A", width: 60 }, { text: "B", width: 40 })], rows: [cells("1", "2", "3")], footers: [] } }), 0)).toBeUndefined();
+  });
+
+  it("gives a row its height", () => {
+    const node = block({ table: { headers: [], rows: [{ height: 80, ...cells("A") }, { height: 0, ...cells("B") }], footers: [] } });
+    expect(rowsOf(node)[0].style).toEqual({ height: 80 });
+    expect(rowsOf(node)[1].style).toBeUndefined();
+  });
+
+  it("reads a cell's markup as runs, a textJson's too; one that says nothing is a line of its height", () => {
+    const textJson = JSON.stringify({ root: { children: [{ children: [{ detail: 0, format: 1, mode: "normal", style: "", text: "Bold", type: "text", version: 1 }], direction: "ltr", format: "", indent: 0, type: "paragraph", version: 1 }], direction: "ltr", format: "", indent: 0, type: "root", version: 1 } });
+    const node = block({ table: { headers: [], rows: [cells("<b>A</b> b", { textJson }, "", " ")], footers: [] } });
+    const text = generateHtmlFromTextJson(textJson);
+    expect(textsOf(node)[0]).toEqual([[{ type: "Span", style: { fontWeight: 700 }, children: ["A"] }, " b"], [{ type: "Raw", props: { html: text } }], ["​"], ["​"]]);
+    expect(text).toContain("Bold");
+  });
+
+  it("reads a space that isn't breaking before a tag as a space, as legacy's cells do", () => {
+    expect(textsOf(block({ table: { headers: [], rows: [cells("A&nbsp;<b>B</b>")], footers: [] } }))[0][0]).toEqual(["A ", { type: "Span", style: { fontWeight: 700 }, children: ["B"] }]);
+  });
+
+  it("writes a cell's markup no run holds as it is", () => {
+    for (const text of ['<img src="https://example.com/a.png" alt="A"> Icon', "<ul><li>One</li></ul>", "<p>Para</p>"]) {
+      expect(textsOf(block({ table: { headers: [], rows: [cells(text)], footers: [] } }))[0][0]).toEqual([{ type: "Raw", props: { html: text } }]);
+    }
+  });
+
+  it("gives its links its link style where it's the table's own: on a page, under the pointer too", () => {
+    const table = { headers: [], rows: [cells('<a href="https://example.com">a</a>')], footers: [] };
+    const linkStyle = { linkColor: "#00ff00", linkHoverColor: "#ff0000", linkUnderline: false, linkHoverUnderline: true };
+    const link = (values: Record<string, unknown>, Root: Root = Email) => textsOf(block({ table, ...values }, Root))[0][0]![0] as TreeNode;
+    expect(link({ linkStyle })).toEqual({ type: "Link", props: { href: "https://example.com" }, style: { color: "#00ff00", textDecoration: "none" }, children: ["a"] });
+    expect(link({ linkStyle }, Page)).toMatchObject({ style: { color: "#00ff00", textDecoration: "none" }, hover: { color: "#ff0000", textDecoration: "underline" } });
+    expect(link({ linkStyle: { ...linkStyle, inherit: true } })).toEqual({ type: "Link", props: { href: "https://example.com" }, children: ["a"] });
+    // The body's own, what the browser draws, is no style.
+    expect(link({})).toEqual({ type: "Link", props: { href: "https://example.com" }, children: ["a"] });
+  });
+
+  it("in a printed document, has a space where it has no header or footer of its own, which a page repeats", () => {
+    const rows = (values: Record<string, unknown>) => rowsOf(block(values, Document as Root));
+    const [header, , , , footer] = rows({});
+    expect(header.props).toEqual({ header: true });
+    expect(footer).toMatchObject({ props: { footer: true }, style: { height: 6.5 } });
+    expect(cellOf(footer).children).toBeUndefined();
+    const none = rows({ enableHeader: false, enableFooter: true });
+    expect(none[0]).toMatchObject({ props: { header: true }, style: { height: 6.5 } });
+    expect(cellOf(none[4]).children).toEqual(["F1"]);
+    // Not in an email or on a page, or in a block given another mode.
+    expect(rowsOf(block({ enableHeader: false }))[0].children?.length).toBe(2);
+    expect(cellOf(rowsOf(block({ enableHeader: false }))[0]).children).toEqual(["A1"]);
+    expect(rowsOf(block({ mode: "email", enableHeader: false }, Document as Root)).length).toBe(3);
+  });
+
+  it("in a printed document, keeps a header or footer that doesn't repeat among its rows", () => {
+    const rows = rowsOf(block({ enableFooter: true, repeatHeaderOnEachPage: false, repeatFooterOnEachPage: false }, Document as Root));
+    expect(rows.map((row) => row.props?.header)).toEqual([true, undefined, undefined, undefined, undefined, undefined, undefined]);
+    expect(cellOf(rows[1]).children).toEqual(["H1"]);
+    expect(rows[0].style?.height).toBe(6.5);
+    expect(rows.at(-1)!.props).toEqual({ footer: true });
+    expect(cellOf(rows.at(-2)!).children).toEqual(["F1"]);
+  });
+
+  it("writes what a merge tag rule puts around its rows as it is", () => {
+    const state = { mergeTagState: { mergeTagGroup: "group", mergeTagRule: "rule", mergeTags: { group: { rules: { rule: { before: "{{#each}}", after: "{{/each}}" } } } } } };
+    const tableOf = (values: Record<string, unknown>) => {
+      const result = withRenderScope(() => lowerTemplate(<Email><Row><Column><Table values={{ table: data, ...values } as never} /></Column></Row></Email>, state, "renderToHtml")) as Lowered;
+      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Table" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+      return find(result.tree.root)!.children as TreeNode[];
+    };
+    const rows = tableOf({ mergeTagGroup: "group", mergeTagRule: "rule" });
+    expect(rows[1]).toEqual({ type: "Raw", props: { html: "{{#each}}\n" } });
+    expect(rows[5]).toEqual({ type: "Raw", props: { html: "{{/each}}\n" } });
+    // Only a table that says so.
+    expect(tableOf({}).some((row) => row.type === "Raw")).toBe(false);
+    // Legacy's plain text reads them among its cells.
+    const template = <Email><Row><Column><Table values={{ table: data, mergeTagGroup: "group", mergeTagRule: "rule" } as never} /></Column></Row></Email>;
+    expect(renderToPlainText(template, state)).toBe(legacyRenderToPlainText(template, state));
+    expect(renderToPlainText(template, state)).toContain("{{#each}}");
+  });
+
+  it("takes the padding set for phones and desktop windows, and no others", () => {
+    const node = block({ containerPadding: "4px", _override: { desktop: { containerPadding: "21px" }, mobile: { contentFontSize: "30px" }, tablet: { containerPadding: "41px" } } }, Page);
+    expect(node).toMatchObject({ style: { padding: { top: 21 } }, mobile: { padding: { top: 4 } } });
+    expect(cellOf(rowsOf(node)[1]).style?.fontSize).toBe(14);
+    expect(cellOf(rowsOf(node)[1]).mobile).toBeUndefined();
+    expect(block({ _override: { desktop: { containerPadding: "21px" } } }, Document as Root).style?.padding).toMatchObject({ top: 10 });
+  });
+
+  it.each([
+    ["font size", { contentFontSize: "large" }],
+    ["font weight", { headerFontWeight: "heavy" }],
+    ["alignment", { footerTextAlign: "middle" }],
+    ["vertical alignment", { contentVerticalAlign: "baseline" }],
+    ["padding", { headerPadding: "5%" }],
+    ["line height", { contentLineHeight: "tall" }],
+    ["letter spacing", { contentLetterSpacing: "wide" }],
+  ])("draws a %s it can't read as if unset, and says so", (what, values) => {
+    const table = <Table values={{ table: data, enableFooter: true, ...values } as never} />;
+    for (const Root of [Email, Page, Document] as Root[]) {
+      expect((lowered(table, Root) as TreeNode).type).toBe("Column");
+      expect(said(table, Root)).toContain(what);
+    }
+  });
+
+  it("leaves out a color or a padding of its own it can't read, and says so", () => {
+    const table = <Table values={{ table: { headers: [], rows: [cells({ text: "A", padding: "5%" })], footers: [] }, contentColor: "not a color" } as never} />;
+    const cell = cellOf(rowsOf(lowered(table) as TreeNode)[0]);
+    expect(cell.style?.color).toBeUndefined();
+    expect(cell.children).toEqual(["A"]);
+    expect(said(table)).toContain("not a color");
+    expect(said(table)).toContain("padding");
+  });
+
+  it("draws a border's style it can't read as solid, and says a value it can't read once, for all its cells", () => {
+    const table = <Table values={{ table: data, contentColor: "not a color", border: { borderTopWidth: "2px", borderTopStyle: "double", borderTopColor: "#111111" } } as never} />;
+    expect(cellOf(rowsOf(lowered(table) as TreeNode)[1]).style?.border).toMatchObject({ top: { style: "solid" } });
+    const lines = said(table).split("\n");
+    expect(lines.filter((line) => line.includes("border's style")).length).toBe(1);
+    expect(lines.filter((line) => line.includes("not a color")).length).toBe(1);
+  });
+
+  it("draws a block padding it can't read as the default, and says so", () => {
+    const table = <Table values={{ table: data, containerPadding: "1em", _override: { mobile: { containerPadding: "2em" } } } as never} />;
+    const node = lowered(table) as TreeNode;
+    expect(node.style?.padding).toEqual({ top: 10, right: 10, bottom: 10, left: 10 });
+    expect(node.mobile).toBeUndefined();
+    expect(said(table)).toContain('padding "1em"');
+    expect(said(table)).toContain('padding on phones "2em"');
+  });
+
+  it("is drawn in its template's output where it's given a mode of its own, and hidden where it says", () => {
+    expect(lowered(<Table mode="email" />, Page)?.type).toBe("Column");
+    expect(lowered(<Table hideOnMobile />)?.hidden).toEqual({ mobile: true });
+  });
+
+  it("with no cells is a Table with no rows", () => {
+    expect((lowered(<Table />) as TreeNode).children).toEqual([{ type: "Table", style: { borderCollapse: "collapse" }, children: [] }]);
+  });
+
+  it("reads in plain text as legacy's markup does: a line for each cell", () => {
+    expect(block({}).textAs).toEqual({ type: "Raw", props: { html: "<table>" + ["H1", "H2", "A1", "A2", "B1", "B2", "C1", "C2"].map((text) => `<td>${text}</td>\n\n`).join("") + "</table>" } });
   });
 });
 

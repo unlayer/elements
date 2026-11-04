@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
-import { Button, Column, Document, Email, Heading, Image, Page, Paragraph, Row, renderToHtml, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Image, Page, Paragraph, Row, Table, renderToHtml, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToPlainText } from "../utils/render-to-html";
 
 type Root = typeof Email;
@@ -86,6 +86,15 @@ const INPUTS: Record<string, (Root: Root) => React.ReactElement> = {
     </Root>
   ),
   "a button with a width": (Root) => cell(Root, [<Button key="a" href="https://example.com" width={300}>Go</Button>, <Button key="b" href="https://example.com" width="100%">All</Button>]),
+  "a button with no link": (Root) => cell(Root, <Button>Go</Button>),
+  "a button whose label holds what no run does": (Root) => cell(Root, [<Button key="a" href="https://example.com" values={{ text: '<img src="https://example.com/a.png" alt="A"> Icon' } as never} />, <Button key="b" href="https://example.com" values={{ text: "<ul><li>One</li><li>Two</li></ul>" } as never} />, <Button key="c" href="https://example.com" values={{ text: "&copy 2024 caf&eacute;" } as never} />]),
+  "a button's label in paragraphs": (Root) => cell(Root, <Button href="https://example.com" values={{ text: '<p style="margin:0">One</p><p style="margin:0">Two</p>' } as never} />),
+  "a button's values that can't be read": (Root) => cell(Root, <Button href="https://example.com" values={{ fontSize: "large", lineHeight: "tall", letterSpacing: "wide", padding: "5%", borderRadius: "50%", fontWeight: "heavy", textAlign: "middle", containerPadding: "1em", size: { autoWidth: false, width: "10em" } } as never}>Go</Button>),
+  "dividers of every length": (Root) => cell(Root, [<Divider key="a" />, <Divider key="b" width="60%" textAlign="left" />, <Divider key="c" width={300} />, <Divider key="d" values={{ width: { width: "50%", autoWidth: false }, border: { borderTopWidth: "thin" } } as never} />, <Paragraph key="e">After</Paragraph>]),
+  "a table with a header, rows and a footer": (Root) => cell(Root, <Table values={{ table: { headers: [{ cells: [{ text: "H1" }, { text: "H2" }] }], rows: [{ cells: [{ text: "A1" }, { text: "A2" }] }, { cells: [{ text: "B1" }, { text: "" }] }], footers: [{ cells: [{ text: "F1" }, { text: "F2" }] }] }, enableFooter: true, stripedRows: true, stripedRowsBackgroundColor: "#eeeeee" } as never} />),
+  "a table with neither": (Root) => cell(Root, <Table values={{ table: { headers: [{ cells: [{ text: "Not shown" }] }], rows: [{ cells: [{ text: "A1" }] }], footers: [{ cells: [{ text: "Not shown either" }] }] }, enableHeader: false, enableFooter: false } as never} />),
+  "a table's cells with links, images and markup": (Root) => cell(Root, <Table values={{ table: { headers: [{ cells: [{ text: '<a href="https://example.com/h">Head</a>' }, { text: "<b>Bold</b>" }] }], rows: [{ cells: [{ text: 'See <a href="https://example.com/a" target="_self">a</a> &amp; <i>b</i>' }, { text: '<img src="https://example.com/a.png" alt="A"> <ul><li>One</li></ul>' }] }], footers: [] } } as never} />),
+  "a table with no cells": (Root) => cell(Root, [<Table key="t" />, <Paragraph key="p">After</Paragraph>]),
   "a link style without an underline": (Root) => cell(Root, <Paragraph html='<a href="https://example.com">link</a> rest' linkStyle={{ inherit: false, linkColor: "#00ff00", linkUnderline: false } as never} />),
   "flat hide values": (Root) => cell(Root, [<Paragraph key="d" values={{ hideDesktop: true } as never}>Shown on desktop</Paragraph>, <Paragraph key="m" values={{ hideMobile: true } as never}>Shown on phones</Paragraph>]),
   "a paragraph's own direction": (Root) => cell(Root, <Paragraph textDirection="rtl">Hello (world)!</Paragraph>),

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Html, Image, Menu, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -97,18 +97,102 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     const write = vi.spyOn(exporters.ColumnExporters, "email");
     const table = vi.spyOn(exporters.TableExporters, "email");
     const button = vi.spyOn(exporters.ButtonExporters, "email");
+    const menu = vi.spyOn(exporters.MenuExporters, "email");
     try {
       renderToHtml(<Email><Row><Column><Paragraph>One</Paragraph><Button href="https://example.com">Two</Button></Column></Row></Email>);
       expect(write).not.toHaveBeenCalled();
-      // A block that keeps its legacy HTML (a table, until it moves over) is the only one written by them.
-      renderToHtml(<Email><Row><Column><Button href="https://example.com">One</Button><Table /></Column></Row></Email>);
-      expect(table).toHaveBeenCalledTimes(1);
+      // A block that keeps its legacy HTML (a menu in an email, until it moves over) is the only one written by them.
+      renderToHtml(<Email><Row><Column><Button href="https://example.com">One</Button><Table /><Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} /></Column></Row></Email>);
+      expect(menu).toHaveBeenCalledTimes(1);
+      expect(table).not.toHaveBeenCalled();
       expect(button).not.toHaveBeenCalled();
     } finally {
       write.mockRestore();
       table.mockRestore();
       button.mockRestore();
+      menu.mockRestore();
     }
+  });
+
+  describe("of buttons, dividers and tables", () => {
+    /** Every way each can't be read or held, in each output: nothing of the closed exporters' runs for them. */
+    const everything = (
+      <>
+        <Button>No link</Button>
+        <Button href="<%unsubscribe%>" width="300px" values={{ fontSize: "large", lineHeight: "tall", letterSpacing: "wide", padding: "5%", borderRadius: "50%", fontWeight: "heavy", textAlign: "middle" } as never}>Unread</Button>
+        <Button href="https://example.com" mode="email" mobile={{ fontSize: "20px", textAlign: "left" }} values={{ _override: { desktop: { fontSize: "23px" }, tablet: { fontSize: "43px" } } } as never}><b>Devices</b></Button>
+        <Button href="https://example.com" values={{ text: "<ul><li>Markup</li></ul>" } as never} />
+        <Divider values={{ containerPadding: "1em", width: "auto", border: { borderTopWidth: "thin", borderTopStyle: "double" } } as never} />
+        <Divider mode="web" mobile={{ containerPadding: "2px", width: "20%" }} />
+        <Table values={{ table: { headers: [{ cells: [{ text: "<%name%>" }] }], rows: [{ cells: [{ text: "<ul><li>Markup</li></ul>", padding: "5%" }] }], footers: [] }, contentFontSize: "large", contentColor: "not a color" } as never} />
+      </>
+    );
+    const closed = () => [exporters.ButtonExporters, exporters.DividerExporters, exporters.TableExporters, exporters.BodyExporters, exporters.RowExporters, exporters.ColumnExporters].flatMap((tool) => (["email", "web", "document"] as const).map((mode) => vi.spyOn(tool, mode)));
+
+    it.each([["Email", Email], ["Page", Page], ["Document", Document]])("write none of it with today's exporters in a %s", (_, Root) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const spies = closed();
+      try {
+        const template = <Root><Row><Column>{everything}</Column></Row></Root>;
+        const html = renderToHtml(template);
+        for (const words of ["No link", "Unread", "Devices", "Markup", "name"]) expect(html).toContain(words);
+        renderToPlainText(template);
+        for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+        for (const spy of spies) spy.mockRestore();
+      }
+    });
+
+    it("say what they can't read: in the render's diagnostics, and a warning", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const rendered = withRenderScope(() => renderThroughNewEngine(<Email><Row><Column><Button href="https://example.com" fontSize="large">Go</Button><Button>None</Button></Column></Row></Email>, undefined, "renderToHtml")) as Rendered;
+        expect(rendered.diagnostics.filter((d) => d.code === "compat/block").map((d) => d.severity)).toEqual(["warning", "info"]);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toContain('font size "large"');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("write a link to nothing as it is, as legacy's", () => {
+      expect(renderToHtml(<Email><Row><Column><Button>Go</Button></Column></Row></Email>)).toMatch(/<a href="" target="_blank"[^>]*>/);
+      expect(renderToHtml(<Page><Row><Column><Button>Go</Button></Column></Row></Page>)).toMatch(/<a [^>]*href="" target="_blank"/);
+    });
+
+    it("keep an email service's tags as they are, in a link and in words, for the service to fill in", () => {
+      const tags = ["<%first_name%>", "{% if orders > 1 %}Thanks{% endif %}", '{{ name | default: "there" }}'];
+      const template = (
+        <Email>
+          <Row>
+            <Column>
+              <Button href="<%unsubscribe%>">{tags[0]}</Button>
+              <Table values={{ table: { headers: [], rows: [{ cells: tags.map((text) => ({ text })) }], footers: [] } } as never} />
+            </Column>
+          </Row>
+        </Email>
+      );
+      const html = renderToHtml(template);
+      expect(html).toContain('href="<%unsubscribe%>"');
+      for (const tag of tags) expect(html).toContain(tag);
+      const { body } = renderToHtmlParts(template);
+      for (const tag of tags) expect(body).toContain(tag);
+      // In the plain text as today's reads them.
+      const words = <Email><Row><Column><Button href="https://example.com">{tags[1]}</Button></Column></Row></Email>;
+      expect(renderToPlainText(words)).toBe(legacyRenderToPlainText(words));
+      expect(renderToPlainText(words)).toContain(tags[1]);
+    });
+
+    it("keep a table's plain text as today's", () => {
+      const template = (Root: typeof Email) => <Root><Row><Column><Paragraph>Before</Paragraph><Table headers={["N", "E"]} data={[["Ada", '<a href="https://example.com">mail</a>'], ["", "x &amp; y"]]} /><Paragraph>After</Paragraph></Column></Row></Root>;
+      for (const Root of [Email, Page, Document] as Array<typeof Email>) expect(renderToPlainText(template(Root))).toBe(legacyRenderToPlainText(template(Root)));
+    });
+
+    it("keep a label's paragraphs and an empty button's plain text as today's", () => {
+      const template = <Email><Row><Column><Button href="https://example.com" values={{ text: '<p style="margin:0">One</p><p style="margin:0">Two</p>' } as never} /><Button href="https://example.com">{""}</Button></Column></Row></Email>;
+      expect(renderToPlainText(template)).toBe(legacyRenderToPlainText(template));
+    });
   });
 
   describe("of custom tools, Html blocks and a user's own markup", () => {
@@ -212,7 +296,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     });
 
     it("keep today's stylesheet beside a block that still keeps its legacy HTML", () => {
-      const { css, js } = renderToHtmlParts(<Email textColor="#333333"><Row><Column><Tool /><Table /></Column></Row></Email>);
+      const { css, js } = renderToHtmlParts(<Email textColor="#333333"><Row><Column><Tool /><Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} /></Column></Row></Email>);
       expect(css).toContain("#u_content_custom_open_tool_1 i { color: red; }");
       expect(js).toBe("var tool = 1;");
       expect(css).toMatch(/table, td \{\s*color: #333333;/);

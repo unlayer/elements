@@ -46,6 +46,15 @@ export function dividerLength(width: unknown): unknown {
 }
 
 /**
+ * The line height of a table's header and footer: legacy gives them none, so a page's (1.5, which its cells inherit
+ * here too), and in an email or a printed document the font's own ("normal", about 1.15 of Arial's, Georgia's and
+ * Times's size at the sizes tables use), where a cell needs one every client reads.
+ */
+export function linesInHeaderAndFooter(mode: "email" | "web" | "document"): number | undefined {
+  return mode === "web" ? undefined : 1.15;
+}
+
+/**
  * A text block's HTML as legacy's text and heading exporters write it: the first non-breaking space between a word
  * and a tag is a plain space (where a line may break).
  */
