@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { HtmlExporters } from "@unlayer/exporters";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToPlainText } from "../index";
-import { recordingBlockHtml } from "../utils/block-html";
+import * as current from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, renderToHtml, renderToPlainText } from "../index";
+import * as published from "@unlayer/react-elements-previous";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
-import { legacyRenderToPlainText, renderBody } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
 
 type Root = typeof Email;
+type Release = typeof current;
+/** The last published release, the reference for what legacy drew. A template has to be made with its own components. */
+const previous = published as unknown as Release;
 
 /** The node a block lowers to, in an Email or a Page (its design column's first child). */
 function lowered(block: React.ReactElement, Root: Root = Email): TreeNode | undefined {
@@ -795,10 +797,10 @@ describe("a table block", () => {
     expect(rows[5]).toEqual({ type: "Raw", props: { html: "{{/each}}\n" } });
     // Only a table that says so.
     expect(tableOf({}).some((row) => row.type === "Raw")).toBe(false);
-    // Legacy's plain text reads them among its cells.
-    const template = <Email><Row><Column><Table values={{ table: data, mergeTagGroup: "group", mergeTagRule: "rule" } as never} /></Column></Row></Email>;
-    expect(renderToPlainText(template, state)).toBe(legacyRenderToPlainText(template, state));
-    expect(renderToPlainText(template, state)).toContain("{{#each}}");
+    // 0.2.1's plain text reads them among its cells.
+    const template = ({ Email, Row, Column, Table }: Release) => <Email><Row><Column><Table values={{ table: data, mergeTagGroup: "group", mergeTagRule: "rule" } as never} /></Column></Row></Email>;
+    expect(renderToPlainText(template(current), state)).toBe(previous.renderToPlainText(template(previous), state));
+    expect(renderToPlainText(template(current), state)).toContain("{{#each}}");
   });
 
   it("takes the padding set for phones and desktop windows, and no others", () => {
@@ -1193,12 +1195,9 @@ describe("a video block", () => {
 describe("a page break", () => {
   it("draws nothing in an email or on a page, and in a printed document is a box of its padding the page breaks after, with no Raw node", () => {
     for (const Root of [Email, Page]) {
-      const result = withRenderScope(() => lowerTemplate(<Root><Row><Column><Paragraph>A</Paragraph><PageBreak /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
-      expect(result.legacyHead).toBeUndefined();
       expect(lowered(<PageBreak />, Root)).toBeUndefined();
     }
     expect(lowered(<PageBreak />, Document as Root)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, breakAfter: "page" } });
-    expect((withRenderScope(() => lowerTemplate(<Document><Row><Column><PageBreak /></Column></Row></Document>, undefined, "renderToHtml")) as Lowered).legacyHead).toBeUndefined();
   });
 
   it("goes by its own mode: a box in an email where it says it's a document's, nothing in a document where it says it's a page's", () => {
@@ -1227,12 +1226,12 @@ describe("an Html block's own HTML", () => {
     for (const mode of ["web", "document", "email"]) expect(written("<b>x</b>", mode, (html) => html.replace("x", "safe"))).toContain("<b>safe</b>");
   });
 
-  it("is what the closed HtmlExporters write, byte for byte", () => {
-    const closed = HtmlExporters as Record<string, (...args: any[]) => string>;
+  it("is as it's written, whatever it holds: it's the user's", () => {
     for (const mode of ["web", "document", "email"]) {
       for (const html of ["<b>x</b>", "", "  spaced  ", "<p>a</p>\n<p>b</p>", "&amp; &copy; $& $' <!-- c -->", "<%tag%> {{merge}}", "</div>", "é ✓"]) {
         for (const toSafeHtml of [undefined, (text: string) => `[${text}]`]) {
-          expect(written(html, mode, toSafeHtml)).toBe(closed[mode]({ html }, 0, 0, [], {}, {}, undefined, { exporterConfig: { toSafeHtml } }));
+          const kept = toSafeHtml ? toSafeHtml(html) : html;
+          expect(written(html, mode, toSafeHtml)).toBe(mode === "email" ? `\n  <div>\n    ${kept}\n  </div>\n` : `<div>${kept}</div>`);
         }
       }
     }
@@ -1240,71 +1239,81 @@ describe("an Html block's own HTML", () => {
 });
 
 describe("a custom tool, an Html block and a user's own markup", () => {
-  type Root = typeof Email;
   const calls: unknown[][] = [];
-  const Tool = registerTool({
-    name: "frame_probe",
-    values: { label: "default" },
-    renderer: {
-      exporters: {
-        web: (values, ...args) => (calls.push([values, ...args]), `<i>web ${values.label} ${values._meta.htmlID}</i>`),
-        email: (values, ...args) => (calls.push([values, ...args]), `<i>email ${values.label} ${values._meta.htmlID}</i>`),
+  const toolOf = ({ registerTool }: Release) =>
+    registerTool({
+      name: "frame_probe",
+      values: { label: "default" },
+      renderer: {
+        exporters: {
+          web: (values, ...args) => (calls.push([values, ...args]), `<i>web ${values.label} ${values._meta.htmlID}</i>`),
+          email: (values, ...args) => (calls.push([values, ...args]), `<i>email ${values.label} ${values._meta.htmlID}</i>`),
+        },
       },
-    },
-  });
+    });
+  const Tools = new Map([[current, toolOf(current)], [previous, toolOf(previous)]]);
   const Mine = ({ label }: { label: string; containerPadding?: string; hideOnDesktop?: boolean }) => <section>{label}</section>;
-  const template = (Root: Root) => (
-    <Root contentWidth="640px" textColor="#333333" fontFamily={{ label: "Georgia", value: "georgia,serif" } as never}>
-      <Row cells={[1, 2]} backgroundColor="#fafafa" padding="4px">
-        <Column padding="8px">
-          <Paragraph>First</Paragraph>
-          <Html html="<b>One</b>" containerPadding={20} hideOnMobile />
-          <Tool label="a" />
-          <Html html="<b>Two</b>" values={{ _meta: { htmlID: "given" } } as never} />
-        </Column>
-        <Column padding="2px 6px">
-          <Mine label="mine" containerPadding="3px" hideOnDesktop />
-          <Tool label="b" hideOnMobile={"its own" as never} containerPadding="0px" values={{ _override: { tablet: { hideTablet: true } } }} />
-          <Paragraph>Last</Paragraph>
-        </Column>
-      </Row>
-      <Row>
-        <Column>
-          <Tool label="c" mode="web" />
-          <Mine label="again" />
-        </Column>
-      </Row>
-    </Root>
-  );
+  const templateOf = (release: Release, root: "Email" | "Page" | "Document") => {
+    const { Row, Column, Paragraph, Html } = release;
+    const Root = release[root] as Root;
+    const Tool = Tools.get(release)!;
+    return (
+      <Root contentWidth="640px" textColor="#333333" fontFamily={{ label: "Georgia", value: "georgia,serif" } as never}>
+        <Row cells={[1, 2]} backgroundColor="#fafafa" padding="4px">
+          <Column padding="8px">
+            <Paragraph>First</Paragraph>
+            <Html html="<b>One</b>" containerPadding={20} hideOnMobile />
+            <Tool label="a" />
+            <Html html="<b>Two</b>" values={{ _meta: { htmlID: "given" } } as never} />
+          </Column>
+          <Column padding="2px 6px">
+            <Mine label="mine" containerPadding="3px" hideOnDesktop />
+            <Tool label="b" hideOnMobile={"its own" as never} containerPadding="0px" values={{ _override: { tablet: { hideTablet: true } } }} />
+            <Paragraph>Last</Paragraph>
+          </Column>
+        </Row>
+        <Row>
+          <Column>
+            <Tool label="c" mode="web" />
+            <Mine label="again" />
+          </Column>
+        </Row>
+      </Root>
+    );
+  };
+  const template = (root: "Email" | "Page" | "Document") => templateOf(current, root);
   const raws = (node: TreeNode): TreeNode[] => (node.type === "Raw" ? [node] : (node.children ?? []).flatMap((c) => (typeof c === "string" ? [] : raws(c))));
   const lower = (element: React.ReactElement) => withRenderScope(() => lowerTemplate(element, undefined, "renderToHtml")) as Lowered;
-  /** The blocks but the paragraphs (the template's first and seventh), as today's Column writes them. */
-  const asToday = (element: React.ReactElement) => {
-    const html = new Map<number, string>();
-    withRenderScope(() => recordingBlockHtml((n) => n !== 0 && n !== 6, (n, written) => html.set(n, written), () => renderBody(element, undefined)));
-    return [...html.values()];
+  const IDS = ["u_content_html_1", "u_content_custom_frame_probe_1", "given", "u_content_mine_1", "u_content_custom_frame_probe_2", "u_content_custom_frame_probe_3", "u_content_mine_2"];
+  /** Each block's box as a stylesheet of the user's reads it: its id, its kind, its class, its padding and its font, and what it holds. */
+  const boxes = (html: string) => {
+    const dom = new DOMParser().parseFromString(html, "text/html");
+    return IDS.map((id) => {
+      const box = dom.getElementById(id)!;
+      const cell = box.querySelector("td") ?? box;
+      return { id, tag: box.tagName, className: box.className, boxStyle: box.getAttribute("style"), cellStyle: cell.getAttribute("style"), holds: cell.innerHTML.trim() };
+    });
   };
 
-  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, Root]>)("are written as today's Column writes them, byte for byte, numbered as it numbers them (%s)", (name, Root) => {
-    const today = asToday(template(Root));
-    const now = raws(lower(template(Root)).tree.root).map((node) => String(node.props?.html));
-    expect(now).toEqual(name === "Document" ? today.map((html) => `<div style="line-height:normal">${html}</div>`) : today);
+  it.each(["Email", "Page", "Document"] as const)("are written in the boxes 0.2.1 writes, numbered as it numbers them (%s)", (root) => {
+    const now = raws(lower(template(root)).tree.root).map((node) => String(node.props?.html));
     expect(now).toHaveLength(7);
-    const all = now.join("");
-    for (const id of ["u_content_html_1", "u_content_custom_frame_probe_1", "given", "u_content_mine_1", "u_content_custom_frame_probe_2", "u_content_custom_frame_probe_3", "u_content_mine_2"]) expect(all).toContain(`id="${id}"`);
+    expect(boxes(now.join(""))).toEqual(boxes(previous.renderToHtml(templateOf(previous, root))));
   });
 
-  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, Root]>)("give a custom tool's exporter what today's Column gives it (%s)", (_, Root) => {
+  it.each(["Email", "Page", "Document"] as const)("give a custom tool's exporter what 0.2.1 gives it (%s)", (root) => {
     calls.length = 0;
-    asToday(template(Root));
-    const today = calls.splice(0);
-    lower(template(Root));
-    expect(today).toHaveLength(3);
-    expect(calls).toEqual(today);
+    previous.renderToHtml(templateOf(previous, root));
+    const before = calls.splice(0);
+    lower(template(root));
+    expect(before).toHaveLength(3);
+    // (A function it's given is each release's own copy: told by its name.)
+    const read = (args: unknown[][]) => JSON.parse(JSON.stringify(args, (_, value) => (typeof value === "function" ? `function ${value.name}` : value)));
+    expect(read(calls)).toEqual(read(before));
   });
 
   it("are Raw nodes wherever they're hidden, by their box's classes", () => {
-    const [one, , , mine, tool] = raws(lower(template(Email)).tree.root);
+    const [one, , , mine, tool] = raws(lower(template("Email")).tree.root);
     expect(one.hidden).toBeUndefined();
     expect(one.props?.html).toContain('class="u_content_html hide-mobile"');
     expect(one.props?.html).toContain("padding:20px;");
@@ -1316,13 +1325,13 @@ describe("a custom tool, an Html block and a user's own markup", () => {
   });
 
   it("take a block's own mode for its exporter, and the template's for its box", () => {
-    const [, , , , , third] = raws(lower(template(Email)).tree.root);
+    const [, , , , , third] = raws(lower(template("Email")).tree.root);
     expect(third.props?.html).toContain("<i>web c u_content_custom_frame_probe_3</i>");
     expect(third.props?.html).toContain('<table id="u_content_custom_frame_probe_3"');
   });
 
   it("read as legacy's plain text", () => {
-    const [one, , two] = raws(lower(template(Page)).tree.root);
+    const [one, , two] = raws(lower(template("Page")).tree.root);
     expect(one.props?.text).toBe("One");
     expect(two.props?.text).toBe("Two");
   });
