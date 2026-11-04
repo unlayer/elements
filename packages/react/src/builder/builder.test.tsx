@@ -1,9 +1,9 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
-import { toDesign } from "./index";
+import { fromDesign, toDesign } from "./index";
 import { raise } from "./raise";
 import { invoice } from "./testing/templates";
 
@@ -174,3 +174,11 @@ describe("toDesign", () => {
 function PageFooterless() {
   return <Text>Three</Text>;
 }
+
+describe("a link's window", () => {
+  it("stays where a template gives no target, where the builder's default is a new one, and comes back with none", () => {
+    const { design } = toDesign(<Email><Button href="https://example.com">Go</Button></Email>);
+    expect(JSON.stringify(design)).toContain('"href":{"name":"web","values":{"href":"https://example.com","target":"_self"}}');
+    expect(fromDesign(design, { displayMode: "email" }).code).toMatch(/href="https:\/\/example\.com"/);
+  });
+});

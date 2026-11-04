@@ -55,7 +55,8 @@ export const Social = defineComposite({
     style: { gap: style.gap, justifyContent: style.justifyContent },
     children: icons.map((icon: { name: string; href: LinkValue }) => ({
       type: "Link",
-      props: { href: icon.href, title: icon.name },
+      // Each opens in a new window, as the builder's do, unless it says otherwise.
+      props: { href: typeof icon.href === "string" ? { href: icon.href, target: "_blank" } : icon.href, title: icon.name },
       style: { flex: "none" },
       children: [
         {

@@ -94,7 +94,7 @@ describe("render()", () => {
   it("renders a Social in JSX as its icons, each linked, in email and on a page, and validates its icons", async () => {
     const icons = [{ name: "Instagram", href: "https://instagram.com/acme" }];
     const email = await render(<Email><Social icons={icons} iconType="squared" size={24} /></Email>);
-    expect(email.html).toMatch(/<a href="https:\/\/instagram.com\/acme" title="Instagram"[^>]*><img src="https:\/\/cdn.tools.unlayer.com\/social\/icons\/squared\/instagram.png" alt="Instagram" width="24"/);
+    expect(email.html).toMatch(/<a href="https:\/\/instagram.com\/acme" target="_blank"[^>]*title="Instagram"[^>]*><img src="https:\/\/cdn.tools.unlayer.com\/social\/icons\/squared\/instagram.png" alt="Instagram" width="24"/);
     const page = await render(<Page><Social icons={icons} /></Page>);
     expect(page.html).toContain('src="https://cdn.tools.unlayer.com/social/icons/circle/instagram.png"');
     // @ts-expect-error: an icon has a name and an href

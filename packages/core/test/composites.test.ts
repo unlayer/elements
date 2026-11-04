@@ -13,8 +13,8 @@ describe("Social", () => {
     const row = document.root.children![0] as Node;
     expect(row).toMatchObject({ type: "Row", props: { stackOnMobile: false }, style: { gap: 12, justifyContent: "center" } });
     expect((row.children as Node[]).map((link) => [link.type, link.props, link.style, (link.children![0] as Node).props, (link.children![0] as Node).style])).toEqual([
-      ["Link", { href: "https://instagram.com/acme", title: "Instagram" }, { flex: "none" }, { src: "https://cdn.tools.unlayer.com/social/icons/rounded/instagram.png", alt: "Instagram" }, { width: 28 }],
-      ["Link", { href: "https://linkedin.com/acme", title: "LinkedIn" }, { flex: "none" }, { src: "https://cdn.tools.unlayer.com/social/icons/rounded/linkedin.png", alt: "LinkedIn" }, { width: 28 }],
+      ["Link", { href: { href: "https://instagram.com/acme", target: "_blank" }, title: "Instagram" }, { flex: "none" }, { src: "https://cdn.tools.unlayer.com/social/icons/rounded/instagram.png", alt: "Instagram" }, { width: 28 }],
+      ["Link", { href: { href: "https://linkedin.com/acme", target: "_blank" }, title: "LinkedIn" }, { flex: "none" }, { src: "https://cdn.tools.unlayer.com/social/icons/rounded/linkedin.png", alt: "LinkedIn" }, { width: 28 }],
     ]);
   });
 

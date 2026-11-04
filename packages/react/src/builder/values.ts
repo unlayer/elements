@@ -45,10 +45,10 @@ export const cssLineHeight = (value: Json) => (typeof value === "number" ? `${ro
 /** A font stack as the builder's `{ label, value }`: its first family the label. */
 export const builderFont = (stack: string) => ({ label: stack.split(",")[0].replace(/["']/g, "").trim(), value: stack });
 
-/** A link as the builder's: a target only where the template gives one. */
+/** A link as the builder's: in the same window where the template gives no target, where the builder's own default is a new one. */
 export const builderLink = (value: LinkValue) => {
   const { href, target } = linkParts(value);
-  return { name: "web", values: { href, ...(target ? { target } : {}) } };
+  return { name: "web", values: { href, target: target ?? "_self" } };
 };
 
 /** A style or prop as its tool's editor would store it, by its kind. */
@@ -96,7 +96,8 @@ export function decode(kind: string, value: unknown): unknown {
       const link = value as { values?: { href?: unknown; target?: unknown } } | undefined;
       if (!link || typeof link !== "object" || !link.values) return value;
       const { href, target } = link.values;
-      return target === "_blank" || target === "_self" ? { href, target } : href;
+      // ("_self" is what a link does with no target.)
+      return target === "_blank" ? { href, target } : href;
     }
     case "asset": {
       const asset = value as { url?: unknown; width?: unknown; height?: unknown };
