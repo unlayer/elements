@@ -405,7 +405,7 @@ comments are components. `packages/exporters/README.md` explains the layout and 
 
 | Component | Email markup |
 |---|---|
-| `Email` | the shell (doctype, Office settings, `x-apple-disable-message-reformatting`, `color-scheme`, the preview text), then a full-width table with the window's background and the content in a centered table (`width="100%"` with a px `max-width`, which Word takes as the width), a row per child, `gap` as cell padding. The language, direction and background are also on a `role="article"` wrapper, since Gmail drops `<html>` and `<body>` |
+| `Email` | the shell (the editor's XHTML doctype, Office settings, `x-apple-disable-message-reformatting`, `X-UA-Compatible`, `-webkit-text-size-adjust`, `color-scheme`, a `border-collapse` reset, the preview text), then a full-width table with the window's background and the content in a centered table (`width="100%"` with a px `max-width`, which Word takes as the width, inside a table of the content's width that only Outlook reads), a row per child, `gap` as cell padding. The language, direction and background are also on a `role="article"` wrapper, since Gmail drops `<html>` and `<body>` |
 | `Section` | a full-width row with its background, its content at the content width inside it |
 | `Row` | "fluid hybrid": each child an inline-block `div` as wide as its desktop width at most and 100% otherwise, so the children sit side by side where there's room and stack where there isn't, without media queries; Outlook gets a table of the same widths inside conditional comments. Gaps are spacers. With `stackOnMobile={false}`, a table row |
 | `Column` and boxes | a one-cell table around the content (Word has no box on a `div` or `p`); its children as table rows |
@@ -469,6 +469,10 @@ images and layout are preserved; the HTML may change; input that can't be drawn 
 warning, as these functions return strings), never silent loss. Where legacy draws something other than its
 design asks, the tree draws it as legacy does (`compat/quirks.ts`, one function and one test each, for the major
 that drops them).
+
+An email follows the editor's export where the two differ, as that's what has a record in real inboxes (2026-11-04):
+an image's width and how it fills a column on phones, the body's link style, and the email's document. What's left of
+legacy's own drawing in `compat/quirks.ts` is mostly a page's and a printed document's.
 
 `@unlayer/exporters` is gone in 0.3.0, not in the next major (2026-11-04): no block or template falls back to it.
 Each tool's default values are plain data in `packages/react/src/utils/tool-defaults.ts`. `@unlayer/types` stays,

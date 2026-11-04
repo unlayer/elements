@@ -18,6 +18,9 @@
  * `markup.tsx`, `layout.tsx` and `styles.tsx` are what they share. What email
  * can't do as asked is found in one pass (support.ts).
  *
+ * What the editor's email has, which has a record in real inboxes, it has too: the document's doctype and head, the
+ * `border-collapse` reset, and a table of the content's width that only Outlook reads.
+ *
  * Choices measured against captures of real classic Outlook: a 100% table with a px `max-width` is that width in
  * Word, so a box with its own width is `width="100%" style="max-width:…"`,
  * fluid elsewhere; a cell's width includes its padding; line heights are px

@@ -425,7 +425,7 @@ Number of `<Column>` children must match the layout.
 
 Since 0.3.0 these components render entirely through Elements' own writers, open source in this repository. `@unlayer/exporters` is no longer a dependency. Your templates and the functions you call don't change. Content, links, images and layout are preserved; the HTML may change; input that can't be drawn gets a diagnostic (a `[Unlayer]` console warning), never silent loss. A few small differences from 0.2.1 are listed below, each with its reason.
 
-This was checked against the published 0.2.1 in Chromium, on desktop and on phones. The new output is checked in Chromium and against a model of Outlook, not in real Outlook.
+This was checked against the published 0.2.1 and the Unlayer editor's own export, in Chromium, on desktop and on phones. The new output is checked in Chromium and against a model of Outlook, not in real Outlook.
 
 **New errors.** `renderToHtml`, `renderToHtmlParts` and `renderToPlainText` throw, saying what to do, where 0.2.1 wrote something anyway:
 

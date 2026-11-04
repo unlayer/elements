@@ -32,8 +32,18 @@
 - Fixed: a Button or Menu link holding a service tag no longer leaks markup into an email's plain text.
 - Changed: `onClick` on a link isn't written (a warning says so).
 - Changed: a `javascript:` link on an image or a Button becomes a link to nothing, with a warning.
-- Changed: an email image's `width` attribute is its column less its padding, the width it's drawn at (580 in a
-  column of 600 with 10px of padding, where 0.2.1 wrote 600).
+- Changed: an image is as wide as its place leaves it, less its block's padding, as in the editor. 0.2.1's was up to
+  20px wider and ran into that padding, which also made its email or page taller (a column of 600 with 10px of padding
+  has an image of 580, where 0.2.1 wrote 600). A video's thumbnail too.
+- Changed: an image whose file is large enough to fill a column on its own fills its place on phones, as in the
+  editor. A smaller file isn't stretched, and a width set for phones stays.
+- Fixed: a template's link color and underline apply to every link that doesn't set its own, as in the editor. 0.2.1
+  drew them all in the browser's blue.
+- Changed: an email has the editor's document: its XHTML doctype, the VML namespace, `X-UA-Compatible`,
+  `-webkit-text-size-adjust`, and a table of the content's width for classic Outlook.
+- Changed: tables in an email collapse their borders, as the editor's stylesheet has them, so a table in your own
+  markup (an `Html` block, a custom tool) loses its `cellspacing` or default 2px spacing. To keep it, write
+  `border-collapse: separate` on that table.
 - Changed: the ids and classes 0.2.1 generated for its own markup (`#u_row_1`, `#u_content_button_1`, `.u-row`,
   `.v-color`, `.v-button`) aren't written, so CSS that selects them no longer matches. Ids and classes you set in
   a block's or row's `_meta`, and a custom tool's `u_content_custom_<slug>_<n>` id and class, are kept.
