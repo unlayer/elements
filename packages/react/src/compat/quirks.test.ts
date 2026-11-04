@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { heads } from "@unlayer/exporters";
+import { createElement } from "react";
+import * as current from "../index";
+import * as previous from "@unlayer/react-elements-previous";
 import {
   buttonHover,
   dividerLength,
@@ -113,6 +115,13 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
     expect(pageBodyColor("hsl(0, 100%, 50%)", "#ffffff")).toBe("#ffffff");
     expect(pageBodyColor("rgba(0, 0, 0, 0.5)", "#ffffff")).toBe("rgba(0, 0, 0, 0.5)");
     expect(pageBodyColor("#123456", "#000000")).toBe("#123456");
+    // As 0.2.1's stylesheet reads each, as it's given.
+    for (const color of ["#333", "#3334", "#333333", "#33333333", "rgb(1,2,3)", "rgb( 1 , 2 , 3 )", "RGB(1,2,3)", "rgba(1,2,3,.5)", "transparent"]) expect(pageBodyColor(color, "#000000"), color).toBe(color);
+    expect(pageBodyColor(" #333 ", "#000000").trim()).toBe("#333");
+    for (const other of [undefined, "", "#12345", "red", "rgb(300,0,0)", "rgb(1,2,3,.5)", "rgba(1,2,3)", "rgba(1,2,3,2)", "rgb(10%,0%,0%)", "hsl(0,0%,0%)", "#333;}</style>"]) {
+      expect(pageBodyColor(other, "#000000"), other).toBe("#000000");
+      expect(pageBodyColor(other, "#ffffff"), other).toBe("#ffffff");
+    }
   });
 
   it("gives a user's own markup, as legacy's stylesheet does, an email's text color on tables, a document's printed backgrounds and `.content`", () => {
@@ -124,15 +133,19 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
     expect(ownMarkupCss("document", { fontFamily: { value: "x}</style>" } })).not.toContain("</style>");
   });
 
-  it("takes the colors the closed Body head takes, and its defaults for others", () => {
-    const meta = (displayMode: string) => ({ displayMode, isViewer: false, variant: null, type: "rows", headConfig: { hasFeature: () => false, getInitialValues: () => ({}) } });
-    const closed = (mode: string, values: Record<string, unknown>) => heads.Body.css({ ...values, _meta: { htmlID: "u_body" } }, values, meta(mode)) as string;
+  it("takes the colors 0.2.1's stylesheet takes, and its defaults for others, in a template with markup of its own", () => {
+    // None at all is the body's defaults' to fill in, in a render.
+    expect(ownMarkupCss("email", {})).toBe("table, td { color: #000000; }");
+    expect(ownMarkupCss("document", {})).toContain(".content { width: 100%; font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #000000; background-color: #ffffff;");
+    const head = (release: any, root: "Email" | "Document", values: Record<string, unknown>) => release.renderToHtmlParts(createElement(release[root], values, createElement(release.Row, null, createElement(release.Column, null, createElement(release.Html, { html: "<b>Mine</b>" }))))).css as string;
     const declared = (css: string, selector: RegExp, property: string) => new RegExp(`${selector.source}[^}]*?\\b${property}: ([^;]*);`).exec(css)?.[1].trim();
-    for (const value of [undefined, "", "#333", "#3334", "#333333", "#33333333", "#12345", "red", "rgb(1,2,3)", "rgb( 1 , 2 , 3 )", "RGB(1,2,3)", "rgb(300,0,0)", "rgb(1,2,3,.5)", "rgba(1,2,3,.5)", "rgba(1,2,3)", "rgba(1,2,3,2)", "rgb(10%,0%,0%)", "transparent", " #333 ", "hsl(0,0%,0%)", "#333;}</style>"]) {
-      expect(declared(ownMarkupCss("email", { textColor: value }), /table, td \{/, "color"), `text ${value}`).toBe(declared(closed("email", { textColor: value }), /table, td \{/, "color"));
+    for (const value of ["", "#333", "#3334", "#333333", "#33333333", "#12345", "red", "rgb(1,2,3)", "rgb( 1 , 2 , 3 )", "RGB(1,2,3)", "rgb(300,0,0)", "rgb(1,2,3,.5)", "rgba(1,2,3,.5)", "rgba(1,2,3)", "rgba(1,2,3,2)", "rgb(10%,0%,0%)", "transparent", " #333 ", "hsl(0,0%,0%)", "#333;}</style>"]) {
+      const text = { textColor: value };
+      expect(declared(head(previous, "Email", text), /table, td \{/, "color"), `0.2.1's rule for ${value}`).toBeDefined();
+      expect(declared(head(current, "Email", text), /table, td \{/, "color"), `text ${value}`).toBe(declared(head(previous, "Email", text), /table, td \{/, "color"));
       const page = { textColor: value, backgroundColor: value, fontFamily: { value: "georgia,serif" } };
       for (const property of ["font-family", "font-size", "color", "background-color"]) {
-        expect(declared(ownMarkupCss("document", page), /\.content \{/, property), `${property} ${value}`).toBe(declared(closed("document", page), /\.content \{/, property));
+        expect(declared(head(current, "Document", page), /\.content \{/, property), `${property} ${value}`).toBe(declared(head(previous, "Document", page), /\.content \{/, property));
       }
     }
   });
