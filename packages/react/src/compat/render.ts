@@ -11,6 +11,7 @@ import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-ex
 import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import type { TreeNode } from "./lower";
 import { lowerTemplate } from "./template";
+import { restoreServiceTags } from "./values";
 
 export interface Rendered {
   /** The whole document. */
@@ -68,6 +69,10 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     throw error;
   }
 
+  // What's drawn otherwise than a template asks, as today's components say what they can't render.
+  for (const { severity, message } of lowered.diagnostics) if (severity === "warning") console.warn(`[Elements] ${message}`);
+  const restore = (markup: string) => (lowered.tags.length ? restoreServiceTags(markup, lowered.tags) : markup);
+
   // The root's fonts, then the option's, each URL once: stylesheets legacy links (an email's out of Outlook's view).
   const fonts = [...(rootProps.fonts ?? []), ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
   const links = fonts.map((font) => `<link href="${escapeHtml(String(font.url))}" rel="stylesheet" type="text/css">`).join("");
@@ -87,7 +92,7 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">',
     () => ""
   );
-  const html = extra.length ? shell.replace("</head>", () => `${extra.join("\n")}</head>`) : shell;
+  const html = restore(extra.length ? shell.replace("</head>", () => `${extra.join("\n")}</head>`) : shell);
 
   // The parts: the stylesheet with the body's own style (an app's page embedding them takes the template's margin and
   // background, as legacy's head gave them), the script and the tags; the body.
@@ -95,12 +100,12 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const css = [...styles, result.bodyStyle ? `body{${result.bodyStyle}}` : ""].filter(Boolean).join("\n");
   const head = [css ? `<style>${styleText(css)}</style>` : "", js ? `<script>${js}</script>` : "", ...tags].filter(Boolean).join("\n");
   // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render).
-  const text = () => htmlToPlainText(renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, ""));
+  const text = () => htmlToPlainText(restore(renderTemplate(forText(lowered.tree, lowered.mode)).body).replace(PREVIEW, "").replace(DIVIDER, ""));
   // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
   // document (a page's has none).
   const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };
   const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
-  const inner = lowered.mode === "web" ? result.body : `\n${bodyTag}${result.body}</body>\n`;
+  const inner = restore(lowered.mode === "web" ? result.body : `\n${bodyTag}${result.body}</body>\n`);
   const body = renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: inner }, className, style }));
   return {
     html,
@@ -112,7 +117,7 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     get text() {
       return text();
     },
-    diagnostics: result.diagnostics,
+    diagnostics: [...lowered.diagnostics, ...result.diagnostics],
   };
 }
 

@@ -7,6 +7,7 @@ import { Column } from "../components/Column";
 import Paragraph from "../components/Paragraph";
 import Button from "../components/Button";
 import Heading from "../components/Heading";
+import Menu from "../components/Menu";
 import Image from "../components/Image";
 
 describe("renderToPlainText", () => {
@@ -104,19 +105,18 @@ describe("renderToHtmlParts", () => {
     expect(body).toContain("Content here");
   });
 
-  it("head includes body-level CSS (text color, link styles)", () => {
+  it("head includes the body's text color and link styles, on a template that keeps its legacy HTML", () => {
     const { head } = renderToHtmlParts(
-      <Body mode="email">
+      <Body mode="email" textColor="#333333">
         <Row>
           <Column>
-            <Button>Click</Button>
+            <Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} />
           </Column>
         </Row>
       </Body>
     );
     // Body head generates table/td color and link styles
-    expect(head).toContain("table, td");
-    expect(head).toContain("color");
+    expect(head).toMatch(/table, td \{\s*color: #333333;/);
   });
 
   it("head is empty when no head-generating components", () => {

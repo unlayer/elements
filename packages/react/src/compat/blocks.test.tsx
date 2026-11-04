@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HtmlExporters } from "@unlayer/exporters";
+import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video, registerTool } from "../index";
 import { recordingBlockHtml } from "../utils/block-html";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
@@ -16,6 +17,11 @@ function lowered(block: React.ReactElement, Root: Root = Email): TreeNode | unde
   const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
   return find(result.tree.root);
 }
+
+/** What a template lowers to, with what it says it drew otherwise. */
+const whole = (block: React.ReactElement, Root: Root = Email) => withRenderScope(() => lowerTemplate(<Root><Row><Column>{block}</Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+/** What a block's lowering says, in words. */
+const said = (block: React.ReactElement, Root: Root = Email) => whole(block, Root).diagnostics.filter((d) => d.severity === "warning").map((d) => d.message).join("\n");
 
 describe("a text block", () => {
   it("is a Paragraph of its HTML's runs, in its padding and text styles", () => {
@@ -100,15 +106,134 @@ describe("a button block", () => {
     }
   });
 
-  it("keeps its legacy HTML on a page or in a printed document where it has a width: legacy puts its padding on top", () => {
+  const drawn = (block: React.ReactElement, Root: Root = Email) => (lowered(block, Root)?.children as TreeNode[])[0];
+
+  it("has its padding on top of its width on a page or in a printed document (300px draws 340px wide), as legacy; an email's width holds it", () => {
     const button = <Button href="https://example.com" width="300px" padding="10px 20px">Go</Button>;
-    expect(lowered(button, Page)?.type).toBe("Raw");
-    expect(lowered(button, Document)?.type).toBe("Raw");
-    expect((lowered(button)?.children as TreeNode[])[0]).toMatchObject({ type: "Button", style: { width: 300 } });
+    for (const Root of [Page, Document] as Root[]) expect(drawn(button, Root)).toMatchObject({ type: "Button", style: { width: 300, boxSizing: "content-box", maxWidth: "100%" } });
+    expect(drawn(button).style).toMatchObject({ width: 300 });
+    expect(drawn(button).style?.boxSizing).toBeUndefined();
   });
 
-  it("keeps its legacy HTML where it has no link (legacy's href=\"\")", () => {
-    expect(lowered(<Button>Go</Button>)?.type).toBe("Raw");
+  it("links to nothing where it has no link, as legacy's href=\"\": said only for those who look", () => {
+    expect(drawn(<Button>Go</Button>).props?.href).toEqual({ href: "", target: "_blank" });
+    expect(drawn(<Button values={{ href: undefined } as never}>Go</Button>).props?.href).toEqual({ href: "" });
+    expect(whole(<Button>Go</Button>).diagnostics).toMatchObject([{ severity: "info" }]);
+    expect(said(<Button>Go</Button>)).toBe("");
+  });
+
+  it("is drawn in its template's output where it's given a mode of its own", () => {
+    expect(drawn(<Button href="https://example.com" mode="email">Go</Button>, Page).type).toBe("Button");
+    expect(drawn(<Button href="https://example.com" mode="web">Go</Button>).type).toBe("Button");
+  });
+
+  it("reads a label given as textJson, with its formatting", () => {
+    const textJson = JSON.stringify({ root: { children: [{ children: [{ detail: 0, format: 1, mode: "normal", style: "", text: "Bold", type: "text", version: 1 }], direction: "ltr", format: "", indent: 0, type: "paragraph", version: 1 }], direction: "ltr", format: "", indent: 0, type: "root", version: 1 } });
+    expect(drawn(<Button href="https://example.com" values={{ textJson } as never} />).children).toEqual([{ type: "Raw", props: { html: generateHtmlFromTextJson(textJson) } }]);
+    expect(generateHtmlFromTextJson(textJson)).toContain("Bold");
+  });
+
+  it.each([
+    ["font size", { fontSize: "large" }, "large"],
+    ["line height", { lineHeight: "tall" }, "tall"],
+    ["letter spacing", { letterSpacing: "wide" }, "wide"],
+    ["label's padding", { padding: "5%" }, "5%"],
+    ["corner radius", { borderRadius: "50%" }, "50%"],
+    ["font weight", { fontWeight: "heavy" }, "heavy"],
+    ["width", { size: { autoWidth: false, width: "10em" } }, "10em"],
+  ])("draws a %s it can't read as its default, and says so", (what, values, unread) => {
+    const button = <Button href="https://example.com" values={values as never}>Go</Button>;
+    for (const Root of [Email, Page, Document] as Root[]) {
+      const node = drawn(button, Root);
+      expect(node.type).toBe("Button");
+      expect(node.children).toEqual(["Go"]);
+      expect(JSON.stringify(node.style)).not.toContain(unread);
+      expect(said(button, Root)).toContain(what);
+    }
+  });
+
+  it("draws a block padding or an alignment it can't read as the default and at the start, and says so", () => {
+    const button = <Button href="https://example.com" values={{ containerPadding: "1em", textAlign: "middle" } as never}>Go</Button>;
+    expect(lowered(button)?.style).toEqual({ padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" });
+    expect(said(button)).toContain("padding");
+    expect(said(button)).toContain("alignment");
+  });
+
+  it("leaves out a color it can't read, and says so; a link that runs a script is a link to nothing", () => {
+    const color = <Button href="https://example.com" color="not a color">Go</Button>;
+    expect(drawn(color).style?.color).toBeUndefined();
+    expect(said(color)).toContain("not a color");
+    const script = <Button href="javascript:alert(1)">Go</Button>;
+    expect(drawn(script).props?.href).toEqual({ href: "" });
+    expect(said(script)).toContain("javascript:alert(1)");
+  });
+
+  it("draws a border's style it can't read as solid, and leaves out a side whose width it can't read, and says so", () => {
+    const button = <Button href="https://example.com" border={{ borderTopWidth: "2px", borderTopStyle: "double", borderTopColor: "#111111", borderBottomWidth: "thin", borderBottomStyle: "solid", borderBottomColor: "#222222" } as never}>Go</Button>;
+    expect(drawn(button).style?.border).toEqual({ top: { width: 2, style: "solid", color: "#111111" } });
+    expect(said(button)).toContain("border's style");
+    expect(said(button)).toContain("border's width");
+  });
+
+  it("draws a font weight that isn't a hundred at the nearest, and bolder and lighter as they are around 400", () => {
+    const heavy = <Button href="https://example.com" fontWeight={650 as never}>Go</Button>;
+    expect(drawn(heavy).style?.fontWeight).toBe(700);
+    expect(said(heavy)).toContain("nearest");
+    expect(drawn(<Button href="https://example.com" fontWeight={"lighter" as never}>Go</Button>).style?.fontWeight).toBe(100);
+    expect(drawn(<Button href="https://example.com" fontWeight={"bolder" as never}>Go</Button>).style?.fontWeight).toBe(700);
+  });
+
+  it("writes a label's markup no run holds as it is, and its paragraphs (legacy's plain text reads them as one)", () => {
+    for (const text of ['<img src="https://example.com/a.png" alt="A"> Icon', "<ul><li>One</li></ul>", "&notanentity; words", '<p style="margin:0">One</p><p style="margin:0">Two</p>']) {
+      expect(drawn(<Button href="https://example.com" values={{ text } as never} />).children).toEqual([{ type: "Raw", props: { html: text } }]);
+    }
+  });
+
+  it("keeps a link's own attributes and a target of another kind; a click handler is said", () => {
+    expect(drawn(<Button href={{ url: "https://example.com", target: "_top", class: "cta", customAttrs: { "data-x": "1", onmouseover: "x()" } } as never}>Go</Button>).props).toEqual({ href: { href: "https://example.com" }, attrs: { "data-x": "1", class: "cta", target: "_top" } });
+    const click = <Button href={{ url: "https://example.com", onClick: "track()" } as never}>Go</Button>;
+    expect(drawn(click).props?.attrs).toBeUndefined();
+    expect(said(click)).toContain("click handler");
+  });
+
+  it("takes the settings for phones legacy's stylesheet reads, and leaves those it doesn't", () => {
+    const node = lowered(<Button href="https://example.com" values={{ _override: { mobile: { containerPadding: "1px", padding: "2px", fontSize: "3px", lineHeight: "4px", textAlign: "right", size: { autoWidth: false, width: "50%" }, color: "#111", letterSpacing: "5px", border: {}, fontWeight: 900 } } } as never}>Go</Button>, Page) as TreeNode;
+    const side = (n: number) => ({ top: n, right: n, bottom: n, left: n });
+    expect(node.mobile).toEqual({ padding: side(1) });
+    expect((node.children as TreeNode[])[0].mobile).toEqual({ padding: side(2), fontSize: 3, lineHeight: "4px", alignSelf: "end", width: "50%" });
+    // A width on phones has its padding on top too.
+    expect((node.children as TreeNode[])[0].style).toMatchObject({ boxSizing: "content-box" });
+  });
+
+  it("says a setting for phones it can't read", () => {
+    const button = <Button href="https://example.com" values={{ _override: { mobile: { fontSize: "large", containerPadding: "1em" } } } as never}>Go</Button>;
+    expect(lowered(button)?.mobile).toBeUndefined();
+    expect(said(button)).toContain("font size on phones");
+    expect(said(button)).toContain("padding on phones");
+  });
+
+  it("takes settings for desktop windows as its values, its own being the phones' (legacy's break at 480px); a printed document has only its desktop's", () => {
+    const button = <Button href="https://example.com" fontSize="12px" containerPadding="4px" values={{ _override: { desktop: { fontSize: "23px", containerPadding: "21px" } } } as never}>Go</Button>;
+    const page = lowered(button, Page) as TreeNode;
+    expect((page.children as TreeNode[])[0]).toMatchObject({ style: { fontSize: 23 }, mobile: { fontSize: 12 } });
+    expect(page).toMatchObject({ style: { padding: { top: 21 } }, mobile: { padding: { top: 4 } } });
+    const document = lowered(button, Document as Root) as TreeNode;
+    expect((document.children as TreeNode[])[0].style?.fontSize).toBe(23);
+    expect((document.children as TreeNode[])[0].mobile).toBeUndefined();
+    // There, legacy's rule for the block's padding finds nothing.
+    expect(document).toMatchObject({ style: { padding: { top: 4 } } });
+    expect(document.mobile).toBeUndefined();
+  });
+
+  it("takes no settings for tablets (legacy writes no rule for them)", () => {
+    const node = lowered(<Button href="https://example.com" values={{ _override: { tablet: { fontSize: "43px", containerPadding: "41px" } } } as never}>Go</Button>) as TreeNode;
+    expect(node.type).toBe("Column");
+    expect((node.children as TreeNode[])[0].style?.fontSize).toBe(14);
+  });
+
+  it("is hidden where it says, in an email too", () => {
+    expect(lowered(<Button href="https://example.com" hideOnMobile>Go</Button>)?.hidden).toEqual({ mobile: true });
+    expect(lowered(<Button href="https://example.com" hideOnDesktop>Go</Button>)?.hidden).toEqual({ desktop: true });
   });
 });
 

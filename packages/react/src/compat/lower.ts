@@ -56,13 +56,20 @@ export interface Place {
    * doesn't: a text's Lexical textJson, whose formatting the design's plain `text` leaves out.
    */
   source?: Values;
+  /** Says what's drawn otherwise than the block asks: a diagnostic of the render. */
+  note(message: string, severity?: "warning" | "info"): void;
+  /** Text with its email service's tags kept out of the writers' escaping (see render.ts, which puts them back). */
+  keep(text: string): string;
 }
+
+/** Where a block is, as the design says it. */
+export type FramePlace = Omit<Place, "source" | "note" | "keep">;
 
 export interface LowerOptions {
   mode: Mode;
   config?: Partial<UnlayerConfig>;
   /** A block as a node of the tree, or null where it draws nothing in this output. */
-  block(block: DesignBlock, place: Place): TreeNode | null;
+  block(block: DesignBlock, place: FramePlace): TreeNode | null;
 }
 
 /**
@@ -222,7 +229,7 @@ export const defined = <T extends object>(object: T): T => Object.fromEntries(Ob
 /** The sides of a line every column of a row has (legacy stretches columns to the row's height: one line across it). */
 type Lines = Partial<Record<"top" | "bottom", Json>>;
 
-function column(design: Values, width: string | undefined, rowLines: Lines, background: string | undefined, stacks: boolean, place: Omit<Place, "column" | "index">, index: number, options: LowerOptions): TreeNode {
+function column(design: Values, width: string | undefined, rowLines: Lines, background: string | undefined, stacks: boolean, place: Omit<FramePlace, "column" | "index">, index: number, options: LowerOptions): TreeNode {
   const values: Values = design.values ?? {};
   onlyRead(values, "column");
   phoneSettings(values, "a column", options.mode);
@@ -235,7 +242,7 @@ function column(design: Values, width: string | undefined, rowLines: Lines, back
   const lines = own && Object.fromEntries(Object.entries(own).filter(([side]) => !(side in rowLines)));
   const phoneLines = stacks && Object.keys(rowLines).length ? rowLines : undefined;
   const mobile = defined({ padding: phonePadding, border: phoneLines as Json | undefined });
-  const at: Place = { ...place, column: values, index };
+  const at: FramePlace = { ...place, column: values, index };
   givenClasses(values, "u_column", "a column");
   return defined({
     type: "Column",
@@ -259,7 +266,7 @@ function column(design: Values, width: string | undefined, rowLines: Lines, back
   });
 }
 
-function row(design: Values, place: Omit<Place, "row" | "column" | "cells" | "index">, options: LowerOptions): TreeNode {
+function row(design: Values, place: Omit<FramePlace, "row" | "column" | "cells" | "index">, options: LowerOptions): TreeNode {
   const values: Values = design.values ?? {};
   onlyRead(values, "row");
   if (values.backgroundImage?.url) throw new Unlowerable("a row's background image");

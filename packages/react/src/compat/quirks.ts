@@ -69,6 +69,14 @@ export function buttonHover(mode: "email" | "web" | "document", colors: { hoverC
 }
 
 /**
+ * A button's width on a page or in a printed document: legacy's is its label's, its padding on top (300px draws 340px
+ * wide), at most its place's width.
+ */
+export function buttonWidthOnPage(): { boxSizing: "content-box"; maxWidth: string } {
+  return { boxSizing: "content-box", maxWidth: "100%" };
+}
+
+/**
  * An image's own box: legacy's image exporters don't write the border, corner radius or background an Image's props
  * give it (`borderWidth`, `borderRadius`, `backgroundColor`), so it's drawn without them.
  */

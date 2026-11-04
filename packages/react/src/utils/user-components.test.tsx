@@ -293,8 +293,13 @@ describe("HTML from a component in a Column", () => {
       return <a href="https://example.com/plain">Plain link</a>;
     }
     const html = renderToHtml(<Email><Row><Column><Button /><ElementsButton href="https://example.com" mobile={{ fontSize: "22px" }}>Real</ElementsButton></Column></Row></Email>);
-    const id = /id="(u_content_button_\d+)"[\s\S]{0,1500}?Real/.exec(html)![1];
-    const css = /<style[^>]*>([\s\S]*?)<\/style>/.exec(html)![1];
+    const phone = /\.(e[0-9a-z]{5})\{font-size:22px!important/.exec(html)![1];
+    expect(/<a [^>]*class="([^"]*)"[^>]*>\s*Real/.exec(html)![1].split(" ")).toContain(phone);
+    expect(html).toMatch(/<a href="https:\/\/example.com\/plain">Plain link/);
+    // A template that renders as today, with its blocks numbered and a head by their ids, is in the block's own.
+    const legacy = legacyRenderToHtml(<Email><Row><Column><Button /><ElementsButton href="https://example.com" mobile={{ fontSize: "22px" }}>Real</ElementsButton></Column></Row></Email>);
+    const id = /id="(u_content_button_\d+)"[\s\S]{0,1500}?Real/.exec(legacy)![1];
+    const css = /<style[^>]*>([\s\S]*?)<\/style>/.exec(legacy)![1];
     expect([...new Set(css.match(/#u_content_button_\d+/g))]).toEqual([`#${id}`]);
   });
 });
