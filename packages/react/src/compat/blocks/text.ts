@@ -34,8 +34,11 @@ function fontPx(value: unknown, mode: Place["mode"]): number | undefined {
   return Math.round(Number(match[1]) * { em: around(mode), rem: 16, "%": around(mode) / 100, pt: 4 / 3 }[match[2] as "em"] * 100) / 100;
 }
 
-/** A block's padding in px, from what `fontPx` reads but a share of its place (which isn't one length on every window). */
-const paddingOf = (value: unknown, mode: Place["mode"]) => sides(typeof value === "string" ? value.trim().split(/\s+/).map((part) => (part.endsWith("%") ? part : (fontPx(part, mode) ?? part))).join(" ") : value);
+/** Whether a block's padding is a share of its place, which isn't one length on every window: it's written as it is. */
+const paddingShare = (value: unknown) => typeof value === "string" && value.includes("%");
+
+/** A block's padding in px, from what `fontPx` reads. */
+const paddingOf = (value: unknown, mode: Place["mode"]) => sides(typeof value === "string" ? value.trim().split(/\s+/).map((part) => fontPx(part, mode) ?? part).join(" ") : value);
 
 /** A block's text styles as legacy writes them; a heading's tag is bold where it says no weight, and in the browser's size where it says none. */
 function textStyles(values: Values, place: Place, level: number | undefined): Record<string, Json> {
@@ -174,7 +177,7 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   const ownSize = ownFontSize(children);
   // A paragraph's line height on phones is its runs' too, in legacy's CSS: a run in another font size has its own here.
   // The HTML as it is, or in its own values and its settings for each device as legacy's stylesheet applies them.
-  if (left.length || (type === "Paragraph" && ownSize && phoneValues.lineHeight !== undefined)) return written(tool, block.values, html, level ?? 1, place);
+  if (left.length || (type === "Paragraph" && ownSize && phoneValues.lineHeight !== undefined) || paddingShare(values.containerPadding) || paddingShare(phoneValues.containerPadding)) return written(tool, block.values, html, level ?? 1, place);
   const phone = phoneStyles(phoneValues, block.values, place);
   let padding = paddingOf(values.containerPadding ?? "10px", place.mode);
   if (!padding) {

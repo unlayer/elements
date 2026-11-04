@@ -101,13 +101,23 @@ describe("a text block", () => {
     expect(said(<Paragraph html="Hi" values={{ fontSize: "1.5em", lineHeight: "normal" } as never} />)).toBe("");
   });
 
-  it("draws a padding in em or pt at its px; one it can't read, or a share of its place, at the default, and says so", () => {
+  it("draws a padding in em or pt at its px; one it can't read at the default, and says so", () => {
     expect(lowered(<Paragraph html="Hi" values={{ containerPadding: "1em 3pt" } as never} />)?.style?.padding).toEqual({ top: 16, right: 4, bottom: 16, left: 4 });
-    for (const containerPadding of ["5%", "wide"]) {
-      const block = <Paragraph html="Hi" values={{ containerPadding } as never} />;
-      expect(lowered(block)?.style?.padding).toEqual({ top: 10, right: 10, bottom: 10, left: 10 });
-      expect(said(block)).toContain(`padding "${containerPadding}"`);
+    const block = <Paragraph html="Hi" values={{ containerPadding: "wide" } as never} />;
+    expect(lowered(block)?.style?.padding).toEqual({ top: 10, right: 10, bottom: 10, left: 10 });
+    expect(said(block)).toContain('padding "wide"');
+  });
+
+  it("writes a padding that's a share of its place as it is, on desktop and on phones: no length is it on every window", () => {
+    for (const Root of [Email, Page] as Root[]) {
+      const block = <Paragraph html="Hi" values={{ containerPadding: "5%" } as never} />;
+      expect(lowered(block, Root)?.type).toBe("Raw");
+      expect(String(lowered(block, Root)?.props?.html)).toMatch(/padding: ?5%/);
+      expect(said(block, Root)).toBe("");
     }
+    const onPhones = lowered(<Paragraph html="Hi" values={{ _override: { mobile: { containerPadding: "2%" } } } as never} />, Page);
+    expect(onPhones?.type).toBe("Raw");
+    expect(String(onPhones?.props?.css)).toContain("padding: 2%");
   });
 
   it("draws a font weight that isn't a hundred at the nearest, and says so", () => {
