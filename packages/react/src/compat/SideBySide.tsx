@@ -1,6 +1,6 @@
 import type { StoryObj } from "@storybook/react-vite";
-import { useLayoutEffect, useRef, useState, type ReactElement } from "react";
-import { render, type RenderResult } from "../primitives/index";
+import { Fragment, isValidElement, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { Email, Page, render, type RenderResult } from "../primitives/index";
 
 /** The window each render is shown in: an email client's on a desktop, or a phone's. */
 export type Width = "desktop" | "phone";
@@ -8,8 +8,8 @@ const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
 const GAP = 16;
 
 export interface SideBySideProps {
-  /** The two documents, and what each frame shows. */
-  frames: [{ label: string; html: string }, { label: string; html: string }];
+  /** The documents, and what each frame shows. */
+  frames: Array<{ label: string; html: string }>;
   /** What the renders reported (warnings and notes). */
   notes: string[];
   width: Width;
@@ -51,7 +51,7 @@ export function SideBySide({ frames, notes, width }: SideBySideProps) {
     return () => observer.disconnect();
   }, []);
   const window = WIDTHS[width];
-  const scale = Math.min(1, (room - GAP) / (2 * window));
+  const scale = Math.min(1, (room - GAP * (frames.length - 1)) / (frames.length * window));
 
   return (
     <div ref={box}>
@@ -99,4 +99,57 @@ export const sideBySide = (left: { label: string; template: ReactElement }, righ
       width={width}
     />
   ),
+});
+
+const isElement = (value: unknown): value is ReactElement => isValidElement(value);
+const literal = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(literal).join(", ")}]`;
+  if (value && typeof value === "object") return `{ ${Object.entries(value).map(([key, v]) => `${/^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key)}: ${literal(v)}`).join(", ")} }`;
+  return JSON.stringify(value);
+};
+const nameOf = (type: ReactElement["type"]) => (typeof type === "string" ? type : ((type as { displayName?: string; name?: string }).displayName ?? (type as { name?: string }).name ?? "Fragment"));
+
+/** A template as the JSX an author writes, for a story's "Show code". */
+function jsx(node: unknown, indent: string, names: Set<string>): string[] {
+  if (Array.isArray(node)) return node.flatMap((child) => jsx(child, indent, names));
+  if (node === null || node === undefined || typeof node === "boolean") return [];
+  if (!isElement(node)) return [`${indent}${String(node)}`];
+  const { children, ...props } = node.props as Record<string, unknown>;
+  const name = nameOf(node.type);
+  if (name === "Fragment" || node.type === Fragment) return jsx(children, indent, names);
+  names.add(name);
+  const attributes = Object.entries(props)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => (typeof value === "string" ? ` ${key}=${JSON.stringify(value)}` : value === true ? ` ${key}` : ` ${key}={${literal(value)}}`))
+    .join("");
+  const inside = jsx(children, `${indent}  `, names);
+  if (!inside.length) return [`${indent}<${name}${attributes} />`];
+  const text = inside.map((line) => line.trim());
+  if (text.join(" ").length + indent.length + name.length * 2 + attributes.length < 96 && !text.some((line) => line.startsWith("<"))) return [`${indent}<${name}${attributes}>${text.join(" ")}</${name}>`];
+  return [`${indent}<${name}${attributes}>`, ...inside, `${indent}</${name}>`];
+}
+
+/** What "Show code" has for a template: its imports and its JSX. */
+const code = (template: ReactElement) => {
+  const names = new Set<string>();
+  const lines = jsx(template, "  ", names);
+  return `import { ${[...names].sort().join(", ")} } from "@unlayer/react-elements/primitives";\n\nconst template = (\n${lines.join("\n")}\n);`;
+};
+
+/** A story of one template, with its code. */
+export const showing = (label: string, template: ReactElement): StoryObj<Args> => ({
+  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
+  loaders: [
+    async () => {
+      const result = await render(template);
+      return { html: result.html, notes: noted(result) };
+    },
+  ],
+  render: ({ width }, { loaded }) => <SideBySide frames={[{ label, html: loaded.html }]} notes={loaded.notes} width={width} />,
+});
+
+/** A story of one template drawn as an Email and as a Page, with its code. */
+export const asEmailAndPage = (template: (Root: typeof Email) => ReactElement): StoryObj<Args> => ({
+  ...sideBySide({ label: "Email", template: template(Email) }, { label: "Page", template: template(Page as typeof Email) }),
+  parameters: { docs: { source: { code: code(template(Email)), language: "tsx" } } },
 });
