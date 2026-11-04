@@ -3,8 +3,8 @@
 ## 0.3.0
 
 - Today's components render entirely through Elements' own open-source writers. `@unlayer/exporters` is no longer
-  a dependency, and nothing falls back to it. Templates and the render functions don't change. Content, links,
-  images and layout are preserved; the HTML may change; input that can't be drawn gets a diagnostic (a console
+  a dependency, and nothing falls back to it. Templates and the render functions don't change. Content, links
+  and images are preserved, and they draw as the editor's export does; the HTML may change; input that can't be drawn gets a diagnostic (a console
   warning), never silent loss. A few small differences from 0.2.1 are listed here, each with its reason. It was
   checked against the published 0.2.1 in Chromium. The new output is checked in Chromium and against a model of
   Outlook, not in real Outlook.
