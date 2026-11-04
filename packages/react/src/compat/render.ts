@@ -96,8 +96,9 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const styles = [...result.head.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((match) => match[1]);
   const css = [...styles, result.bodyStyle ? `body{${result.bodyStyle}}` : ""].filter(Boolean).join("\n");
   const head = [css ? `<style>${styleText(css)}</style>` : "", js ? `<script>${js}</script>` : "", ...tags].filter(Boolean).join("\n");
-  // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render).
-  const text = () => htmlToPlainText(restore(renderTemplate(forText(lowered.tree, lowered.mode)).body).replace(PREVIEW, "").replace(DIVIDER, ""));
+  // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render). A tag in
+  // the words goes back first and reads as legacy's does; one in an attribute after, where it would end the element.
+  const text = () => restore(htmlToPlainText(renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, "").replace(/>[^<]*/g, restore)));
   // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
   // document (a page's has none).
   const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };

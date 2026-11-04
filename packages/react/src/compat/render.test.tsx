@@ -600,8 +600,11 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(html).toContain("@media (max-width: 620px)");
   });
 
-  it("put an email service's tag back after reading the plain text: in a link's address, one reads as a tag of its own", () => {
-    expect(renderToPlainText(<Page><Row><Column><Menu items={[{ text: "Docs", href: "https://a.example/<%id%>" }]} /></Column></Row></Page>)).toContain("(https://a.example/<%id%>)");
+  it("read an email service's tag in the plain text as legacy's words have it, and keep one in an attribute, which garbles nothing", () => {
+    const read = (block: React.ReactElement) => renderToPlainText(<Page><Row><Column>{block}</Column></Row></Page>);
+    expect(read(<Paragraph html="Hi <%name%>, you have items" />)).toBe("Hi , you have items");
+    expect(read(<Menu items={[{ text: "Docs", href: "https://a.example/<%id%>" }]} />)).toContain("(https://a.example/<%id%>)");
+    expect(read(<Image src={{ url: "https://a.example/<%id%>.png", width: 100, height: 50 }} alt="Hi <%name%>" />)).toBe("[Hi <%name%>]");
   });
 
   it("can't be ended by a double quote in an email service's tag, in an attribute", () => {
