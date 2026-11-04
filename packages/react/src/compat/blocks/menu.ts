@@ -10,12 +10,11 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
 import type { TreeNode } from "../lower";
 import { fontOfValues } from "../quirks";
-import { ALIGN, deviceValues, drawnLink, fontWeight, letterSpacing, nearestWeight, px, sides, some, type Values } from "../values";
+import { ALIGN, deviceValues, drawnLink, ENTITY, fontWeight, letterSpacing, nearestWeight, px, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 /** A word space at 16px in Arial, where a page holds an email's markup (a page's Row has no words to space). */
 const WORD_SPACE = 4.45;
-const ENTITY = /&(?:#\d+|#x[\da-f]+|\w+);/gi;
 
 export const menu: Lowering = (block, place): TreeNode => {
   const { values, phone } = deviceValues(block.values, ["containerPadding", "padding", "fontSize"], place.mode);

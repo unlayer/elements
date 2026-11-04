@@ -374,6 +374,37 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
     });
 
+    it("read an `&amp;` in a URL, and an entity in an image's text or a link's own attribute, as 0.2.1 reads them", () => {
+      const url = "https://example.com/a?a=1&amp;b=2&c=3";
+      const words = "Tom &amp; Jerry &copy; A&B";
+      const PLACES: Array<[string, Array<keyof typeof current | "Email" | "Page" | "Document">, (L: Release) => React.ReactElement, string, string]> = [
+        ["an Image's URL", ["Email", "Page", "Document"], (L) => <L.Image src={url} alt="a" />, "img", "src"],
+        ["an Image's text", ["Email", "Page", "Document"], (L) => <L.Image src="https://example.com/a.png" alt={words} />, "img", "alt"],
+        ["an Image's link", ["Email", "Page", "Document"], (L) => <L.Image src="https://example.com/a.png" alt="a" action={{ url } as never} />, "a", "href"],
+        ["a Button's link", ["Email", "Page", "Document"], (L) => <L.Button href={url}>Go</L.Button>, "a", "href"],
+        ["a link's own attribute", ["Email", "Page", "Document"], (L) => <L.Button href={{ url: "https://example.com", customAttrs: { "data-x": words } } as never}>Go</L.Button>, "a", "data-x"],
+        ["a Menu's link", ["Email", "Page", "Document"], (L) => <L.Menu items={[{ text: "A", href: url }]} />, "a", "href"],
+        ["a Social's link", ["Email", "Page", "Document"], (L) => <L.Social icons={[{ name: "Twitter", url }]} />, "a", "href"],
+        ["a Social's image", ["Email", "Page", "Document"], (L) => <L.Social values={{ icons: { icons: [{ name: "Twitter", url: "https://example.com", imgUrl: url }] } } as never} />, "img", "src"],
+        ["a Video's thumbnail", ["Email"], (L) => <L.Video values={{ video: { thumbnail: url, url: "https://example.com/v" } } as never} />, "img", "src"],
+        ["a Video's link", ["Email"], (L) => <L.Video values={{ video: { thumbnail: "https://example.com/t.png", url } } as never} />, "a", "href"],
+      ];
+      const read = (L: Release, root: string, block: (L: Release) => React.ReactElement, selector: string, attribute: string) => {
+        const Root = L[root as "Email"];
+        const doc = new DOMParser().parseFromString(L.renderToHtml(<Root><L.Row><L.Column>{block(L)}</L.Column></L.Row></Root>), "text/html");
+        return Array.from(doc.querySelectorAll(selector)).find((element) => element.hasAttribute(attribute))?.getAttribute(attribute);
+      };
+      for (const [name, roots, block, selector, attribute] of PLACES) {
+        for (const root of roots) {
+          const value = read(current, root as string, block, selector, attribute);
+          expect(value, `${name} in ${String(root)}`).toBe(read(published as unknown as Release, root as string, block, selector, attribute));
+        }
+      }
+      // (In a URL, only that: another entity could hide a scheme.)
+      const hidden = renderToHtml(<Email><Row><Column><Button href={"java&#115;cript:alert(1)"}>Go</Button></Column></Row></Email>);
+      expect(new DOMParser().parseFromString(hidden, "text/html").querySelector("a")?.getAttribute("href")).toBe("java&#115;cript:alert(1)");
+    });
+
     it("keep a table's plain text as 0.2.1's", () => {
       const template = ({ Row, Column, Paragraph, Table }: Release, Root: typeof Email) => <Root><Row><Column><Paragraph>Before</Paragraph><Table headers={["N", "E"]} data={[["Ada", '<a href="https://example.com">mail</a>'], ["", "x &amp; y"]]} /><Paragraph>After</Paragraph></Column></Row></Root>;
       for (const root of ["Email", "Page", "Document"] as const) expect(renderToPlainText(template(current, current[root] as typeof Email))).toBe(previous.renderToPlainText(template(previous, previous[root] as typeof Email)));

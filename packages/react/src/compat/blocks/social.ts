@@ -7,7 +7,7 @@
  * a page's placeholder, or in an email's markup nothing. It always draws: what can't be read is said.
  */
 import type { TreeNode } from "../lower";
-import { ALIGN, DEFAULT_CDN, deviceValues, drawnImageUrl, encodedUrl, px, sides, some, type Values } from "../values";
+import { ALIGN, DEFAULT_CDN, deviceValues, drawnImageUrl, encodedUrl, keptUrl, px, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 export const social: Lowering = (block, place): TreeNode => {
@@ -50,7 +50,7 @@ export const social: Lowering = (block, place): TreeNode => {
   });
   const custom: unknown[] = Array.isArray(values.icons?.editor?.data?.customIcons) ? values.icons.editor.data.customIcons : [];
   // An email's markup has a tag in an icon's URL as written; a page's has it escaped, and neither one in its name.
-  const inUrl = asEmail ? place.keep : (text: string) => text;
+  const inUrl = (text: string) => (asEmail ? keptUrl(text, place.keep) : text);
   const nodes = icons.map((icon, index): TreeNode => {
     const name = typeof icon.name === "string" ? icon.name : "";
     if (!name) said("icon's name", icon.name);

@@ -146,24 +146,33 @@ export function webLink(value: unknown): Json | null | undefined {
 /** A URL with its quotes and angle brackets encoded as legacy encodes them, an email service's tag left as it is. */
 export const encodedUrl = (url: string) => url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
 
+/** An entity reference, written as it's given where legacy doesn't escape a `&`. */
+export const ENTITY = /&(?:#\d+|#x[\da-f]+|\w+);/gi;
+
+/**
+ * A URL for an email's markup or a link: its tags and its `&amp;`s as written, which legacy writes so (read as `&`, where
+ * the writers would have them read as themselves). Only those: another entity could hide a scheme (`java&#115;cript:`).
+ */
+export const keptUrl = (url: string, keep: (text: string, pattern?: RegExp) => string): string => keep(keep(url), /&amp;/gi);
+
 /**
  * A block's link where it's always drawn: its URL and how it opens, or a link to nothing (legacy's `href=""`), and the
  * attributes legacy writes on it besides (its class and own attributes, a target of another kind). A click handler
  * isn't written: it's said.
  */
-export function drawnLink(value: unknown, keep: (text: string) => string, note: (message: string) => void): { href: Json; attrs?: Json } {
+export function drawnLink(value: unknown, keep: (text: string, pattern?: RegExp) => string, note: (message: string) => void): { href: Json; attrs?: Json } {
   const given = normalizeLinkValue(value);
   if (!given && value !== undefined && value !== null) note(`A link ${JSON.stringify(value)} can't be read: it's a link to nothing.`);
   const target = typeof given?.target === "string" && given.target ? given.target : undefined;
   const opens = target === "_self" || target === "_blank";
   const own = given?.customAttrs && typeof given.customAttrs === "object" ? Object.entries(given.customAttrs as Record<string, unknown>).filter(([name, v]) => typeof v === "string" && v.trim() && !/^on/i.test(name)) : [];
-  const attrs: Record<string, string> = Object.fromEntries(own.map(([name, v]) => [name, keep(v as string)]));
+  const attrs: Record<string, string> = Object.fromEntries(own.map(([name, v]) => [name, keep(keep(v as string), ENTITY)]));
   if (typeof given?.class === "string" && given.class) attrs.class = given.class;
   if (target && !opens) attrs.target = target;
   if (given?.onClick || Object.keys(given?.customAttrs ?? {}).some((name) => /^on/i.test(name))) note("A link's click handler can't be written: it's drawn without it.");
   const url = typeof given?.url === "string" ? given.url : "";
   if (given && typeof given.url !== "string" && given.url) note(`A link's URL ${JSON.stringify(given.url)} can't be read: it's a link to nothing.`);
-  const href = url ? keep(encodedUrl(url)) : "";
+  const href = url ? keptUrl(encodedUrl(url), keep) : "";
   return { href: { href, ...(opens ? { target } : {}) } as Json, ...(Object.keys(attrs).length ? { attrs } : {}) };
 }
 
