@@ -16,8 +16,7 @@ describe("Table Component", () => {
     const { container } = render(
       <Table headers={["Name", "Email"]} data={[["Alice", "alice@co.com"]]} />
     );
-    expect(container.textContent).toContain("Name");
-    expect(container.textContent).toContain("Email");
+    expect(Array.from(container.querySelectorAll("thead th")).map((th) => th.textContent)).toEqual(["Name", "Email"]);
   });
 
   it("renders data rows", () => {
@@ -27,10 +26,8 @@ describe("Table Component", () => {
         data={[["Alice", "alice@co.com"], ["Bob", "bob@co.com"]]}
       />
     );
-    expect(container.textContent).toContain("Alice");
-    expect(container.textContent).toContain("alice@co.com");
-    expect(container.textContent).toContain("Bob");
-    expect(container.textContent).toContain("bob@co.com");
+    const rows = Array.from(container.querySelectorAll("tbody tr")).map((tr) => Array.from(tr.children).map((td) => td.textContent));
+    expect(rows).toEqual([["Alice", "alice@co.com"], ["Bob", "bob@co.com"]]);
   });
 
   it("renders with full values object", () => {
@@ -52,7 +49,22 @@ describe("Table Component", () => {
       <Table headers={["Col"]} data={[["Value"]]} />
     );
     const cells = container.querySelectorAll("td");
-    expect(cells.length).toBeGreaterThan(0);
+    expect(cells).toHaveLength(1);
+    expect(cells[0]!.textContent).toBe("Value");
+  });
+
+  it("gives its cells an Outlook width and background in email mode, on the table's own columns", () => {
+    const { container } = render(
+      <Table mode="email" headers={["Name", "Email"]} data={[["Alice", "alice@co.com"]]} />
+    );
+    const table = container.querySelector("thead")!.closest("table")!;
+    expect(table.getAttribute("role")).toBeNull();
+    const header = table.querySelector("th")!;
+    expect(header.textContent).toBe("Name");
+    expect(header.getAttribute("bgcolor")).toBe("#dddddd");
+    expect(header.getAttribute("width")).toBe("250");
+    expect(table.querySelector("tbody td")!.getAttribute("bgcolor")).toBe("#ffffff");
+    expect(table.querySelectorAll("colgroup col")).toHaveLength(2);
   });
 
   it("repeats headers and footers by default in document mode", () => {
@@ -71,10 +83,9 @@ describe("Table Component", () => {
       />
     );
 
-    expect(container.querySelector("thead")?.textContent).toContain("Header");
-    expect(container.querySelector("tfoot")?.textContent).toContain("Footer");
-    expect(container.querySelector("tbody .u-table-header")).toBeNull();
-    expect(container.querySelector("tbody .u-table-footer")).toBeNull();
+    expect(container.querySelector("thead")?.textContent).toBe("Header");
+    expect(container.querySelector("tfoot")?.textContent).toBe("Footer");
+    expect(container.querySelector("tbody")?.textContent).toBe("Body");
   });
 
   it("honors the flat repeat-header prop", () => {
@@ -87,9 +98,8 @@ describe("Table Component", () => {
       />
     );
 
-    expect(container.querySelector("tbody .u-table-header")?.textContent).toContain(
-      "Header"
-    );
+    expect(container.querySelector("thead")?.textContent).toBe("");
+    expect(container.querySelector("tbody tr")?.textContent).toBe("Header");
   });
 
   it("keeps non-repeating headers and footers in the document table body", () => {
@@ -110,12 +120,10 @@ describe("Table Component", () => {
       />
     );
 
-    expect(container.querySelector("tbody .u-table-header")?.textContent).toContain(
-      "Header"
-    );
-    expect(container.querySelector("tbody .u-table-footer")?.textContent).toContain(
-      "Footer"
-    );
+    const inBody = Array.from(container.querySelectorAll("tbody tr")).map((tr) => tr.textContent);
+    expect(inBody).toEqual(["Header", "Body", "Footer"]);
+    expect(container.querySelector("thead")?.textContent).toBe("");
+    expect(container.querySelector("tfoot")?.textContent).toBe("");
   });
 
   it("has correct displayName", () => {

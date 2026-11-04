@@ -7,37 +7,27 @@ import { Column } from "./Column";
 import Heading from "./Heading";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
-// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
-// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
-import { legacyRenderToHtml as renderToHtml } from "../utils/render-to-html";
 
 describe("Column Component", () => {
-  it("renders column container with correct ID", () => {
-    const { container } = render(
-      <Body>
+  it("renders the column's box with its own background and padding, in both modes", () => {
+    const tree = (mode: "web" | "email") => (
+      <Body mode={mode}>
         <Row>
-          <Column><Paragraph>Content</Paragraph></Column>
+          <Column backgroundColor="#abcdef" padding="20px"><Paragraph>Content</Paragraph></Column>
         </Row>
       </Body>
     );
-    expect(container.querySelector("#u_column_1")).not.toBeNull();
+    const { container: web } = render(tree("web"));
+    const box = web.querySelector("p")!.parentElement!;
+    expect(box.style.backgroundColor).toBe("rgb(171, 205, 239)");
+    expect(box.style.padding).toBe("20px");
+
+    const { container: email } = render(tree("email"));
+    const cell = email.querySelector("p")!.closest('td[bgcolor="#abcdef"]') as HTMLElement;
+    expect(cell.style.padding).toBe("20px");
   });
 
-  it("wraps items in content containers with IDs", () => {
-    const { container } = render(
-      <Body>
-        <Row>
-          <Column>
-            <Paragraph>Text</Paragraph>
-          </Column>
-        </Row>
-      </Body>
-    );
-    // Items get wrapped in u_content_* divs
-    expect(container.querySelector('[id^="u_content_paragraph"]')).not.toBeNull();
-  });
-
-  it("renders multiple children with separate content containers", () => {
+  it("renders multiple children, each in its own padding, in order", () => {
     const { container } = render(
       <Body>
         <Row>
@@ -48,26 +38,13 @@ describe("Column Component", () => {
         </Row>
       </Body>
     );
-    expect(container.textContent).toContain("First");
-    expect(container.textContent).toContain("Second");
-    expect(container.querySelector('[id^="u_content_paragraph"]')).not.toBeNull();
-    expect(container.querySelector('[id^="u_content_button"]')).not.toBeNull();
-  });
-
-  it("applies container padding to items", () => {
-    const { container } = render(
-      <Body>
-        <Row>
-          <Column>
-            <Paragraph>Padded</Paragraph>
-          </Column>
-        </Row>
-      </Body>
-    );
-    // Content containers have padding style
-    const contentDiv = container.querySelector('[id^="u_content_"]');
-    expect(contentDiv).not.toBeNull();
-    expect((contentDiv as HTMLElement).style.padding).toBeTruthy();
+    const first = container.querySelector("p")!;
+    const second = container.querySelector("a")!;
+    expect(first.textContent).toBe("First");
+    expect(second.textContent).toBe("Second");
+    expect(first.style.padding).toBe("10px");
+    expect(second.parentElement!.style.padding).toBe("10px");
+    expect(first.nextElementSibling).toBe(second.parentElement);
   });
 
   it("has correct displayName", () => {
@@ -75,28 +52,35 @@ describe("Column Component", () => {
   });
 
   // Regression: each content block must render its OWN containerPadding, not
-  // collapse to the column's padding. Previously Column read the always-undefined
+  // collapse to the column's padding. Column once read the always-undefined
   // `child.props.values?.containerPadding` for the flat-prop API and fell back to
   // the column default, so every block lost its spacing.
   it("honors each block's explicit containerPadding (flat prop), not the column padding", () => {
-    const html = renderToHtml(
-      <Body>
+    const tree = (mode: "web" | "email") => (
+      <Body mode={mode}>
         <Row>
-          <Column>
+          <Column padding="1px">
             <Heading containerPadding="0px 0px 28px 0px">Welcome</Heading>
             <Paragraph containerPadding="4px 12px">Body copy</Paragraph>
-            <Button containerPadding="0px 28px 36px 28px">Go</Button>
+            <Button containerPadding="0px 28px 36px 12px">Go</Button>
           </Column>
         </Row>
       </Body>
     );
-    expect(html).toContain("padding: 0px 0px 28px 0px");
-    expect(html).toContain("padding: 4px 12px");
-    expect(html).toContain("padding: 0px 28px 36px 28px");
+    const { container: web } = render(tree("web"));
+    expect(web.querySelector("h1")!.style.padding).toBe("0px 0px 28px 0px");
+    expect(web.querySelector("p")!.style.padding).toBe("4px 12px");
+    expect(web.querySelector("a")!.parentElement!.style.padding).toBe("0px 28px 36px 12px");
+
+    const { container: email } = render(tree("email"));
+    expect(email.querySelector("h1")!.closest("td")!.style.padding).toBe("0px 0px 28px 0px");
+    expect(email.querySelector("p")!.closest("td")!.style.padding).toBe("4px 12px");
+    const padded = Array.from(email.querySelectorAll("td")).filter((td) => td.contains(email.querySelector("a")) && td.style.padding);
+    expect(padded.map((td) => td.style.padding)).toEqual(["1px", "0px 28px 36px 12px"]);
   });
 
   it("defaults a block with no containerPadding to 10px (not the column's 0px)", () => {
-    const html = renderToHtml(
+    const { container } = render(
       <Body>
         <Row>
           <Column>
@@ -105,11 +89,11 @@ describe("Column Component", () => {
         </Row>
       </Body>
     );
-    expect(html).toContain("padding: 10px");
+    expect(container.querySelector("h1")!.style.padding).toBe("10px");
   });
 
   it("preserves an explicit zero containerPadding instead of forcing the default", () => {
-    const html = renderToHtml(
+    const { container } = render(
       <Body>
         <Row>
           <Column>
@@ -118,12 +102,11 @@ describe("Column Component", () => {
         </Row>
       </Body>
     );
-    expect(html).toContain("padding: 0px");
-    expect(html).not.toContain("padding: 10px");
+    expect(parseInt(container.querySelector("h1")!.style.padding || "0", 10)).toBe(0);
   });
 
   it("honors containerPadding supplied via the `values` escape hatch", () => {
-    const html = renderToHtml(
+    const { container } = render(
       <Body>
         <Row>
           <Column>
@@ -133,6 +116,6 @@ describe("Column Component", () => {
         </Row>
       </Body>
     );
-    expect(html).toContain("padding: 7px 9px");
+    expect(container.querySelector("h1")!.style.padding).toBe("7px 9px");
   });
 });

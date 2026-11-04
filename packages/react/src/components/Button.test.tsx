@@ -20,21 +20,18 @@ describe("Button Component", () => {
       <Button backgroundColor="#3b82f6" color="#ffffff">Styled</Button>
     );
     const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-    expect(link!.style.backgroundColor).toBeTruthy();
-    expect(container.innerHTML).toContain("#3b82f6");
-    expect(container.innerHTML).toContain("#ffffff");
+    expect(link!.style.backgroundColor).toBe("rgb(59, 130, 246)");
+    expect(link!.style.color).toBe("rgb(255, 255, 255)");
   });
 
   it("applies borderRadius", () => {
     const { container } = render(<Button borderRadius="8px">Round</Button>);
-    expect(container.innerHTML).toContain("border-radius");
-    expect(container.innerHTML).toContain("8px");
+    expect(container.querySelector("a")!.style.borderRadius).toBe("8px");
   });
 
   it("applies fontSize", () => {
     const { container } = render(<Button fontSize="18px">Big</Button>);
-    expect(container.innerHTML).toContain("font-size: 18px");
+    expect(container.querySelector("a")!.style.fontSize).toBe("18px");
   });
 
   it("renders children as button text", () => {
@@ -44,37 +41,40 @@ describe("Button Component", () => {
 
   it("defaults to center alignment", () => {
     const { container } = render(<Button>Centered</Button>);
-    expect(container.innerHTML).toContain("center");
+    expect(container.querySelector("a")!.style.alignSelf).toContain("center");
   });
 
   it("produces table-based HTML in email mode", () => {
     const { container } = render(<Button mode="email">Email CTA</Button>);
-    // Email mode includes VML roundrect for Outlook
-    expect(container.innerHTML).toContain("v:roundrect");
-    expect(container.innerHTML).toContain("mso");
-    expect(container.textContent).toContain("Email CTA");
+    // Outlook draws neither a link's background nor its padding: they're on a table cell for it.
+    const link = container.querySelector("a");
+    expect(link!.textContent).toBe("Email CTA");
+    const cell = link!.closest("td");
+    expect(cell!.getAttribute("bgcolor")).toBe("#0879a1");
+    expect(cell!.getAttribute("style")).toContain("mso-padding-alt:10px 20px");
   });
 
-  it("does not include VML in web mode", () => {
+  it("is a link with its own background in web mode, in no table", () => {
     const { container } = render(<Button mode="web">Web CTA</Button>);
-    expect(container.innerHTML).not.toContain("v:roundrect");
+    const link = container.querySelector("a");
+    expect(link!.closest("td")).toBeNull();
+    expect(link!.style.backgroundColor).toBe("rgb(8, 121, 161)");
   });
 
   it("renders default colors when none specified", () => {
     const { container } = render(<Button>Default</Button>);
     // Default: white text on #0879A1
-    expect(container.innerHTML).toContain("#0879A1");
-    expect(container.innerHTML).toContain("#FFFFFF");
+    const link = container.querySelector("a");
+    expect(link!.style.backgroundColor).toBe("rgb(8, 121, 161)");
+    expect(link!.style.color).toBe("rgb(255, 255, 255)");
   });
 
   it("has correct displayName", () => {
     expect(Button.displayName).toBe("Button");
   });
 
-  // Regression: every accepted href shape must reach the rendered <a>.
-  // Previously they all rendered as href="" because the mapper handed the
-  // exporter the schema storage shape `{ name, values: { href, target } }`
-  // but the exporter reads `e.url`. See semantic-props normalizeLinkValue.
+  // Regression: every accepted href shape must reach the rendered <a>: they all
+  // rendered as href="" once. See semantic-props normalizeLinkValue.
   describe("href is rendered to the anchor (regression)", () => {
     const URL = "https://example.com";
 

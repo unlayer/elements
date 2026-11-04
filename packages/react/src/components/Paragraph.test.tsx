@@ -11,35 +11,33 @@ describe("Paragraph Component", () => {
 
   it("applies color style", () => {
     const { container } = render(<Paragraph color="#555555">Styled</Paragraph>);
-    expect(container.innerHTML).toContain("#555555");
-    expect(container.innerHTML).toContain("color");
+    expect(container.querySelector("p")!.style.color).toBe("rgb(85, 85, 85)");
   });
 
   it("applies fontSize style", () => {
     const { container } = render(<Paragraph fontSize="18px">Big text</Paragraph>);
-    expect(container.innerHTML).toContain("font-size: 18px");
+    expect(container.querySelector("p")!.style.fontSize).toBe("18px");
   });
 
   it("applies textAlign style", () => {
     const { container } = render(<Paragraph textAlign="center">Centered</Paragraph>);
-    expect(container.innerHTML).toContain("text-align: center");
+    expect(container.querySelector("p")!.style.textAlign).toBe("center");
   });
 
   it("renders default styles (14px, #000000, left)", () => {
-    const { container } = render(<Paragraph>Default</Paragraph>);
-    expect(container.innerHTML).toContain("font-size: 14px");
-    expect(container.innerHTML).toContain("#000000");
-    expect(container.innerHTML).toContain("text-align: left");
+    // In an email every block has its own: on a page it takes what's around it.
+    const { container } = render(<Paragraph mode="email">Default</Paragraph>);
+    const paragraph = container.querySelector("p")!;
+    expect(paragraph.style.fontSize).toBe("14px");
+    expect(paragraph.style.color).toBe("rgb(0, 0, 0)");
+    expect(paragraph.style.textAlign).toBe("left");
   });
 
-  it("produces same structure in web and email modes", () => {
+  it("is a <p> of its words in web and email modes", () => {
     const { container: web } = render(<Paragraph mode="web">Text</Paragraph>);
     const { container: email } = render(<Paragraph mode="email">Text</Paragraph>);
-    // Paragraph renders the same div-based structure in both modes
-    expect(web.querySelector("div")).not.toBeNull();
-    expect(email.querySelector("div")).not.toBeNull();
-    expect(web.textContent).toContain("Text");
-    expect(email.textContent).toContain("Text");
+    expect(web.querySelector("p")?.textContent).toBe("Text");
+    expect(email.querySelector("p")?.textContent).toBe("Text");
   });
 
   it("has correct displayName", () => {

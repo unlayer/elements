@@ -31,8 +31,8 @@ describe("Email (mode=email wrapper)", () => {
         </Row>
       </Email>
     );
-    // Button in email mode has VML roundrect
-    expect(container.innerHTML).toContain("v:roundrect");
+    // An email's Button has its background on a table cell: a page's has it on the link.
+    expect(container.querySelector("a")?.closest("td")?.getAttribute("bgcolor")).toBe("#0879a1");
   });
 
   it("does not accept mode prop (locked to email)", () => {
@@ -58,10 +58,9 @@ describe("Page (mode=web wrapper)", () => {
         </Row>
       </Page>
     );
-    expect(container.innerHTML).toContain("flex");
+    expect(container.querySelector<HTMLElement>("main")?.style.display).toBe("flex");
     // Should NOT have email-specific table
-    const bodyTable = container.querySelector('#u_body_1');
-    expect(bodyTable?.tagName?.toLowerCase()).not.toBe("table");
+    expect(container.querySelector("table")).toBeNull();
   });
 
   it("does not include MSO conditionals", () => {
@@ -72,7 +71,8 @@ describe("Page (mode=web wrapper)", () => {
         </Row>
       </Page>
     );
-    expect(container.innerHTML).not.toContain("v:roundrect");
+    expect(container.innerHTML).not.toContain("[if mso]");
+    expect(container.querySelector("a")?.textContent).toBe("Click");
   });
 });
 

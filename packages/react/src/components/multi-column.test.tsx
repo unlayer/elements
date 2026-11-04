@@ -7,6 +7,11 @@ import { Column } from "./Column";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
+import { createItemComponent } from "../utils/create-component";
+
+/** On a page, each column's share of the row, in the order of its words. */
+const columnShares = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll("p")).map((p) => [p.textContent, p.parentElement!.style.flex.split(" ")[2]]);
 
 describe("Multi-column layouts", () => {
   it("renders two columns with cells={[1,1]}", () => {
@@ -18,10 +23,7 @@ describe("Multi-column layouts", () => {
         </Row>
       </Body>
     );
-    expect(container.textContent).toContain("Left");
-    expect(container.textContent).toContain("Right");
-    expect(container.querySelector("#u_column_1")).not.toBeNull();
-    expect(container.querySelector("#u_column_2")).not.toBeNull();
+    expect(columnShares(container)).toEqual([["Left", "50%"], ["Right", "50%"]]);
   });
 
   it("renders with ColumnLayouts.TwoEqual", () => {
@@ -33,10 +35,7 @@ describe("Multi-column layouts", () => {
         </Row>
       </Body>
     );
-    expect(container.textContent).toContain("Col A");
-    expect(container.textContent).toContain("Col B");
-    // Should render u-col-50 for 50% width columns
-    expect(container.innerHTML).toContain("u-col-50");
+    expect(columnShares(container)).toEqual([["Col A", "50%"], ["Col B", "50%"]]);
   });
 
   it("renders three columns with ColumnLayouts.ThreeEqual", () => {
@@ -49,10 +48,7 @@ describe("Multi-column layouts", () => {
         </Row>
       </Body>
     );
-    expect(container.textContent).toContain("One");
-    expect(container.textContent).toContain("Two");
-    expect(container.textContent).toContain("Three");
-    expect(container.querySelector("#u_column_3")).not.toBeNull();
+    expect(columnShares(container)).toEqual([["One", "33.3333%"], ["Two", "33.3333%"], ["Three", "33.3333%"]]);
   });
 
   it("renders wide-narrow layout with cells={[2,1]}", () => {
@@ -64,8 +60,7 @@ describe("Multi-column layouts", () => {
         </Row>
       </Body>
     );
-    expect(container.textContent).toContain("Wide");
-    expect(container.textContent).toContain("Narrow");
+    expect(columnShares(container)).toEqual([["Wide", "66.6667%"], ["Narrow", "33.3333%"]]);
   });
 
   it("logs error when layout column count mismatches children", () => {
@@ -99,6 +94,9 @@ describe("Multi-column layouts", () => {
     expect(container.textContent).toContain("Email Left");
     expect(container.textContent).toContain("Email Right");
     expect(container.querySelector('table[role="presentation"]')).not.toBeNull();
+    // Half of the content width each, in modern clients and in Outlook's comments.
+    expect(container.querySelectorAll('div[style*="max-width:250px"]')).toHaveLength(2);
+    expect(container.innerHTML.match(/<td width="250" valign="top"/g)).toHaveLength(2);
   });
 
   it("renders multiple items in each column", () => {
@@ -126,48 +124,50 @@ describe("values escape hatch in components", () => {
     const { container } = render(
       <Button values={{ fontSize: "24px", text: "Big" }} />
     );
-    expect(container.innerHTML).toContain("font-size: 24px");
-    expect(container.textContent).toContain("Big");
+    const link = container.querySelector("a")!;
+    expect(link.style.fontSize).toBe("24px");
+    expect(link.textContent).toBe("Big");
   });
 
   it("Paragraph values prop applies color to output", () => {
     const { container } = render(
       <Paragraph values={{ color: "#ff0000", textJson: null }} />
     );
-    expect(container.innerHTML).toContain("#ff0000");
+    expect(container.querySelector("p")!.style.color).toBe("rgb(255, 0, 0)");
   });
 
   it("values prop merges with defaults", () => {
     const { container } = render(
       <Button values={{ fontSize: "20px" }}>Custom size</Button>
     );
+    const link = container.querySelector("a")!;
     // Should have custom fontSize
-    expect(container.innerHTML).toContain("font-size: 20px");
+    expect(link.style.fontSize).toBe("20px");
     // Should still have default colors from merge
-    expect(container.innerHTML).toContain("#0879A1");
+    expect(link.style.backgroundColor).toBe("rgb(8, 121, 161)");
   });
 });
 
 describe("Error fallback", () => {
   it("renders error fallback when exporter throws", () => {
-    // Spy on console.error to suppress noise
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const Broken = createItemComponent({
+      name: "Broken",
+      contentType: "custom",
+      metaName: "custom",
+      defaultValues: {},
+      propMapper: (props) => props,
+      displayName: "Broken",
+      exporters: { web: boom, email: boom, document: boom },
+    });
 
-    // Pass values that might cause the exporter to fail
-    // We use a Body with invalid children to trigger error
-    const { container } = render(
-      <Body>
-        <Row>
-          <Column>
-            <Paragraph>Safe content</Paragraph>
-          </Column>
-        </Row>
-      </Body>
-    );
+    const { container } = render(<Broken />);
 
-    // Should render without the "failed to render" error fallback
-    expect(container.innerHTML).not.toContain("failed to render");
-    expect(container.textContent).toContain("Safe content");
+    expect(container.textContent).toContain("Broken failed to render.");
+    expect(errorSpy).toHaveBeenCalledWith("Broken rendering failed:", expect.objectContaining({ message: "boom" }));
 
     errorSpy.mockRestore();
   });
