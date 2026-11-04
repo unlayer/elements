@@ -1,22 +1,14 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { ColumnExporters } from "@unlayer/exporters";
-import { nextHtmlId, safeMeta } from "../utils/create-component";
-import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import type { SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
-import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
-import { blockHtml, nextBlock, outsideRecording } from "../utils/block-html";
-import { blockName, writeBlock } from "../compat/lower";
-
-/** Unlayer's default content-block padding when a block sets none. */
+import { onItsOwn } from "../compat/render";
 
 /**
  * Column - Single column in a Row layout
  *
- * Calls the Column exporter from @unlayer/exporters.
  * Must be used inside <Row> component.
  *
  * @example
@@ -31,23 +23,6 @@ import { blockName, writeBlock } from "../compat/lower";
  * </Row>
  * ```
  */
-
-const DEFAULT_VALUES = COLUMN_DEFAULTS;
-
-// ============================================
-// Column exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
-// ============================================
-
-type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, index: number, cells: number[], bodyValues?: Record<string, any>, rowValues?: Record<string, any>) => string;
-
-function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
-  const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
-  return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
-}
-
-// ============================================
-// Component
-// ============================================
 
 // The editor hides rows and content on a device, never a column: no hideOnMobile/hideOnDesktop here.
 export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & Omit<DeviceProps, "hideOnMobile" | "hideOnDesktop"> & {
@@ -73,90 +48,7 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 
 export const Column: React.FC<ColumnProps> = (props) => {
   if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props), "Column");
-  const {
-    children,
-    index = 0,
-    cells = [1],
-    bodyValues = {},
-    rowValues = {},
-    mode: modeProp,
-    className,
-    style,
-    _config,
-    ...semanticProps
-  } = props;
-
-  // Resolve mode: explicit prop > _config > default
-  const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
-
-  // Map semantic props to values
-  const values = mapSemanticProps<ColumnValues>(
-    semanticProps as SemanticProps<ColumnValues>,
-    DEFAULT_VALUES,
-    "Column"
-  );
-
-  // Add _meta (an id or class names given in values kept to what they can hold, as for rows and blocks)
-  const valuesWithMeta = { ...values, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_column"), htmlClassNames: "u_column", ...(values._meta || {}) }) };
-
-  // Render children to HTML - extract from dangerouslySetInnerHTML
-  let innerHTML = "";
-  if (children) {
-    try {
-      const childrenArray = React.Children.toArray(children);
-
-      childrenArray.forEach((child, childIndex) => {
-        if (typeof child === "string" || typeof child === "number") {
-          innerHTML += looseText(child, "Column");
-        } else if (React.isValidElement(child)) {
-          // Call component function to get rendered result
-          if (typeof child.type === "function") {
-            // Allocate the content id BEFORE rendering and thread it in, so
-            // the value-level _meta.htmlID exporters see (custom tool head
-            // css scopes on it) is unique per instance and matches both the
-            // wrapper id and the head-extraction/json numbering. Custom
-            // tools carry an explicit meta base (custom_<slug>); built-ins
-            // derive it from the component name.
-            const contentHtmlId = nextHtmlId(_config, `u_content_${blockName(child.type)}`);
-            // A render recording its blocks' HTML writes only those it asks for (see block-html.ts).
-            const slot = nextBlock();
-            if (slot && !slot.wanted) return;
-            // Thread the column/body context so width-aware item exporters (Image)
-            // can size against the real available width (contentWidth × column
-            // fraction) instead of the fallback. Mirrors the editor, which passes
-            // this context to the content exporters.
-            // (Its own renders, a nested Row's blocks, aren't the template's: see block-html.ts.)
-            const block = outsideRecording(() => writeBlock(child, contentHtmlId, { colIndex: index, cells, bodyValues, rowValues, columnValues: valuesWithMeta }, mode, _config));
-            if (block === undefined) return;
-            blockHtml(slot?.n, block);
-            innerHTML += block;
-          }
-        }
-      });
-    } catch (error) {
-      console.error("Column: Failed to render children:", error);
-      innerHTML = "";
-    }
-  }
-
-  try {
-    const html = renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode);
-
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
-  } catch (error) {
-    console.error("Column rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  return onItsOwn(Column, props);
 };
 
 Column.displayName = "Column";

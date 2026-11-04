@@ -1,15 +1,17 @@
 /**
- * renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine (RFC 0001 step 7, decision 13):
- * a template of today's components lowered into the new engine's tree (template.ts) and written by its writers. The
- * HTML is the new engine's; what a reader gets is legacy's.
+ * renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine (RFC 0001 step 7, decision 13),
+ * and what today's components render straight through React: a template of them lowered into the new engine's tree
+ * (template.ts) and written by its writers. The HTML is the new engine's; what a reader gets is legacy's.
  */
 import React from "react";
 import { renderToStaticMarkup } from "../utils/server-renderer";
 import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core";
 import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { ErrorFallback, UNLAYER_CONFIG_KEY } from "../utils/create-component";
+import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
-import { forWriting, lowerTemplate, takeOut } from "./template";
+import { forWriting, lowerTemplate, takeOut, type InReact } from "./template";
 import { attribute, restoreServiceTags } from "./values";
 
 export interface Rendered {
@@ -26,6 +28,8 @@ export interface Rendered {
   tags: string[];
   /** The plain text, as legacy writes it (from the body's markup). */
   text: string;
+  /** What a React render of it writes in its host <div>: the body with its stylesheet, as there's no head to hold it there. */
+  inner: string;
   /** The new engine's notes. */
   diagnostics: RenderResult["diagnostics"];
 }
@@ -47,13 +51,16 @@ const PREVIEW = /^<div style="display:none;max-height:0;overflow:hidden;mso-hide
 /** The new engine's page divider, a line legacy's isn't in plain text (legacy draws its divider with a border). */
 const DIVIDER = /<hr\b[^>]*style="[^"]*border:0;border-top:[^"]*"[^>]*>/g;
 
+/** A piece's markup alone, in a page of someone else's: it isn't that page's main content, or an email of its own. */
+const asPiece = (body: string) => body.replace(/^<main\b/, "<div").replace(/<\/main>$/, "</div>").replace(/^<div role="article" aria-roledescription="email"/, "<div");
+
 /**
  * A template rendered through the new engine, or says why it can't be (template.ts's `templateRoot`). `name` is the
  * API's, for messages. Called inside a render's scope.
  */
-export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string): Rendered {
+export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string, inReact: InReact = {}): Rendered {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
-  const lowered = lowerTemplate(element, config, name);
+  const lowered = lowerTemplate(element, config, name, inReact);
   const rootProps = (lowered.root.props ?? {}) as { lang?: string; fonts?: Array<{ url: string }> };
   const lang = optionLang ?? rootProps.lang;
   const { root } = lowered.tree;
@@ -101,6 +108,8 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   // document (a page's has none).
   const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
   const framed = (content: string) => restore(lowered.mode === "web" ? content : `\n${bodyTag}${content}</body>\n`);
+  // In a React render, where no head is: the stylesheet with the markup, as legacy's rows have theirs.
+  const sheet = styles.length ? `<style>${styleText(styles.join("\n"))}</style>` : "";
   return {
     html,
     head,
@@ -113,8 +122,29 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     get text() {
       return text();
     },
+    inner: inReact.piece ? restore(sheet + asPiece(result.body)) : framed(sheet + result.body),
     diagnostics: [...diagnostics, ...result.diagnostics],
   };
+}
+
+/**
+ * A Row, Column or block rendered straight through React (a component's `renderToString`, a Server Component, a custom
+ * tool's exporter), in the host <div> legacy's have: drawn in a root of its own (template.ts), in the mode it says or its
+ * config does, with its body's values where it's given them. The rest of its props are its own.
+ */
+export function onItsOwn(type: React.ComponentType<any>, props: Record<string, any>): React.ReactElement {
+  const { mode, className, style, index: _index, _metaHtmlId, colIndex: _colIndex, bodyValues, rowValues: _rowValues, columnValues: _columnValues, _config, ...own } = props;
+  const name = type.displayName ?? type.name ?? "Block";
+  // (A block's `cells` is where a Column would put it, not a value of its own.)
+  if ((type as unknown as Record<string, unknown>)[UNLAYER_CONFIG_KEY]) delete own.cells;
+  try {
+    const element = React.createElement(type, own);
+    const { inner } = withRenderScope(() => renderThroughNewEngine(element, { ..._config, ...(mode ? { mode } : {}) }, name, { embedded: true, piece: true, body: bodyValues }), true);
+    return React.createElement("div", { className, style, dangerouslySetInnerHTML: { __html: inner } });
+  } catch (error) {
+    console.error(`${name} rendering failed:`, error);
+    return React.createElement(ErrorFallback, { type: name, error: error as Error, className, style });
+  }
 }
 
 type Tree = { root: TreeNode };

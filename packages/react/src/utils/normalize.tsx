@@ -472,15 +472,6 @@ const collect = (children: React.ReactNode): Collected =>
   children !== null && typeof children === "object" ? scopeCache(children, () => collected(children)) : collected(children);
 
 /**
- * A root's children as HTML (what Body puts inside it): markup among the rows as it is, and each row or block
- * rendered by Elements with `place` giving it the root's settings.
- */
-export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string {
-  const c = collect(children);
-  return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
-}
-
-/**
  * What a root's children hold among its rows, as HTML: the markup before each row, and after the last, with a block or
  * a Column there rendered by Elements (`place` giving it the root's settings).
  */

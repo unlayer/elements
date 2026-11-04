@@ -89,8 +89,12 @@ export interface LowerOptions {
   /** A block as a node of the tree, or null where it draws nothing in this output. */
   block(block: DesignBlock, place: FramePlace): TreeNode | null;
   outside?: OutsideTheDesign;
+  /** Rendered by React into a page of someone else's, whose margin is its own. */
+  embedded?: boolean;
   /** On a page, as wide as what it's in: a Column or block on its own, which no content width keeps. */
   wide?: boolean;
+  /** Of the frame's class names, so that another render's on the same page can't be taken for them. */
+  names?: string;
 }
 
 /**
@@ -122,6 +126,8 @@ interface Frame {
   contentWidth?: string;
   /** An email's class for a Section whose cells may run past its content's table. */
   fixedTable?: string;
+  /** What's in its class names, where another render's are on the same page. */
+  namedAfter: string;
   /** Rows no content width keeps (see LowerOptions). */
   wide?: boolean;
 }
@@ -169,7 +175,7 @@ function written(value: unknown, what: string, frame: Frame, path: string): stri
 
 /** A class of the frame's own, with these declarations. */
 function ruled(frame: Frame, declarations: string[]): string {
-  const name = `u-frame-${++frame.names}`;
+  const name = `u-frame-${frame.namedAfter}${++frame.names}`;
   if (declarations.length) frame.rules.push(`.${name} { ${declarations.join("; ")}; }`);
   return name;
 }
@@ -289,7 +295,7 @@ export interface BlockFrame {
 
 /**
  * A block as a Column writes it: its markup (its exporter's, or what a component of the user's rendered) in its box.
- * "" where it writes nothing in this output; undefined where it has no markup (its exporter failed, which it says).
+ * Undefined where it has no markup (its exporter failed, which it says).
  */
 export function writeBlock(element: React.ReactElement<any>, id: string, frame: BlockFrame, mode: Mode, config: unknown): string | undefined {
   const type = element.type as any;
@@ -300,7 +306,6 @@ export function writeBlock(element: React.ReactElement<any>, id: string, frame: 
     return undefined;
   }
   const own = type[UNLAYER_CONFIG_KEY];
-  if (!inner.__html && own?.omitEmptyOutput) return "";
   const { containerPadding, values, hideOnMobile, hideOnDesktop } = element.props;
   const padding = containerPadding ?? values?.containerPadding ?? DEFAULT_CONTAINER_PADDING;
   // A custom tool's props are its own values: a `hideOnMobile` of its own isn't a device setting.
@@ -557,7 +562,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
   const email = options.mode === "email";
   // An email's rows are at least a phone's 320px wide, as legacy's; a width that isn't in px has them at legacy's 500px at most.
   const contentWidth = px(values.contentWidth);
-  const frame: Frame = { mode: options.mode, width: contentWidth === undefined ? 500 : Math.max(contentWidth, 320), rules: [], device: {}, names: 0, notes: [], loose: false, wide: options.wide };
+  const frame: Frame = { mode: options.mode, width: contentWidth === undefined ? 500 : Math.max(contentWidth, 320), rules: [], device: {}, names: 0, notes: [], loose: false, namedAfter: options.names ? `${options.names}-` : "", wide: options.wide };
   unread(values, "body", frame, "body");
   frame.contentAlign = values.contentAlign === "left" || values.contentAlign === "right" ? values.contentAlign : "center";
   // A content width that isn't in px (80%, 30em): legacy's rows take as much of the window as that, up to 500px, in an email.
@@ -605,7 +610,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
       backgroundColor: background,
       color: (typeof textColor === "string" && textColor && parseColor(textColor).ok ? textColor : undefined) || undefined,
       // (An email's text with no font of the body's is in the browser's; a page's stylesheet has its own default.)
-      fontFamily: values.fontFamily?.value || (email ? "initial" : undefined),
+      fontFamily: values.fontFamily?.value || (options.embedded && options.wide ? "inherit" : email ? "initial" : undefined),
       // A printed document's text is 15px (its stylesheet's), a page's and an email's the browser's 16px.
       fontSize: options.mode === "document" ? 15 : undefined,
       ...(options.mode === "web" ? pageText(values, frame) : {}),
@@ -616,7 +621,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
       previewHtml: preview?.includes("<%") ? escapeKeepingTags(preview) : undefined,
     }),
     // A page keeps the browser's margin around its rows (legacy's page doesn't reset the body's).
-    children: email ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: rows }] : rows }],
+    children: email ? rows : options.embedded ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: rows }] : rows }],
   });
   return { root, diagnostics: frame.notes };
 }

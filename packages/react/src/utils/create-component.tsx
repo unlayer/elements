@@ -125,8 +125,8 @@ interface ErrorFallbackProps {
   style?: React.CSSProperties;
 }
 
-/** Error fallback component shown when an exporter throws. */
-const ErrorFallback: React.FC<ErrorFallbackProps> = ({
+/** Error fallback component shown when a block can't be drawn. */
+export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   type,
   className,
   style

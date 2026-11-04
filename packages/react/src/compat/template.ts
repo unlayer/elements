@@ -7,6 +7,7 @@
  */
 import React from "react";
 import { checkDocument, type Diagnostic } from "@unlayer-internal/elements-core";
+import { Stylesheet } from "@unlayer-internal/elements-exporters";
 import { DEFAULT_CONFIG, htmlToPlainText, mergeValues, validateColumnLayout, type RenderMode, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
 import { safeMeta, textDirectionOf, UNLAYER_CONFIG_KEY } from "../utils/create-component";
@@ -110,6 +111,19 @@ function templateRoot(element: React.ReactElement, name: string, config: Partial
 }
 
 /**
+ * What's in a render's frame class names, in a page of someone else's: named after what it draws, so another render on
+ * the page has its own, and the same rules where it's the same. (A custom tool's value that isn't JSON, a React element
+ * of a client render, has none: its frame's classes are as a document's.)
+ */
+function frameNames(mode: Mode, design: unknown): string | undefined {
+  try {
+    return new Stylesheet("f").classFor("all", JSON.stringify([mode, design]));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * A template of today's components as the new engine's tree, or says why it can't be: see `templateRoot`. Called inside
  * a render's scope.
  */
@@ -119,7 +133,8 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const mode = resolveDisplayMode(root, merged) as Mode;
   const collected = normalizedRoot(root);
   const design = collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> };
-  const shape = { wide };
+  const names = inReact.embedded ? frameNames(mode, design) : undefined;
+  const shape = { embedded: inReact.embedded, wide, names };
   const { blocks: sources, body, rows } = blockSources(collected);
   // A Row whose Columns don't fit its layout: today's Body says so and renders without its rows (a mailer that never
   // expected renderToHtml to throw would fail).

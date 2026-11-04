@@ -2,21 +2,14 @@ import React from "react";
 import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
 import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
-import { RowExporters } from "@unlayer/exporters";
-import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId, safeMeta } from "../utils/create-component";
-import { bodyContentWidthPx } from "../utils/image-sizing";
+import type { SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput } from "../types";
-import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
+import { onItsOwn } from "../compat/render";
 
 /**
  * Row - Container for columns in a layout
- *
- * Uses the Row exporter from @unlayer/exporters.
- * Column children call their own exporters.
  *
  * @example
  * ```tsx
@@ -26,10 +19,6 @@ import { recordContainer, whileCollecting } from "../utils/record";
  * </Row>
  * ```
  */
-
-const DEFAULT_VALUES = ROW_DEFAULTS;
-
-const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
 export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DeviceProps> & DeviceProps & {
   children?: React.ReactNode;
@@ -47,268 +36,14 @@ export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DevicePr
   _config?: UnlayerConfig;
 };
 
-// ============================================
-// Grid CSS (inlined from shared/utils/grid-css.ts)
-// ============================================
-
-interface WidthPercentage {
-  value: number;
-  className: string;
-}
-
-function getWidthPercentages(cells: number[]): WidthPercentage[] {
-  if (cells.length === 0) return [];
-  const total = cells.reduce((a, b) => a + b, 0);
-  if (total <= 0) return [];
-  return cells.map((span) => {
-    const value = Math.round((span / total) * 100 * 100) / 100;
-    const className = `${value}`.replace(/\./g, 'p');
-    return { value, className };
-  });
-}
-
-function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number = 600, mobileBreakpoint: number = 480): string {
-  const widths = getWidthPercentages(cells);
-
-  if (mode === 'email') {
-    const minQuery = `@media only screen and (min-width: ${contentWidth + 20}px)`;
-    const maxQuery = `@media only screen and (max-width: ${contentWidth + 20}px)`;
-    // Every Row writes this block, so a later row's `.u-row .u-col` rules
-    // would override an earlier row's `.no-stack` ones of equal specificity:
-    // `.u-row.no-stack` outranks them wherever it comes.
-
-    return `
-${minQuery} {
-  .u-row { width: ${contentWidth}px !important; }
-  .u-row .u-col { vertical-align: top; }
-${widths.map(({ value, className }) => `  .u-row .u-col-${className} { width: ${Math.round((contentWidth * value) / 100)}px !important; }`).join('\n')}
-}
-
-${maxQuery} {
-  .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
-  .u-row { width: 100% !important; }
-  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
-  .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
-${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
-}`;
-  }
-
-  // Web mode
-  const baseCSS = `
-.u-row {
-  display: flex;
-  flex-wrap: nowrap;
-  margin-left: 0;
-  margin-right: 0;
-}
-.u-row .u-col {
-  position: relative;
-  width: 100%;
-  padding-right: 0;
-  padding-left: 0;
-}`;
-
-  const columnCSS = widths
-    .map(
-      ({ value, className }) =>
-        `.u-row .u-col.u-col-${className} { flex: 0 0 ${value}%; max-width: ${value}%; }`,
-    )
-    .join('\n');
-
-  // Flex rows stack by wrapping: below the mobile breakpoint the row allows
-  // wrapping and each column's flex-basis grows to the full width. Block or
-  // width overrides can't stack flex items — flex-basis governs their size.
-  // `.no-stack` rows keep a single line; print/document output never stacks.
-  // .container is scoped under .u_row: Elements output embeds into host
-  // pages where bare .container (Bootstrap et al.) would collide.
-  const responsiveCSS = mode === "document" ? "" : `
-@media (max-width: ${mobileBreakpoint}px) {
-  .u_row .container { max-width: 100% !important; }
-  .u-row:not(.no-stack) { flex-wrap: wrap; }
-  .u-row:not(.no-stack) .u-col {
-    flex: 0 0 100% !important;
-    max-width: 100% !important;
-  }
-}`;
-
-  return baseCSS + '\n' + columnCSS + '\n' + responsiveCSS;
-}
-
-// ============================================
-// Row exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
-// ============================================
-
-type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
-
-/**
- * Resolve the row's content width (px number) from body values. contentWidth
- * may be "600px" (string), 600 (number), or "600" (bare numeric string); the
- * grid CSS needs a number. In EMAIL mode this drives the per-column desktop
- * widths and the stacking breakpoint — so without it, multi-column emails were
- * pinned to 600px regardless of <Body contentWidth>. Web mode uses percentages,
- * so this is a no-op there.
- *
- * Uses the same strict px parse as the image slot geometry (a non-px value like
- * "50%" → fallback, not a parseInt artifact like 50) so the two stay in sync.
- */
-function toContentWidthPx(bodyValues: any, fallback = 500): number {
-  return bodyContentWidthPx(bodyValues?.contentWidth, fallback);
-}
-
-function renderRowToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode, cells: number[], collection: string = "rows"): string {
-  const rowExporter = (RowExporters[mode] || RowExporters.web) as ContainerExporterFunction;
-  const html = rowExporter(innerHTML, values, bodyValues, {
-    collection,
-    variant: mode,
-  });
-
-  const contentWidth = toContentWidthPx(bodyValues);
-  const css = generateGridCSS(cells, mode, contentWidth);
-  return css ? `<style>${css}</style>${html}` : html;
-}
-
-// ============================================
-// Children processing
-// ============================================
-
-function processChildren(
-  children: React.ReactNode,
-  cells: number[],
-  bodyValues: any,
-  rowValues: any,
-  mode: RenderMode,
-  _config?: UnlayerConfig
-): string {
-  if (!children) return "";
-
-  let innerHTML = "";
-  const childrenArray = React.Children.toArray(children);
-  // Each Column's place among the Columns: markup or text beside them (an Outlook comment, a wrapper the Row says
-  // isn't a Column) takes none, or the Columns after it got no cell (`width="NaN"`).
-  let index = 0;
-
-  childrenArray.forEach((child) => {
-    if (!React.isValidElement(child)) {
-      if (typeof child === "string" || typeof child === "number") {
-        innerHTML += looseText(child, "Row");
-      }
-      return;
-    }
-
-    const componentType = child.type as any;
-    const isColumn =
-      componentType?.displayName === "Column" ||
-      componentType?.name === "Column";
-
-    if (isColumn && typeof child.type === "function") {
-      // Call Column component with context props
-      const rendered = (child.type as Function)({
-        ...child.props,
-        index: index++,
-        cells,
-        bodyValues,
-        rowValues,
-        mode,
-        _config
-      });
-
-      // Extract HTML from dangerouslySetInnerHTML
-      if (rendered?.props?.dangerouslySetInnerHTML?.__html) {
-        innerHTML += rendered.props.dangerouslySetInnerHTML.__html;
-      }
-    } else if (React.isValidElement(child)) {
-      const name = (child.type as any)?.displayName || (child.type as any)?.name || "Unknown";
-      console.warn(
-        `Row: <${name}> is not a valid Row child. Only <Column> components can be direct children of <Row>. ` +
-        `Wrap it in a <Column>: <Row><Column><${name} /></Column></Row>`
-      );
-    }
-  });
-
-  return innerHTML;
-}
-
-// ============================================
-// Component
-// ============================================
-
 function renderRow(props: RowProps): React.ReactElement | null {
-  const {
-    layout,
-    cells: propsCells,
-    children,
-    mode: modeProp,
-    className,
-    style,
-    index = 0,
-    bodyValues = {},
-    collection = "rows",
-    _config,
-    ...semanticProps
-  } = props;
-
-  // Resolve mode: explicit prop > _config > default
-  const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
-
-  // Determine cells from layout or props. With neither, default to one equal
-  // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
-  // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Its Columns, as React rendered them (see normalize.tsx).
-  const columnCount = React.Children.toArray(children).filter(
-    (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
-  ).length;
-  let cells: number[];
+  const { layout, children } = props;
+  // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
   if (layout) {
-    // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
-    if (columnCount !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
-    cells = layout.cells;
-  } else if (propsCells) {
-    cells = propsCells;
-  } else {
-    cells = Array(Math.max(1, columnCount)).fill(1);
+    const columns = React.Children.toArray(children).filter((c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")).length;
+    if (columns !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
   }
-
-  // Merge body values with defaults
-  const safeBodyValues = { ...DEFAULT_BODY_VALUES, ...bodyValues };
-
-  // Map semantic props to values
-  const values = mapSemanticProps<RowValues>(
-    semanticProps as SemanticProps<RowValues>,
-    DEFAULT_VALUES,
-    "Row"
-  );
-
-  const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
-
-  // Process Column children
-  const innerHTML = processChildren(
-    children,
-    cells,
-    safeBodyValues,
-    valuesWithMeta,
-    mode,
-    _config
-  );
-
-  try {
-    const html = renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection);
-
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
-  } catch (error) {
-    console.error("Row rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  return onItsOwn(Row, props);
 }
 
 // While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.

@@ -1,13 +1,9 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
-import { BodyExporters } from "@unlayer/exporters";
-import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId } from "../utils/create-component";
+import type { SemanticProps } from "../utils/semantic-props";
 import type { SizeInput } from "../types";
-import { BODY_DEFAULTS } from "../utils/container-defaults";
 import { withRenderScope } from "../utils/render-scope";
-import { childrenHtml } from "../utils/normalize";
+import { renderThroughNewEngine } from "../compat/render";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -34,95 +30,6 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadiu
   borderRadius?: SizeInput;
 };
 
-const DEFAULT_VALUES = BODY_DEFAULTS;
-
-// ============================================
-// Preview text (inlined from shared/utils/preview.ts)
-// ============================================
-
-const MAX_PREVIEW_LENGTH = 150;
-
-const PADDING_CHARS = [
-  "\u00A0", "\u200C", "\u200B", "\u200D", "\u200E", "\u200F", "\uFEFF",
-];
-
-/**
- * previewText is text, as React treats text (it often carries user data, like
- * a name), so it's escaped: markup like `</div>` would end the hidden preview
- * and show whatever follows. The preview is padded with invisible characters
- * below, so it needs no entities.
- */
-function escapePreviewText(text: string): string {
-  // An email service's `<%name%>` tag (SendGrid's) stays as written, as in 0.1.22, for it to fill in: `<%` can't start an element.
-  return text
-    .split(/(<%[\w.]+%>)/)
-    .map((part, i) => (i % 2 ? part : part.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")))
-    .join("");
-}
-
-function generatePreviewHtml(text: string): string {
-  if (!text || text.trim().length === 0) return "";
-
-  const truncated = text.length > MAX_PREVIEW_LENGTH
-    ? text.slice(0, MAX_PREVIEW_LENGTH)
-    : text;
-
-  const paddingLength = Math.max(0, MAX_PREVIEW_LENGTH - truncated.length);
-  let padding = "";
-  for (let i = 0; i < paddingLength; i++) {
-    padding += PADDING_CHARS[i % PADDING_CHARS.length];
-  }
-
-  return (
-    `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">` +
-    escapePreviewText(truncated) +
-    padding +
-    `</div>`
-  );
-}
-
-// ============================================
-// Body exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
-// ============================================
-
-type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
-
-function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, previewText?: string): string {
-  // Prepend preview text HTML in email mode
-  let finalInnerHtml = innerHTML;
-  if (mode === "email" && previewText) {
-    const previewHtml = generatePreviewHtml(previewText);
-    if (previewHtml) {
-      finalInnerHtml = previewHtml + innerHTML;
-    }
-  }
-
-  const bodyExporter = (BodyExporters[mode] || BodyExporters.web) as ContainerExporterFunction;
-  // The email body exporter reads body context (contentWidth, contentAlign)
-  // from `arg3.bodyValues` — it drives the Outlook (MSO) container table width.
-  // Passing `values` directly left `bodyValues` undefined, pinning the Outlook
-  // table to 600px regardless of contentWidth (modern clients were fine via the
-  // container max-width, so non-600px emails rendered narrow only in Outlook).
-  const raw =
-    mode === "document"
-      ? bodyExporter(finalInnerHtml, values, { type: "" })
-      : mode === "email"
-        ? // The email body exporter reads body context (contentWidth,
-          // contentAlign) from the `bodyValues` field of its 3rd argument.
-          // Passing `values` directly left it undefined, so the Outlook (MSO)
-          // table fell back to 600px regardless of contentWidth.
-          bodyExporter(finalInnerHtml, values, { bodyValues: values })
-        : bodyExporter(finalInnerHtml, values, values);
-
-  return raw
-    .replace('min-height: 100vh; ', '')
-    .replace('min-height: 100vh;', '');
-}
-
-// ============================================
-// Component
-// ============================================
-
 /**
  * Body - Universal Server/Client Component
  *
@@ -145,77 +52,14 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
  * ```
  */
 const Body: React.FC<BodyProps> = (props) => {
-  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, fonts: _fonts, lang: _lang, ...semanticProps } = props;
-
-  // Resolve config: explicit prop > default (no hooks, Server Component safe)
-  const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
-
-  // Resolve mode: explicit prop > config > default
-  const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
-
-  // Build _config to thread through children. Reset the per-render id counters so
-  // unique ids are allocated across the whole tree (shared by reference downward).
-  const _config: UnlayerConfig = { ...resolvedConfig, mode };
-  (_config as { __ids?: Record<string, number> }).__ids = {};
-
-  // Map semantic props, then merge BODY_DEFAULTS on top so the body always
-  // carries its full default values (notably contentWidth "500px", textColor
-  // "#000000") before rendering — the same way item components merge their
-  // defaults. Without this the body exporter / grid CSS fall back to their own
-  // internal defaults (e.g. 600px) instead of the schema default, so the
-  // Outlook table, container, and grid CSS disagree. Mapped values win.
-  const values = mergeValues<BodyValues>(
-    DEFAULT_VALUES,
-    mapSemanticProps<BodyValues>(semanticProps as SemanticProps<BodyValues>, DEFAULT_VALUES, "Body")
-  );
-
-  // Ensure _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: nextHtmlId(_config, "u_body"),
-      htmlClassNames: "u_body",
-      ...(values._meta || {})
-    }
-  };
-
-  // Clone children with _config AND the body's resolved values so Row/Column
-  // inherit body-level context — notably `contentWidth`, which determines the
-  // row container max-width (and therefore each column's width) in web mode.
-  // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
-  // <Body contentWidth="…"> is silently ignored for layout.
-  // Fragments and user components expanded: their rows get the context too.
-  let innerHTML = "";
-  if (children) {
-    try {
-      // A render of its own when Body is rendered straight through React (not renderToHtml).
-      innerHTML = withRenderScope(() => {
-        // One React render collects the rows and blocks; each is then rendered with Body's settings.
-        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }));
-      }, true);
-    } catch (error) {
-      console.error("Body: Failed to render children:", error);
-      innerHTML = "";
-    }
-  }
-
+  const { className, style, config } = props;
   try {
-    const html = renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText);
-
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
+    // A render of its own when Body is rendered straight through React (not renderToHtml, which reads it, never renders it).
+    const { inner } = withRenderScope(() => renderThroughNewEngine(React.createElement(Body, props), config, "Body", { embedded: true }), true);
+    return <div className={className} style={style} dangerouslySetInnerHTML={{ __html: inner }} />;
   } catch (error) {
     console.error("Body rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
+    return <div className={className} style={style} />;
   }
 };
 
