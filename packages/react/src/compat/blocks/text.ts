@@ -150,7 +150,7 @@ function written(type: "Paragraph" | "Heading", values: Values, html: string, le
   const name = type.toLowerCase();
   const device: Record<string, string[]> = {};
   // What its stylesheet can't hold is said, as of a drawn block (a text style for desktop is, with the block's text styles).
-  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "contents", type, place.mode, device, undefined, (key, value, on) => {
+  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "text", place.mode, device, undefined, (key, value, on) => {
     if (on === "mobile" || key === "containerPadding") unread(place, `${key} on ${on === "mobile" ? "phones" : "desktop"}`, value);
   });
   notRead(values, place);

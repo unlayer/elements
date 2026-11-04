@@ -152,7 +152,7 @@ function walkItem(
   const finalValues = mergeValues(defaultValues, mappedValues);
   const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
 
-  collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles, undefined, dropped && ((...value) => dropped(valuesWithMeta._meta.htmlID, ...value)));
+  collectDeviceStyles(valuesWithMeta, "contents", displayMode, deviceStyles, undefined, dropped && ((...value) => dropped(valuesWithMeta._meta.htmlID, ...value)));
 
   callHead(config.head as ComponentHead | undefined, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
 }

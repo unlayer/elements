@@ -2,19 +2,13 @@ import { cssValueSafe, type RenderMode } from "@unlayer-internal/shared-elements
 import { safeName } from "./create-component";
 
 type DeviceStyles = Record<string, string[]>;
-type Collection = "rows" | "columns" | "contents";
+/** `contents`: a block of open HTML, which says only its padding for a device. `text`: a text block written as it is. */
+type Collection = "rows" | "columns" | "contents" | "text";
 /** Says a value for a device that CSS can't hold, so no rule is written for it. */
 export type Dropped = (option: string, value: unknown, device: string) => void;
 
 // Mirrors the Unlayer editor's device-override CSS, including option order.
-const contentOptions: Record<string, string[]> = {
-  Button: ["size", "fontSize", "lineHeight", "textAlign", "padding"],
-  Image: ["src", "textAlign"],
-  Heading: ["fontSize", "textAlign", "lineHeight"],
-  Paragraph: ["fontSize", "textAlign", "lineHeight"],
-  Menu: ["fontSize", "padding"],
-  Divider: ["width", "textAlign"],
-};
+const TEXT_OPTIONS = ["containerPadding", "fontSize", "textAlign", "lineHeight"];
 
 /**
  * A value as CSS writes it in a declaration, or undefined when it could end the
@@ -47,12 +41,12 @@ function size(value: unknown): string | undefined {
  * its markup. An email's row has no sides on its element (legacy's are only classic Outlook's). A column's lines on a
  * page or in a printed document are on the element with its id, which legacy's selector doesn't reach: they draw nothing.
  */
-export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles, own?: string, dropped?: Dropped): void {
+export function collectDeviceStyles(values: Record<string, any>, collection: Collection, mode: RenderMode, styles: DeviceStyles, own?: string, dropped?: Dropped): void {
   // The id the block's HTML has, escaped.
   const given = safeName(values._meta?.htmlID);
   if (!given && !own) return;
   const id = cssIdent(given ?? "");
-  const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? (own && mode !== "email" ? ["padding"] : ["padding", "border"]) : ["padding"];
+  const options = collection === "text" ? TEXT_OPTIONS : collection === "contents" ? ["containerPadding"] : collection === "columns" ? (own && mode !== "email" ? ["padding"] : ["padding", "border"]) : ["padding"];
   for (const device of mode === "document" ? ["desktop"] : ["desktop", "mobile"]) {
     const overrides = values._override?.[device];
     if (!overrides) continue;
@@ -69,7 +63,7 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
           dropped?.(option, value, device);
           continue;
         }
-        const direct = collection === "rows" || (mode === "web" && collection === "contents" && option === "containerPadding");
+        const direct = collection === "rows" || (mode === "web" && option === "containerPadding");
         const target = direct ? selector("padding").replace(`#${id} `, `#${id}`) : selector("padding");
         const vertical = mode === "email" && collection === "rows";
         if (!own || !vertical) push(`${target} { padding: ${cssValue(value)} !important; }`);
@@ -82,16 +76,6 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
       } else if (option === "border") {
         // As the editor's borderToStyle: transparent unless a side has a width.
         if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = cssValue(value[`border${d}Width`] || "0px") ?? "0px"; return `border-${d.toLowerCase()}: ${w} ${cssValue(value[`border${d}Style`] || "solid") ?? "solid"} ${(parseInt(w) > 0 && cssValue(value[`border${d}Color`])) || "transparent"} !important;`; }).join("")} }`);
-      } else if (option === "src") {
-        if (!value) continue;
-        const merged = { ...values.src, ...value };
-        const maximum = merged.autoWidth === false ? size(merged.maxWidth) : undefined;
-        push(`${selector("width")} { width: ${maximum || "100%"} !important; }`);
-        push(`${selector("max-width")} { max-width: ${size(maximum || merged.width || "100%")} !important; }`);
-      } else if (option === "size" || option === "width") {
-        if (!value) continue;
-        push(`${selector("width")} { width: ${size(value.width) && !value.autoWidth ? size(value.width) : "auto"} !important; }`);
-        push(`${selector("max-width")} { max-width: 100% !important; }`);
       } else {
         if (!(value || (option === "lineHeight" && `${value}` === "0"))) continue;
         const rendered = cssValue(option === "fontSize" && typeof value === "number" ? `${value}px` : value);

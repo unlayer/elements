@@ -229,7 +229,7 @@ function deviceClass(values: Values, collection: "rows" | "columns", frame: Fram
   if (!set("padding") && !set("border")) return undefined;
   const name = ruled(frame, []);
   const what = collection === "rows" ? "A row" : "A column";
-  collectDeviceStyles(values, collection, "", frame.mode, frame.device, name, (key, value, on) => say(frame, "warning", `${what}'s ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, `${path}.values._override.${on}.${key}`));
+  collectDeviceStyles(values, collection, frame.mode, frame.device, name, (key, value, on) => say(frame, "warning", `${what}'s ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, `${path}.values._override.${on}.${key}`));
   return name;
 }
 

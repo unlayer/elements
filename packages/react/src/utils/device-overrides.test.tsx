@@ -105,7 +105,7 @@ describe("device settings", () => {
 
   it("ignores unsupported widgets and retains zero line height", () => {
     const styles: Record<string, string[]> = {};
-    collectDeviceStyles({ _meta: { htmlID: "sample" }, _override: { mobile: { fontSize: "20px", lineHeight: 0, color: "red" } } }, "contents", "Paragraph", "email", styles);
+    collectDeviceStyles({ _meta: { htmlID: "sample" }, _override: { mobile: { fontSize: "20px", lineHeight: 0, color: "red" } } }, "text", "email", styles);
     expect(styles.mobile).toEqual(["#sample .v-font-size { font-size: 20px !important; }", "#sample .v-line-height { line-height: 0 !important; }"]);
   });
 
