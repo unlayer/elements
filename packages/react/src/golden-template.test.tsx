@@ -361,7 +361,7 @@ describe("Golden Template: Print Document", () => {
     expect(page.title).toBe("Q3 Report");
     expect(all("h1")[0]?.textContent).toBe("Quarterly Report");
     expect(all("p").map((p) => p.textContent)).toEqual(["Revenue grew 14% quarter over quarter.", "Operating costs remained flat."]);
-    expect(all("hr")).toHaveLength(1);
+    expect(all('[aria-label="divider"]')).toHaveLength(1);
     // Backgrounds print, or a PDF loses them
     expect(html).toContain("print-color-adjust: exact");
   });

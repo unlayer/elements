@@ -27,14 +27,6 @@ export function rowOffsetInEmail(padding: Sides): Partial<Pick<Sides, "left" | "
   return padding.left > padding.right ? { left: padding.left - padding.right } : { right: padding.right - padding.left };
 }
 
-/**
- * A page's margin: legacy's page and printed document leave the browser's 8px margin around the body, inside its
- * background.
- */
-export function pageMargin(): Sides {
-  return { top: 8, right: 8, bottom: 8, left: 8 };
-}
-
 /** A text block's letter case: legacy's heading and text exporters don't write textTransform, so text is drawn as written. */
 export function textTransformOfText(_value: unknown): undefined {
   return undefined;
@@ -89,14 +81,6 @@ export function buttonHover(mode: "email" | "web" | "document", colors: { hoverC
 }
 
 /**
- * A button's width on a page or in a printed document: legacy's is its label's, its padding on top (300px draws 340px
- * wide), at most its place's width.
- */
-export function buttonWidthOnPage(): { boxSizing: "content-box"; maxWidth: string } {
-  return { boxSizing: "content-box", maxWidth: "100%" };
-}
-
-/**
  * An image's own box: legacy's image exporters don't write the border, corner radius or background an Image's props
  * give it (`borderWidth`, `borderRadius`, `backgroundColor`), so it's drawn without them.
  */
@@ -133,17 +117,25 @@ export function pageBodyColor(value: string | undefined, fallback: "#000000" | "
 }
 
 /**
+ * What the editor's page and printed document have for all that's on them, in the page's root so a page holding the
+ * parts of one keeps its own: every box's padding inside its width, and paragraphs with no margins.
+ */
+export const PAGE_BASE_CSS = "main{box-sizing:border-box}main *,main :after,main :before{box-sizing:inherit}main p{margin:0}main sub,main sup{line-height:0}";
+
+/**
  * What legacy's stylesheet gives the markup of a user's own block (the new engine's blocks have these as their own).
  * In an email, tables and their cells are in the template's text color, which is the only color an Html block's text
  * has: the new email's root has none. In a printed document, backgrounds print, and a `content` class of the user's
  * takes the template's text and background, as legacy's own `.content` does.
  */
-export function ownMarkupCss(mode: "email" | "web" | "document", body: { textColor?: string; backgroundColor?: string; fontFamily?: { value?: string } }): string {
+export function ownMarkupCss(mode: "email" | "web" | "document", body: { textColor?: string; backgroundColor?: string; fontFamily?: { value?: string }; documentMargin?: unknown }): string {
   const text = pageBodyColor(body.textColor, "#000000");
   if (mode === "email") return `table, td { color: ${text}; }`;
   if (mode !== "document") return "";
   const font = body.fontFamily?.value || "Arial, Helvetica, sans-serif";
-  return `body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n.content { width: 100%; font-family: ${cssValueSafe(font) ? font : "inherit"}; font-size: 15px; color: ${text}; background-color: ${pageBodyColor(body.backgroundColor, "#ffffff")}; -webkit-print-color-adjust: exact; }`;
+  // The document's margin on a screen, as the editor's export has it: not in print, where a PDF's own margins apply.
+  const margin = typeof body.documentMargin === "string" && cssValueSafe(body.documentMargin) ? `\n@media screen { body { padding: ${body.documentMargin}; } }` : "";
+  return `body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }${margin}\nmain { min-height: 100vh; }\n.content { width: 100%; font-family: ${cssValueSafe(font) ? font : "inherit"}; font-size: 15px; color: ${text}; background-color: ${pageBodyColor(body.backgroundColor, "#ffffff")}; -webkit-print-color-adjust: exact; }`;
 }
 
 /** A background picture as CSS writes it. */

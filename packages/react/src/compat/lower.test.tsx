@@ -43,12 +43,10 @@ describe("lowerDesign()", () => {
     expect(blocks).toEqual(["heading", "text"]);
   });
 
-  it("draws a page as legacy lays one out: its rows bands of the window in its 8px margin, their columns at the content width", () => {
+  it("draws a page as the editor lays one out: its rows bands of the window, their columns at the content width", () => {
     const root = tree(<Page contentWidth="600px"><Row padding="20px 40px" backgroundColor="#fafafa"><Column><Paragraph>A</Paragraph></Column></Row></Page>);
     expect(root).toMatchObject({ type: "Page", props: { width: PAGE_WIDTH } });
-    const [margin] = root.children as TreeNode[];
-    expect(margin.style).toEqual({ padding: { top: 8, right: 8, bottom: 8, left: 8 } });
-    const [band] = margin.children as TreeNode[];
+    const [band] = root.children as TreeNode[];
     expect(band.style).toEqual({ backgroundColor: "#fafafa", padding: { top: 20, right: 40, bottom: 20, left: 40 }, alignItems: "center" });
     expect((band.children as TreeNode[])[0].style).toEqual({ width: "100%", maxWidth: 600 });
   });
@@ -90,7 +88,7 @@ describe("lowerDesign()", () => {
   it("never stacks a printed document's columns, its text 15px", () => {
     const root = tree(<Document><Row cells={[1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></Row></Document>);
     expect(root.style?.fontSize).toBe(15);
-    const row = ((((root.children as TreeNode[])[0].children as TreeNode[])[0].children as TreeNode[])[0].children as TreeNode[])[0];
+    const row = (((root.children as TreeNode[])[0].children as TreeNode[])[0].children as TreeNode[])[0];
     expect(row).toMatchObject({ type: "Row", props: { stackOnMobile: false } });
   });
 
@@ -358,9 +356,10 @@ describe("lowerDesign()", () => {
       expect(html).toContain('<td align="right"><!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="right">');
     });
 
-    it("draws the body's text size and weight on a page only, as legacy's stylesheet has them", () => {
+    it("draws the body's text size and weight on a page only, a rem the editor's page's 14px", () => {
       const values = { fontSize: "1.25rem", lineHeight: "2", fontWeight: 700 };
-      expect(tree(<Page values={values as never}><Row>{cell}</Row></Page>).style).toMatchObject({ fontSize: 20, lineHeight: 2, fontWeight: 700 });
+      expect(tree(<Page values={values as never}><Row>{cell}</Row></Page>).style).toMatchObject({ fontSize: 17.5, lineHeight: 2, fontWeight: 700 });
+      expect(tree(<Page><Row>{cell}</Row></Page>).style?.fontSize).toBe(14);
       for (const Root of [Email, Document]) expect(tree(<Root values={values as never}><Row>{cell}</Row></Root>).style?.fontWeight).toBeUndefined();
       const odd = <Page values={{ fontSize: "120%" } as never}><Row>{cell}</Row></Page>;
       expect(notes(odd).join()).toContain("The body's fontSize");

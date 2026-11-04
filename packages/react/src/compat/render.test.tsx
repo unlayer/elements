@@ -870,9 +870,15 @@ describe("today's components straight through React", () => {
     expect(renderToHtmlParts(<Root><Row cells={[1, 1]}><Column>{words}</Column><Column>{words}</Column></Row></Root>).body).not.toContain("<style>");
   });
 
-  it("keep a page's margin for the page it's in", () => {
-    expect(renderToStaticMarkup(<Page><Row><Column>{words}</Column></Row></Page>)).not.toContain("padding:8px");
-    expect(renderToHtml(<Page><Row><Column>{words}</Column></Row></Page>)).toContain("padding:8px");
+  it("leave the rem of the page they're in alone, where a whole page has the editor's 14px", () => {
+    const page = <Page><Row><Column>{words}</Column></Row></Page>;
+    expect(renderToHtml(page)).toContain("html{font-size:14px}");
+    expect(renderToHtml(page)).not.toContain("padding:8px");
+    expect(renderToStaticMarkup(page)).not.toContain("html{font-size:14px}");
+    const parts = renderToHtmlParts(page);
+    expect(parts.head + parts.body).not.toContain("html{font-size:14px}");
+    expect(parts.head).toContain("main *,main :after,main :before{box-sizing:inherit}");
+    expect(renderToHtml(<Email><Row><Column>{words}</Column></Row></Email>)).not.toContain("font-size:14px}");
   });
 
   it("leave out what fails of a live preview, and say so, rather than failing the app's render", () => {

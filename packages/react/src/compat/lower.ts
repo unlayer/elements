@@ -12,7 +12,7 @@ import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } fro
 import { collectDeviceStyles, cssValue, deviceStylesCss } from "../utils/device-overrides";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 import { bodyLinkCss } from "./links";
-import { documentBodyPicture, ownMarkupCss, pageBodyColor, pageMargin, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
+import { documentBodyPicture, ownMarkupCss, PAGE_BASE_CSS, pageBodyColor, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
 import { ALIGN, attribute, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
 
 /** A block of the design: its tool and values. */
@@ -561,7 +561,8 @@ const PREVIEW_LENGTH = 150;
  */
 function pageText(values: Values, frame: Frame): Record<string, Json> {
   const size = /^(\d*\.?\d+)r?em$/.exec(String(values.fontSize ?? "").trim());
-  const text = defined({ fontSize: size ? Number(size[1]) * 16 : px(values.fontSize), lineHeight: lineHeight(values.lineHeight), fontWeight: fontWeight(values.fontWeight) }) as Record<string, Json>;
+  // (An em or rem is the editor's page's 14px, whose body's 1rem is its text.)
+  const text = defined({ fontSize: size ? Number(size[1]) * 14 : isEmpty(values.fontSize) ? 14 : px(values.fontSize), lineHeight: lineHeight(values.lineHeight), fontWeight: fontWeight(values.fontWeight) }) as Record<string, Json>;
   for (const key of ["fontSize", "lineHeight", "fontWeight"]) if (text[key] === undefined && !isEmpty(values[key])) say(frame, "warning", `The body's ${key} ${JSON.stringify(values[key])} isn't one the new engine reads, so it isn't drawn`, `body.values.${key}`);
   return text;
 }
@@ -587,7 +588,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
   const picture = options.mode === "document" ? documentBodyPicture(values.backgroundImage) : email ? undefined : pictureOf(values.backgroundImage, options.mode);
   if (picture) body.push(pictureCss(picture));
   // A printed document's content has it too, inside the body's margin.
-  const content = picture && options.mode === "document" ? ruled(frame, [pictureCss(picture)]) : undefined;
+  const content = picture && options.mode === "document" ? ruled(frame, [pictureCss(picture), "min-height: 100vh"]) : undefined;
   // Legacy's email has none of the body's picture.
   if (email && values.backgroundImage?.url) say(frame, "info", "The body's background picture draws nothing in an email: give a row one", "body.values.backgroundImage");
   // An email's body takes any color as it's written; a page's only those its stylesheet does (see pageBodyColor).
@@ -612,7 +613,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
   const textColor = email ? values.textColor : pageBodyColor(values.textColor, "#000000");
   const preview = email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined;
   if (frame.fixedTable) frame.rules.push(`.${frame.fixedTable} > table { table-layout: fixed; }`);
-  const css = [frame.mode === "document" || frame.loose ? ownMarkupCss(options.mode, values) : "", options.embedded ? "" : bodyLinkCss(values, options.mode), ...frame.rules, deviceStylesCss(frame.device, options.mode)].filter(Boolean).join("\n");
+  const css = [email || options.embedded ? "" : PAGE_BASE_CSS, frame.mode === "document" || frame.loose ? ownMarkupCss(options.mode, values) : "", options.embedded ? "" : bodyLinkCss(values, options.mode), ...frame.rules, deviceStylesCss(frame.device, options.mode)].filter(Boolean).join("\n");
   const root = defined({
     type: email ? "Email" : "Page",
     props: defined({
@@ -626,7 +627,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
       color: (typeof textColor === "string" && textColor && parseColor(textColor).ok ? textColor : undefined) || undefined,
       // (An email's text with no font of the body's is in the browser's; a page's stylesheet has its own default.)
       fontFamily: values.fontFamily?.value || (options.embedded && options.wide ? "inherit" : email ? "initial" : undefined),
-      // A printed document's text is 15px (its stylesheet's), a page's and an email's the browser's 16px.
+      // A printed document's text is 15px (its stylesheet's), a page's its body's, and an email's the browser's 16px.
       fontSize: options.mode === "document" ? 15 : undefined,
       ...(options.mode === "web" ? pageText(values, frame) : {}),
     }) as Record<string, Json>,
@@ -635,8 +636,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
       // An email service's <%name%> tag, which legacy writes as it is for the service to fill in.
       previewHtml: preview?.includes("<%") ? escapeKeepingTags(preview) : undefined,
     }),
-    // A page keeps the browser's margin around its rows (legacy's page doesn't reset the body's).
-    children: email ? rows : options.embedded ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: rows }] : rows }],
+    children: email || options.embedded || !content ? rows : [{ type: "Column", compat: { className: content }, children: rows }],
   });
   return { root, diagnostics: frame.notes };
 }

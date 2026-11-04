@@ -11,7 +11,6 @@ import {
   outlookCopy,
   ownMarkupCss,
   pageBodyColor,
-  pageMargin,
   pictureCss,
   pictureOf,
   rowColorInEmail,
@@ -59,10 +58,6 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
   it("writes a picture's rule so what its URL holds can't end the string or the stylesheet", () => {
     expect(pictureCss({ url: "data:image/png;base64,AA==", repeat: "repeat", position: "left top", size: "cover", tile: true })).toBe('background-image: url("data:image/png;base64,AA=="); background-repeat: repeat; background-position: left top; background-size: cover');
     expect(pictureCss({ url: 'x"</style>\\', tile: false })).toBe('background-image: url("x%22%3C/style%3E%5C")');
-  });
-
-  it("keeps the browser's 8px margin around a page", () => {
-    expect(pageMargin()).toEqual({ top: 8, right: 8, bottom: 8, left: 8 });
   });
 
   it("draws a text block's letter case as written", () => {
@@ -125,6 +120,10 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
     expect(document).toContain("body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }");
     expect(document).toContain(".content { width: 100%; font-family: georgia,serif; font-size: 15px; color: #333333; background-color: #eeeeee; -webkit-print-color-adjust: exact; }");
     expect(ownMarkupCss("document", { fontFamily: { value: "x}</style>" } })).not.toContain("</style>");
+    // The document's margin on a screen, as the editor's export has it; what can't be CSS isn't written.
+    expect(ownMarkupCss("document", { documentMargin: "96px" })).toContain("@media screen { body { padding: 96px; } }");
+    expect(ownMarkupCss("document", {})).toContain("main { min-height: 100vh; }");
+    expect(ownMarkupCss("document", { documentMargin: "x}</style>" })).not.toContain("</style>");
   });
 
   it("takes the colors 0.2.1's stylesheet takes, and its defaults for others, in a template with markup of its own", () => {

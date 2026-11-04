@@ -33,7 +33,7 @@ export function divider(block: DesignBlock, place: Place): TreeNode {
   const length = width === undefined || width === "100%" ? undefined : px(width) ?? String(width);
   const node: TreeNode = {
     type: "Divider",
-    compat: { ariaLabel: "divider" },
+    compat: { ariaLabel: "divider", ...(place.mode === "email" ? {} : { inLine: true }) },
     style: {
       borderTop: { width: lineWidth, style: LINE_STYLES.has(style) ? style : "solid", color: line.borderTopColor ?? "#BBBBBB" },
       ...(length !== undefined ? { width: length } : {}),

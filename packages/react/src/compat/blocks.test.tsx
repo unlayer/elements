@@ -475,18 +475,14 @@ describe("a button block", () => {
 
   const drawn = (block: React.ReactElement, Root: Root = Email) => (lowered(block, Root)?.children as TreeNode[])[0];
 
-  it("has its padding on top of its width on a page or in a printed document (300px draws 340px wide), as legacy; an email's width holds it", () => {
+  it("holds its padding in its width, as the editor's, and is at most its place on a page or in a printed document", () => {
     const button = <Button href="https://example.com" width="300px" padding="10px 20px">Go</Button>;
-    for (const Root of [Page, Document] as Root[]) expect(drawn(button, Root)).toMatchObject({ type: "Button", style: { width: 300, boxSizing: "content-box", maxWidth: "100%" } });
+    for (const Root of [Page, Document] as Root[]) {
+      expect(drawn(button, Root)).toMatchObject({ type: "Button", style: { width: 300, maxWidth: "100%" } });
+      expect(drawn(button, Root).style?.boxSizing).toBeUndefined();
+    }
     expect(drawn(button).style).toMatchObject({ width: 300 });
     expect(drawn(button).style?.boxSizing).toBeUndefined();
-  });
-
-  it("runs past the end of a place too narrow for it on a page or in a printed document, whatever its width, as legacy's", () => {
-    const button = <Button href="https://example.com">Go</Button>;
-    for (const Root of [Page, Document] as Root[]) expect(drawn(button, Root).style).toMatchObject({ boxSizing: "content-box", maxWidth: "100%" });
-    expect(drawn(button).style?.boxSizing).toBeUndefined();
-    expect(renderToHtml(<Page><Row><Column>{button}</Column></Row></Page>)).toContain("align-self:safe center");
   });
 
   it("links to nothing where it has no link, as legacy's href=\"\": said only for those who look", () => {
@@ -575,8 +571,6 @@ describe("a button block", () => {
     const side = (n: number) => ({ top: n, right: n, bottom: n, left: n });
     expect(node.mobile).toEqual({ padding: side(1) });
     expect((node.children as TreeNode[])[0].mobile).toEqual({ padding: side(2), fontSize: 3, lineHeight: "4px", alignSelf: "end", width: "50%" });
-    // A width on phones has its padding on top too.
-    expect((node.children as TreeNode[])[0].style).toMatchObject({ boxSizing: "content-box" });
   });
 
   it("says a setting for phones it can't read", () => {
@@ -614,7 +608,7 @@ describe("a button block", () => {
 describe("a divider block", () => {
   it("is a Divider of its line, padding and length, placed by its alignment where it's shorter than its column", () => {
     for (const Root of [Email, Page, Document] as Root[]) {
-      expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />, Root)).toEqual({ type: "Divider", compat: { ariaLabel: "divider" }, style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+      expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />, Root)).toEqual({ type: "Divider", compat: Root === Email ? { ariaLabel: "divider" } : { ariaLabel: "divider", inLine: true }, style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
       expect(renderToHtml(<Root><Row><Column><Divider /></Column></Row></Root>)).toContain('aria-label="divider"');
       expect(lowered(<Divider width="60%" textAlign="left" />, Root)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
     }

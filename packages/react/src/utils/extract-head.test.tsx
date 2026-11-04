@@ -160,7 +160,7 @@ describe("renderToHtmlParts", () => {
     );
 
     expect(head).toMatch(/@media \(max-width: 480px\)\{\.(\w+)\{flex-direction:column!important/);
-    expect(body).toContain("<hr");
+    expect(body).toContain('aria-label="divider"');
     expect(body).not.toContain("<body");
     expect(body).not.toContain('role="presentation"');
   });

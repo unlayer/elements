@@ -3,10 +3,13 @@ import React from "react";
 import { render } from "@testing-library/react";
 import Divider from "./Divider";
 
+/** A page's line: a box in a line of no height, in the block's box. */
+const line = (container: HTMLElement) => container.querySelector<HTMLElement>('[aria-label="divider"] > div > div');
+
 describe("Divider Component", () => {
   it("renders a divider with border-top in web mode", () => {
     const { container } = render(<Divider mode="web" />);
-    expect(container.querySelector<HTMLElement>('hr[aria-label="divider"]')?.style.borderTopStyle).toBe("solid");
+    expect(line(container)?.style.borderTopStyle).toBe("solid");
   });
 
   it("renders a table-based divider in email mode", () => {
@@ -17,20 +20,20 @@ describe("Divider Component", () => {
 
   it("applies border color", () => {
     const { container } = render(<Divider borderTopColor="#ff0000" />);
-    expect(container.querySelector("hr")!.style.borderTopColor).toBe("rgb(255, 0, 0)");
+    expect(line(container)!.style.borderTopColor).toBe("rgb(255, 0, 0)");
   });
 
   it("applies border width", () => {
     const { container } = render(<Divider borderTopWidth="3px" />);
-    expect(container.querySelector("hr")!.style.borderTopWidth).toBe("3px");
+    expect(line(container)!.style.borderTopWidth).toBe("3px");
   });
 
   it("uses different HTML structures for web vs email", () => {
     const { container: web } = render(<Divider mode="web" />);
     const { container: email } = render(<Divider mode="email" />);
-    // Web has a rule, in no table
+    // Web has a line, in no table
     expect(web.querySelector("table")).toBeNull();
-    expect(web.querySelector("hr")).not.toBeNull();
+    expect(line(web)).not.toBeNull();
     // Email uses table-based layout
     expect(email.querySelector('table[role="presentation"]')).not.toBeNull();
     expect(email.querySelector("hr")).toBeNull();

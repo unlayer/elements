@@ -7,7 +7,7 @@
 import type { Json } from "@unlayer-internal/elements-core";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
-import { buttonHover, buttonWidthOnPage, fontOfValues } from "../quirks";
+import { buttonHover, fontOfValues } from "../quirks";
 import { parseRuns } from "../runs";
 import { ALIGN, color, deviceValues, drawnBorder, drawnLink, drawnWeight, letterSpacing, lineHeight, px, sides, some, webLink, type Values } from "../values";
 
@@ -82,8 +82,8 @@ export function button(block: DesignBlock, place: Place): TreeNode {
     style: Object.fromEntries(
       Object.entries({
         width,
-        // A page's holds its padding on top, whatever its width, and runs past the end of a place too narrow for it.
-        ...(place.mode !== "email" ? buttonWidthOnPage() : {}),
+        // A page's is at most its place, its padding in it, as the editor's is.
+        ...(place.mode !== "email" ? { maxWidth: "100%" } : {}),
         // A transparent label is one (a background that's transparent is none).
         color: typeof colors.color === "string" && colors.color ? colors.color : undefined,
         // A background given as none (transparent, or empty, which legacy writes as no color) is none, where the new

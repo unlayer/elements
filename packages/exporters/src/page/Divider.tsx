@@ -1,5 +1,5 @@
 /** A Divider: an `<hr>` drawn by its top border, in a padded div where it has padding; placed by its parent's text alignment. */
-import { h, type Style } from "../jsx";
+import { h, raw, type Style } from "../jsx";
 import type { Component } from "./context";
 
 const MARGIN: Record<string, string> = { center: "0 auto", right: "0 0 0 auto" };
@@ -12,10 +12,16 @@ export const Divider: Component = ({ node, style, parent, placement, classes }) 
     width: style.width,
   };
   const label = node.compat?.ariaLabel as string | undefined;
-  if (style.padding === undefined) return <hr id={node.id} class={classes()} aria-label={label} style={[placement, line]} />;
+  // A template of today's components: its line sits in a line of no height, by the font's middle, as the editor's does.
+  const inLine = node.compat?.inLine === true && (
+    <div style={{ textAlign: parent.text.textAlign, lineHeight: 0 }}>
+      <div style={{ borderTop: style.borderTop, width: style.width ?? "100%", display: "inline-block", lineHeight: "1px", height: 0, verticalAlign: "middle" }}>{raw("&nbsp;")}</div>
+    </div>
+  );
+  if (style.padding === undefined) return inLine ? <div id={node.id} class={classes()} aria-label={label} style={placement}>{inLine}</div> : <hr id={node.id} class={classes()} aria-label={label} style={[placement, line]} />;
   return (
     <div id={node.id} class={classes()} aria-label={label} style={[placement, { boxSizing: "border-box", padding: style.padding }]}>
-      <hr style={line} />
+      {inLine || <hr style={line} />}
     </div>
   );
 };

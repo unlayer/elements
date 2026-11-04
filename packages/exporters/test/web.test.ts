@@ -6,6 +6,12 @@ const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ ro
 const web = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
 
 describe("web HTML", () => {
+  it("draws a Divider marked `inLine` (today's components) as a line in a line of no height, as the editor's", () => {
+    const { body } = web(page([{ type: "Divider", compat: { inLine: true }, style: { borderTop: "2px solid #ccc", width: "50%", padding: 10 } }]));
+    expect(body).toContain('<div style="box-sizing:border-box;padding:10px"><div style="text-align:left;line-height:0"><div style="border-top:2px solid #ccc;width:50%;display:inline-block;line-height:1px;height:0;vertical-align:middle">&nbsp;</div></div></div>');
+    expect(web(page([{ type: "Divider" }])).body).toContain("<hr");
+  });
+
   it("writes a whole document: shell, title, language, the window's background", () => {
     const { html, head, body, bodyStyle } = web(page([{ type: "Text", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", description: 'Say "hi"' }, style: { backgroundColor: "#eee" } }));
     expect(html.startsWith('<!DOCTYPE html><html lang="ar" dir="rtl"><head>')).toBe(true);
