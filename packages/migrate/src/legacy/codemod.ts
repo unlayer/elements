@@ -15,6 +15,9 @@ import ts from "typescript";
 import { formatTsx } from "@unlayer/convert-core";
 import { hole, inlineHtml, inPx, plain } from "./html";
 
+/** Stands for React's Fragment in what's written, until it's known what the template can call it. */
+const KEYED = "KeyedFragmentOfMigration";
+
 /**
  * A value in markup as the children it becomes. It's escaped by the code that writes it there (`htmlText(name)`,
  * `escapeHtml(name)`), and a new component escapes what it's given, so it goes in as it is: escaped twice, `&` would
@@ -24,64 +27,77 @@ import { hole, inlineHtml, inPx, plain } from "./html";
 function asChildren(code: string, inline: (markup: string, holes: string[]) => string): string {
   const source = `(${code})`;
   const file = ts.createSourceFile("value.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const written = (node: ts.Node, text = false): string => {
-    if (ts.isCallExpression(node) && node.arguments.length === 1) {
-      const [value] = node.arguments;
-      if (ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text)) {
-        // What the call held together stays together: `escapeHtml(a || b) + c` isn't `a || b + c`. It's text in there.
-        const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
-        return alone ? written(value, true) : `(${written(value, true)})`;
-      }
-      // Elements in a list are children as they are, each with a key: joined, they'd be text.
-      const callee = node.expression;
-      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "join" && ts.isStringLiteralLike(value) && !value.text && ts.isCallExpression(callee.expression)) {
-        const map = callee.expression;
-        const each = map.arguments[0];
-        if (!text && map.arguments.length === 1 && ts.isArrowFunction(each) && each.parameters.length <= 2 && !ts.isBlock(each.body)) {
-          const params = each.parameters.map((parameter) => parameter.getText(file));
-          const key = params.length === 2 ? each.parameters[1].name.getText(file) : "index";
-          // (`.map((item) => …)` gains its index.)
-          if (params.length < 2) params.push("index");
-          const body = written(each.body);
-          const inner = body.startsWith("<>") && body.endsWith("</>") ? body.slice(2, -3) : `{${body}}`;
-          return `${source.slice(map.getStart(file), each.getStart(file))}(${params.join(", ")}) => <Fragment key={${key}}>${inner}</Fragment>)`;
-        }
-        return written(map, text);
-      }
-    }
-    if (text) {
-      // Nothing in it is markup.
-    } else if (ts.isTemplateExpression(node)) {
-      const markup = node.head.text + node.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
-      const holes = node.templateSpans.map((span) => written(span.expression));
-      // (Elements in its holes would be text in a string: "[object Object]".)
-      if (/<[a-zA-Z/]|&[a-zA-Z#]/.test(markup) || holes.some((value) => value.includes("<>"))) return `<>${inline(markup, holes)}</>`;
-    } else if (ts.isStringLiteralLike(node) && /<[a-zA-Z/]|&[a-zA-Z#]/.test(node.text)) {
-      return `<>${inline(node.text, [])}</>`;
-    }
+  const unescaped = (node: ts.Node): ts.Expression | undefined =>
+    ts.isCallExpression(node) && node.arguments.length === 1 && ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text) ? node.arguments[0] : undefined;
+  /** What the call held together stays together: `escapeHtml(a || b) + c` isn't `a || b + c`. */
+  const grouped = (value: ts.Expression) => {
+    const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
+    return alone ? code_(value) : `(${code_(value)})`;
+  };
+  /** An expression that isn't what's shown (a condition, an argument, a comparison): as it is, its values unescaped. */
+  const code_ = (node: ts.Node): string => {
+    const value = unescaped(node);
+    if (value) return grouped(value);
     let out = "";
     let at = node.getStart(file);
     node.forEachChild((child) => {
-      out += source.slice(at, child.getStart(file)) + written(child, text);
+      out += source.slice(at, child.getStart(file)) + code_(child);
       at = child.getEnd();
     });
     return out + source.slice(at, node.getEnd());
   };
+  /** What's shown: markup in it (in a template or a string, or either side of a choice) is elements, in a fragment. */
+  const shown = (node: ts.Expression): string => {
+    const value = unescaped(node);
+    if (value) return grouped(value);
+    if (ts.isParenthesizedExpression(node)) return `(${shown(node.expression)})`;
+    if (ts.isConditionalExpression(node)) return `${code_(node.condition)} ? ${shown(node.whenTrue)} : ${shown(node.whenFalse)}`;
+    if (ts.isBinaryExpression(node)) {
+      const operator = node.operatorToken.kind;
+      if (operator === ts.SyntaxKind.AmpersandAmpersandToken) return `${code_(node.left)} && ${shown(node.right)}`;
+      if (operator === ts.SyntaxKind.BarBarToken || operator === ts.SyntaxKind.QuestionQuestionToken) return `${shown(node.left)} ${node.operatorToken.getText(file)} ${shown(node.right)}`;
+      return code_(node);
+    }
+    if (ts.isTemplateExpression(node)) {
+      const markup = node.head.text + node.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
+      const holes = node.templateSpans.map((span) => shown(span.expression));
+      // (Elements in its holes would be text in a string: "[object Object]".)
+      if (/<[a-zA-Z/]|&[a-zA-Z#]/.test(markup) || holes.some((held) => held.includes("<>") || held.includes(KEYED))) return `<>${inline(markup, holes)}</>`;
+      return code_(node);
+    }
+    if (ts.isStringLiteralLike(node) && /<[a-zA-Z/]|&[a-zA-Z#]/.test(node.text)) return `<>${inline(node.text, [])}</>`;
+    // Elements in a list are children as they are, each with a key: joined, they'd be text.
+    if (ts.isCallExpression(node) && node.arguments.length === 1 && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "join" && ts.isStringLiteralLike(node.arguments[0]) && !node.arguments[0].text && ts.isCallExpression(node.expression.expression)) {
+      const map = node.expression.expression;
+      const each = map.arguments[0];
+      if (map.arguments.length === 1 && ts.isArrowFunction(each) && each.parameters.length <= 2 && !ts.isBlock(each.body)) {
+        const params = each.parameters.map((parameter) => parameter.getText(file));
+        const key = params.length === 2 ? each.parameters[1].name.getText(file) : "index";
+        // (`.map((item) => …)` gains its index.)
+        if (params.length < 2) params.push("index");
+        const body = shown(each.body);
+        const inner = body.startsWith("<>") && body.endsWith("</>") ? body.slice(2, -3) : `{${body}}`;
+        return `${code_(map.expression)}((${params.join(", ")}) => <${KEYED} key={${key}}>${inner}</${KEYED}>)`;
+      }
+      return shown(map);
+    }
+    return code_(node);
+  };
   const [statement] = file.statements;
-  return statement && ts.isExpressionStatement(statement) && ts.isParenthesizedExpression(statement.expression) ? written(statement.expression.expression) : code;
+  return statement && ts.isExpressionStatement(statement) && ts.isParenthesizedExpression(statement.expression) ? shown(statement.expression.expression) : code;
 }
 
 /** A Row whose Columns take their shares when it renders, for shares worked out from a template's data. */
-function sharedRowSource(row: string, typescript: boolean): string {
-  const types = typescript ? `: ComponentProps<typeof ${row}> & { shares: number[] }` : "";
+function sharedRowSource(row: string, typescript: boolean, react: { children: string; clone: string; valid: string; props: string }): string {
+  const types = typescript ? `: ${react.props}<typeof ${row}> & { shares: number[] }` : "";
   const element = typescript ? "<{ style?: object }>" : "";
   return `/** A Row whose Columns take their shares when it renders: they're worked out from the template's data. */
 function SharedRow({ shares, children, ...row }${types}) {
   const total = shares.reduce((sum, share) => sum + share, 0) || 1;
   return (
     <${row} {...row}>
-      {Children.toArray(children).map((column, index) =>
-        isValidElement${element}(column) ? cloneElement(column, { style: { ...column.props.style, width: \`\${((shares[index] ?? 0) / total) * 100}%\` } }) : column
+      {${react.children}.toArray(children).map((column, index) =>
+        ${react.valid}${element}(column) ? ${react.clone}(column, { style: { ...column.props.style, width: \`\${((shares[index] ?? 0) / total) * 100}%\` } }) : column
       )}
     </${row}>
   );
@@ -900,26 +916,46 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const fromValues = (name: "header" | "content" | "footer", list: Row[] | undefined) => {
       for (const one of list ?? []) rows.push(row(name, (one.cells ?? []).map((c) => cell(words(c.text), c.width, c.textAlign))));
     };
+    /** Whether a section shows: today's `enableHeader` and `enableFooter`, as a prop or in `values`. (A header shows, and a footer doesn't, by default.) */
+    const enabled = (name: "enableHeader" | "enableFooter", fallback: boolean): boolean | string => {
+      const given = props.get(name);
+      if (given && !isLiteral(given)) return code(given);
+      const value = given ? (given as { literal: unknown }).literal : (values as Record<string, unknown> | undefined)?.[name];
+      return typeof value === "boolean" ? value : fallback;
+    };
+    /** Rows of a section where it shows; where that's only known when it renders, there. */
+    const whereEnabled = (on: boolean | string, make: () => void) => {
+      if (on === false) return;
+      if (on === true) return make();
+      const from = rows.length;
+      make();
+      const added = rows.splice(from).join("");
+      if (added) rows.push(`{(${on}) && <>${added}</>}`);
+    };
+    const showsHeader = enabled("enableHeader", true);
+    const showsFooter = enabled("enableFooter", false);
     if (values?.table) {
-      fromValues("header", values.table.headers);
+      whereEnabled(showsHeader, () => fromValues("header", values.table!.headers));
       fromValues("content", values.table.rows);
-      fromValues("footer", values.table.footers);
+      whereEnabled(showsFooter, () => fromValues("footer", values.table!.footers));
     }
     const headers = props.get("headers");
-    if (headers) {
+    if (headers) whereEnabled(showsHeader, () => {
       const list = isLiteral(headers) ? (headers.literal as unknown[]) : undefined;
       rows.push(row("header", list ? list.map((h) => cell(words(h))) : [`{(${code(headers)}).map((text${typescript ? ": string" : ""}, index${typescript ? ": number" : ""}) => ${element("TableCell", ["key={index}", styleAttr([["border", lit(border)]])], ["{text}"])})}`]));
-    }
+      if (!list) report.push(`${where(node)}: its headers come from code: they're written as text, where today's draw them as HTML, so markup in them would show (write that with Span and Link)`);
+    });
     const data = props.get("data");
     if (data) {
       const list = isLiteral(data) ? (data.literal as unknown[][]) : undefined;
+      if (!list) report.push(`${where(node)}: its data comes from code: it's written as text, where today's draw it as HTML, so markup in it would show (write that with Span and Link)`);
       if (list) for (const one of list) rows.push(row("content", one.map((c) => cell(words(c)))));
       else {
         const inner = element("TableCell", ["key={column}", styleAttr([["border", lit(border)]])], ["{text}"]);
         rows.push(`{(${code(data)}).map((cells${typescript ? ": string[]" : ""}, line${typescript ? ": number" : ""}) => ${element("TableRow", ["key={line}", section("content")], [`{cells.map((text${typescript ? ": string" : ""}, column${typescript ? ": number" : ""}) => ${inner})}`])})}`);
       }
     }
-    for (const unread of ["columns", "rows", "enableHeader", "enableFooter", "repeatHeaderOnEachPage", "repeatFooterOnEachPage", "headerPadding", "footerPadding", "contentLineHeight", "headerTextAlign", "contentTextAlign", "footerTextAlign", "headerVerticalAlign", "contentVerticalAlign", "footerVerticalAlign"]) props.get(unread);
+    for (const unread of ["columns", "rows", "repeatHeaderOnEachPage", "repeatFooterOnEachPage", "headerPadding", "footerPadding", "contentLineHeight", "headerTextAlign", "contentTextAlign", "footerTextAlign", "headerVerticalAlign", "contentVerticalAlign", "footerVerticalAlign"]) props.get(unread);
     return element("Column", [styleAttr([["padding", n(padding(props))]]), hidden(props)], [element("Table", [styleAttr([["borderCollapse", lit("collapse")], ["cellPadding", cellPadding]])], rows)]);
   }
 
@@ -1334,8 +1370,28 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const sharedRow = used.delete("SharedRow");
   if (sharedRow) used.add("Row");
   const imported = [...used].sort().map((component) => (nameOf(component) === component ? component : `${component} as ${nameOf(component)}`));
-  const reactNames = [...(sharedRow ? ["Children", "cloneElement", "isValidElement", ...(typescript ? ["type ComponentProps"] : [])] : []), ...(edits.some((edit) => edit.text.includes("<Fragment key={")) ? ["Fragment"] : [])];
-  const fromReact = reactNames.length ? `import { ${reactNames.join(", ")} } from "react";\n` : "";
+  // What it needs from React, by the names the template already has for them, or others where it uses those for something else.
+  const reactImports = file.statements.filter((statement): statement is ts.ImportDeclaration => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === "react");
+  const imported_ = new Map<string, string>();
+  for (const statement of reactImports) {
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings && ts.isNamedImports(bindings)) for (const element of bindings.elements) imported_.set((element.propertyName ?? element.name).text, element.name.text);
+  }
+  const added_: string[] = [];
+  const reactName = (name: string, type = false) => {
+    const known = imported_.get(name);
+    if (known) return known;
+    const local = new RegExp(`\\b${name}\\b`).test(source) ? `React${name}` : name;
+    added_.push(`${type ? "type " : ""}${name}${local === name ? "" : ` as ${local}`}`);
+    imported_.set(name, local);
+    return local;
+  };
+  const keyed = edits.some((edit) => edit.text.includes(KEYED)) ? reactName("Fragment") : undefined;
+  if (keyed) for (const edit of edits) edit.text = edit.text.split(KEYED).join(keyed);
+  const rowHelpers = sharedRow
+    ? { children: reactName("Children"), clone: reactName("cloneElement"), valid: reactName("isValidElement"), props: typescript ? reactName("ComponentProps", true) : "" }
+    : undefined;
+  const fromReact = added_.length ? `import { ${added_.join(", ")} } from "react";\n` : "";
   const added = imported.length ? `${fromReact}import { ${imported.join(", ")} } from ${JSON.stringify(to)};` : "";
   imports.forEach(({ statement, kept }, index) => {
     const rest = kept.length ? `import ${kept.join(", ")} from ${JSON.stringify((statement.moduleSpecifier as ts.StringLiteral).text)};` : "";
@@ -1346,7 +1402,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   if (!imports.length && added && first) edits.push({ start: first.getStart(), end: first.getStart(), text: `${added}\n` });
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
-  if (sharedRow) out += `\n${sharedRowSource(nameOf("Row"), typescript)}`;
+  if (rowHelpers) out += `\n${sharedRowSource(nameOf("Row"), typescript, rowHelpers)}`;
   // JavaScript is formatted as JavaScript: TypeScript written into it would be an error here, not in the project.
   return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report };
 }

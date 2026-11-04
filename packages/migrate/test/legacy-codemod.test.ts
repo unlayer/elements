@@ -49,6 +49,24 @@ export const T = () => <Document documentSize="Letter" documentOrientation="land
     expect(report.join("\n")).not.toContain("buttonColors");
   });
 
+  it("leaves a Table's hidden header and footer hidden, and says that cells from code are written as text", async () => {
+    const { code, report } = await migrate(`const hidden = { enableHeader: false, enableFooter: false, table: { headers: [{ cells: [{ text: "Secret head" }] }], rows: [{ cells: [{ text: "Shown" }] }], footers: [{ cells: [{ text: "Secret foot" }] }] } };
+const shown = { enableFooter: true, table: { rows: [{ cells: [{ text: "Body" }] }], footers: [{ cells: [{ text: "Foot" }] }] } };
+export const T = ({ head = true, rows = [["x"]] }: { head?: boolean; rows?: string[][] }) => <Email><Row><Column>
+      <Table values={hidden} />
+      <Table values={shown} />
+      <Table headers={["A"]} enableHeader={head} data={rows} />
+    </Column></Row></Email>;`, "Email, Row, Column, Table");
+    // (The constants stay as they are: what matters is what the template writes.)
+    const written = code.split("export const T")[1];
+    expect(written).not.toContain("Secret");
+    expect(written).toContain("Shown");
+    expect(written).toContain("Foot");
+    expect(written).toMatch(/head\)?\s*&&/);
+    expect(report.join("\n")).toContain("its data comes from code: it's written as text");
+    expect(errors(code)).toEqual([]);
+  });
+
   it("writes a Table from headers and data, as written or from code, and from values it can read", async () => {
     const { code, report } = await migrate(`const invoice = { table: { headers: [{ cells: [{ text: "Item", width: 80 }, { text: "Price", width: 20, textAlign: "right" }] }], rows: [{ cells: [{ text: "Shirt" }, { text: "$48.00", textAlign: "right" }] }] } };
 export const T = ({ rows = [["x"]] }: { rows?: string[][] }) => <Email><Row><Column>
@@ -128,6 +146,28 @@ export const T = ({ chosen }: { chosen: { cells: number[] } }) => <Email><Row la
     expect(code).not.toMatch(/htmlText|\.join\(/);
     expect(report).toEqual([]);
     expect(errors(code)).toEqual([]);
+  });
+
+  it("reads only what's shown as markup: a comparison's string stays a string", async () => {
+    const { code } = await migrate(`export const T = ({ carrier = "AT&T" }: { carrier?: string }) => <Email><Row><Column>
+      <Paragraph html={\`<b>\${carrier === "AT&T" ? "Carrier invoice" : "Other <i>invoice</i>"}</b>\`} />
+    </Column></Row></Email>;`);
+    expect(code).toContain('carrier === "AT&T"');
+    expect(squash(code)).toContain('<Spanstyle={{fontStyle:"italic"}}>invoice</Span>');
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("uses the names a template already has for what it needs from React, and others where it uses those for something else", async () => {
+    const list = (imports: string, more = "") => migrateElements(`import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+${imports}${more}
+export const T = ({ items = ["a"] }: { items?: string[] }) => <Email><Row><Column><Paragraph html={\`\${items.map((item) => \`<b>\${htmlText(item)}</b>\`).join("")}\`} /></Column></Row></Email>;`);
+    const already = await list('import { Fragment } from "react";\n');
+    expect(already.code.match(/\bFragment\b[^\n]*from "react"/g)).toHaveLength(1);
+    expect(errors(already.code)).toEqual([]);
+    const own = await list("", 'const Fragment = "mine"; export const other = Fragment;\n');
+    expect(own.code).toContain("Fragment as ReactFragment");
+    expect(own.code).toContain("<ReactFragment key={index}>");
+    expect(errors(own.code)).toEqual([]);
   });
 
   it("writes lengths in rem, em and following the window as the px the new components take", async () => {
