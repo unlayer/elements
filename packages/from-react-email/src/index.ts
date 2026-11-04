@@ -293,6 +293,17 @@ export async function verifyConversion(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
+  variants.push(...(await valueVariants(Original, Converted, props, async (migrated) => renderToHtml(migrated as never))));
+  const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
+  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
+}
+
+/**
+ * The migrated template against the original with values the preview props may not hold: an element where the migration
+ * tells them apart, and text with markup and `&"` in it.
+ */
+async function valueVariants(Original: Template, Converted: MigratedTemplate, props: Record<string, unknown>, draw: (migrated: unknown) => Promise<string>): Promise<Verification["variants"]> {
+  const variants: Verification["variants"] = [];
   // Values the migration shows as text, or as they render where they hold React elements (`holdsElements(note) ? …`):
   // each given an element (a link), which the preview props may not, so the branch that keeps them is checked too.
   for (const path of elementValued(componentCode(Converted))) {
@@ -307,7 +318,7 @@ export async function verifyConversion(
     }
     try {
       const migrated = callTemplate(Converted, given);
-      const check = compareText(original, rendersNothing(migrated) ? "" : renderToHtml(migrated));
+      const check = compareText(original, rendersNothing(migrated) ? "" : await draw(migrated));
       // An attribute the element was turned into text for (`alt="[object Object]"`) isn't content either side means.
       const meant = (attributes: string[]) => attributes.filter((a) => !a.includes("[object Object]"));
       const missingAttributes = meant(check.missingAttributes), addedAttributes = meant(check.addedAttributes);
@@ -330,20 +341,19 @@ export async function verifyConversion(
     if (original !== undefined) {
       try {
         const migrated = callTemplate(Converted, marked);
-        const check = compareText(original, rendersNothing(migrated) ? "" : renderToHtml(migrated));
+        const check = compareText(original, rendersNothing(migrated) ? "" : await draw(migrated));
         if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
       } catch (error) {
         variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
       }
     }
   }
-  const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
-  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
+  return variants;
 }
 
 /**
  * Check a template written with the new components (/primitives) against the original, as `verifyConversion` checks one
- * written with today's: rendered with the same props, and with each boolean prop flipped. The design JSON is today's
+ * written with today's: rendered with the same props, with each boolean prop flipped, and with the values `valueVariants` tries. The design JSON is today's
  * components' to give, so it isn't part of this check.
  */
 export async function verifyNewComponents(
@@ -375,6 +385,7 @@ export async function verifyNewComponents(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
+  variants.push(...(await valueVariants(Original, Converted, props, async (migrated) => (await renderNewComponents(migrated as never)).html)));
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings: [], variants };
 }
 

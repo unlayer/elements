@@ -122,7 +122,10 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
     const run = (args: string[]) => spawnSync(process.execPath, [path.join(target, "dist/bin.js"), ...args], { cwd: project, encoding: "utf8" });
     const migrated = run(["template.jsx", "--out", "converted", "--design"]);
     expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0);
-    expect(fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8")).toContain("function htmlText(value)");
+    const written = fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8");
+    expect(written).toContain("@unlayer/react-elements/primitives");
+    expect(written).toContain("{name}");
+    expect(written).not.toContain("htmlText");
     const compared = run(["compare", "template.jsx", "converted/template.jsx"]);
     expect(compared.status, compared.stderr + compared.stdout).toBe(0);
     expect(fs.readdirSync(project).filter((name) => name.includes("unlayer-migrate"))).toEqual([]);

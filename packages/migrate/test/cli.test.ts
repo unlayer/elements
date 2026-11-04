@@ -152,6 +152,48 @@ export default function Welcome() { return <Html><Body><Row>{items.map((item) =>
     if (/from "@unlayer\/react-elements";/.test(written(dir))) expect(out.out).toContain("kept in today's components");
   });
 
+  const emails = (body: string, preview: string) => project({
+    "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
+    "emails/welcome.tsx": `import { Html, Body, Text, Link } from "@react-email/components";
+export default function Welcome({ name, note }: { name?: string; note?: string }) { return <Html><Body>${body}</Body></Html>; }
+Welcome.PreviewProps = ${preview};`,
+  });
+
+  it("show a value in text once escaped, not twice, in a run or a link", async () => {
+    // A preview with no `&` in it draws the same either way: the check's own text with markup finds it.
+    const dir = emails('<Text>Hello <strong>{name}</strong> <Link href={note}><em>{name}</em></Link></Text>', '{ name: "Alex", note: "https://example.com/a" }');
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).not.toContain("kept in today's components");
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain("{name}");
+    expect(written(dir)).not.toMatch(/htmlText|escapeHtml/);
+    const compare = io(dir);
+    expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+  });
+
+  it("leave markup a value decides in today's components, where it would show as words", async () => {
+    const dir = emails('<Text>{note ? <em>{note}</em> : null}</Text>', '{ note: "Soon" }');
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("kept in today's components");
+    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
+  });
+
+  it("are checked with text props that hold markup: a template that escapes them twice fails, though its preview draws the same", async () => {
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/primitives");
+    const { Html, Body, Text } = await import("@react-email/components");
+    const React = (await import("react")).default;
+    const Original = ({ name }: { name: string }) => React.createElement(Html, null, React.createElement(Body, null, React.createElement(Text, null, name)));
+    const twice = (name: string) => name.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const escaped = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Paragraph, null, twice(name)))));
+    const once = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Paragraph, null, name))));
+    const props = { name: "Alex" };
+    const failed = (check: Awaited<ReturnType<typeof lib.verifyNewComponents>>) => check.variants.map((variant) => variant.change);
+    expect(failed(await lib.verifyNewComponents(Original as never, escaped as never, { props }))).toEqual(["text props with markup"]);
+    expect(failed(await lib.verifyNewComponents(Original as never, once as never, { props }))).toEqual([]);
+  });
+
   it("leave a template that doesn't pass in them in today's components, and say why", async () => {
     const dir = setup();
     const out = io(dir);

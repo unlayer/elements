@@ -15,6 +15,27 @@ import ts from "typescript";
 import { formatTsx } from "@unlayer/convert-core";
 import { hole, inlineHtml, plain } from "./html";
 
+/**
+ * A value in markup is escaped by the code that writes it there (`htmlText(name)`, `escapeHtml(name)`). A new component
+ * escapes what it's given, so as children or a Link's address it goes in as it is: escaped twice, `&` would show as `&amp;`.
+ */
+function withoutEscaping(code: string): string {
+  const source = `(${code})`;
+  const file = ts.createSourceFile("value.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const written = (node: ts.Node): string => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text) && node.arguments.length === 1) return written(node.arguments[0]);
+    let out = "";
+    let at = node.getStart(file);
+    node.forEachChild((child) => {
+      out += source.slice(at, child.getStart(file)) + written(child);
+      at = child.getEnd();
+    });
+    return out + source.slice(at, node.getEnd());
+  };
+  const [statement] = file.statements;
+  return statement && ts.isExpressionStatement(statement) && ts.isParenthesizedExpression(statement.expression) ? written(statement.expression.expression) : code;
+}
+
 export interface MigrateElementsOptions {
   /** Module specifiers today's components are imported from (default: the package and its /legacy entry). */
   from?: string[];
@@ -482,7 +503,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     if (isLiteral(value) && typeof value.literal === "string") markup = value.literal;
     else if (template && ts.isTemplateExpression(template)) {
       markup = template.head.text + template.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
-      holes = template.templateSpans.map((span) => rewrite(span.expression));
+      holes = template.templateSpans.map((span) => withoutEscaping(rewrite(span.expression)));
     } else {
       report.push(`${where(at)}: its ${drawn} comes from an expression (${code(value)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
       return [`{${code(value)}}`];
