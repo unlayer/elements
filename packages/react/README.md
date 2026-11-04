@@ -144,7 +144,7 @@ npx skills add unlayer/unlayer-skills
 
 This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
 
-The skill teaches the main import's components. For the [new components](#new-components-unlayerreact-elementsprimitives), give your agent [PRIMITIVES.md](./PRIMITIVES.md) from this package: how a template is written and every component, short enough to read whole.
+The skill teaches the main import's components. For the [new components](#new-components-unlayerreact-elementsprimitives), install this repository's skill instead (`npx skills add unlayer/elements`), or give your agent [PRIMITIVES.md](./PRIMITIVES.md) from this package: how a template is written and every component, short enough to read whole. Both skills are named `unlayer-elements`, so a project has one or the other.
 
 Agents can also preview Elements code without installing anything through the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/):
 
