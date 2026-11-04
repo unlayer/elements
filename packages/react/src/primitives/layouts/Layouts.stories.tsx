@@ -4,7 +4,7 @@ import { Button, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Se
 import { args, argTypes, sideBySide, type Args } from "../../compat/SideBySide";
 
 const meta: Meta<Args> = {
-  title: "Primitives/Email and page",
+  title: "Layouts",
   args,
   argTypes,
   parameters: {

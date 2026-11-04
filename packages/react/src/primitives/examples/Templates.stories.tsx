@@ -3,13 +3,13 @@ import { args, argTypes, showing, type Args } from "../../compat/SideBySide";
 import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../testing/examples";
 
 const meta: Meta<Args> = {
-  title: "Primitives/Templates",
+  title: "Templates",
   args,
   argTypes,
   parameters: {
     docs: {
       description: {
-        component: "Whole emails written with the new components. \"Show code\" has each one's template, with `style={{ }}` throughout. Examples has the same emails in today's components.",
+        component: "Whole emails written with the new components. \"Show code\" has each one's template, with `style={{ }}` throughout.",
       },
     },
   },

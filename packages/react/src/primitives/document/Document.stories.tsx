@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { Column, Document, Heading, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "../index";
 
 const meta: Meta = {
-  title: "Primitives/Document",
+  title: "Document",
   parameters: {
     docs: {
       description: {
@@ -44,7 +44,7 @@ const line = (label: string, amount: string) => (
 
 /** An invoice and its terms: two Letter pages, a header and a numbered footer on each. */
 export const Invoice = printed(
-  <Document size="Letter" margin={[56, 64]} title="Invoice 2705" style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 12, lineHeight: 1.45, color: "#111827" }}>
+  <Document size="Letter" margin={[56, 64]} title="Invoice 2705" style={{ backgroundColor: "#ffffff", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 12, lineHeight: 1.45, color: "#111827" }}>
     <PageHeader style={{ padding: [0, 0, 20, 0] }}>
       <Row style={{ alignItems: "center" }}>
         <Column>
@@ -80,5 +80,100 @@ export const Invoice = printed(
         Page <PageNumber /> of <PageNumber total />
       </Text>
     </PageFooter>
+  </Document>
+);
+
+const TYPE = { backgroundColor: "#ffffff", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 13, lineHeight: 1.5, color: "#111827", gap: 8 };
+
+/** `PageBreak` ends a page where you say: what follows starts the next one. */
+export const PageBreaks = printed(
+  <Document size="A5" margin={40} title="A short guide" style={TYPE}>
+    <Heading level={1} style={{ fontSize: 22 }}>
+      Part one
+    </Heading>
+    <Paragraph>This part ends at the PageBreak under this line, however much room is left on its page.</Paragraph>
+    <PageBreak />
+    <Heading level={1} style={{ fontSize: 22 }}>
+      Part two
+    </Heading>
+    <Paragraph>This part starts on a page of its own.</Paragraph>
+    <PageBreak />
+    <Heading level={1} style={{ fontSize: 22 }}>
+      Part three
+    </Heading>
+    <Paragraph>And so does this one.</Paragraph>
+  </Document>
+);
+
+/** A `PageHeader` and a `PageFooter` are drawn on every page, inside its margins, each with a box of its own. */
+export const HeadersAndFooters = printed(
+  <Document size="A5" margin={32} title="Quarterly report" style={TYPE}>
+    <PageHeader style={{ padding: [0, 0, 8, 0], border: { bottom: "2px solid #0f766e" } }}>
+      <Text style={{ fontWeight: 700, color: "#0f766e" }}>Quarterly report</Text>
+    </PageHeader>
+    <Heading level={1} style={{ fontSize: 22 }}>
+      Summary
+    </Heading>
+    <Paragraph>Orders grew in every region this quarter, and returns held steady.</Paragraph>
+    <PageBreak />
+    <Heading level={1} style={{ fontSize: 22 }}>
+      Next quarter
+    </Heading>
+    <Paragraph>The header and the footer come back on this page by themselves.</Paragraph>
+    <PageFooter style={{ padding: [8, 12], backgroundColor: "#f5f7fa" }}>
+      <Text style={{ fontSize: 10, color: "#616e7c", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
+    </PageFooter>
+  </Document>
+);
+
+/** `PageNumber` is the number of the page it's on, and with `total` how many there are: in a header, a footer, or any text. */
+export const PageNumbers = printed(
+  <Document size="A5" margin={32} title="Page numbers" style={TYPE}>
+    <PageHeader>
+      <Text style={{ fontSize: 10, color: "#616e7c", textAlign: "right" }}>
+        <PageNumber /> / <PageNumber total />
+      </Text>
+    </PageHeader>
+    <Paragraph>
+      This document has <PageNumber total /> pages, and this is page <PageNumber />.
+    </Paragraph>
+    <PageBreak />
+    <Paragraph>
+      This is page <PageNumber />, its last.
+    </Paragraph>
+    <PageFooter>
+      <Text style={{ fontSize: 10, color: "#616e7c", textAlign: "center" }}>
+        Page <PageNumber /> of <PageNumber total />
+      </Text>
+    </PageFooter>
+  </Document>
+);
+
+/** `Document.Page` writes each page by itself, with its own background and spacing. */
+export const PagesOneByOne = printed(
+  <Document size="A5" margin={40} title="A cover and a page" style={TYPE}>
+    <Document.Page style={{ backgroundColor: "#0f172a", color: "#ffffff", gap: 12 }}>
+      <Heading level={1} style={{ fontSize: 34 }}>
+        The cover
+      </Heading>
+      <Paragraph style={{ color: "#cbd5e1" }}>A page with a background out to its edges.</Paragraph>
+    </Document.Page>
+    <Document.Page style={{ gap: 24 }}>
+      <Heading level={2} style={{ fontSize: 20 }}>
+        The first page
+      </Heading>
+      <Paragraph>A page of its own, with more space between what it holds.</Paragraph>
+    </Document.Page>
+  </Document>
+);
+
+/** `size` and `orientation` are the paper's: A5 turned on its side, for a certificate. */
+export const SizeAndOrientation = printed(
+  <Document size="A5" orientation="landscape" margin={48} title="Certificate" style={{ ...TYPE, backgroundColor: "#fffbeb", textAlign: "center", gap: 12 }}>
+    <Text style={{ fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: "#92400e" }}>Certificate of completion</Text>
+    <Heading level={1} style={{ fontSize: 34, fontFamily: "Georgia, serif" }}>
+      Your name here
+    </Heading>
+    <Paragraph>finished all twelve lessons of the course.</Paragraph>
   </Document>
 );

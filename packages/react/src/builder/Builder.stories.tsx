@@ -7,7 +7,7 @@ import { HIDDEN } from "./manifest";
 import type { Design } from "./write";
 
 const meta: Meta<Args> = {
-  title: "Primitives/Builder",
+  title: "Builder",
   args,
   argTypes,
   parameters: {
