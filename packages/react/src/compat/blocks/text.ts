@@ -19,9 +19,6 @@ const PERCENT = /^\s*[\d.]+%\s*$/;
 /** A heading's font size in the browser's own styles, in em, by its level. */
 const HEADING_EMS = [2, 1.5, 1.17, 1, 0.83, 0.67];
 
-/** A block's place, with the id a render numbers it by. */
-type TextPlace = Place & { id?: string };
-
 const said = (value: unknown) => value !== undefined && value !== "";
 
 /** What a value that can't be read is, in words. */
@@ -134,7 +131,7 @@ const declared = (property: string, value: unknown) => (value !== undefined && v
  * (the browser reads what it reads of them), for its head CSS and the user's to select. Its stylesheet says what its
  * phone settings and links are, as legacy's does.
  */
-function written(type: "Paragraph" | "Heading", values: Values, html: string, level: number, place: TextPlace): TreeNode {
+function written(type: "Paragraph" | "Heading", values: Values, html: string, level: number, place: Place): TreeNode {
   const id = givenId(values) ?? place.id ?? "";
   const font = fontOfValues(values.fontFamily);
   // (A paragraph's % is a multiple, which a run in another size draws at its own: legacy writes it so.)
@@ -159,7 +156,7 @@ function written(type: "Paragraph" | "Heading", values: Values, html: string, le
   };
 }
 
-function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: TextPlace): TreeNode {
+function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Place): TreeNode {
   const { values, phone: phoneValues } = deviceValues(block.values, DEVICE_KEYS, place.mode);
   const template = place.config.textDirection ?? place.body.textDirection ?? "ltr";
   // Legacy writes the template's direction, whatever a block says (its text is laid out so).

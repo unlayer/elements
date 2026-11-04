@@ -58,14 +58,16 @@ export interface Place {
    * doesn't: a text's Lexical textJson, whose formatting the design's plain `text` leaves out.
    */
   source?: Values;
+  /** The block's id, as a render numbers it. */
+  id?: string;
   /** Says what's drawn otherwise than the block asks: a diagnostic of the render. */
   note(message: string, severity?: "warning" | "info"): void;
-  /** Text with its email service's tags kept out of the writers' escaping (see render.ts, which puts them back). */
-  keep(text: string): string;
+  /** Text with its email service's tags (or what `pattern` finds) kept out of the writers' escaping (render.ts puts them back). */
+  keep(text: string, pattern?: RegExp): string;
 }
 
 /** Where a block is, as the design says it. */
-export type FramePlace = Omit<Place, "source" | "note" | "keep">;
+export type FramePlace = Omit<Place, "source" | "id" | "note" | "keep">;
 
 /** What a template holds beside its design, which legacy draws. */
 export interface OutsideTheDesign {

@@ -1,10 +1,11 @@
 /**
  * A template of today's components as the new engine's tree (RFC 0001 step 7): its design lowered (lower.ts), each
- * block in the new components where its tool has moved over and it can be drawn as legacy draws it (blocks/), else a
- * Raw node; a tool that always draws (DRAWN) says what it can't read instead, and may write HTML no node holds as a Raw node of its own. A Raw node of a custom tool, an Html block or a user's own markup holds that HTML in its box (contentBox),
- * with what its head needs from the blocks themselves: nothing of the closed exporters runs. Any other Raw node holds
- * the HTML its exporter writes and the legacy stylesheet; only those blocks are written by today's exporters. What the
- * template holds beside its design (markup among its rows, text in a row or a column) is in the tree where legacy draws it.
+ * block in the new components, by its tool (blocks/). What the new engine can't read of a block is said instead, and a
+ * tool may write HTML no node holds as a Raw node of its own. A Raw node of a custom tool, an Html block or a user's own
+ * markup holds that HTML in its box (contentBox), with what its head needs from the blocks themselves: nothing of the
+ * closed exporters runs. Any other Raw node holds the HTML its exporter writes and the legacy stylesheet; only those
+ * blocks are written by today's exporters. What the template holds beside its design (markup among its rows, text in a
+ * row or a column) is in the tree where legacy draws it.
  */
 import React from "react";
 import { checkDocument, type Diagnostic } from "@unlayer-internal/elements-core";
@@ -24,9 +25,9 @@ import Body from "../components/Body";
 import Document from "../components/Document";
 import Email from "../components/Email";
 import Page from "../components/Page";
-import { BLOCKS, DRAWN } from "./blocks";
+import { BLOCKS } from "./blocks";
 import { ownMarkupCss } from "./quirks";
-import { deviceValues, keepServiceTags, sides } from "./values";
+import { keepServiceTags } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
 /** This copy's root components. */
@@ -89,25 +90,23 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
       const note = (message: string, severity: "warning" | "info" = "warning") => {
         if (!ofBlocks.some((d) => d.path === path && d.message === message)) ofBlocks.push({ code: "compat/block", severity, message, path });
       };
-      const drawn = DRAWN.has(block.type);
-      const shown = drawn ? withoutPhone(block, mode) : onDevices(withoutPhone(block, mode), mode);
-      const lowered = BLOCKS[block.type]?.(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern?: RegExp) => keepServiceTags(text, tags, pattern) });
+      // A custom tool, an Html block or a user's own markup: its own HTML in its box, written below.
+      const lower = BLOCKS[block.type];
+      if (!lower) {
+        const kept: TreeNode = { type: "Raw", props: { html: "" } };
+        raw.set(n, kept);
+        return kept;
+      }
+      const lowered = lower(withoutPhone(block, mode), { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern) });
+      if (lowered === null) return null;
       // The block's own HTML in its box, as its tool writes it (it says what its head needs).
-      if (lowered?.type === "Raw") {
+      if (lowered.type === "Raw") {
         raw.set(n, lowered);
         html.set(n, String(lowered.props?.html ?? ""));
         return lowered;
       }
-      const node = lowered ? withGivenId(lowered, givenId(block.values ?? {})) : lowered;
-      if (node && drawn) {
-        const kept = drawable(node, mode, note);
-        return kept && ownPhone(kept, mode);
-      }
-      if (node === null) return node;
-      if (node && valid(node, mode)) return ownPhone(withPhonePadding(stackedCap(node), shown), mode);
-      const kept: TreeNode = { type: "Raw", props: { html: "" } };
-      raw.set(n, kept);
-      return kept;
+      const drawn = drawable(withGivenId(lowered, givenId(block.values ?? {})), mode, note);
+      return drawn && ownPhone(drawn, mode);
     },
   });
   const tree = { root: lowered };
@@ -159,11 +158,6 @@ function documentOf(node: TreeNode, mode: Mode): { root: TreeNode } {
   return { root: { type: mode === "email" ? "Email" : "Page", children: [{ type: "Column", children: [written(node)] }] } };
 }
 
-/** Whether a block's node is one the new engine takes (its values of the kinds its component's say): else it keeps its legacy HTML. */
-function valid(node: TreeNode, mode: Mode): boolean {
-  return !checkDocument(documentOf(node, mode)).diagnostics.some((d) => d.severity === "error");
-}
-
 /**
  * A block's node without what the new engine refuses of it (a color it doesn't read), each value said: its component's
  * default is drawn instead. A link it refuses (one that runs a script) is a link to nothing. Null where what it refuses
@@ -205,33 +199,6 @@ function removeAt(document: { root: TreeNode }, path: string): boolean {
  */
 const ownPhone = (node: TreeNode, mode: Mode): TreeNode => (mode === "email" && hasPhone(node) ? { ...node, compat: { ...node.compat, ownPhone: true } } : node);
 const hasPhone = (node: TreeNode): boolean => !!node.mobile || (node.children ?? []).some((child) => typeof child !== "string" && hasPhone(child));
-
-/** Each tool's keys legacy's stylesheet reads for a device: its padding and these. Tools in DRAWN read their own. */
-const DEVICE_KEYS: Record<string, string[]> = { image: ["src", "textAlign"], menu: ["padding", "fontSize"] };
-
-/** A tool not yet in DRAWN: the block as it's drawn on desktop, with the phone settings that come of that. */
-function onDevices(block: DesignBlock, mode: Mode): DesignBlock {
-  const override = block.values?._override;
-  if (!override) return block;
-  const { values, phone } = deviceValues(block.values, ["containerPadding", ...(DEVICE_KEYS[block.type] ?? [])], mode);
-  return { ...block, values: { ...values, _override: { ...override, mobile: { ...override.mobile, ...phone } } } };
-}
-
-/** A tool not yet in DRAWN: its block's padding on phones, where it says none (its box is a Column). */
-function withPhonePadding(node: TreeNode, block: DesignBlock): TreeNode {
-  const padding = sides(block.values?._override?.mobile?.containerPadding);
-  return padding && node.type === "Column" && !node.mobile?.padding ? { ...node, mobile: { ...node.mobile, padding } } : node;
-}
-
-/** A tool not yet in DRAWN: an Image's maximum on phones that has no width beside it is the one for where its row stacks. */
-function stackedCap(node: TreeNode): TreeNode {
-  if (node.type === "Image" && node.mobile?.maxWidth !== undefined && node.mobile.width === undefined) {
-    const { maxWidth: stackedMaxWidth, ...mobile } = node.mobile;
-    const { mobile: _, ...rest } = node;
-    return { ...rest, ...(Object.keys(mobile).length ? { mobile } : {}), compat: { ...node.compat, stackedMaxWidth } };
-  }
-  return node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : stackedCap(child))) } : node;
-}
 
 /** A block in a printed document, without its phone settings: legacy's document has none. */
 function withoutPhone(block: DesignBlock, mode: Mode): DesignBlock {
