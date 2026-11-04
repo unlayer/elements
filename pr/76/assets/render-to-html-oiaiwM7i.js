@@ -1,2 +1,0 @@
-import{y as u,z as i}from"./render-nAMjbzZ2.js";function c(n,o,e,s){return u(()=>{try{return s(i(n,o,e))}catch(r){const t=r instanceof Error?r.message:String(r);throw t.startsWith("[Unlayer]")?r:Object.assign(new Error(`[Unlayer] ${e} failed: ${t}
-Tip: Ensure your tree uses Body > Row > Column > Item structure.`),{cause:r})}})}function g(n,o){return c(n,o,"renderToHtmlParts",({head:e,body:s,css:r,js:t,tags:a})=>({head:e,body:s,css:r,js:t,tags:a}))}export{g as r};
