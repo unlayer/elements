@@ -5,9 +5,10 @@
  * around a block and with the block's text styles, as a Raw node.
  */
 import type { Json } from "@unlayer-internal/elements-core";
-import { cssValueSafe, generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
+import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { collectDeviceStyles, cssIdent, deviceStylesCss } from "../../utils/device-overrides";
 import { contentBox, givenId, type DesignBlock, type Place, type TreeNode } from "../lower";
+import { declared, linkHoverOf, linkStyleOf, styled } from "../links";
 import { parseRuns } from "../runs";
 import { fontOfValues, spaceBeforeTag, textTransformOfText } from "../quirks";
 import { deviceValues, drawnWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
@@ -98,41 +99,6 @@ export const textHtml = (values: Values, place: Place): string => {
   const html = typeof textJson === "string" ? generateHtmlFromTextJson(textJson) : values.text ? String(values.text) : "";
   return spaceBeforeTag(place.config.toSafeHtml ? place.config.toSafeHtml(html) : html);
 };
-
-/**
- * The style legacy gives a block's links where it doesn't take the body's: their color, and no underline where it
- * says none. Null on a page where its hover style is another: for what has no place for that (a text tool read back).
- */
-export function linkStyleOf(values: Values, mode: Place["mode"]): Record<string, Json> | undefined | null {
-  const style = values.linkStyle;
-  if (!style || style.inherit !== false) return undefined;
-  const color = typeof style.linkColor === "string" && style.linkColor ? style.linkColor : undefined;
-  const underline = style.linkUnderline !== false;
-  if (mode === "web" && (style.linkHoverColor !== style.linkColor || (style.linkHoverUnderline !== false) !== underline)) return null;
-  return { ...(color ? { color } : {}), ...(underline ? {} : { textDecoration: "none" }) };
-}
-
-/** What a block's links change to under the pointer: what differs from their style (an email's stylesheet has none). */
-function linkHoverOf(values: Values, mode: Place["mode"]): Record<string, Json> {
-  const style = values.linkStyle;
-  if (!style || style.inherit !== false || mode === "email") return {};
-  const line = style.linkHoverUnderline !== false;
-  return { ...(typeof style.linkHoverColor === "string" && style.linkHoverColor && style.linkHoverColor !== style.linkColor ? { color: style.linkHoverColor } : {}), ...(line !== (style.linkUnderline !== false) ? { textDecoration: line ? "underline" : "none" } : {}) };
-}
-
-/** The links among runs in the block's link style (in what a link doesn't set itself), and under the pointer. */
-export function styled(runs: Array<TreeNode | string>, style: Record<string, Json> | undefined, hover: Record<string, Json> = {}): Array<TreeNode | string> {
-  if (!Object.keys(style ?? {}).length && !Object.keys(hover).length) return runs;
-  return runs.map((run) => {
-    if (typeof run === "string") return run;
-    const children = run.children && styled(run.children, style, hover);
-    if (run.type === "Link") return { ...run, style: { ...style, ...run.style }, ...(Object.keys(hover).length ? { hover } : {}), ...(children ? { children } : {}) };
-    return children ? { ...run, children } : run;
-  });
-}
-
-/** CSS for a declaration's value: what can't end its rule. */
-const declared = (property: string, value: unknown) => (value !== undefined && value !== "" && cssValueSafe(String(value)) ? `${property}: ${value};` : "");
 
 /**
  * A block whose HTML no run holds: the HTML as it is, in legacy's box and tag with its text styles as they're written

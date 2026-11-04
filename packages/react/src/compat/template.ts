@@ -22,6 +22,7 @@ import Body from "../components/Body";
 import Column from "../components/Column";
 import Row from "../components/Row";
 import { BLOCKS } from "./blocks";
+import { bodyLinkCss } from "./links";
 import { ownMarkupCss } from "./quirks";
 import { keepHtmlTags, keepServiceTags, withoutMarks } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
@@ -210,7 +211,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     dropped: (id, key, value, on) => diagnostics.push({ code: "compat/block", severity: "warning", message: `A block's ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, path: id }),
   }));
   // (A printed document's own markup CSS is on its root.)
-  const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
+  const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), bodyLinkCss(body, mode), head.css].filter(Boolean).join("\n");
   let drawn = false;
   for (const [n, node] of raw) {
     const written = withoutMarks(html.get(n) ?? "");
@@ -288,7 +289,7 @@ export function takeOut(tree: { root: TreeNode }, path: string): boolean {
 /**
  * A block in an email: its phone settings and hiding apply at legacy's phone width (render.ts's hideBelow), while its
  * row's columns stack at the email's width. What belongs to that stacking is on the row and its columns, which aren't
- * marked, or an Image's `compat.stackedMaxWidth`.
+ * marked, or an Image's `compat.fillsOnPhones`.
  */
 const ownPhone = (node: TreeNode, mode: Mode): TreeNode => (mode === "email" && hasPhone(node) ? { ...node, compat: { ...node.compat, ownPhone: true } } : node);
 const hasPhone = (node: TreeNode): boolean => !!node.mobile || (node.children ?? []).some((child) => typeof child !== "string" && hasPhone(child));

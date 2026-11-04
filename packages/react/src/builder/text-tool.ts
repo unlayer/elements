@@ -5,7 +5,7 @@
  * Html block of its markup.
  */
 import { Heading as HeadingDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
-import { linkStyleOf, styled } from "../compat/blocks/text";
+import { linkStyleOf, styled } from "../compat/links";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, fontWeight, font, serviceTag, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden } from "./hide";

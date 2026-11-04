@@ -301,11 +301,18 @@ describe("lowerDesign()", () => {
       expect(tree(<Email contentWidth="100px"><Row>{cell}</Row></Email>).props?.width).toBe(320);
     });
 
-    it("draws the body's own link style as legacy does: not at all", () => {
+    it("gives every link that doesn't set its own the body's link style, as the editor's stylesheet does", () => {
       for (const Root of [Email, Page, Document]) {
-        const template = (props: Record<string, unknown>) => <Root {...props}><Row><Column><Paragraph html='<a href="https://example.com">a link</a>' /><Html html='<a href="https://example.com">a link</a>' /></Column></Row></Root>;
-        expect(renderToHtml(template({ linkStyle: { linkColor: "#ff0000", linkHoverColor: "#00ff00", linkUnderline: false } }))).toBe(renderToHtml(template({})));
+        const template = (props: Record<string, unknown>) => <Root {...props}><Row><Column><Paragraph html='<a href="https://example.com">a link</a>' /><Paragraph html='<a href="https://example.com">its own</a>' linkStyle={{ inherit: false, linkColor: "#0000ff", linkHoverColor: "#0000ff", linkUnderline: true, linkHoverUnderline: true } as never} /><Html html='<a href="https://example.com">in markup</a>' /></Column></Row></Root>;
+        const html = renderToHtml(template({ linkStyle: { linkColor: "#ff0000", linkHoverColor: "#ff0000", linkUnderline: false, linkHoverUnderline: false } }));
+        expect(html).toMatch(/<a [^>]*style="color:#f00;text-decoration:none"[^>]*>a link</);
+        expect(html).toMatch(/<a [^>]*style="color:#00f[^"]*"[^>]*>its own</);
+        expect(html).toContain("a { color: #ff0000; text-decoration: none; }");
+        // The body's default is a link's own: nothing to write.
+        expect(renderToHtml(template({ linkStyle: { linkColor: "#0000ee", linkHoverColor: "#0000ee", linkUnderline: true, linkHoverUnderline: true } }))).toBe(renderToHtml(template({})));
       }
+      const hovered = renderToHtml(<Page linkStyle={{ linkColor: "#ff0000", linkHoverColor: "#00ff00" } as never}><Row><Column><Paragraph html='<a href="https://example.com">a link</a>' /></Column></Row></Page>);
+      expect(hovered).toMatch(/:hover\{color:#0f0!important\}/);
     });
 
     it("draws the body's text size and weight on a page only, as legacy's stylesheet has them", () => {

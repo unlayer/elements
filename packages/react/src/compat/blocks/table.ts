@@ -8,7 +8,7 @@ import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { linesInHeaderAndFooter, spaceBeforeTag } from "../quirks";
 import { parseRuns } from "../runs";
-import { styled } from "./text";
+import { styled } from "../links";
 import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 
 const VERTICAL = new Set(["top", "middle", "bottom"]);
