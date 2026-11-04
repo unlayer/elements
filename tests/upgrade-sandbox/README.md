@@ -16,8 +16,8 @@ For each template, both sides must give the same `renderToJson()` design and the
 text. `renderToHtml()` is rendered in each mode the template is meant for; its bytes are reported but not
 compared (the new engine writes other markup). Each page is loaded in headless Chromium at 375 (a phone), 600
 and 800 px wide, with the network blocked and every image a local placeholder, and compared word by word:
-where each word sits, its size and text style, the images, where links go, the page's size (1px of give), and
-what's painted besides text (8 pixels of give).
+where each word sits, its size and text style, the images, where links go and which words and images each one
+covers, the page's size (1px of give), and what's painted besides text (8 pixels of give).
 
 It's kept out of the pnpm workspace (`pnpm-workspace.yaml` lists `packages/*` and `examples/*`), because it
 installs the published release from npm with npm.
@@ -46,7 +46,8 @@ the harness itself fails.
 
 `node selftest.mjs` (`npm run selftest`) shows the harness catches what it should: it breaks a copy of NEW
 four ways (a word gone, a link changed, a text color, a button's color), runs the corpus against it, and
-passes only if the report names exactly those.
+passes only if the report names exactly those. `npm test` checks the comparison itself without a browser: what
+it calls a difference, and what `expected.json` may excuse.
 
 `node corpus/sync.mjs` (`npm run sync`) refreshes `corpus/` from the repository's stories and demo templates.
 A template importing something 0.2.1 doesn't export can't be rendered by both, so it's skipped and listed in
@@ -74,17 +75,22 @@ The run writes `report.md` and `report.json` here (gitignored).
 ## expected.json
 
 The differences a release means to make: fixes, where what NEW draws is what the template asked for and OLD's
-wasn't. Each is declared for a template, a mode and a width, with a reason:
+wasn't. Each is declared for a template, a mode and a width, with a reason that says why and which kinds of
+difference the fix makes:
 
 ```json
 {
-  "reasons": { "long-words": "a word too long for its column … wraps inside it" },
+  "reasons": {
+    "long-words": { "why": "a word too long for its column … wraps inside it", "accepts": ["position", "page height", "paint"] }
+  },
   "expected": { "story-Column-StatsBar": { "web": { "600": "long-words" } } }
 }
 ```
 
-A declared difference is still listed in the report, as expected, and doesn't fail the run; one anywhere else
-does. Declare a difference only once it's accepted as a fix (and pinned by a test of its own), never to make a
+A kind is `text`, `style`, `position`, `image`, `link`, `page` or `paint`, or a kind and what of it: `image box`
+(an image moved or resized, not one gone, new or with another alt), `page height`, `page scroll`. A
+declared difference is still listed in the report, as expected, and doesn't fail the run. Any other difference
+fails it, at a declared width too: a fix that moves words doesn't excuse a word gone. Declare a difference only once it's accepted as a fix (and pinned by a test of its own), never to make a
 run pass.
 
 ## Why it isn't in CI

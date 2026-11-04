@@ -153,7 +153,11 @@ function collect() {
     if (linkIndex.has(a)) continue;
     if ([...a.getClientRects()].some((r) => shown(r, a))) linkOf(a);
   }
-  const visibleLinks = [...linkIndex.entries()].sort((x, y) => (x[0].compareDocumentPosition(y[0]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).map(([, i]) => links[i]);
+  // Links in the page's order, and each word's and image's link as its place in that order.
+  const order = [...linkIndex.entries()].sort((x, y) => (x[0].compareDocumentPosition(y[0]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+  const place = new Map(order.map(([, i], k) => [i, k]));
+  for (const item of [...words, ...images]) item.link = place.get(item.link) ?? -1;
+  const visibleLinks = order.map(([, i]) => links[i]);
   const root = document.documentElement;
   return {
     words,
@@ -248,6 +252,11 @@ async function pixels([sources, give, compose]) {
 const near = (a, b, tol) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const fmtBox = (b) => `(${b.map((v) => Math.round(v)).join(",")})`;
 const quote = (s, n = 60) => JSON.stringify(s.length > n ? `${s.slice(0, n)}…` : s);
+/** Where a word or an image goes when clicked: its link's address and target, or no link. */
+const destination = (page, i) => {
+  const l = i >= 0 ? page.links[i] : null;
+  return l ? `${quote(l.href ?? "", 70)}${l.target ? ` [${l.target}]` : ""}` : "no link";
+};
 
 /** What differs between OLD's page and NEW's, as lines a reader of the report can act on. */
 export function differences(a, b, tol) {
@@ -261,12 +270,19 @@ export function differences(a, b, tol) {
     const what = removed && added ? `${quote(removed)} became ${quote(added)}` : removed ? `${quote(removed)} is gone` : `${quote(added)} is new`;
     out.push({ kind: "text", line: `text: ${what}${before ? ` (after ${quote(before, 40)})` : " (at the start)"}` });
   }
-  // 2. Each word's style, and where it is.
+  // 2. Each word's style, where it is, and where it goes when clicked.
   const styleDiffs = new Map();
   const moved = [];
+  const goes = new Map();
   for (const [i, j] of words.pairs) {
     const x = a.words[i];
     const y = b.words[j];
+    const [was, now] = [destination(a, x.link), destination(b, y.link)];
+    if (was !== now) {
+      const entry = goes.get(`${now} in place of ${was}`) ?? { count: 0, first: x.t };
+      entry.count++;
+      goes.set(`${now} in place of ${was}`, entry);
+    }
     for (const k of Object.keys(x.style)) {
       if (x.style[k] === y.style[k]) continue;
       const key = `${k}: ${x.style[k]} → ${y.style[k]}`;
@@ -276,6 +292,8 @@ export function differences(a, b, tol) {
     }
     if (!near(x.box, y.box, tol)) moved.push([x, y]);
   }
+  // A link that covers other words sends those words elsewhere, with the same links in the same order.
+  for (const [key, { count, first }] of goes) out.push({ kind: "link", what: "words", line: `link: ${count} word(s) go to ${key}, first ${quote(first, 30)}` });
   for (const [key, { count, first }] of styleDiffs) out.push({ kind: "style", line: `style: ${key} on ${count} word(s), first ${quote(first, 30)}` });
   if (moved.length) {
     const worst = moved.reduce((w, m) => (Math.max(...m[0].box.map((v, i) => Math.abs(v - m[1].box[i]))) > Math.max(...w[0].box.map((v, i) => Math.abs(v - w[1].box[i]))) ? m : w));
@@ -287,15 +305,17 @@ export function differences(a, b, tol) {
   // 3. Images: which, how big, where.
   const images = align(a.images, b.images, (im) => im.src);
   for (const h of images.hunks) {
-    for (const im of a.images.slice(h.a[0], h.a[1])) out.push({ kind: "image", line: `image: ${im.kind} ${quote(im.src ?? "", 70)} ${fmtBox(im.box)} is gone` });
-    for (const im of b.images.slice(h.b[0], h.b[1])) out.push({ kind: "image", line: `image: ${im.kind} ${quote(im.src ?? "", 70)} ${fmtBox(im.box)} is new` });
+    for (const im of a.images.slice(h.a[0], h.a[1])) out.push({ kind: "image", what: "gone", line: `image: ${im.kind} ${quote(im.src ?? "", 70)} ${fmtBox(im.box)} is gone` });
+    for (const im of b.images.slice(h.b[0], h.b[1])) out.push({ kind: "image", what: "new", line: `image: ${im.kind} ${quote(im.src ?? "", 70)} ${fmtBox(im.box)} is new` });
   }
   for (const [i, j] of images.pairs) {
     const x = a.images[i];
     const y = b.images[j];
-    if (x.kind !== y.kind) out.push({ kind: "image", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: drawn as ${x.kind} → ${y.kind}` });
-    if (!near(x.box, y.box, tol)) out.push({ kind: "image", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: ${fmtBox(x.box)} → ${fmtBox(y.box)}` });
-    if (x.alt !== y.alt) out.push({ kind: "image", line: `image ${i + 1} alt: ${quote(String(x.alt))} → ${quote(String(y.alt))}` });
+    if (x.kind !== y.kind) out.push({ kind: "image", what: "drawn", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: drawn as ${x.kind} → ${y.kind}` });
+    if (!near(x.box, y.box, tol)) out.push({ kind: "image", what: "box", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: ${fmtBox(x.box)} → ${fmtBox(y.box)}` });
+    if (x.alt !== y.alt) out.push({ kind: "image", what: "alt", line: `image ${i + 1} alt: ${quote(String(x.alt))} → ${quote(String(y.alt))}` });
+    const [was, now] = [destination(a, x.link), destination(b, y.link)];
+    if (was !== now) out.push({ kind: "link", what: "images", line: `link: image ${i + 1} ${quote(x.src ?? "", 50)} goes to ${now} in place of ${was}` });
   }
   // 4. Links: where they go and how they open.
   const links = align(a.links, b.links, (l) => `${l.href} ${l.target}`);
@@ -306,9 +326,9 @@ export function differences(a, b, tol) {
     out.push({ kind: "link", line: `link: ${was.join(", ") || "(none)"} → ${now.join(", ") || "(none)"}` });
   }
   // 5. The page: its height, and any horizontal scroll.
-  if (Math.abs(a.height - b.height) > tol) out.push({ kind: "page", line: `page height: ${a.height}px → ${b.height}px` });
+  if (Math.abs(a.height - b.height) > tol) out.push({ kind: "page", what: "height", line: `page height: ${a.height}px → ${b.height}px` });
   const hs = (p) => Math.max(0, p.scrollWidth - p.clientWidth);
-  if (Math.abs(hs(a) - hs(b)) > tol) out.push({ kind: "page", line: `horizontal scroll: ${hs(a)}px → ${hs(b)}px (page ${a.scrollWidth}px → ${b.scrollWidth}px wide in a ${a.clientWidth}px window)` });
+  if (Math.abs(hs(a) - hs(b)) > tol) out.push({ kind: "page", what: "scroll", line: `horizontal scroll: ${hs(a)}px → ${hs(b)}px (page ${a.scrollWidth}px → ${b.scrollWidth}px wide in a ${a.clientWidth}px window)` });
   return out;
 }
 

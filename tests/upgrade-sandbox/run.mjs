@@ -23,10 +23,12 @@
 // side-by-side screenshot per width. Exits 1 if anything differs beyond tolerance that isn't declared expected, 2 if
 // the harness fails.
 //
-// expected.json declares differences a release means to make, keyed by template, mode and width, each with a reason:
-//   { "reasons": { "<name>": "<why>" }, "expected": { "<template>": { "<mode>": { "<width>": "<name or why>" } } } }
-// A difference at a declared template, mode and width is reported as "expected (reason)" and still listed in
-// report.md; one the run compared that no longer differs is flagged stale, to be removed from the file.
+// expected.json declares differences a release means to make, keyed by template, mode and width, each with a reason
+// that says why and which kinds of difference it accepts (harness/expected.mjs):
+//   { "reasons": { "<name>": { "why": "<why>", "accepts": ["position", "image box", …] } },
+//     "expected": { "<template>": { "<mode>": { "<width>": "<name>" } } } }
+// A width whose differences are all of the kinds its reason accepts is reported as "expected (why)" and still listed
+// in report.md; any other difference there is a difference. A declaration that matches nothing is flagged stale.
 // The corpus is in corpus/ (refresh it from the repository with `node corpus/sync.mjs`).
 import fs from "node:fs";
 import os from "node:os";
@@ -37,6 +39,7 @@ import { SANDBOX, REPO, oldPackage, newPackage, bundle } from "./harness/package
 import { openBrowser } from "./harness/browser.mjs";
 import { jsonDiff, textDiff } from "./harness/diff.mjs";
 import { writeReports } from "./harness/report.mjs";
+import { applyExpected } from "./harness/expected.mjs";
 
 const argv = process.argv.slice(2);
 if (argv.includes("--help") || argv.includes("-h")) {
@@ -220,7 +223,7 @@ try {
     }
   }
 
-  const expectations = applyExpected(templates, options);
+  const expectations = applyExpected(templates, options.expected);
 
   const durationMs = Date.now() - started;
   const skipped = [...JSON.parse(fs.readFileSync(path.join(SANDBOX, "corpus/skipped.json"), "utf8")).map((s) => ({ id: s.module, reason: s.reason })), ...manifests.old.skipped];
@@ -252,30 +255,6 @@ try {
  * template/mode/widths this run compared that no longer differ (stale). Declarations the run didn't compare (other
  * --only, --modes or --widths) are neither.
  */
-function applyExpected(templates, options) {
-  const file = options.expected;
-  if (!file || file === "none") return { file: null, matched: [], stale: [] };
-  if (!fs.existsSync(file)) throw new Error(`--expected ${file}: no such file`);
-  const { reasons = {}, expected = {} } = JSON.parse(fs.readFileSync(file, "utf8"));
-  const matched = [];
-  const stale = [];
-  for (const [id, modes] of Object.entries(expected)) {
-    for (const [mode, widths] of Object.entries(modes)) {
-      for (const [width, given] of Object.entries(widths)) {
-        const reason = reasons[given] ?? given;
-        const x = templates.find((t) => t.id === id)?.modes[mode]?.widths[width];
-        if (!x) continue;
-        if (x.status === "diff") {
-          x.status = "expected";
-          x.reason = reason;
-          matched.push({ id, mode, width: Number(width), reason });
-        } else stale.push({ id, mode, width: Number(width), reason });
-      }
-    }
-  }
-  return { file, matched, stale };
-}
-
 function run(cmd, args, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd: SANDBOX, env: { ...process.env, ...env }, stdio: ["ignore", "inherit", "inherit"] });

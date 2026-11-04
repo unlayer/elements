@@ -8,6 +8,7 @@
     "compare": "node run.mjs --pack",
     "compare:fast": "node run.mjs",
     "selftest": "node selftest.mjs",
+    "test": "node --test harness.test.mjs",
     "sync": "node corpus/sync.mjs"
   },
   "dependencies": {
