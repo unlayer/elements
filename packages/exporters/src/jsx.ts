@@ -52,6 +52,19 @@ export function importedCss(css: string): void {
   sheet.addImported(css);
 }
 
+let phoneMedia: Media = "phone";
+
+/** Writes markup with its `phone` styles in the `hiding` media, starting where what's hidden does, not where they do. */
+export function withPhoneAtHiding<T>(write: () => T): T {
+  const before = phoneMedia;
+  phoneMedia = "hiding";
+  try {
+    return write();
+  } finally {
+    phoneMedia = before;
+  }
+}
+
 type Kind = "outlook" | "notOutlook";
 
 /** Markup: an element, a list of pieces (a fragment), or what's inside a conditional comment. */
@@ -134,7 +147,7 @@ function classesOf(name: string, value: unknown): string[] {
   if (name === "class") return (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === "string" && v !== "");
   const text = styleText(value as StyleValue, true);
   if (!text) return [];
-  return [name === "phone" ? rule("phone", `&{${text}}`) : rule("all", `&:hover{${text}}`, "hover")];
+  return [name === "phone" ? rule(phoneMedia, `&{${text}}`) : rule("all", `&:hover{${text}}`, "hover")];
 }
 
 function attributes(props: Record<string, unknown>): string {

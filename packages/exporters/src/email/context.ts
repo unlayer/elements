@@ -13,6 +13,8 @@ export interface EmailOptions {
   mergeTag?: (name: string) => string;
   /** What every class name in the stylesheet starts with (default "e"). */
   classPrefix?: string;
+  /** The window's width in px at and below which what's hidden on phones is (default: where its phone styles start). */
+  hideBelow?: number;
 }
 
 export interface Props {

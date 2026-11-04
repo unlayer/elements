@@ -17,4 +17,13 @@ describe("the stylesheet", () => {
     expect(sheet.classFor("phone", "&{display:none!important}")).toBe(sheet.classFor("phone", "&{display:none!important}"));
     expect(new Stylesheet().classFor("phone", "&{display:none!important}")).toBe(sheet.classFor("phone", "&{display:none!important}"));
   });
+
+  it("writes what's hidden by width under its own query, after the phone styles, or the phone styles' where it has none", () => {
+    const sheet = new Stylesheet();
+    const phone = sheet.classFor("phone", "&{width:50%!important}");
+    const hiding = sheet.classFor("hiding", "&{display:none!important}");
+    expect(sheet.css("@media (max-width: 620px)", "@media (min-width: 621px)", "@media (max-width: 480px)")).toBe(`@media (max-width: 620px){.${phone}{width:50%!important}}@media (max-width: 480px){.${hiding}{display:none!important}}`);
+    expect(sheet.css("@media (max-width: 620px)", "@media (min-width: 621px)")).toBe(`@media (max-width: 620px){.${phone}{width:50%!important}}@media (max-width: 620px){.${hiding}{display:none!important}}`);
+    expect(sheet.css(null, null)).toBe("");
+  });
 });

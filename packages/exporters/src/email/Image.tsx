@@ -7,7 +7,7 @@ import { assetParts, type Asset, type Json } from "@unlayer-internal/elements-co
 import { h } from "../jsx";
 import type { Component } from "./context";
 import { toNumber } from "./layout";
-import { hiding } from "./styles";
+import { hiding, stackedCap } from "./styles";
 
 export const Image: Component = ({ node, style, mobile, parent, fill }) => {
   const { src, width: fileWidth, height: fileHeight } = assetParts(node.props.src as Asset);
@@ -22,12 +22,14 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
   const given = typeof style.maxWidth === "number" || /^\d*\.?\d+px$/.test(String(style.maxWidth)) ? toNumber(style.maxWidth as Json) : undefined;
   const cap = given !== undefined && width !== undefined && Math.round(given) === width ? given : width;
   // In a stack or a Row its cell hides it; in a link, its own style.
-  const hidden = parent.type === "Link" ? hiding(node, "block") : { style: {} };
+  const own = parent.type === "Link" ? hiding(node, "block") : { style: {} };
+  const hidden = { ...own, class: [own.class, stackedCap(node)] };
   return (
     <img
       id={node.id}
       class={hidden.class}
-      phone={{ maxWidth: mobile.maxWidth ?? mobile.width }}
+      // (With a maximum, a share of its cell is its own on phones.)
+      phone={{ width: mobile.maxWidth !== undefined ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }}
       src={src}
       alt={(node.props.alt as string) ?? ""}
       title={node.props.title as string | undefined}

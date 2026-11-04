@@ -13,8 +13,8 @@ const TEXT_KEYS = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle",
 
 /** Hidden on phones: a class. Hidden on desktop: inline, and shown on phones by a class (`display` is how it shows). */
 export function hiding(node: Pick<ResolvedNode, "hidden">, display: string): { class?: string; style: Style } {
-  if (node.hidden?.mobile) return { class: rule("phone", "&{display:none!important}"), style: {} };
-  if (node.hidden?.desktop) return { class: rule("phone", `&{display:${display}!important}`), style: { display: "none" } };
+  if (node.hidden?.mobile) return { class: rule("hiding", "&{display:none!important}"), style: {} };
+  if (node.hidden?.desktop) return { class: rule("hiding", `&{display:${display}!important}`), style: { display: "none" } };
   return { style: {} };
 }
 
@@ -39,6 +39,15 @@ export function phoneText(node: ResolvedNode, mobile: MobileText): Declarations 
     out.push(["line-height", px(lineHeightPx((mobile.lineHeight as never) ?? node.text.lineHeight, size))]);
   }
   return out;
+}
+
+/**
+ * An Image's maximum where its Row's columns stack (a template of today's components: `compat.stackedMaxWidth`), as
+ * that Row's own stacking does, wherever the image's own phone styles start.
+ */
+export function stackedCap(node: ResolvedNode): string | undefined {
+  const cap = node.compat?.stackedMaxWidth;
+  return typeof cap === "number" ? rule("phone", `&{max-width:${cap}px!important}`, "layout") : undefined;
 }
 
 /**

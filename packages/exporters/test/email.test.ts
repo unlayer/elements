@@ -743,6 +743,50 @@ describe("email HTML", () => {
     expect(render(template).html).toBe(render(template).html);
   });
 
+  it("hides on phones at the width it's told, where its phone styles start at its own", () => {
+    const hidden = email([{ type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
+    const told = render(hidden, { hideBelow: 480 }).head;
+    expect(told).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{font-size:20px!important[^}]*\}\}@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
+    expect(render(hidden).head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{display:none!important\}\}/);
+    const onDesktop = render(email([{ type: "Text", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
+    expect(onDesktop).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:table-row!important\}\}/);
+  });
+
+  it("writes the phone styles of a node marked `ownPhone`, and of what's in it, where what's hidden starts; a Row in it stacks where it did", () => {
+    const marked = {
+      type: "Column",
+      compat: { ownPhone: true },
+      mobile: { padding: { top: 1, right: 1, bottom: 1, left: 1 } },
+      children: [
+        { type: "Text", mobile: { fontSize: 20 }, children: ["Words"] },
+        { type: "Row", children: [{ type: "Column", children: [{ type: "Text", children: ["A"] }] }, { type: "Column", children: [{ type: "Text", children: ["B"] }] }] },
+      ],
+    };
+    const unmarked = { type: "Text", mobile: { fontSize: 30 }, children: ["Elsewhere"] };
+    const { head } = render(email([marked, unmarked]), { hideBelow: 480 });
+    const stack = /@media \(max-width: 620px\)\{(.*?\})\}/.exec(head)![1];
+    const own = /@media \(max-width: 480px\)\{(.*?\})\}/.exec(head)![1];
+    expect(own).toContain("padding:1px!important");
+    expect(own).toContain("font-size:20px!important");
+    expect(stack).toContain(">div{width:100%!important");
+    expect(stack).toContain("font-size:30px!important");
+    expect(stack).not.toContain("font-size:20px");
+    // Told no width, it starts where a phone's styles do.
+    expect(render(email([marked])).head).toMatch(/@media \(max-width: 620px\)\{[^@]*font-size:20px!important/);
+  });
+
+  it("gives an Image a share of its cell on phones where it has a maximum", () => {
+    const { head } = render(email([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: "40%", maxWidth: 100 }, mobile: { width: "80%", maxWidth: "80%" } }]));
+    expect(head).toContain("width:80%!important;max-width:80%!important");
+  });
+
+  it("gives an Image marked `stackedMaxWidth` that maximum where its Row stacks, under its own phone styles", () => {
+    const image = { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, compat: { ownPhone: true, stackedMaxWidth: 250 }, mobile: { maxWidth: "50%" } };
+    const { head, body } = render(email([image]), { hideBelow: 480 });
+    expect(head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{max-width:250px!important\}\}@media \(max-width: 480px\)\{\.e\w+\{max-width:50%!important\}\}/);
+    expect(body).toMatch(/<img class="e\w+ e\w+"/);
+  });
+
   describe("imported markup (Raw)", () => {
     const block = (html: string, extra: Record<string, unknown> = {}) => ({ type: "Raw", props: { html, css: ".u-btn{color:red}", text: "Buy now" }, ...extra });
 

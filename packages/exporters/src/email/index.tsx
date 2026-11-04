@@ -26,7 +26,7 @@
  * wrapped inside the shape's fixed size.
  */
 import { Diagnostics, type Diagnostic, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, raw, withStylesheet, type Html } from "../jsx";
+import { Fragment, h, raw, withPhoneAtHiding, withStylesheet, type Html } from "../jsx";
 import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
@@ -130,7 +130,8 @@ function write(node: ResolvedNode, place: Place, options: EmailOptions): Html {
   }
   const component = BLOCKS[node.type];
   if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} here (in a ${place.parent.type})`);
-  return component(propsOf(node, place, options));
+  // A block of a template of today's components: its phone styles start where what's hidden does (`hideBelow`).
+  return node.compat?.ownPhone ? withPhoneAtHiding(() => component(propsOf(node, place, options))) : component(propsOf(node, place, options));
 }
 
 export interface EmailHtml {
@@ -170,7 +171,8 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
 
   const resets =
     "table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}img{-ms-interpolation-mode:bicubic}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}";
-  const stylesheet = resets + sheet.css(`@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`);
+  const phoneQuery = `@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`;
+  const stylesheet = resets + sheet.css(phoneQuery, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`, options.hideBelow ? `@media (max-width: ${options.hideBelow}px)` : phoneQuery);
   const head = [
     '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
