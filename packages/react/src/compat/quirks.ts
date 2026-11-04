@@ -49,12 +49,11 @@ export function dividerLength(width: unknown): unknown {
 }
 
 /**
- * The line height of a table's header and footer: legacy gives them none, so a page's (1.5, which its cells inherit
- * here too), and in an email or a printed document the font's own ("normal", about 1.15 of Arial's, Georgia's and
- * Times's size at the sizes tables use), where a cell needs one every client reads.
+ * The line height of a table's header and footer: they say none, so a page's 1.5 (which its cells inherit here too), and
+ * in an email or a printed document the font's own, as the editor's.
  */
-export function linesInHeaderAndFooter(mode: "email" | "web" | "document"): number | undefined {
-  return mode === "web" ? undefined : 1.15;
+export function linesInHeaderAndFooter(mode: "email" | "web" | "document"): number | "normal" | undefined {
+  return mode === "web" ? undefined : "normal";
 }
 
 /**

@@ -686,8 +686,8 @@ describe("a table block", () => {
   });
 
   it("gives a header and a footer the line height legacy leaves them: a page's, or the font's own elsewhere", () => {
-    expect(cellOf(rowsOf(block({}))[0]).style?.lineHeight).toBe(1.15);
-    expect(cellOf(rowsOf(block({}, Document as Root))[0]).style?.lineHeight).toBe(1.15);
+    expect(cellOf(rowsOf(block({}))[0]).style?.lineHeight).toBe("normal");
+    expect(cellOf(rowsOf(block({}, Document as Root))[0]).style?.lineHeight).toBe("normal");
     expect(cellOf(rowsOf(block({}, Page))[0]).style?.lineHeight).toBeUndefined();
   });
 
