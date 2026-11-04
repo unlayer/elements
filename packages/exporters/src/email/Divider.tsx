@@ -12,7 +12,7 @@ export const Divider: Component = ({ node, style, mobile, fill }) => {
   const align = TEXT_ALIGN[node.text.textAlign];
 
   const line = (
-    <Table id={padded ? undefined : node.id} width={percent ? length : "100%"} phone={phoneWidth(mobile.width)} style={{ maxWidth: percent ? undefined : length }}>
+    <Table id={padded ? undefined : node.id} aria-label={node.compat?.ariaLabel as string | undefined} width={percent ? length : "100%"} phone={phoneWidth(mobile.width)} style={{ maxWidth: percent ? undefined : length }}>
       <tr>
         <td style={{ borderTop: style.borderTop, fontSize: 0, lineHeight: 0, msoLineHeightRule: "exactly" }}>{raw("&nbsp;")}</td>
       </tr>

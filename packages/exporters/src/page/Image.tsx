@@ -12,6 +12,7 @@ export const Image: Component = ({ node, style, parent, placement, classes }) =>
     class={classes()}
     src={assetParts(node.props.src as Asset).src}
     alt={(node.props.alt as string) ?? ""}
+    aria-label={node.compat?.ariaLabel as string | undefined}
     title={node.props.title as string | undefined}
     // A percentage is a share of its parent, not a size of its own.
     width={typeof style.width !== "string" && node.width !== null ? node.width : undefined}

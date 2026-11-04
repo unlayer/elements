@@ -11,9 +11,10 @@ export const Divider: Component = ({ node, style, parent, placement, classes }) 
     borderTop: style.borderTop,
     width: style.width,
   };
-  if (style.padding === undefined) return <hr id={node.id} class={classes()} style={[placement, line]} />;
+  const label = node.compat?.ariaLabel as string | undefined;
+  if (style.padding === undefined) return <hr id={node.id} class={classes()} aria-label={label} style={[placement, line]} />;
   return (
-    <div id={node.id} class={classes()} style={[placement, { boxSizing: "border-box", padding: style.padding }]}>
+    <div id={node.id} class={classes()} aria-label={label} style={[placement, { boxSizing: "border-box", padding: style.padding }]}>
       <hr style={line} />
     </div>
   );

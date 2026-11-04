@@ -590,7 +590,8 @@ describe("a button block", () => {
 describe("a divider block", () => {
   it("is a Divider of its line, padding and length, placed by its alignment where it's shorter than its column", () => {
     for (const Root of [Email, Page, Document] as Root[]) {
-      expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />, Root)).toEqual({ type: "Divider", style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+      expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />, Root)).toEqual({ type: "Divider", compat: { ariaLabel: "divider" }, style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+      expect(renderToHtml(<Root><Row><Column><Divider /></Column></Row></Root>)).toContain('aria-label="divider"');
       expect(lowered(<Divider width="60%" textAlign="left" />, Root)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
     }
   });
@@ -1105,6 +1106,11 @@ describe("a social block", () => {
 
 describe("a video block", () => {
   const video = <Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />;
+
+  it("labels its thumbnail for a screen reader, as legacy's", () => {
+    expect(renderToHtml(<Email><Row><Column>{video}</Column></Row></Email>)).toMatch(/<img[^>]*aria-label="video thumbnail"/);
+    expect(renderToHtml(<Page><Row><Column>{video}</Column></Row></Page>)).not.toContain("video thumbnail");
+  });
 
   it("is its player on a page, its thumbnail (with no link, as legacy's) in an email", () => {
     expect((lowered(video, Page)?.children as TreeNode[])[0]).toEqual({ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });

@@ -35,6 +35,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
       phone={[{ width: mobile.maxWidth !== undefined ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]]}
       src={src}
       alt={(node.props.alt as string) ?? ""}
+      aria-label={node.compat?.ariaLabel as string | undefined}
       title={node.props.title as string | undefined}
       width={width}
       // Its height in proportion, for Word, when the file's size is known.

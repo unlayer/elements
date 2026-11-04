@@ -30,8 +30,8 @@ export interface Node {
    * back out unchanged (a builder block's display conditions). The writers read
    * what today's components draw that no style holds, as they lower into this
    * tree (packages/react/src/compat): an id of any characters (`anyId`, read
-   * when the template is checked), a `className`, on a Column or a Text an
-   * `ariaLabel`; on a root the stylesheet
+   * when the template is checked), a `className`, on a Column, a Text, a
+   * Divider or an Image an `ariaLabel`; on a root the stylesheet
    * rules that select it (`css`) and an email's `previewHtml`; on a Section an
    * `align`; on a Section or an email's Row a `background` picture, and on a Row
    * `stretch` (its columns table cells, as tall as it is, each at least its
