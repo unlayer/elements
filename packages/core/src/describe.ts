@@ -90,7 +90,7 @@ function describe(definition: ComponentDefinition): ComponentDescription {
     description: definition.description,
     categories: definition.categories,
     properties,
-    children: { text: !!definition.children.text, categories: definition.children.categories ?? [], types: definition.children.types ?? [] },
+    children: { text: !!definition.children.text, categories: definition.children.categories ?? [], types: (definition.children.types ?? []).filter((type) => type !== "Raw") },
     targets: Object.keys(definition.targets) as Target[],
     groups: (definition.editor?.groups ?? []).map((group) =>
       "composite" in group ? { title: group.title, paths: group.composite.covers, composite: group.composite.editor } : { title: group.title, paths: group.paths }

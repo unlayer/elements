@@ -7,7 +7,7 @@ import { hiding } from "./styles";
 export const TableRow: Component = ({ node, style, render }) => {
   const hidden = hiding(node, "table-row");
   const row = (
-    <tr id={node.id} class={hidden.class} bgcolor={bgcolor(style.backgroundColor)} style={[{ backgroundColor: style.backgroundColor }, hidden.style]}>
+    <tr id={node.id} class={hidden.class} height={style.height as number | undefined} bgcolor={bgcolor(style.backgroundColor)} style={[{ backgroundColor: style.backgroundColor, height: style.height }, hidden.style]}>
       {node.children.filter(isNode).map((cell) => render(cell))}
     </tr>
   );

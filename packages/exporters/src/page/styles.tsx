@@ -2,6 +2,7 @@
 import type { Json, ResolvedNode } from "@unlayer-internal/elements-core";
 import { rule } from "../jsx";
 import { border, css, insets, length, textValue, type Declarations } from "../shared/css";
+import { FLEX_ALIGN } from "./layout";
 
 const OVERRIDE: Record<string, (value: Json) => Declarations> = {
   width: (v) => [["width", length(v)]],
@@ -11,6 +12,7 @@ const OVERRIDE: Record<string, (value: Json) => Declarations> = {
   gap: (v) => [["gap", length(v)]],
   backgroundColor: (v) => [["background-color", v as string]],
   textDecoration: (v) => [["text-decoration", v as string]],
+  alignSelf: (v) => [["align-self", FLEX_ALIGN[v as string]]],
 };
 
 function declarationsOf(values: Record<string, Json>): Declarations {

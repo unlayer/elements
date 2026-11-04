@@ -4,7 +4,7 @@
  * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor, type SupportByTarget } from "./define";
-import { asset, boolean, enumOf, insets, length, line, link, number, text, video } from "./kinds";
+import { attributes, asset, boolean, enumOf, insets, length, line, link, number, text, video } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, css, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 import { Menu, Social } from "./composites";
@@ -282,10 +282,13 @@ export const Button = defineComponent({
     href: prop(link(), { support: WRITTEN, label: "Link", required: true }),
     title: prop(text(), { support: WRITTEN, label: "Title", description: "Shown as a tooltip by mail clients and browsers that show one." }),
     "aria-label": prop(text(), { support: WRITTEN, label: "Label for screen readers", description: "What a screen reader says for it, where its text alone doesn't say enough (\"Read more about pricing\")." }),
+    attrs: prop(attributes(), { support: WRITTEN, editable: false, label: "More attributes", description: "More attributes for its link: a class, a `data-` attribute." }),
   },
   style: {
     ...textStyle,
     ...pick(boxStyle, "width", "maxWidth", "padding", "backgroundColor", "border", "borderRadius"),
+    boxSizing: { kind: enumOf(["border-box", "content-box"]), label: "Width holds", description: "Whether its width holds its padding and border (border-box), or they go on top of it (content-box).", support: { email: { level: "none", shows: "a width that holds them", source: "writer" }, web: css } },
+    alignSelf: { kind: enumOf(["start", "center", "end"]), label: "Place", description: "Where it sits in its stack, whatever the stack's alignItems: on phones too, another place than on desktop.", mobile: true, support: { email: { level: "full", source: "writer" }, web: css } },
     ...placementStyle,
   },
   defaultStyle: {
@@ -298,7 +301,7 @@ export const Button = defineComponent({
     borderRadius: 4,
   },
   hover: ["color", "backgroundColor"],
-  children: { text: true, types: ["Span", "MergeTag", "LineBreak"] },
+  children: { text: true, types: ["Span", "MergeTag", "LineBreak", "Raw"] },
   sizing: "shrink",
   targets: { email: {}, web: {} },
   editor: {
@@ -422,9 +425,10 @@ export const Table = defineComponent({
     ...pick(boxStyle, "width", "maxWidth", "backgroundColor", "border"),
     cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own.", support: { email: { level: "full", source: "writer" }, web: css } },
     rowBorder: { kind: line(), label: "Line between rows", support: { email: { level: "full", source: "writer" }, web: css } },
+    borderCollapse: { kind: enumOf(["separate", "collapse"]), label: "Cell borders", description: "Whether cells side by side draw a border each (separate) or share one (collapse).", support: { email: { level: "full", source: "caniemail" }, web: css } },
     ...placementStyle,
   },
-  children: { types: ["TableRow"] },
+  children: { types: ["TableRow", "Raw"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
   editor: { groups: [{ title: "Table", paths: ["style.cellPadding", "style.rowBorder", "style.border", "style.backgroundColor"] }, TEXT_EDITOR] },
@@ -437,8 +441,9 @@ export const TableRow = defineComponent({
   categories: [],
   props: {
     header: prop(boolean(), { support: WRITTEN, label: "Header", description: "Its cells head the columns below them.", default: false }),
+    footer: prop(boolean(), { support: WRITTEN, label: "Footer", description: "It ends the table (printed, on each page the table runs to).", default: false }),
   },
-  style: { ...pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"), backgroundColor: boxStyle.backgroundColor },
+  style: { ...pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"), backgroundColor: boxStyle.backgroundColor, height: boxStyle.height },
   defaultStyleBy: { prop: "header", values: { true: { fontWeight: 700 } } },
   children: { types: ["TableCell"] },
   sizing: "stretch",
@@ -461,7 +466,7 @@ export const TableCell = defineComponent({
     width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column).", support: { email: { level: "full", source: "writer" }, web: css } },
     verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment", support: { email: { level: "full", source: "caniemail" }, web: css } },
   },
-  children: { text: true, categories: ["inline"], types: ["Image"] },
+  children: { text: true, categories: ["inline"], types: ["Image", "Raw"] },
   sizing: "none",
   targets: { email: {}, web: {} },
   editor: { groups: [{ title: "Cell", paths: ["props.colSpan", "style.width", "style.verticalAlign"] }, TEXT_EDITOR, { title: "Box", paths: ["style.padding", "style.backgroundColor", "style.border"] }] },

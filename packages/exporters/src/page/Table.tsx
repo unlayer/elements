@@ -1,6 +1,7 @@
 /**
  * A Table: its columns' widths in a colgroup as shares of its width (fixed
- * layout), no spacing between cells. Header rows at its top are its `<thead>`.
+ * layout), no spacing between cells. Header rows at its top are its `<thead>`,
+ * footer rows at its end its `<tfoot>`.
  */
 import { h } from "../jsx";
 import { textDeclarations } from "../shared/css";
@@ -15,14 +16,16 @@ export const Table: Component = ({ node, style, parent, placement, classes, rend
   const columns = node.columns ?? [];
   const total = columns.reduce((sum, width) => sum + width, 0) || 1;
   const head = rows.findIndex((row) => !row.props.header);
-  const [header, body] = head < 0 ? [rows, []] : [rows.slice(0, head), rows.slice(head)];
+  const [header, rest] = head < 0 ? [rows, []] : [rows.slice(0, head), rows.slice(head)];
+  const foot = rest.findIndex((row) => row.props.footer);
+  const [body, footer] = foot < 0 ? [rest, []] : [rest.slice(0, foot), rest.slice(foot)];
   return (
     <table
       id={node.id}
       class={classes()}
       style={[
         placement,
-        { borderCollapse: "separate", borderSpacing: 0, tableLayout: "fixed" },
+        { borderCollapse: style.borderCollapse ?? "separate", borderSpacing: 0, tableLayout: "fixed" },
         box(node, parent.type !== "Row"),
         // A table is as wide as its content unless told: this one fills its parent.
         { width: style.width === undefined && parent.type !== "Row" ? "100%" : undefined },
@@ -36,6 +39,7 @@ export const Table: Component = ({ node, style, parent, placement, classes, rend
       </colgroup>
       {header.length > 0 && <thead>{header.map((row) => render(row, []))}</thead>}
       {body.length > 0 && <tbody>{body.map((row) => render(row, []))}</tbody>}
+      {footer.length > 0 && <tfoot>{footer.map((row) => render(row, []))}</tfoot>}
     </table>
   );
 };

@@ -53,7 +53,7 @@ export function phoneWidth(value: Json | undefined): Style {
 export function cellAlign(child: ResolvedNode, stack: ResolvedNode): string | undefined {
   if (child.type === "Divider") return TEXT_ALIGN[stack.text.textAlign] === "left" ? undefined : TEXT_ALIGN[stack.text.textAlign];
   if (child.definition.sizing !== "shrink" && !sized(child)) return undefined;
-  const align = stack.style.alignItems as string | undefined;
+  const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align) return ALIGN[align];
   const text = TEXT_ALIGN[stack.text.textAlign];
   return text === "left" ? undefined : text;

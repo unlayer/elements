@@ -186,7 +186,7 @@ function render(root: string, type: string, style: Record<string, Json>, props: 
 }
 
 /** CSS's own values where nothing is set: setting them changes nothing. */
-const INITIAL: Record<string, Json> = { alignItems: "start", justifyContent: "start", flexWrap: "nowrap", overflow: "visible", textDecoration: "none", textTransform: "none", verticalAlign: "top" };
+const INITIAL: Record<string, Json> = { alignItems: "start", alignSelf: "start", borderCollapse: "separate", boxSizing: "border-box", justifyContent: "start", flexWrap: "nowrap", overflow: "visible", textDecoration: "none", textTransform: "none", verticalAlign: "top" };
 
 /** The value a style or prop already has on the subject (inherited, a default, or CSS's own): setting it is no change. */
 function inEffect(root: string, type: string, where: "style" | "props", key: string): Json | undefined {

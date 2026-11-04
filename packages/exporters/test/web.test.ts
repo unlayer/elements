@@ -256,6 +256,47 @@ describe("web HTML", () => {
     expect(body).toContain('<tbody><tr><td colspan="2" style="box-sizing:border-box;padding:8px;vertical-align:top">C</td></tr></tbody></table>');
   });
 
+  it("writes a table whose cells share their borders, a row's height and footer rows in tfoot; markup among its rows and in a cell as it is", () => {
+    const { body } = web(
+      page([
+        {
+          type: "Table",
+          style: { borderCollapse: "collapse" },
+          children: [
+            { type: "TableRow", style: { height: 40 }, children: [{ type: "TableCell", children: ["A"] }] },
+            { type: "Raw", props: { html: "{{#each}}" } },
+            { type: "TableRow", children: [{ type: "TableCell", children: [{ type: "Raw", props: { html: "<ul><li>B</li></ul>" } }] }] },
+            { type: "TableRow", props: { footer: true }, children: [{ type: "TableCell", children: ["C"] }] },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain('style="border-collapse:collapse;');
+    expect(body).toContain('<tbody><tr style="height:40px">');
+    expect(body).toContain("{{#each}}<tr>");
+    expect(body).toContain("<ul><li>B</li></ul></td>");
+    expect(body).toMatch(/<\/tbody><tfoot><tr><td[^>]*>C<\/td><\/tr><\/tfoot><\/table>/);
+  });
+
+  it("writes a Button's width with its padding on top where it says, a place of its own (on phones too), its link's other attributes, a link to nothing and markup in its label", () => {
+    const { head, body } = web(
+      page([
+        { type: "Button", props: { href: { href: "", target: "_blank" }, attrs: { class: "cta", "data-x": "1", target: "_top" } }, style: { width: 300, boxSizing: "content-box", alignSelf: "end" }, mobile: { alignSelf: "start", fontSize: 20 }, children: [{ type: "Raw", props: { html: "<b>Go</b>" } }] },
+      ])
+    );
+    const anchor = /<a [^>]*>/.exec(body)![0];
+    expect(anchor).toContain('href=""');
+    expect(anchor).toMatch(/class="e[0-9a-z]{5} cta"/);
+    expect(anchor).toContain('data-x="1"');
+    expect(anchor).toContain('target="_top"');
+    // Past its place's end where it's wider, whatever its place (browsers without `safe` read the one before).
+    expect(anchor).toContain("align-self:flex-end;align-self:safe flex-end");
+    expect(anchor).toMatch(/box-sizing:content-box/);
+    expect(anchor).not.toMatch(/box-sizing:border-box/);
+    expect(body).toContain("<b>Go</b></a>");
+    expect(head).toContain("align-self:flex-start!important");
+  });
+
   it("raises and lowers text, writes titles, labels and a block's own direction", () => {
     const { body } = web(
       page([

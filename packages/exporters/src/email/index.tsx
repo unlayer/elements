@@ -122,6 +122,8 @@ function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props
 function write(node: ResolvedNode, place: Place, options: EmailOptions): Html {
   if (place.inline) {
     if (!shown(node)) return raw("");
+    // Markup an importer brought in, among text: only what it is.
+    if (node.type === "Raw") return raw(String(node.props.html));
     const component = INLINES[node.type];
     if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} inside text`);
     return component(propsOf(node, place, options));

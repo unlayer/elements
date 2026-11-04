@@ -9,7 +9,7 @@
  * its own font, wrapped inside the shape's fixed size. Square corners in
  * classic Outlook.
  */
-import { h } from "../jsx";
+import { h, type Style } from "../jsx";
 import { insets } from "../shared/css";
 import { link } from "../shared/link";
 import type { Component } from "./context";
@@ -17,10 +17,13 @@ import { boxWidth, phoneWidth, TEXT_ALIGN } from "./layout";
 import { bgcolor, Table } from "./markup";
 import { fullText } from "./styles";
 
+/** Where a table sits in its cell on phones: its margins (the cell's `align` is for desktop). */
+const PLACE: Record<string, Style> = { start: { marginLeft: 0, marginRight: "auto" }, center: { marginLeft: "auto", marginRight: "auto" }, end: { marginLeft: "auto", marginRight: 0 } };
+
 export const Button: Component = ({ node, style, mobile, fill, phoneText, text }) => {
   const width = boxWidth(node, fill);
   return (
-    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
+    <Table id={node.id} phone={[phoneWidth(mobile.maxWidth ?? mobile.width), PLACE[mobile.alignSelf as string]]} width={width.width} style={{ maxWidth: width.maxWidth }}>
       <tr>
         <td
           align={TEXT_ALIGN[node.text.textAlign]}

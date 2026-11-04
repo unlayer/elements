@@ -557,6 +557,43 @@ describe("email HTML", () => {
     expect(text).toBe("Item | Price\nNotebook | $12");
   });
 
+  it("writes a table whose cells share their borders, a row's height and footer rows in tfoot; markup among its rows and in a cell as it is", () => {
+    const { body } = render(
+      email([
+        {
+          type: "Table",
+          style: { borderCollapse: "collapse" },
+          children: [
+            { type: "TableRow", style: { height: 40 }, children: [{ type: "TableCell", children: ["A"] }] },
+            { type: "Raw", props: { html: "{{#each}}" } },
+            { type: "TableRow", children: [{ type: "TableCell", children: [{ type: "Raw", props: { html: "<ul><li>B</li></ul>" } }] }] },
+            { type: "TableRow", props: { footer: true }, children: [{ type: "TableCell", children: ["C"] }] },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain('style="table-layout:fixed;border-collapse:collapse"');
+    expect(body).toContain('<tbody><tr height="40" style="height:40px">');
+    expect(body).toContain("{{#each}}<tr>");
+    expect(body).toContain("<ul><li>B</li></ul></td>");
+    expect(body).toMatch(/<\/tbody><tfoot><tr><td[^>]*>[^<]*C<\/td><\/tr><\/tfoot><\/table>/);
+  });
+
+  it("writes a Button's place of its own (on phones by its margins), its link's other attributes, a link to nothing and markup in its label", () => {
+    const { head, body } = render(
+      email([
+        { type: "Button", props: { href: { href: "", target: "_blank" }, attrs: { class: "cta", "data-x": "1" } }, style: { alignSelf: "end" }, mobile: { alignSelf: "start" }, children: [{ type: "Raw", props: { html: "<b>Go</b>" } }] },
+      ])
+    );
+    expect(body).toContain('<td align="right"');
+    const anchor = /<a [^>]*>/.exec(body)![0];
+    expect(anchor).toContain('href=""');
+    expect(anchor).toContain('class="cta"');
+    expect(anchor).toContain('data-x="1"');
+    expect(body).toContain("<b>Go</b></a>");
+    expect(head).toContain("margin-left:0!important;margin-right:auto!important");
+  });
+
   it("lists what email can't do as asked", () => {
     const { diagnostics } = render(
       email([

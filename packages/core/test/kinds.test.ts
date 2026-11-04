@@ -1,6 +1,6 @@
 import {
   video,
-  videoParts, asset, border, color, enumOf, flex, fontFaces, fontFamily, fontStack, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
+  videoParts, asset, attributes, border, color, enumOf, flex, fontFaces, fontFamily, fontStack, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
 
 const value = (kind: Kind<any, any>, input: unknown) => {
   const parsed = kind.parse(input);
@@ -139,6 +139,17 @@ describe("links and images", () => {
     rejects(asset(), "data:text/html;base64,AAAA");
     rejects(asset(), "javascript:alert(1)");
     rejects(link(), { href: "https://example.com", target: "_top" });
+  });
+  it("takes a link to nothing only as { href: \"\" }: an empty string is a mistake", () => {
+    expect(value(link(), { href: "" })).toEqual({ href: "" });
+    expect(value(link(), { href: "", target: "_blank" })).toEqual({ href: "", target: "_blank" });
+    rejects(link(), "");
+    rejects(link(), "  ");
+    rejects(link(), { href: "  " });
+  });
+  it("takes a link's other attributes, not its handlers, href or style, nor a name that could end the tag", () => {
+    expect(value(attributes(), { class: "cta", "data-x": "1", target: "_top" })).toEqual({ class: "cta", "data-x": "1", target: "_top" });
+    for (const input of [{ onclick: "x()" }, { ONCLICK: "x()" }, { href: "x" }, { style: "x" }, { 'a"b': "x" }, { "a b": "x" }, { class: 1 }, "class"]) rejects(attributes(), input);
   });
 });
 

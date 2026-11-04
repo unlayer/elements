@@ -20,11 +20,14 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declaration
   if (child.type === "Divider") return [];
   const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
   if (child.definition.sizing !== "shrink" && !sized) return [];
-  const align = stack.style.alignItems as string | undefined;
+  const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align === "stretch") return [];
   // A box that fills the width up to a maximum still fills it: placed, not shrunk to its content.
   const fill: Declarations = child.definition.sizing === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
-  return [["align-self", align ? FLEX_ALIGN[align] : TEXT_ALIGN[stack.text.textAlign]], ...fill];
+  const place = align ? FLEX_ALIGN[align] : TEXT_ALIGN[stack.text.textAlign];
+  // With its padding on top of its width it may be wider than its place: it runs past the end, as a line of text does.
+  const safe: Declarations = child.style.boxSizing === "content-box" && place !== "flex-start" ? [["align-self", `safe ${place}`]] : [];
+  return [["align-self", place], ...safe, ...fill];
 }
 
 /**
