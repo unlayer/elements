@@ -1,41 +1,50 @@
 /**
- * A divider in an email: its line, length and padding (on phones too), placed by its alignment where it's shorter
- * than its column. On a page or in a printed document it keeps legacy's HTML: there legacy's line is an inline block
- * in a line of no height, aligned to the middle of its font's x-height, so the block is a fraction of a pixel taller
- * than its line by the font's own metrics (0.64px in Georgia at 16px), which a 1px rule can't follow and which adds
- * up down a page of dividers.
+ * A divider block as a Divider: its line, length and padding (on desktop windows and phones too), placed by its
+ * alignment where it's shorter than its column. It always draws: a value that can't be read is said, and drawn as the
+ * new Divider's default.
  */
 import { contentSlotWidth } from "../../utils/image-sizing";
 import { Unlowerable, type DesignBlock, type Place, type TreeNode } from "../lower";
 import { dividerLength } from "../quirks";
-import { px, sides, some } from "../values";
+import { deviceValues, LINE_STYLES, px, sides, some } from "../values";
 
-export function divider({ values }: DesignBlock, place: Place): TreeNode | undefined {
-  if (place.mode !== "email") return undefined;
-  // A block given a mode of its own is drawn in that output's markup, whatever its template's.
-  if (values.mode !== undefined && values.mode !== place.mode) return undefined;
-  if (Object.keys(values._override?.mobile ?? {}).some((key) => key !== "containerPadding" && key !== "hideMobile")) return undefined;
+export function divider(block: DesignBlock, place: Place): TreeNode {
+  const { values, phone } = deviceValues(block.values, ["containerPadding"], place.mode);
+  const note = (what: string, value: unknown) => place.note(`A divider's ${what} ${JSON.stringify(value)} can't be read: it's drawn without it.`);
   const line = values.border ?? {};
-  const width = dividerLength(values.width);
-  const lineWidth = line.borderTopWidth === undefined ? 1 : px(line.borderTopWidth);
-  const padding = sides(values.containerPadding ?? "10px");
-  const phonePadding = values._override?.mobile?.containerPadding;
-  if (lineWidth === undefined || !padding || (width !== undefined && width !== 0 && !/^\d*\.?\d+(px|%)?$/.test(String(width)))) return undefined;
-  if (phonePadding !== undefined && !sides(phonePadding)) return undefined;
+  let width = dividerLength(values.width);
+  if (width !== undefined && width !== 0 && !/^\d*\.?\d+(px|%)?$/.test(String(width))) {
+    note("length", width);
+    width = undefined;
+  }
+  let lineWidth = line.borderTopWidth === undefined ? 1 : px(line.borderTopWidth);
+  if (lineWidth === undefined) {
+    note("line width", line.borderTopWidth);
+    lineWidth = 1;
+  }
+  let padding = sides(values.containerPadding ?? "10px");
+  if (!padding) {
+    note("padding", values.containerPadding);
+    padding = sides("10px");
+  }
+  const phonePadding = phone.containerPadding === undefined ? undefined : sides(phone.containerPadding);
+  if (phone.containerPadding !== undefined && !phonePadding) note("padding on phones", phone.containerPadding);
+  const style = line.borderTopStyle ?? "solid";
+  if (!LINE_STYLES.has(style)) note("line style", style);
   const length = width === undefined || width === "100%" ? undefined : px(width) ?? String(width);
   // A line longer than its place: legacy's table is that long and pushes its row past the email, which scrolls sideways
   // with the row's other columns moved along; the new email's columns share their row's width, so even legacy's own
   // divider among them draws otherwise (its neighbours squeezed). The email renders as today.
   const room = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
-  if (typeof length === "number" && length > room) throw new Unlowerable("a divider longer than its column, whose row legacy draws past the email");
+  if (place.mode === "email" && typeof length === "number" && length > room) throw new Unlowerable("a divider longer than its column, whose row legacy draws past the email");
   const node: TreeNode = {
     type: "Divider",
     style: {
-      borderTop: { width: lineWidth, style: line.borderTopStyle ?? "solid", color: line.borderTopColor ?? "#BBBBBB" },
+      borderTop: { width: lineWidth, style: LINE_STYLES.has(style) ? style : "solid", color: line.borderTopColor ?? "#BBBBBB" },
       ...(length !== undefined ? { width: length } : {}),
-      ...(some(padding) ? { padding } : {}),
+      ...(some(padding) ? { padding: padding! } : {}),
     },
-    ...(phonePadding !== undefined ? { mobile: { padding: sides(phonePadding)! } } : {}),
+    ...(phonePadding ? { mobile: { padding: phonePadding } } : {}),
   };
   // The new Divider sits where its parent's text is aligned.
   return length !== undefined ? { type: "Column", style: { textAlign: values.textAlign ?? "center" }, children: [node] } : node;

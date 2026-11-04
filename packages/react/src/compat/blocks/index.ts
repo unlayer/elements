@@ -18,4 +18,4 @@ export type Lowering = (block: DesignBlock, place: Place) => TreeNode | null | u
 
 export const BLOCKS: Readonly<Record<string, Lowering>> = { button, divider, heading, image, menu, page_break: pageBreak, social, text, video };
 
-export const DRAWN: ReadonlySet<string> = new Set(["button"]);
+export const DRAWN: ReadonlySet<string> = new Set(["button", "divider"]);

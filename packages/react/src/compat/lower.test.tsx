@@ -77,6 +77,8 @@ describe("lowerDesign()", () => {
     // A divider longer than its column (a 300px line in a third of the email): legacy's row runs past the email.
     expect(unlowered(<Email><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={300} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toContain("divider longer than its column");
     expect(unlowered(<Email><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={120} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toBeUndefined();
+    // On a page, a line longer than its column runs past it there too, moving nothing.
+    expect(unlowered(<Page><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={300} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Page>)).toBeUndefined();
     expect(unlowered(<Email><Row values={{ _meta: { htmlClassNames: "promo" } } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("class names");
     expect(unlowered(<Email><Row hideOnMobile><Column><Paragraph>A</Paragraph></Column></Row></Email>)).toContain("phones");
     expect(unlowered(<Email><Row cells={[1, 1]}><Column backgroundColor="#eee"><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>)).toContain("as tall as their row");

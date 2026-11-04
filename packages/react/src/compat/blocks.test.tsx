@@ -263,13 +263,52 @@ describe("an image block", () => {
 
 describe("a divider block", () => {
   it("is a Divider of its line, padding and length, placed by its alignment where it's shorter than its column", () => {
-    expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />)).toEqual({ type: "Divider", style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
-    expect(lowered(<Divider width="60%" textAlign="left" />)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
+    for (const Root of [Email, Page, Document] as Root[]) {
+      expect(lowered(<Divider borderTopWidth="2px" borderTopColor="#ccc" />, Root)).toEqual({ type: "Divider", style: { borderTop: { width: 2, style: "solid", color: "#ccc" }, padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+      expect(lowered(<Divider width="60%" textAlign="left" />, Root)).toMatchObject({ type: "Column", style: { textAlign: "left" }, children: [{ type: "Divider", style: { width: "60%" } }] });
+    }
   });
 
-  it("keeps its legacy HTML on a page and in a printed document, whose line is as tall as its font makes it", () => {
-    expect(lowered(<Divider borderTopWidth="2px" />, Page)?.type).toBe("Raw");
-    expect(lowered(<Divider borderTopWidth="2px" />, Document)?.type).toBe("Raw");
+  it("is drawn in its template's output where it's given a mode of its own", () => {
+    expect(lowered(<Divider mode="email" />, Page)?.type).toBe("Divider");
+    expect(lowered(<Divider mode="web" />)?.type).toBe("Divider");
+  });
+
+  it.each([
+    ["line width", { border: { borderTopWidth: "thin" } }, { width: 1 }],
+    ["line style", { border: { borderTopStyle: "double" } }, { style: "solid" }],
+  ])("draws a %s it can't read as the default, and says so", (what, values, line) => {
+    const divider = <Divider values={values as never} />;
+    for (const Root of [Email, Page, Document] as Root[]) {
+      expect(lowered(divider, Root)?.style?.borderTop).toMatchObject(line);
+      expect(said(divider, Root)).toContain(what);
+    }
+  });
+
+  it("draws a padding or a length it can't read as the default, and says so", () => {
+    const divider = <Divider values={{ containerPadding: "1em", width: "auto" } as never} />;
+    const node = lowered(divider) as TreeNode;
+    expect(node).toMatchObject({ type: "Divider", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+    expect(node.style?.width).toBeUndefined();
+    expect(said(divider)).toContain("padding");
+    expect(said(divider)).toContain("length");
+  });
+
+  it("leaves out a color it can't read, and says so", () => {
+    const divider = <Divider borderTopColor="not a color" />;
+    expect(lowered(divider)?.type).toBe("Divider");
+    expect(said(divider)).toContain("not a color");
+  });
+
+  it("takes the padding set for phones and desktop windows, and leaves the settings legacy's stylesheet has no element for", () => {
+    const divider = <Divider containerPadding="4px" values={{ _override: { desktop: { containerPadding: "21px" }, mobile: { width: "20%", textAlign: "right", border: { borderTopWidth: "9px" } }, tablet: { containerPadding: "41px" } } } as never} />;
+    expect(lowered(divider, Page)).toMatchObject({ type: "Divider", style: { padding: { top: 21 }, borderTop: { width: 1 } }, mobile: { padding: { top: 4 } } });
+    expect(lowered(<Divider values={{ _override: { mobile: { containerPadding: "1em" } } } as never} />)?.mobile).toBeUndefined();
+    expect(said(<Divider values={{ _override: { mobile: { containerPadding: "1em" } } } as never} />)).toContain("padding on phones");
+  });
+
+  it("is hidden where it says, in an email too", () => {
+    expect(lowered(<Divider hideOnMobile />)?.hidden).toEqual({ mobile: true });
   });
 });
 
