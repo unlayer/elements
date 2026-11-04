@@ -16,6 +16,7 @@ A project may already have templates on today's components: they import from `@u
 - They keep working. Their API is unchanged, and since 0.3.0 they render through the same engine as the new components: content, links, images and layout are preserved, and input that can't be drawn gets a diagnostic.
 - The two sets don't mix: a template uses one or the other. When changing one of these templates, keep its components, or move it first.
 - To move them, the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md
+- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in the new components and checks each against its original. One that can't be kept the same stays in today's components, and the report says why.
 
 ## How a template is written
 
