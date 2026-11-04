@@ -54,7 +54,7 @@ const countdownTool = {
              <div style="font-family:Arial,sans-serif;font-size:26px;font-weight:800;color:#ffffff;">${num}</div>
              <div style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:2px;color:#9ca3af;">${label}</div>
            </td>`;
-        return `<table role="presentation" cellpadding="0" cellspacing="6" align="center" style="margin:0 auto;">
+        return `<table role="presentation" cellpadding="0" cellspacing="6" align="center" style="margin:0 auto;border-collapse:separate;">
           <tr><td colspan="3" align="center" style="font-family:Arial,sans-serif;font-size:12px;letter-spacing:3px;font-weight:bold;color:${v.accent};padding-bottom:8px;">${String(v.headline).toUpperCase()}</td></tr>
           <tr>${cell(v.days, "DAYS")}${cell(v.hours, "HOURS")}${cell(v.minutes, "MINS")}</tr>
         </table>`;
