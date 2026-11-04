@@ -1,0 +1,1 @@
+import{c as r,m as i,D as o}from"./Html-BAxYbs4O.js";import{x as s}from"./render-DXRDh5RP.js";const e={...o},p=r({name:"Divider",defaultValues:e,propMapper:a=>i(a,e,"Divider"),displayName:"Divider",draw:s});export{p as D};
