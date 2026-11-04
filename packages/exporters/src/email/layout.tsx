@@ -2,9 +2,9 @@
  * Email layout: widths from the resolver as Word reads them (table and cell
  * attributes, px maximums), where a child sits in its cell, `<Box>` (a node's
  * box as a table around its content) and `<Stack>` (children as table rows);
- * a Row's gaps and its children's shares on phones.
+ * a Row's gaps and its children's shares on phones; what a Layer draws.
  */
-import { toPx, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, toPx, type Asset, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { h, NotOutlook, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
 import { isNode, shown, type Props } from "./context";
@@ -173,3 +173,20 @@ export function phoneShares(children: readonly ResolvedNode[], gap: number): Map
   return out;
 }
 
+/** What an email draws of a Layer: its Image, the child over it and its height; or why it can't. */
+export function layerShape(node: ResolvedNode): { base: ResolvedNode; over?: ResolvedNode; height: number } | { problem: string; path: string } {
+  const children = node.children.filter(isNode).filter(shown);
+  const [base, over] = children;
+  if (!base || base.type !== "Image" || children.length > 2) {
+    return { problem: `In an email, a Layer is an Image with one child over it (drawn as the image's background); this one has ${children.length > 2 ? `${children.length} children` : base ? `a ${base.type} under` : "no children"}`, path: node.path };
+  }
+  if (base.width === null || node.contentWidth === null || Math.abs(base.width - node.contentWidth) > 1) {
+    return { problem: "In an email, a Layer's Image is as wide as the Layer (it's drawn as its background): give it width 100%", path: `${base.path}.style.width` };
+  }
+  if (typeof node.style.height === "number") return { base, over, height: node.style.height };
+  const { width, height } = assetParts(base.props.src as Asset);
+  if (!width || !height) {
+    return { problem: "In an email, a Layer is as tall as its Image, which needs its file's width and height (src={{ src, width, height }}); or give the Layer a height", path: `${base.path}.props.src` };
+  }
+  return { base, over, height: Math.round((base.width * height) / width) };
+}

@@ -70,7 +70,7 @@ The rest of each folder is what its components share:
 |---|---|---|
 | `index.tsx` | the document (head, preview text, size budgets), the components, each node's props | the document, the components, each node's props |
 | `context.ts` | `Props` and `Component` | the same |
-| `layout.tsx` | widths as Word reads them, `<Box>` (a box as a table), `<Stack>` (children as table rows), a Row's gaps and its children's shares on phones | flex placement in a stack or a Row, box styles |
+| `layout.tsx` | widths as Word reads them, `<Box>` (a box as a table), `<Stack>` (children as table rows), a Row's gaps and its children's shares on phones, what a Layer draws | flex placement in a stack or a Row, box styles |
 | `styles.tsx` | full text styles on the text, phone text styles inherited, hiding | phone, hiding and hover classes |
 | `markup.tsx` | `<Table>` (every layout table's attributes), colors as Word reads them | |
 | `spacers.tsx` | what holds a gap: a row between the root's runs and Sections, an inline-block or a cell between a Row's children | |

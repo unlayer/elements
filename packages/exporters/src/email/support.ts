@@ -10,7 +10,7 @@ import { Diagnostics, fontStack, videoParts, type Diagnostic, type FontFace, typ
 import { support } from "../shared/support";
 import { wrapsPastIts } from "../shared/estimate";
 import { isNode, shown } from "./context";
-import { layerShape } from "./Layer";
+import { layerShape } from "./layout";
 
 export function emailSupport(root: ResolvedNode): Diagnostic[] {
   const d = new Diagnostics();

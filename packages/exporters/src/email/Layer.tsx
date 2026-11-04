@@ -1,36 +1,18 @@
 /**
  * A Layer: an Image with one child over it, the email way (anything else is reported before writing, see
- * `layerShape`). The image is the cell's background, covering it (`background` and CSS for the clients that take
- * either, a VML rectangle for classic Outlook, which takes neither); the child is the cell's content, placed by the
- * cell's `valign` and `align`. The cell is the image's height at the Layer's width, or the Layer's height. A
+ * `layerShape` in layout.tsx). The image is the cell's background, covering it (`background` and CSS for the clients
+ * that take either, a VML rectangle for classic Outlook, which takes neither); the child is the cell's content, placed
+ * by the cell's `valign` and `align`. The cell is the image's height at the Layer's width, or the Layer's height. A
  * background has no alternate text: the image's is an empty labelled image's, for screen readers, and the VML's.
  */
-import { assetParts, type Asset, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, type Asset } from "@unlayer-internal/elements-core";
 import { close, h, NotOutlook, open, Outlook, raw } from "../jsx";
-import { isNode, shown, type Component } from "./context";
-import { boxWidth, phoneWidth, VALIGN } from "./layout";
+import type { Component } from "./context";
+import { boxWidth, layerShape, phoneWidth, VALIGN } from "./layout";
 import { bgcolor, Table } from "./markup";
 import { hiding } from "./styles";
 
 const ALIGN: Record<string, string | undefined> = { start: "left", center: "center", end: "right", stretch: undefined };
-
-/** What an email draws of a Layer: its Image, the child over it and its height; or why it can't. */
-export function layerShape(node: ResolvedNode): { base: ResolvedNode; over?: ResolvedNode; height: number } | { problem: string; path: string } {
-  const children = node.children.filter(isNode).filter(shown);
-  const [base, over] = children;
-  if (!base || base.type !== "Image" || children.length > 2) {
-    return { problem: `In an email, a Layer is an Image with one child over it (drawn as the image's background); this one has ${children.length > 2 ? `${children.length} children` : base ? `a ${base.type} under` : "no children"}`, path: node.path };
-  }
-  if (base.width === null || node.contentWidth === null || Math.abs(base.width - node.contentWidth) > 1) {
-    return { problem: "In an email, a Layer's Image is as wide as the Layer (it's drawn as its background): give it width 100%", path: `${base.path}.style.width` };
-  }
-  if (typeof node.style.height === "number") return { base, over, height: node.style.height };
-  const { width, height } = assetParts(base.props.src as Asset);
-  if (!width || !height) {
-    return { problem: "In an email, a Layer is as tall as its Image, which needs its file's width and height (src={{ src, width, height }}); or give the Layer a height", path: `${base.path}.props.src` };
-  }
-  return { base, over, height: Math.round((base.width * height) / width) };
-}
 
 export const Layer: Component = ({ node, style, mobile, fill, render }) => {
   const shape = layerShape(node);
