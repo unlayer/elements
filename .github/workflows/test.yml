@@ -65,12 +65,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 393KB.
+      # Fail if the react-elements ESM bundle exceeds 412.6KB.
       # Today's components' default values as data in this package added about
       # 5KB, and writing custom tools, Html blocks and a user's own markup without
       # @unlayer/exporters (their box, their head, what today's body, row and
       # column give a tool's exporter) about 4KB, for now: the legacy render paths
-      # still in it go with @unlayer/exporters.
+      # still in it go with @unlayer/exporters. Drawing Social, Menu, Image, Video
+      # and PageBreak in every case on the new engine (each case they kept today's
+      # HTML for, and what can't be read said) adds about 19.6KB, for now too.
       # Today's components render through the new engine (RFC 0001 step 7): the
       # main entry bundles its core and writers too (the /primitives entry's,
       # without its JSX API), and the lowering of today's designs into them,
@@ -95,7 +97,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=393000
+          MAX_SIZE=412600
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -111,15 +113,17 @@ jobs:
       # Canvas: what they can't show, content that can't fit; the Raw node
       # importers make for markup they bring in; a Menu that wraps and says
       # where it can't, messages at a Grid's places in the template, the
-      # layout version), with no @unlayer/exporters in it. Raise it on
-      # purpose, with what grew.
+      # layout version; a font's own line height, a Row's children as words
+      # and its direction, a Column's page break, an Image's place in its line
+      # and on phones, a Link's other attributes, about 3.5KB), with no
+      # @unlayer/exporters in it. Raise it on purpose, with what grew.
       - name: Check /primitives bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=232000
+          MAX_SIZE=235500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -146,7 +150,8 @@ jobs:
       # saves as its export writes it (its links, merge tags, headings and
       # lists, which the shared generator leaves out) grew it by about 9KB
       # more; writing a block's box without @unlayer/exporters by about 1KB,
-      # for now. It imports @unlayer/exporters for today's
+      # for now, and what the writers gained for Social, Menu, Image and
+      # PageBreak by about 3.6KB. It imports @unlayer/exporters for today's
       # components' defaults, as the main entry does. Raise it on purpose,
       # with what grew.
       - name: Check /builder bundle size
@@ -154,7 +159,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=452500
+          MAX_SIZE=455800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

@@ -490,16 +490,88 @@ describe("a video block", () => {
     expect((lowered(video, Page)?.children as TreeNode[])[0]).toEqual({ type: "Video", props: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
     expect((lowered(video)?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg", alt: "Video" } });
   });
+
+  const held = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+  const html = (node: TreeNode | undefined) => String(held(node).props?.html);
+  const other = { video: { type: "dailymotion", videoId: "x8abc", thumbnail: "https://cdn.example/t.png" } } as never;
+
+  it("of a kind that has no player leaves its 16:9 place empty on a page and says so; its thumbnail in an email", () => {
+    const { node, said } = drawn(<Video values={other} />, Page);
+    expect(held(node).type).toBe("Raw");
+    expect(html(node)).toContain("padding-bottom:56.25%");
+    expect(html(node)).not.toMatch(/<iframe|<img/);
+    expect(said).toEqual(['A video of type "dailymotion" has no player: its place is left empty.']);
+    expect(held(lowered(<Video values={other} />))).toMatchObject({ type: "Image", props: { src: "https://cdn.example/t.png" } });
+  });
+
+  it("with no video draws the placeholder: in its 16:9 place on a page, as a thumbnail in an email", () => {
+    const empty = <Video values={{ video: { type: "youtube", videoId: "", thumbnail: "" } } as never} />;
+    expect(html(lowered(empty, Page))).toContain('src="https://cdn.tools.unlayer.com/video/placeholder.png"');
+    expect(held(lowered(empty))).toMatchObject({ type: "Image", props: { src: "https://cdn.tools.unlayer.com/video/placeholder.png", alt: "Video" } });
+    expect(drawn(empty, Page).said).toEqual(["A video has no video to play: it's drawn as the placeholder."]);
+  });
+
+  it("with an id the new Video doesn't read writes its player as it is, which that id can't get out of, and says so", () => {
+    const { node, said } = drawn(<Video values={{ video: { type: "youtube", videoId: 'a"><x-pwn>' } } as never} />, Page);
+    expect(html(node)).toContain('src="https://www.youtube.com/embed/a&quot;&gt;&lt;x-pwn&gt;"');
+    expect(said.join()).toContain("can't be read");
+  });
+
+  it("in an email, where it says it's a page's, is a player of its own", () => {
+    expect(html(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" mode="web" />))).toContain('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"');
+  });
+
+  it("on a page, where it says it's an email's, is its thumbnail", () => {
+    expect(held(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" mode="email" />, Page))).toMatchObject({ type: "Image", props: { alt: "Video" } });
+  });
+
+  it("links its thumbnail where it has a link of its own: its href, else its video's URL", () => {
+    expect(held(lowered(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" values={{ href: "https://example.com/watch" } as never} />))).toMatchObject({ type: "Link", props: { href: { href: "https://example.com/watch", target: "_blank" } } });
+    expect(held(lowered(<Video values={{ video: { thumbnail: "https://cdn.example/t.png", url: "https://example.com/v" } } as never} />))).toMatchObject({ type: "Link", props: { href: { href: "https://example.com/v" } } });
+  });
+
+  it("draws a thumbnail that runs a script as the placeholder, and says so", () => {
+    const { node, said } = drawn(<Video values={{ video: { thumbnail: "javascript:alert(1)" } } as never} />);
+    expect(held(node).props?.src).toBe("https://cdn.tools.unlayer.com/video/placeholder.png");
+    expect(said.join()).toContain("isn't one Elements writes");
+  });
+
+  it("is drawn without a padding it can't read, and says so", () => {
+    const { node, said } = drawn(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" containerPadding="lots" />, Page);
+    expect(node?.style).toEqual({});
+    expect(said).toEqual(['A video\'s padding "lots" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("caps an email's thumbnail on phones at legacy's maximum where that's past its width on desktop", () => {
+    const image = (Root: Root) => {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column>{video}</Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+      return find(result.tree.root);
+    };
+    expect(image(Email)).toMatchObject({ style: { maxWidth: 250 }, mobile: { maxWidth: 250 } });
+  });
 });
 
 describe("a page break", () => {
-  it("draws nothing in an email or on a page (with nothing written by legacy's exporters), and keeps its legacy HTML in a printed document", () => {
+  it("draws nothing in an email or on a page, and in a printed document is a box of its padding the page breaks after, with no Raw node", () => {
     for (const Root of [Email, Page]) {
       const result = withRenderScope(() => lowerTemplate(<Root><Row><Column><Paragraph>A</Paragraph><PageBreak /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
       expect(result.legacyHead).toBeUndefined();
       expect(lowered(<PageBreak />, Root)).toBeUndefined();
     }
-    expect(lowered(<PageBreak />, Document as Root)?.type).toBe("Raw");
+    expect(lowered(<PageBreak />, Document as Root)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, breakAfter: "page" } });
+    expect((withRenderScope(() => lowerTemplate(<Document><Row><Column><PageBreak /></Column></Row></Document>, undefined, "renderToHtml")) as Lowered).legacyHead).toBeUndefined();
+  });
+
+  it("goes by its own mode: a box in an email where it says it's a document's, nothing in a document where it says it's a page's", () => {
+    expect(lowered(<PageBreak mode="document" />)?.style?.breakAfter).toBe("page");
+    expect(lowered(<PageBreak mode="web" />, Document as Root)).toBeUndefined();
+  });
+
+  it("is drawn without a padding it can't read, and says so", () => {
+    const { node, said } = drawn(<PageBreak containerPadding="lots" />, Document as Root);
+    expect(node).toEqual({ type: "Column", style: { breakAfter: "page" } });
+    expect(said).toEqual(['A page break\'s padding "lots" can\'t be read: it\'s drawn without it.']);
   });
 });
 

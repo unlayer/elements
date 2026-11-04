@@ -364,6 +364,35 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
+  it("write no social, menu, image or video with today's exporters, whatever they hold", () => {
+    const spies = [exporters.SocialExporters, exporters.MenuExporters, exporters.ImageExporters, exporters.VideoExporters, exporters.BodyExporters].flatMap((tool: Record<string, any>) => Object.keys(tool).map((mode) => vi.spyOn(tool, mode)));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const Root of [Email, Page, Document]) {
+        renderToHtml(
+          <Root>
+            <Row>
+              <Column>
+                <Social icons={[]} />
+                <Social icons={[{ name: "X", url: "https://x.example/<%id%>", imgUrl: 7 } as never]} hideOnMobile containerPadding="lots" mobile={{ containerPadding: "1px" } as never} values={{ _override: { desktop: { containerPadding: "2px" }, tablet: { containerPadding: "3px" } } } as never} />
+                <Menu items={[]} />
+                <Menu layout="vertical" items={[{ text: "<%a%>", href: "https://a.example" }]} hideOnDesktop mobile={{ fontSize: "20px" } as never} />
+                <Image values={{ src: { url: "" } } as never} />
+                <Image src={{ url: "https://a.example/a.png", width: 100, height: 10 }} alt="<%a%>" action={{ url: "https://a.example" } as never} hideOnMobile mobile={{ textAlign: "left" } as never} />
+                <Video values={{ video: { type: "dailymotion", videoId: "x" } } as never} hideOnMobile />
+                <PageBreak />
+              </Column>
+            </Row>
+          </Root>
+        );
+      }
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it("hide on phones in an email at legacy's 480px, whatever its width, its columns still stacking at its width", () => {
     const html = renderToHtml(<Email contentWidth="600px"><Row cells={[1, 1]}><Column><Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} /></Column><Column><Paragraph>Text</Paragraph></Column></Row></Email>);
     expect(html).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
