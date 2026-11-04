@@ -350,7 +350,7 @@ See [when to choose Elements](https://github.com/unlayer/elements/blob/main/pack
 
 ## Moving from today's components
 
-The components at the main import keep working, with the same API, and since 0.3.0 they render through the same engine. Your templates and the functions you call don't change. Their HTML does: they now draw as the Unlayer editor's export draws them. [CHANGELOG.md](./CHANGELOG.md) lists every difference from 0.2.1 and each new error, with its reason.
+The components at the main import keep working, with the same API, and since 0.3.0 they render through the same engine. Your templates and the functions you call don't change. Their HTML does: in Chromium, they now draw as the Unlayer editor's export draws them. That hasn't been checked in real email clients, and in classic Outlook a button has square corners, where the editor's are rounded. [CHANGELOG.md](./CHANGELOG.md) lists every difference from 0.2.1 and each new error, with its reason.
 
 A template uses one set of components or the other. To move:
 
