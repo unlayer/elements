@@ -1031,10 +1031,9 @@ describe("a social block", () => {
     expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { ariaLabel: "social" }, children: [] });
   });
 
-  it("labels its box for a screen reader in every output, and on a page or in a printed document its links, as legacy's", () => {
+  it("labels its box and its icons for a screen reader in every output, as legacy's", () => {
     const labels = (Root: Root) => [...renderToHtml(<Root><Row><Column><Social icons={[{ name: "X", url: "https://x.example" }]} /></Column></Row></Root>).matchAll(/aria-label="([^"]*)"/g)].map((match) => match[1]);
-    expect(labels(Email).filter((label) => /social|icon/.test(label))).toEqual(["social"]);
-    for (const Root of [Page, Document] as Root[]) expect(labels(Root).filter((label) => /social|icon/.test(label))).toEqual(["social", "X icon"]);
+    for (const Root of [Email, Page, Document] as Root[]) expect(labels(Root).filter((label) => /social|icon/.test(label))).toEqual(["social", "X icon"]);
   });
 
   const image = (node: TreeNode | undefined, index = 0) => ((((row(node).children as TreeNode[])[index].children as TreeNode[])[0].children as TreeNode[])[0]);

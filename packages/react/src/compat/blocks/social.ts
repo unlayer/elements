@@ -77,7 +77,7 @@ export const social: Lowering = (block, place): TreeNode => {
           };
     const gap = index === icons.length - 1 ? 0 : spacing!;
     // Its box: the icon and the space to the next (which goes along where the line wraps, as legacy's margin does).
-    return { type: "Column", style: { flex: "none", width: size! + gap, ...(gap ? { padding: { top: 0, right: gap, bottom: 0, left: 0 } } : {}), ...(asEmail ? { height: size! } : {}) }, children: [drawn] };
+    return { type: "Column", ...(asEmail ? { compat: { ariaLabel: alt } } : {}), style: { flex: "none", width: size! + gap, ...(gap ? { padding: { top: 0, right: gap, bottom: 0, left: 0 } } : {}), ...(asEmail ? { height: size! } : {}) }, children: [drawn] };
   });
   const rtl = (place.config.textDirection ?? place.body.textDirection) === "rtl";
   // As legacy's plain text reads it: its links' addresses, on one line in a page's markup, each on its own in an email's.
