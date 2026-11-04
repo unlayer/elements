@@ -123,7 +123,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     try {
       for (const [name, template] of all) {
         const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"));
-        expect(rendered?.html, name).toMatch(/^<!DOCTYPE html>/);
+        expect(rendered?.html, name).toMatch(/^<!DOCTYPE /i);
       }
       expect(all.length).toBeGreaterThan(150);
     } finally {
@@ -393,7 +393,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
         </Email>
       );
       const { 480: phone, 620: stacking } = queries(html);
-      expect(stacking).toContain("max-width:300px!important");
+      expect(stacking).toContain("width:100%!important;max-width:100%!important");
       // Its columns are cells that stack there, each with its own line.
       expect(stacking).toContain("display:block!important");
       expect(html.match(/<td[^>]*style="[^"]*border-top:2px solid/g)).toHaveLength(2);

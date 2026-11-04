@@ -7,7 +7,7 @@ import { assetParts, type Asset, type Json } from "@unlayer-internal/elements-co
 import { h, type Style } from "../jsx";
 import type { Component } from "./context";
 import { toNumber } from "./layout";
-import { hiding, stackedCap } from "./styles";
+import { fillsOnPhones, hiding } from "./styles";
 
 /** Where it sits in its cell on phones: its margins (the cell's `align` is for desktop). */
 const PLACE: Record<string, Style> = { start: { marginLeft: 0, marginRight: "auto" }, center: { marginLeft: "auto", marginRight: "auto" }, end: { marginLeft: "auto", marginRight: 0 } };
@@ -26,7 +26,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
   const cap = given !== undefined && width !== undefined && Math.round(given) === width ? given : width;
   // In a stack or a Row its cell hides it; in a link, its own style.
   const own = parent.type === "Link" ? hiding(node, "block") : { style: {} };
-  const hidden = { ...own, class: [own.class, stackedCap(node)] };
+  const hidden = { ...own, class: [own.class, fillsOnPhones(node)] };
   return (
     <img
       id={node.id}

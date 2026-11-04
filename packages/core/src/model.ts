@@ -37,7 +37,7 @@ export interface Node {
    * `stretch` (its columns table cells, as tall as it is, each at least its
    * `minWidth` and `phoneMinWidth`); on an email's Raw `wide` (across the window, between Sections);
    * in an email, `ownPhone` (its phone styles start where what's hidden does) and on an Image
-   * `stackedMaxWidth` (its maximum where its Row stacks).
+   * `fillsOnPhones` (its whole place, from where its Row stacks).
    */
   compat?: Record<string, Json>;
 }

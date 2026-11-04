@@ -43,12 +43,11 @@ export function phoneText(node: ResolvedNode, mobile: MobileText): Declarations 
 }
 
 /**
- * An Image's maximum where its Row's columns stack (a template of today's components: `compat.stackedMaxWidth`), as
- * that Row's own stacking does, wherever the image's own phone styles start.
+ * An Image that fills its place from where its Row's columns stack (a template of today's components:
+ * `compat.fillsOnPhones`), as the editor's does, wherever the image's own phone styles start.
  */
-export function stackedCap(node: ResolvedNode): string | undefined {
-  const cap = node.compat?.stackedMaxWidth;
-  return typeof cap === "number" ? rule("phone", `&{max-width:${cap}px!important}`, "layout") : undefined;
+export function fillsOnPhones(node: ResolvedNode): string | undefined {
+  return node.compat?.fillsOnPhones ? rule("phone", "&{width:100%!important;max-width:100%!important}", "layout") : undefined;
 }
 
 /**

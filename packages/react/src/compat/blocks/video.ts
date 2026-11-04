@@ -8,8 +8,7 @@
 import { videoParts, type Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
-import { imagePadding } from "../quirks";
-import { attribute, columnsStack, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, keptUrl, moreRoom, sides, some, type Values } from "../values";
+import { attribute, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, keptUrl, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const WATCH: Record<string, (id: string) => string> = { youtube: (id) => `https://www.youtube.com/watch?v=${id}`, vimeo: (id) => `https://vimeo.com/${id}` };
@@ -34,13 +33,10 @@ export const video: Lowering = (block, place): TreeNode => {
   const mobile = phonePadding ? { mobile: { padding: phonePadding } } : {};
   const id = typeof video.videoId === "string" ? video.videoId : "";
   if (asEmail) {
-    const room = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: imagePadding(values, place.source) });
+    const room = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
     const given = video.thumbnail ? drawnImageUrl(video.thumbnail, (text) => keptUrl(text, place.keep), (message) => place.note(`A video's thumbnail ${message}`)) : undefined;
     const max = Math.round(room * 100) / 100;
-    // Legacy's maximum is its own where its row stacks, a stacked column being wider than on desktop (see image.ts).
-    const slot = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
-    const stacks = place.mode === "email" && columnsStack(place);
-    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, compat: { ariaLabel: "video thumbnail", ...(stacks && max > slot + 0.5 ? { stackedMaxWidth: max } : {}) }, ...(place.mode === "email" && moreRoom(phonePadding, padding) ? { mobile: { maxWidth: max } } : {}) };
+    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, compat: { ariaLabel: "video thumbnail" } };
     // (Its video's own URL is written as it is, a tag in it whole; a link given it is written as any block's.)
     const href = values.href ? drawnLink(values.href, place.keep, place.note) : typeof video.url === "string" && video.url ? { href: { href: keptUrl(video.url, place.keep) } } : undefined;
     const linked = href && (href.href as { href: string }).href ? { type: "Link", props: href as Record<string, Json>, children: [image] } : image;

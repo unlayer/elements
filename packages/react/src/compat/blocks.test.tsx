@@ -273,10 +273,10 @@ describe("a text block's direction and fonts", () => {
 });
 
 describe("an image block", () => {
-  it("is an Image in a Column, its width a share of its place at most the width legacy works out", () => {
+  it("is an Image in a Column, its width a share of its place at most what its padding leaves", () => {
     const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 1200, height: 600 }} altText="A" />);
     expect(node).toMatchObject({ type: "Column", style: { alignItems: "center" } });
-    expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
+    expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 480 } });
   });
 
   const asset = { url: "https://example.com/a.png", width: 600, height: 300 };
@@ -311,7 +311,7 @@ describe("an image block", () => {
     expect(inner(lowered(<Image src={short} action={{ url: "https://example.com" } as never} />))).toMatchObject({ type: "Text", children: [{ type: "Link", children: [{ type: "Image" }] }] });
     // A line of its own height isn't one: a page's has none, nor does an image as tall as a line.
     expect(inner(lowered(<Image src={short} />, Page)).type).toBe("Image");
-    expect(inner(lowered(<Image src={{ ...short, height: 24 }} />)).type).toBe("Image");
+    expect(inner(lowered(<Image src={{ ...short, height: 25 }} />)).type).toBe("Image");
     expect(inner(lowered(<Image src={short} mode="web" />)).type).toBe("Image");
   });
 
@@ -357,7 +357,7 @@ describe("an image block", () => {
 
   it("with a width pinned that can't be read is as wide as its place, at most its own width, and says so", () => {
     const { node, said } = drawn(<Image values={{ src: { ...asset, autoWidth: false, maxWidth: "big" } } as never} />);
-    expect(inner(node).style).toMatchObject({ width: "100%", maxWidth: 500 });
+    expect(inner(node).style).toMatchObject({ width: "100%", maxWidth: 480 });
     expect(said).toEqual(['An image\'s width "big" can\'t be read: it\'s drawn without it.']);
   });
 
@@ -384,24 +384,21 @@ describe("an image block", () => {
     expect(lowered(<Image src={asset} altText="A" />, Page)?.textAs).toBeUndefined();
   });
 
-  it("caps an email image at legacy's maximum where its row stacks, where that's past its width on desktop (a stacked column is wider)", () => {
-    const image = (Root: Root) => {
-      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+  it("fills its place on phones where it has room to fill a column alone, as the editor's rule has it", () => {
+    const image = (src: Record<string, unknown>, Root: Root = Email, values: Record<string, unknown> = {}) => {
+      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", ...src } as never} altText="A" values={values as never} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
       const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
       return find(result.tree.root);
     };
-    // A 500px email's half is 250px: legacy's image is at most that, drawn 230px wide in its padding on desktop.
-    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, compat: { stackedMaxWidth: 250 } });
-    expect(image(Email)?.mobile).toBeUndefined();
-    expect(image(Page)?.compat).toBeUndefined();
-  });
-
-  it("keeps legacy's maximum on phones in an email where its padding there is less than on desktop, which caps it otherwise", () => {
-    const image = (override: Record<string, unknown>, Root: Root = Email) => lowered(<Image src={{ url: "https://example.com/a.png", width: 300, height: 150 }} altText="A" values={{ _override: override } as never} />, Root);
-    expect((image({ desktop: { containerPadding: "37px" } })?.children as TreeNode[])[0].mobile).toEqual({ maxWidth: 312.5 });
-    expect((image({ mobile: { containerPadding: "0px" } })?.children as TreeNode[])[0].mobile).toEqual({ maxWidth: 312.5 });
-    expect((image({ mobile: { containerPadding: "37px" } })?.children as TreeNode[])[0].mobile).toBeUndefined();
-    expect((image({ desktop: { containerPadding: "37px" } }, Page)?.children as TreeNode[])[0].mobile).toBeUndefined();
+    // A 500px email's half is 250px, 230px in its padding; alone, a column has 480px.
+    expect(image({ width: 600, height: 300 })).toMatchObject({ style: { width: "100%", maxWidth: 230 }, compat: { fillsOnPhones: true } });
+    expect(image({ width: 600, height: 300 })?.mobile).toBeUndefined();
+    expect(image({ width: 600, height: 300 }, Page)).toMatchObject({ mobile: { width: "100%", maxWidth: "100%" } });
+    expect(image({ width: 600, height: 300 }, Page)?.compat).toBeUndefined();
+    // A smaller file isn't stretched, a width pinned stays, and what's set for phones is as it's set.
+    expect(image({ width: 400, height: 300 })?.compat).toBeUndefined();
+    expect(image({ width: 600, height: 300, autoWidth: false, maxWidth: "50%" })?.compat).toBeUndefined();
+    expect(image({ width: 600, height: 300 }, Email, { _override: { mobile: { src: { maxWidth: "50%", autoWidth: false } } } })?.compat).toBeUndefined();
   });
 
   it("takes settings for desktop windows, its URL staying, and its padding on phones", () => {
@@ -1233,20 +1230,11 @@ describe("a video block", () => {
     expect(said).toEqual(['A video\'s padding "lots" can\'t be read: it\'s drawn without it.']);
   });
 
-  it("keeps legacy's maximum for an email's thumbnail on phones where its padding there is less than on desktop", () => {
+  it("sizes an email's thumbnail to what its padding leaves", () => {
     const image = (override: Record<string, unknown>) => (lowered(<Video values={{ video: { type: "youtube", videoId: "abc", thumbnail: "https://cdn.example/t.png" }, _override: override } as never} />)?.children as TreeNode[])[0];
-    expect(image({ desktop: { containerPadding: "37px" } }).mobile).toEqual({ maxWidth: 500 });
+    expect(image({}).style).toMatchObject({ width: "100%", maxWidth: 480 });
+    expect(image({ desktop: { containerPadding: "37px" } }).style).toMatchObject({ width: "100%", maxWidth: 426 });
     expect(image({ mobile: { containerPadding: "37px" } }).mobile).toBeUndefined();
-  });
-
-  it("caps an email's thumbnail at legacy's maximum where its row stacks, where that's past its width on desktop", () => {
-    const image = (Root: Root) => {
-      const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column>{video}</Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
-      const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
-      return find(result.tree.root);
-    };
-    expect(image(Email)).toMatchObject({ style: { maxWidth: 250 }, compat: { stackedMaxWidth: 250 } });
-    expect(image(Email)?.mobile).toBeUndefined();
   });
 });
 

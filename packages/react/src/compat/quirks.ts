@@ -105,16 +105,6 @@ export function imageBox(_values: Record<string, unknown>): Record<string, never
 }
 
 /**
- * The padding legacy takes off an image's place to size it: the block's own, where its props give one; else none,
- * though the block has its default 10px (the exporter isn't given it), so the image may be up to 20px wider than its
- * padded place leaves, and spills into the padding.
- */
-export function imagePadding(design: Record<string, unknown>, exporter: Record<string, unknown> | undefined): unknown {
-  if (!exporter) return design.containerPadding ?? "10px";
-  return exporter.containerPadding ?? "0px";
-}
-
-/**
  * Whether legacy writes an email image twice, the second for classic Outlook in a conditional comment, which its plain
  * text reads too (the image's alternate text is there twice): where the image has its own width and height.
  */

@@ -8,7 +8,6 @@ import {
   documentBodyPicture,
   fontOfValues,
   imageBox,
-  imagePadding,
   outlookCopy,
   ownMarkupCss,
   pageBodyColor,
@@ -92,11 +91,6 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
 
   it("draws an image without the border, corners and background its props give it", () => {
     expect(imageBox({ borderWidth: "2px", borderStyle: "solid", borderColor: "#000", borderRadius: "8px", backgroundColor: "#eee" })).toEqual({});
-  });
-
-  it("sizes an image without its block's default padding, where its props don't give one", () => {
-    expect(imagePadding({ containerPadding: "10px" }, {})).toBe("0px");
-    expect(imagePadding({ containerPadding: "10px" }, { containerPadding: "16px" })).toBe("16px");
   });
 
   it("counts an email image twice in plain text where it knows its height (its Outlook copy)", () => {

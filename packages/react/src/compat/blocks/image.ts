@@ -1,15 +1,15 @@
 /**
  * An image block as an Image (in a Link where its action is a link) in a Column with the block's padding, placed
- * by its alignment. Its width and maximum width are legacy's: a share of its place (100% where it takes its own size)
- * at most its own width or that share of the place legacy works out from the design (the content width, the row's and
- * column's padding and the column's share), as legacy writes them. It always draws: what can't be read is said; with
+ * by its alignment. Its width and maximum width are the editor's: a share of its place (100% where it takes its own size)
+ * at most its own width or that share of the place the design leaves it (the content width, the row's and column's
+ * padding, the column's share and the block's padding). It always draws: what can't be read is said; with
  * no URL its block has its padding and nothing in it.
  */
 import type { Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
-import { imageBox, imagePadding, outlookCopy } from "../quirks";
-import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, ENTITY, moreRoom, sides, some, webLink, type Sides, type Values } from "../values";
+import { imageBox, outlookCopy } from "../quirks";
+import { ALIGN, attribute, deviceValues, drawnImageUrl, drawnLink, ENTITY, sides, some, webLink, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -61,7 +61,7 @@ export const image: Lowering = (block, place): TreeNode => {
   const ownBorder = values.border && typeof values.border === "object" ? values.border : {};
   const borders = ["Left", "Right"].map((side) => parseFloat(String(ownBorder[`border${side}Width`] ?? 0)) || 0);
   const room =
-    contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: imagePadding(values, place.source) }) -
+    contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" }) -
     borders[0] -
     borders[1];
   let size = imageSize(src, room);
@@ -97,23 +97,16 @@ export const image: Lowering = (block, place): TreeNode => {
   const alt = typeof values.altText === "string" ? place.keep(values.altText, ENTITY) : "";
   const asset: Record<string, Json> = { src: url };
   for (const side of ["width", "height"] as const) if (typeof src[side] === "number" && src[side] > 0) asset[side] = src[side];
-  // In an email, legacy's maximum is the image's own on phones too, where a stacked column is wider than on desktop: the
-  // new email's caps an image at the width it's drawn at on desktop, so a maximum past that (legacy's place leaves the
-  // block's padding in) is the image's on phones, in a row of columns that stack (a row's only column is no wider there).
-  const slot =
-    contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" }) -
-    borders[0] -
-    borders[1];
-  const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
-  const stacks = columnsStack(place);
-  // (Its own padding on phones, narrower than on desktop, gives it that room in any row: from where those settings start.)
-  if (place.mode === "email" && typeof size.maxWidth === "number" && imagePhone.maxWidth === undefined && moreRoom(columnPhone.padding as Sides | undefined, padding)) imagePhone.maxWidth = size.maxWidth;
-  const stackedMaxWidth = place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 ? size.maxWidth : undefined;
+  // As the editor's: an image with room to fill a column on its own does on phones, past the size it has on desktop
+  // (a smaller file isn't stretched, and what's set for phones is as it's set).
+  const alone = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: [1], columnIndex: 0, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" }) - borders[0] - borders[1];
+  const fills = block.values._override?.mobile?.src === undefined && typeof src.width === "number" && src.width >= alone && (src.autoWidth !== false || String(src.maxWidth) === "100%");
+  if (fills && place.mode === "web") Object.assign(imagePhone, { width: "100%", maxWidth: "100%" });
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
   const sized = { width: size.width, maxWidth: size.maxWidth, ...imageBox(values) };
   const withPhone = Object.keys(imagePhone).length ? { mobile: imagePhone } : {};
-  const drawn: TreeNode = { type: "Image", props, style: sized, ...withPhone, ...(stackedMaxWidth !== undefined ? { compat: { stackedMaxWidth } } : {}) };
+  const drawn: TreeNode = { type: "Image", props, style: sized, ...withPhone, ...(fills && place.mode === "email" ? { compat: { fillsOnPhones: true } } : {}) };
   const column = (child: TreeNode): TreeNode => ({ type: "Column", style: box, ...(Object.keys(columnPhone).length ? { mobile: columnPhone } : {}), children: [child] });
   const action = webLink(values.action) === null ? undefined : drawnLink(values.action, place.keep, place.note);
   const href = (action?.href as { href?: string } | undefined)?.href ? (action as Record<string, Json>) : undefined;
