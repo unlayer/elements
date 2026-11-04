@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import React, { memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { legacyRenderToHtml, renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
+import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
 
@@ -27,22 +27,26 @@ const template = (
   </Email>
 );
 const order = ["Header", "Fragment", "Pair one", "Pair two", "Gappy", "Memo", "Note", "Target", "Last"];
+/** HTML no run holds: a block keeps it as it is, in a box with an id its phone CSS selects. */
+const AS_IT_IS = "<ul><li>Target</li></ul>";
 
 describe("Fragments and user components among the blocks", () => {
-  it("render every block once, in order, each with its own id", () => {
-    for (const html of [renderToHtml(template), legacyRenderToHtml(template)]) {
-      const body = html.slice(html.indexOf("<body"));
-      const texts = order.map((t) => body.indexOf(`>${t}<`));
-      expect(texts.every((at) => at > 0)).toBe(true);
-      expect([...texts].sort((a, b) => a - b)).toEqual(texts);
-    }
-    // Today's components' own HTML numbers each row, column and block (the new engine writes only an author's ids).
-    const body = legacyRenderToHtml(template).slice(legacyRenderToHtml(template).indexOf("<body"));
-    const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
+  it("render every block once, in order, each with its own id in the design", () => {
+    const html = renderToHtml(template);
+    const body = html.slice(html.indexOf("<body"));
+    const texts = order.map((t) => body.indexOf(`>${t}<`));
+    expect(texts.every((at) => at > 0)).toBe(true);
+    expect([...texts].sort((a, b) => a - b)).toEqual(texts);
+    for (const t of order) expect(body.split(`>${t}<`)).toHaveLength(2);
+    // Every row renders as an email row, a user component's too: each has the table Outlook reads around its columns.
+    expect(body.match(/<!--\[if mso\]><table /g)).toHaveLength(8);
+    // The design numbers each row, column and block (the new engine's HTML writes only an author's ids).
+    const { rows } = (renderToJson(template) as any).body;
+    const columns = rows.flatMap((r: any) => r.columns);
+    const ids = [...rows, ...columns, ...columns.flatMap((c: any) => c.contents)].map((node: any) => node.values._meta.htmlID);
+    expect(rows).toHaveLength(8);
+    expect(ids).toHaveLength(8 + 8 + order.length);
     expect(new Set(ids).size).toBe(ids.length);
-    // Every row renders as an email row, a user component's too.
-    expect(body.match(/id="u_row_\d+" class="u-row-container/g)?.length ?? 0).toBe(8);
-    expect(ids.filter((id) => id.startsWith("u_row_")).length).toBe(8);
   });
 
   it("put the phone CSS on the block that asked for it, and the design has the same blocks", () => {
@@ -52,14 +56,30 @@ describe("Fragments and user components among the blocks", () => {
     // Only the block that asked has the rule's class.
     expect(html.match(new RegExp(`class="${rule}"`, "g"))).toHaveLength(1);
     expect(html).toMatch(new RegExp(`class="${rule}"[^>]*>Target<`));
-    const legacy = legacyRenderToHtml(template);
-    const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(legacy)?.[1];
-    expect(selector).toBe(new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(legacy)?.[1]);
 
     const design = renderToJson(template) as any;
     const paragraphs = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
     expect(paragraphs.map((p: any) => (p.values.text ?? "").replace(/<[^>]+>/g, ""))).toEqual(order);
+  });
+
+  it("number a block written as it is as the design does, so its phone CSS selects its box", () => {
+    const written = (
+      <Email>
+        <Header />
+        <>{block("Fragment")}</>
+        <Pair />
+        <Gappy />
+        <MemoRow />
+        <Row><Column><Note text="Note" /><Paragraph html={AS_IT_IS} mobile={{ fontSize: "30px" }} /></Column></Row>
+        {block("Last")}
+      </Email>
+    );
+    const html = renderToHtml(written);
+    const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1];
+    expect(selector).toBeDefined();
+    expect(selector).toBe(new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(html)?.[1]);
     // The design names a paragraph as the editor does (`u_content_text_N`): the same N.
+    const paragraphs = (renderToJson(written) as any).body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
     expect(paragraphs.find((p: any) => /Target/.test(p.values.text)).values._meta.htmlID.replace("_text_", "_paragraph_")).toBe(selector);
   });
 
@@ -68,7 +88,8 @@ describe("Fragments and user components among the blocks", () => {
     const html = renderToHtml(plain);
     const rule = /\.(e\w+)\{font-size:30px/.exec(html)?.[1];
     expect(html).toMatch(new RegExp(`class="${rule}"[^>]*>Two<`));
-    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(legacyRenderToHtml(plain))?.[1]).toBe("u_content_paragraph_2");
+    const written = <Email>{block("One")}<Row><Column><Paragraph html={AS_IT_IS} mobile={{ fontSize: "30px" }} /></Column></Row></Email>;
+    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(renderToHtml(written))?.[1]).toBe("u_content_paragraph_2");
   });
 });
 
@@ -301,11 +322,14 @@ describe("HTML from a component in a Column", () => {
     const phone = /\.(e[0-9a-z]{5})\{font-size:22px!important/.exec(html)![1];
     expect(/<a [^>]*class="([^"]*)"[^>]*>\s*Real/.exec(html)![1].split(" ")).toContain(phone);
     expect(html).toMatch(/<a href="https:\/\/example.com\/plain">Plain link/);
-    // A template that renders as today, with its blocks numbered and a head by their ids, is in the block's own.
-    const legacy = legacyRenderToHtml(<Email><Row><Column><Button /><ElementsButton href="https://example.com" mobile={{ fontSize: "22px" }}>Real</ElementsButton></Column></Row></Email>);
-    const id = /id="(u_content_button_\d+)"[\s\S]{0,1500}?Real/.exec(legacy)![1];
-    const css = /<style[^>]*>([\s\S]*?)<\/style>/.exec(legacy)![1];
-    expect([...new Set(css.match(/#u_content_button_\d+/g))]).toEqual([`#${id}`]);
+    // A block written as it is has a head by its id, numbered after the user's, whose box has the one before it.
+    const Own = () => <a href="https://example.com/plain">Plain link</a>;
+    Own.displayName = "Paragraph";
+    const written = renderToHtml(<Email><Row><Column><Own /><Paragraph html={AS_IT_IS} mobile={{ fontSize: "22px" }} /></Column></Row></Email>);
+    const doc = new DOMParser().parseFromString(written, "text/html");
+    expect(doc.getElementById("u_content_paragraph_1")?.textContent).toContain("Plain link");
+    expect(doc.getElementById("u_content_paragraph_2")?.textContent).toContain("Target");
+    expect([...new Set(doc.querySelector("style")!.textContent!.match(/#u_content_paragraph_\d+/g))]).toEqual(["#u_content_paragraph_2"]);
   });
 });
 
