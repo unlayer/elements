@@ -95,8 +95,8 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     () => ""
   );
   const { className, style } = withoutMarks((lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties });
-  // A whole page's rem is the editor's 14px, as its stylesheet has it. (The parts for another page leave that page's.)
-  const sized = lowered.mode === "email" || inReact.embedded ? shell : shell.replace("<style>", "<style>html{font-size:14px}");
+  // What only a whole page has. (The parts for another page, and a template rendered inside one, leave that page as it is.)
+  const sized = inReact.embedded || !lowered.wholePage ? shell : shell.replace("<style>", () => `<style>${lowered.wholePage}`);
   const hosted = (markup: string) => renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: markup }, className, style }));
   // (The marks go back in what the writers wrote, the tree's: what's written around it holds none.)
   const written = restore(sized);

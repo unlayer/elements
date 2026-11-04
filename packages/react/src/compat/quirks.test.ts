@@ -18,6 +18,7 @@ import {
   rowPaddingInEmail,
   spaceBeforeTag,
   textTransformOfText,
+  wholePageCss,
 } from "./quirks";
 
 describe("legacy's quirks, drawn as legacy draws them", () => {
@@ -120,10 +121,11 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
     expect(document).toContain("body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }");
     expect(document).toContain(".content { width: 100%; font-family: georgia,serif; font-size: 15px; color: #333333; background-color: #eeeeee; -webkit-print-color-adjust: exact; }");
     expect(ownMarkupCss("document", { fontFamily: { value: "x}</style>" } })).not.toContain("</style>");
-    // The document's margin on a screen, as the editor's export has it; what can't be CSS isn't written.
-    expect(ownMarkupCss("document", { documentMargin: "96px" })).toContain("@media screen { body { padding: 96px; } }");
-    expect(ownMarkupCss("document", {})).toContain("main { min-height: 100vh; }");
-    expect(ownMarkupCss("document", { documentMargin: "x}</style>" })).not.toContain("</style>");
+    // A whole document's margin on a screen, as the editor's export has it; what can't be CSS isn't written.
+    expect(wholePageCss("document", { documentMargin: "96px" })).toBe("html{font-size:14px}main{min-height:100vh}@media screen{body{padding:96px}}");
+    expect(wholePageCss("document", { documentMargin: "x}</style>" })).not.toContain("</style>");
+    expect(wholePageCss("web", {})).toBe("html{font-size:14px}");
+    expect(wholePageCss("email", {})).toBe("");
   });
 
   it("takes the colors 0.2.1's stylesheet takes, and its defaults for others, in a template with markup of its own", () => {

@@ -24,7 +24,7 @@ import Row from "../components/Row";
 import { BLOCKS } from "./blocks";
 import { editorFontLinks } from "./editor-fonts";
 import { bodyLinkCss } from "./links";
-import { ownMarkupCss } from "./quirks";
+import { ownMarkupCss, wholePageCss } from "./quirks";
 import { keepHtmlTags, keepServiceTags, withoutMarks } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
@@ -71,6 +71,8 @@ export interface Lowered {
   tags: string[];
   /** The stylesheets of the editor's web fonts the design uses. */
   fonts?: Array<{ url: string }>;
+  /** What only a whole page or printed document has, not a template inside another page (quirks.ts). */
+  wholePage?: string;
 }
 
 /** What a render says of what's among a template's rows and in its Rows: markup among the rows is drawn (0.2.1 says nothing of it). */
@@ -197,7 +199,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   });
   const tree = { root: lowered };
   const diagnostics = [...ofFrame, ...ofBlocks];
-  if (!raw.size) return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head: undefined, diagnostics, tags, fonts: editorFontLinks(design) };
+  if (!raw.size) return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head: undefined, diagnostics, tags, fonts: editorFontLinks(design), wholePage: wholePageCss(mode, design.body.values ?? {}) };
   // Each is written here, once the template is lowered.
   const { children } = root.props as { children?: React.ReactNode };
   for (const n of raw.keys()) {
@@ -227,7 +229,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   }
   // What they all need is in the document once, where one of them is drawn: on the root, before each one's own rules.
   if (drawn && css) lowered.compat = { ...lowered.compat, css: [lowered.compat?.css, css].filter(Boolean).join("\n") };
-  return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head, diagnostics, tags, fonts: editorFontLinks(design) };
+  return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head, diagnostics, tags, fonts: editorFontLinks(design), wholePage: wholePageCss(mode, design.body.values ?? {}) };
 }
 
 /** What's wrong with the layout of a Row whose Columns don't fit it. */

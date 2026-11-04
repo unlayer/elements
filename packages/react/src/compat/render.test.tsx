@@ -879,6 +879,14 @@ describe("today's components straight through React", () => {
     expect(parts.head + parts.body).not.toContain("html{font-size:14px}");
     expect(parts.head).toContain("main *,main :after,main :before{box-sizing:inherit}");
     expect(renderToHtml(<Email><Row><Column>{words}</Column></Row></Email>)).not.toContain("font-size:14px}");
+    // A printed document's margin on a screen is the body's: only where the document has the window to itself.
+    const printed = <Document documentMargin="96px"><Row><Column>{words}</Column></Row></Document>;
+    expect(renderToHtml(printed)).toContain("@media screen{body{padding:96px}}");
+    expect(renderToHtml(printed)).toContain("main{min-height:100vh}");
+    const inside = renderToStaticMarkup(printed);
+    expect(inside).not.toContain("padding:96px");
+    expect(inside).not.toContain("min-height:100vh");
+    expect(renderToHtmlParts(printed).head).not.toContain("padding:96px");
   });
 
   it("leave out what fails of a live preview, and say so, rather than failing the app's render", () => {
