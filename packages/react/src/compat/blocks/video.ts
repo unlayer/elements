@@ -9,7 +9,7 @@ import { videoParts, type Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
 import { imagePadding } from "../quirks";
-import { attribute, columnsStack, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, sides, some, type Values } from "../values";
+import { attribute, columnsStack, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, moreRoom, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const WATCH: Record<string, (id: string) => string> = { youtube: (id) => `https://www.youtube.com/watch?v=${id}`, vimeo: (id) => `https://vimeo.com/${id}` };
@@ -40,7 +40,7 @@ export const video: Lowering = (block, place): TreeNode => {
     // Legacy's maximum is its own where its row stacks, a stacked column being wider than on desktop (see image.ts).
     const slot = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
     const stacks = place.mode === "email" && columnsStack(place);
-    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, ...(stacks && max > slot + 0.5 ? { compat: { stackedMaxWidth: max } } : {}) };
+    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, ...(stacks && max > slot + 0.5 ? { compat: { stackedMaxWidth: max } } : {}), ...(place.mode === "email" && moreRoom(phonePadding, padding) ? { mobile: { maxWidth: max } } : {}) };
     const link = values.href ?? (typeof video.url === "string" && video.url ? { url: video.url, target: "" } : undefined);
     const href = link ? drawnLink(link, place.keep, place.note) : undefined;
     const linked = href && (href.href as { href: string }).href ? { type: "Link", props: href as Record<string, Json>, children: [image] } : image;

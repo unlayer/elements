@@ -14,6 +14,9 @@ export const DEFAULT_CDN = "https://cdn.tools.unlayer.com";
 /** A value as an HTML attribute's, escaped as legacy escapes it. */
 export const attribute = (value: unknown): string => escapeText(String(value ?? "")).replace(/"/g, "&quot;");
 
+/** Whether a block's padding on phones leaves what's in it more room across than its padding on desktop. */
+export const moreRoom = (phone: Sides | undefined, desktop: Sides | undefined): boolean => !!phone && phone.left + phone.right < (desktop?.left ?? 0) + (desktop?.right ?? 0);
+
 /** Whether a block's row has columns that stack on phones. */
 export const columnsStack = ({ cells, row }: { cells: number[]; row: Values }): boolean => cells.length > 1 && !(row.noStackMobile || row._override?.mobile?.noStackMobile);
 

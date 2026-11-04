@@ -369,6 +369,14 @@ describe("an image block", () => {
     expect(image(Page)?.compat).toBeUndefined();
   });
 
+  it("keeps legacy's maximum on phones in an email where its padding there is less than on desktop, which caps it otherwise", () => {
+    const image = (override: Record<string, unknown>, Root: Root = Email) => lowered(<Image src={{ url: "https://example.com/a.png", width: 300, height: 150 }} altText="A" values={{ _override: override } as never} />, Root);
+    expect((image({ desktop: { containerPadding: "37px" } })?.children as TreeNode[])[0].mobile).toEqual({ maxWidth: 312.5 });
+    expect((image({ mobile: { containerPadding: "0px" } })?.children as TreeNode[])[0].mobile).toEqual({ maxWidth: 312.5 });
+    expect((image({ mobile: { containerPadding: "37px" } })?.children as TreeNode[])[0].mobile).toBeUndefined();
+    expect((image({ desktop: { containerPadding: "37px" } }, Page)?.children as TreeNode[])[0].mobile).toBeUndefined();
+  });
+
   it("takes settings for desktop windows, its URL staying, and its padding on phones", () => {
     const image = (override: Record<string, unknown>, Root: Root = Email) => lowered(<Image src={{ url: "https://example.com/a.png", width: 300, height: 150 }} altText="A" values={{ _override: override } as never} />, Root);
     const desktop = image({ desktop: { src: { autoWidth: false, maxWidth: "50%" }, containerPadding: "21px" } });
@@ -1146,6 +1154,12 @@ describe("a video block", () => {
     const { node, said } = drawn(<Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" containerPadding="lots" />, Page);
     expect(node?.style).toEqual({});
     expect(said).toEqual(['A video\'s padding "lots" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("keeps legacy's maximum for an email's thumbnail on phones where its padding there is less than on desktop", () => {
+    const image = (override: Record<string, unknown>) => (lowered(<Video values={{ video: { type: "youtube", videoId: "abc", thumbnail: "https://cdn.example/t.png" }, _override: override } as never} />)?.children as TreeNode[])[0];
+    expect(image({ desktop: { containerPadding: "37px" } }).mobile).toEqual({ maxWidth: 500 });
+    expect(image({ mobile: { containerPadding: "37px" } }).mobile).toBeUndefined();
   });
 
   it("caps an email's thumbnail at legacy's maximum where its row stacks, where that's past its width on desktop", () => {

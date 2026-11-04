@@ -9,7 +9,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
 import { imageBox, imagePadding, outlookCopy } from "../quirks";
-import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, inAttribute, sides, some, webLink, type Values } from "../values";
+import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, inAttribute, moreRoom, sides, some, webLink, type Sides, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -105,6 +105,8 @@ export const image: Lowering = (block, place): TreeNode => {
     borders[1];
   const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
   const stacks = columnsStack(place);
+  // (Its own padding on phones, narrower than on desktop, gives it that room in any row: from where those settings start.)
+  if (place.mode === "email" && typeof size.maxWidth === "number" && imagePhone.maxWidth === undefined && moreRoom(columnPhone.padding as Sides | undefined, padding)) imagePhone.maxWidth = size.maxWidth;
   const stackedMaxWidth = place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 ? size.maxWidth : undefined;
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
