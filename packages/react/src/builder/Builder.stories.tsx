@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, compare, type Args } from "../primitives/compare/story";
+import { args, argTypes, compare, type Args } from "../compat/SideBySide";
 import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
 import * as luma from "../primitives/codemod/LumaEventInvite";
 import * as mercury from "../primitives/codemod/MercuryReceipt";

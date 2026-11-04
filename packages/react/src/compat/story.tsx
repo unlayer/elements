@@ -11,11 +11,11 @@
 import type { StoryObj } from "@storybook/react-vite";
 import React, { type ReactElement } from "react";
 import { Column, Email, Page, Row } from "../index";
-import { SideBySide, type Width } from "../primitives/compare/SideBySide";
 import { UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { legacyRenderToHtml } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import { renderThroughNewEngine } from "./render";
+import { SideBySide, type Width } from "./SideBySide";
 
 export type Args = { width: Width };
 export const args: Args = { width: "desktop" };

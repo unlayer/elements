@@ -14,6 +14,7 @@ export default defineConfig({
         // Storybook stories are exercised by the Storybook smoke/visual gates
         '**/*.stories.tsx',
         // So are the designs the comparison gate draws next to main's (test:compare), and the codemod's output
+        'src/compat/SideBySide.tsx',
         'src/primitives/compare/**',
         'src/primitives/codemod/**',
         ...coverageConfigDefaults.exclude,

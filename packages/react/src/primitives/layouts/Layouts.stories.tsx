@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { Button, Column, Grid, Heading, Image, Layer, Paragraph, Section } from "../index";
-import { args, argTypes, outputs, type Args } from "../compare/story";
+import { args, argTypes, outputs, type Args } from "../../compat/SideBySide";
 
 const meta: Meta<Args> = {
   title: "Primitives/Email and page",
