@@ -2,8 +2,7 @@
  * What a reader gets from inputs the stories don't reach, through this build and as the last published release (0.2.1)
  * draws them: the words shown, the plain text, where each link goes and how it opens, the images and the places a link
  * can go to (an anchor). The inputs are the final review's of the switch; each is built twice, with each release's own
- * components, as a template has to be. Geometry (spacing, widths) is checked in Chromium by the upgrade sandbox's corpus,
- * which holds these inputs too.
+ * components, as a template has to be. Geometry (spacing, widths) isn't read here: only a browser can.
  */
 import { describe, expect, it, vi } from "vitest";
 import React from "react";

@@ -7,8 +7,8 @@
  * 10px of padding, a Heading's 22px at 140%, an email's 500px width), the value is written out; where today's draw
  * something other than their props say (an image's width in px, which they draw as a percentage of their column),
  * the value they draw is written out too, so nothing moves when a template is migrated. Values that can't be read
- * from the source (expressions) are kept as they are, and what that may change is reported, as is anything with no
- * new component yet (Html, Table, custom tools): the migration never drops anything quietly.
+ * from the source (expressions) are kept as they are, and what that may change is reported, as is anything it doesn't
+ * migrate (Html, Table, custom tools): the migration never drops anything quietly.
  */
 import * as prettier from "prettier";
 import ts from "typescript";
@@ -1035,7 +1035,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         return video(node, props);
       default:
         props.forEach((_, prop) => props.used.add(prop));
-        report.push(`${where(node)}: <${name}> has no new component yet: it's left out (write it with the new components, or keep this template on today's API)`);
+        report.push(`${where(node)}: <${name}> isn't migrated: it's left out (write it with the new components, or keep this template on today's API)`);
         return `{/* @unlayer/migrate: <${name}> isn't migrated: ${node.getText().replace(/\*\//g, "* /").slice(0, 120)}… */}`;
     }
   }

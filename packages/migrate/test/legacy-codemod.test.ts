@@ -305,13 +305,13 @@ export const Nav = () => <Link href="/">Home</Link>;`);
     ]);
   });
 
-  it("leaves a component with no new one out, loudly: a comment where it was and a line in the report", async () => {
+  it("leaves a component it doesn't migrate out, loudly: a comment where it was and a line in the report", async () => {
     const { code, report } = await migrate(`export const T = () => <Email><Row><Column><Html html="<table></table>" /></Column></Row></Email>;`);
     expect(code).toContain("@unlayer/migrate: <Html> isn't migrated");
-    expect(report.join("\n")).toMatch(/<Html> has no new component yet/);
+    expect(report.join("\n")).toMatch(/<Html> isn't migrated: it's left out/);
   });
 
-  it("leaves a component with no new one out where an expression goes as null, so the template still renders", async () => {
+  it("leaves a component it doesn't migrate out where an expression goes as null, so the template still renders", async () => {
     const { code, report } = await migrate(
       `function Legal() { return <Html html="<b>Terms</b>" />; }
 export const T = ({ show }: { show: boolean }) => <Email>{show && <Html html="<b>x</b>" />}{show ? <Video /> : null}<Legal /></Email>;`,
