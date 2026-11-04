@@ -45,7 +45,6 @@ import {
   TableRow as TableRowDefinition,
   Text as TextDefinition,
   type ComponentDefinition,
-  type Json,
   type PropsInput,
   type InputOf,
   type StyleInput,
@@ -65,8 +64,6 @@ interface Extras<Style> {
   /** Style while the pointer is over it, where the component has one. */
   hover?: Style;
   hidden?: { mobile?: boolean; desktop?: boolean };
-  /** Data from another format, kept as it is. */
-  compat?: Record<string, Json>;
   children?: React.ReactNode;
 }
 

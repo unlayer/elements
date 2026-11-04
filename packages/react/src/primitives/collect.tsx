@@ -104,7 +104,7 @@ const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">
 const unescape = (text: string) => text.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (entity) => ENTITIES[entity]);
 
 /** Where a node's own keys go: the rest of its JSX props are its semantic props. */
-const NODE_KEYS = new Set(["id", "style", "mobile", "hover", "hidden", "compat"]);
+const NODE_KEYS = new Set(["id", "style", "mobile", "hover", "hidden"]);
 
 export interface JsonNode {
   type: string;
@@ -112,12 +112,14 @@ export interface JsonNode {
   children: Array<JsonNode | string>;
 }
 
-function toJsonNode({ type, props }: Recorded): JsonNode {
+function toJsonNode({ type, props }: Recorded, diagnostics: Diagnostic[]): JsonNode {
   const node: JsonNode = { type, children: [] };
   const semantic: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
     if (value === undefined) continue;
-    if (NODE_KEYS.has(key)) node[key] = value;
+    // What today's components give the writers, as they lower into the tree. It holds markup: a template has no say in it.
+    if (key === "compat") diagnostics.push({ code: "jsx/compat", severity: "warning", message: `A <${type}>'s compat isn't a prop of a template: it's left out`, path: "jsx" });
+    else if (NODE_KEYS.has(key)) node[key] = value;
     else semantic[key] = value;
   }
   if (Object.keys(semantic).length) node.props = semantic;
@@ -149,7 +151,7 @@ function read(html: string, collection: PrimitiveCollection, diagnostics: Diagno
     text(html.slice(last, match.index));
     last = match.index! + match[0].length;
     if (match[2] === "o") {
-      const node = toJsonNode(collection.recorded[Number(match[1])]);
+      const node = toJsonNode(collection.recorded[Number(match[1])], diagnostics);
       open[open.length - 1].children.push(node);
       open.push({ node, children: node.children });
     } else open.pop();

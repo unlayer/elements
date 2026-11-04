@@ -26,12 +26,12 @@ export interface Node {
   hidden?: { mobile?: boolean; desktop?: boolean };
   children?: Child[];
   /**
-   * Data from another format that Elements doesn't render, kept so it goes
-   * back out unchanged (a builder block's display conditions). The writers read
-   * what today's components draw that no style holds, as they lower into this
-   * tree (packages/react/src/compat): an id of any characters (`anyId`, read
-   * when the template is checked), a `className`, on a Column, a Text, a
-   * Divider or an Image an `ariaLabel`; on a root the stylesheet
+   * What today's components draw that no style holds, as they lower into this
+   * tree (packages/react/src/compat), for the writers. A template can't set it:
+   * the JSX of /primitives leaves it out, as it can hold markup and CSS. An id
+   * of any characters (`anyId`, read when the template is checked), a
+   * `className`, on a Column, a Text, a Divider or an Image an `ariaLabel`; on a
+   * root the stylesheet
    * rules that select it (`css`) and an email's `previewHtml`; on a Section an
    * `align`; on a Section or an email's Row a `background` picture, and on a Row
    * `stretch` (its columns table cells, as tall as it is, each at least its

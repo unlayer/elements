@@ -28,7 +28,6 @@ function propsOf(node: Node): Record<string, unknown> {
     ...(node.mobile ? { mobile: node.mobile } : {}),
     ...(node.hover ? { hover: node.hover } : {}),
     ...(node.hidden ? { hidden: node.hidden } : {}),
-    ...(node.compat ? { compat: node.compat } : {}),
   };
 }
 

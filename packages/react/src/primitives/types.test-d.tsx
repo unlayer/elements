@@ -38,6 +38,9 @@ export const ok = (
   </Email>
 );
 
+// @ts-expect-error compat is what today's components' lowering gives the writers, not a prop of a template
+export const noCompat = <Paragraph compat={{ className: "mine" }}>Words</Paragraph>;
+
 // @ts-expect-error a Button needs an href
 export const noHref = <Button>Go</Button>;
 

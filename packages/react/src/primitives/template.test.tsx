@@ -63,6 +63,26 @@ describe("render()", () => {
     expect(text).toBe("THANKS, {{first_name}}: YOUR ORDER (https://example.com/Orders/AbC)\n\nhttps://example.com/Docs\n\n[ACME LOGO] (https://example.com/Home)");
   });
 
+  it("takes no compat from a template, directly or in a custom component: it's for today's components' lowering, and holds markup and CSS", async () => {
+    const compat = (value: Record<string, unknown>) => ({ compat: value }) as object;
+    const template = (
+      <Email {...compat({ css: "body{color:red}", previewHtml: "<script>1</script>" })}>
+        <Section {...compat({ background: { url: "https://example.com/x.png" } })}>
+          <Paragraph {...compat({ className: "from-template" })}>Words</Paragraph>
+        </Section>
+      </Email>
+    );
+    const { html, diagnostics } = await render(template);
+    for (const held of ["body{color:red}", "<script>1</script>", "from-template", "https://example.com/x.png"]) expect(html).not.toContain(held);
+    expect(diagnostics.filter((d) => d.code === "jsx/compat")).toHaveLength(3);
+    expect(primitives.validate(template).diagnostics.map((d) => d.code)).toContain("jsx/compat");
+    expect(tree(template)?.root.compat).toBeUndefined();
+    // An id only `compat.anyId` lets through stays refused.
+    expect(primitives.validate(<Email><Paragraph {...compat({ anyId: true })} id="odd id">Words</Paragraph></Email>).diagnostics.map((d) => d.code)).toContain("id/invalid");
+    const Custom = primitives.component({ type: "acme.Own", label: "Own", props: {}, render: () => <Paragraph {...compat({ className: "from-custom" })}>Custom</Paragraph> });
+    await expect(render(<Email><Custom /></Email>)).rejects.toThrow("compat isn't a prop of a template");
+  });
+
   it("rejects with the template's problems", async () => {
     // @ts-expect-error a Button needs an href
     const missing = <Page><Button>Go</Button></Page>;
