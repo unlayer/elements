@@ -190,10 +190,93 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     });
   });
 
-  it("say so of a root of another copy of today's components, which they can't read", () => {
-    const Foreign = Object.assign((props: { children?: React.ReactNode }) => <div>{props.children}</div>, { displayName: "Email" });
-    const template = <Foreign><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Foreign>;
-    for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText]) expect(() => render(template)).toThrow(/another copy of @unlayer\/react-elements.*duplicate install/);
+  it("say so of a root of a copy older than 0.3, which they can't read", () => {
+    const rows = <previous.Row><previous.Column><previous.Paragraph>Hi</previous.Paragraph></previous.Column></previous.Row>;
+    for (const Root of [previous.Email, previous.Page, previous.Document, previous.Body]) {
+      // Also inside a template of the user's, and in a component of the user's own named like a root.
+      const named = Object.assign(() => <Root>{rows}</Root>, { displayName: "Email" });
+      for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText]) {
+        for (const template of [<Root>{rows}</Root>, React.createElement(() => <Root>{rows}</Root>), React.createElement(named)]) {
+          expect(() => render(template)).toThrow(/another copy of @unlayer\/react-elements.*duplicate install/);
+        }
+      }
+    }
+  });
+
+  describe("of a component of the user's named like a root", () => {
+    const rows = (L: Release) => <L.Row><L.Column><L.Paragraph>Words</L.Paragraph></L.Column></L.Row>;
+    const named = <T extends object>(component: T, displayName: string) => Object.assign(component, { displayName }) as T & React.ComponentType;
+    const ROOTS = ["Email", "Page", "Document", "Body"] as const;
+    const whole = (L: Release, name: (typeof ROOTS)[number]) => {
+      const Root = L[name] as typeof Email;
+      return <Root>{rows(L)}</Root>;
+    };
+    /** Each way a template can be named like a root and give one. */
+    const WRAPPERS: Record<string, (L: Release, name: (typeof ROOTS)[number]) => React.ReactElement> = {
+      memo: (L, name) => React.createElement(named(React.memo(() => whole(L, name)), name)),
+      forwardRef: (L, name) => React.createElement(named(React.forwardRef(() => whole(L, name)), name)),
+      class: (L, name) => {
+        class Template extends React.Component {
+          render() {
+            return whole(L, name);
+          }
+        }
+        return React.createElement(named(Template, name));
+      },
+      function: (L, name) => React.createElement(named(() => whole(L, name), name)),
+      "function around another named function": (L, name) => {
+        const Inner = named(() => whole(L, name), name);
+        return React.createElement(named(() => <Inner />, name));
+      },
+    };
+
+    it.each(Object.keys(WRAPPERS))("%s: is called like any template, and draws its root as the root draws", (kind) => {
+      for (const name of ROOTS) {
+        const expected = renderToHtml(whole(current, name));
+        expect(renderToHtml(WRAPPERS[kind](current, name)), name).toBe(expected);
+        expect(renderToPlainText(WRAPPERS[kind](current, name)), name).toBe(renderToPlainText(whole(current, name)));
+        expect(renderToPlainText(WRAPPERS[kind](current, name)), name).toBe(previous.renderToPlainText(WRAPPERS[kind](previous, name)));
+      }
+    });
+
+    it("gives Rows: they're drawn in the output its name says", () => {
+      for (const name of ROOTS) {
+        const template = React.createElement(named(() => rows(current), name));
+        expect(renderToHtml(template), name).toBe(renderToHtml(whole(current, name)));
+        expect(previous.renderToHtml(React.createElement(named(() => rows(previous), name)))).toContain("Words");
+      }
+    });
+
+    it("gives Rows through memo or a class: the same", () => {
+      class Template extends React.Component {
+        render() {
+          return rows(current);
+        }
+      }
+      expect(renderToHtml(React.createElement(named(Template, "Page")))).toBe(renderToHtml(whole(current, "Page")));
+      expect(renderToHtml(React.createElement(named(React.memo(() => rows(current)), "Email")))).toBe(renderToHtml(whole(current, "Email")));
+    });
+
+    it("gives markup: it's drawn, and no copy is said to be older, even of HTML a copy could have written", () => {
+      for (const [name, Mode] of [["Body", Page], ["Page", Page], ["Email", Email], ["Document", Document]] as const) {
+        for (const markup of [<div>Words</div>, <div dangerouslySetInnerHTML={{ __html: '<div id="u_body_1" class="u_body">Words</div>' }} />]) {
+          const html = renderToHtml(React.createElement(named(() => markup, name)));
+          expect(html, name).toContain("Words");
+          expect(html.includes('aria-roledescription="email"'), name).toBe(Mode === Email);
+        }
+      }
+      // A component that isn't named like one isn't a template: it says so, as markup itself does.
+      expect(() => renderToHtml(React.createElement(() => <div>Words</div>))).toThrow(/<div> isn't a template/);
+    });
+
+    it("gives nothing or text: it's drawn as what it is, in the output its name says", () => {
+      expect(renderToHtml(React.createElement(named(() => null, "Email")))).toContain('aria-roledescription="email"');
+      expect(renderToHtml(React.createElement(named(() => "Words" as never, "Email")))).toContain("Words");
+    });
+
+    it("named Row or Column, gives a root: it's called too", () => {
+      for (const name of ["Row", "Column"]) expect(renderToHtml(React.createElement(named(() => whole(current, "Email"), name)))).toBe(renderToHtml(whole(current, "Email")));
+    });
   });
 
   it("draw what the new engine refuses without it, and say so", () => {

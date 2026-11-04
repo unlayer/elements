@@ -17,8 +17,7 @@ import { renderToStaticMarkup } from "../utils/server-renderer";
 import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
-import { callIsolated, getDisplayName, htmlRoot, isElementsType, MARKUP_ADVICE, ROOT_NAMES } from "../utils/unwrap-root";
-import { ROOT } from "../utils/collect";
+import { elementsOwn, getDisplayName, htmlRoot, isOwnRoot, MARKUP_ADVICE, type Unread } from "../utils/unwrap-root";
 import Body from "../components/Body";
 import Column from "../components/Column";
 import Row from "../components/Row";
@@ -26,9 +25,6 @@ import { BLOCKS } from "./blocks";
 import { ownMarkupCss } from "./quirks";
 import { keepHtmlTags, keepServiceTags, withoutMarks } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
-
-/** Whether a type is a root component the new engine reads (see ROOT): this copy's, or the same package's in another build. */
-const isReadableRoot = (type: unknown) => !!(type as Record<symbol, unknown> | null)?.[ROOT];
 
 // Email/Page/Document lock their render mode internally (they render <Body mode="...">), so the top-level element's own
 // props never carry it. Each wrapper's mode, so the document always matches what the body rendered as.
@@ -85,27 +81,24 @@ const STRAYS: Strays = {
  * an older copy of this package can't be read by this one.
  */
 function templateRoot(element: React.ReactElement, name: string, config: Partial<UnlayerConfig> | undefined, inReact: InReact): { root: React.ReactElement; given?: boolean; wide?: boolean } {
-  const found = htmlRoot(element, name) as React.ReactElement<any>;
-  const display = getDisplayName(found) ?? "";
-  if (ROOT_NAMES.has(display)) {
-    if (isReadableRoot(found.type)) return { root: found, given: true };
-    // A function of the user's own named after a root, around a real one, is called like any template.
-    const type = found.type as unknown as { (props: unknown): unknown; prototype?: { isReactComponent?: unknown } };
-    const inside = typeof type === "function" && !type.prototype?.isReactComponent ? callIsolated(() => type({ ...found.props })) : undefined;
-    if (React.isValidElement(inside) && isReadableRoot(inside.type)) return { root: inside, given: true };
-    throw new Error(`[Unlayer] ${name}: this <${display}> is from another copy of @unlayer/react-elements, older than 0.3, which this one can't read. Install one version of it (\`npm ls @unlayer/react-elements\` shows a duplicate install).`);
-  }
-  if (typeof found.type === "string") throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. ${MARKUP_ADVICE}`);
+  const passed: Unread = {};
+  const found = htmlRoot(element, name, passed) as React.ReactElement<any>;
+  if (isOwnRoot(found)) return { root: found, given: true };
+  const markup = typeof found.type === "string";
+  // (A component of the user's named like a root that gives markup is drawn, as 0.2.1 draws it, in the output its name says.)
+  if (markup && !passed.named) throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. ${MARKUP_ADVICE}`);
+  const own = elementsOwn(found);
+  const display = own ? getDisplayName(found) : undefined;
   // What it's in has its own background, where it's in something.
-  const { className, style } = found.props;
-  const body = (values?: Record<string, unknown>) => ({ mode: found.props.mode ?? config?.mode, className, style, values: { ...inReact.body, ...(inReact.piece ? { backgroundColor: "" } : {}), ...values } });
+  const { className, style } = markup ? ({} as Record<string, undefined>) : found.props;
+  const body = (values?: Record<string, unknown>) => ({ mode: MODE_BY_WRAPPER[passed.named ?? ""] ?? found.props.mode ?? config?.mode, className, style, values: { ...inReact.body, ...(inReact.piece ? { backgroundColor: "" } : {}), ...values } });
   // (Its className and style are on the root's host <div>, as what's rendered on its own has them.)
   if (display === "Row") return { root: React.createElement(Body, body(), React.cloneElement(found, { className: undefined, style: undefined })) };
   // A Column or block on its own is where it's put, not in a content width of its own.
   const alone = (content: React.ReactNode, values?: Record<string, unknown>) => ({ root: React.createElement(Body, body({ contentAlign: "left", ...values }), React.createElement(Row, found.props.cells ? { cells: found.props.cells } : null, content)), wide: true });
   if (display === "Column") return alone(found);
   // A block has no box of its own (a Column gives it its padding), and it's in the font of what it's in.
-  if (isElementsType(found.type)) return alone(React.createElement(Column, null, React.cloneElement(found, { containerPadding: "0px" })), { fontFamily: { label: "", value: "" } });
+  if (own) return alone(React.createElement(Column, null, React.cloneElement(found, { containerPadding: "0px" })), { fontFamily: { label: "", value: "" } });
   // What holds neither (nothing, Rows in a list or a provider).
   return { root: React.createElement(Body, body(), found) };
 }
