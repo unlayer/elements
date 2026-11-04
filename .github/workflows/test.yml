@@ -6,11 +6,18 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# A new push to a pull request cancels the run still going on its older head.
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Five jobs run side by side, each installing and building the packages, so a run takes as long as its
+# slowest job (the codemod's tests, about four minutes) rather than all of them in a row.
 jobs:
   test:
     name: Run Tests & Coverage
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -149,8 +156,9 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
+      # Every package's unit tests but the codemod's (their own job) and react's, which run once, with coverage.
       - name: Run tests
-        run: pnpm test
+        run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
 
       - name: Run test coverage
         run: pnpm test:coverage
@@ -164,10 +172,220 @@ jobs:
       - name: CSP safety gate
         run: pnpm --filter @unlayer/react-elements test:csp
 
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          verbose: true
+          
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            packages/*/coverage/
+            coverage/
+          retention-days: 30
+
+  # @unlayer/migrate's tests: the slowest suite (the codemod converts and checks whole templates).
+  codemod:
+    name: Codemod tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
+      - name: Codemod tests
+        run: pnpm --filter @unlayer/migrate test
+
+  storybook:
+    name: Storybook smoke and visual drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
+
       # ── Storybook browser smoke test ────────────────────────────
       # Opens every story in headless Chromium and asserts each component
       # paints visible content with no console / page errors. Runs against the
       # production static build (storybook build → http-server).
+      - name: Storybook smoke test
+        run: pnpm --filter @unlayer/react-elements test-storybook:ci
+
+      # ── Storybook visual-drift gate ─────────────────────────────
+      # Fingerprints the computed styles and the visible text of every story
+      # at desktop and mobile widths (reusing the static build from the smoke
+      # test) and diffs against the committed baseline. Fails naming the
+      # exact stories and properties (or lines of text) that changed —
+      # answers "did any story change?" without paging through them by hand.
+      - name: Storybook visual-drift gate
+        run: pnpm --filter @unlayer/react-elements test:visual
+
+  compare:
+    name: Draws what main draws
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
+
+      - name: Build Storybook
+        run: pnpm --filter @unlayer/react-elements build-storybook --quiet
+
+      # ── The new engine draws what main draws ────────────────────
+      # Each "Primitives/Compare with main" story: one of main's designs and
+      # the same design in the new components (main's quirks drawn), loaded
+      # in Chromium at desktop and phone widths (reusing the static build).
+      # Fails naming each run of text or image that sits elsewhere, at another
+      # size or in another style than main's.
+      - name: Primitives draw what main draws
+        run: pnpm --filter @unlayer/react-elements test:compare
+
+  browser:
+    name: Browser gates and consumer apps
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
       - name: Install Playwright Chromium
         run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
 
@@ -227,27 +445,6 @@ jobs:
       - name: Migration check vs Chromium
         run: pnpm --filter @unlayer/from-react-email test:differential
 
-      - name: Storybook smoke test
-        run: pnpm --filter @unlayer/react-elements test-storybook:ci
-
-      # ── Storybook visual-drift gate ─────────────────────────────
-      # Fingerprints the computed styles and the visible text of every story
-      # at desktop and mobile widths (reusing the static build from the smoke
-      # test) and diffs against the committed baseline. Fails naming the
-      # exact stories and properties (or lines of text) that changed —
-      # answers "did any story change?" without paging through them by hand.
-      - name: Storybook visual-drift gate
-        run: pnpm --filter @unlayer/react-elements test:visual
-
-      # ── The new engine draws what main draws ────────────────────
-      # Each "Primitives/Compare with main" story: one of main's designs and
-      # the same design in the new components (main's quirks drawn), loaded
-      # in Chromium at desktop and phone widths (reusing the static build).
-      # Fails naming each run of text or image that sits elsewhere, at another
-      # size or in another style than main's.
-      - name: Primitives draw what main draws
-        run: pnpm --filter @unlayer/react-elements test:compare
-
       # ── Next.js integration test ────────────────────────────────
       # Packs the built react-elements as a tarball and installs it
       # in a real Next.js app — exactly like a consumer would.
@@ -296,19 +493,3 @@ jobs:
           npm install --no-save "$TARBALL"
           npm run build
           npm run verify
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          verbose: true
-          
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-reports
-          path: |
-            packages/*/coverage/
-            coverage/
-          retention-days: 30
