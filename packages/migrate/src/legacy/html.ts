@@ -13,6 +13,14 @@ const ATTRIBUTE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const COMMENT = /<!--[\s\S]*?-->/g;
 const NOT_TEXT = /<\s*(style|script|title|head)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
 
+/** A CSS length as the new components read it: rem and em (at 16px, or `em`) in px; a width that follows the window at a phone's (375px, never below 0). */
+export function inPx(value: string, em = 16): string {
+  return value
+    .replace(/calc\(\s*(-?[\d.]+)px\s*([-+])\s*([\d.]+)vw\s*\)/g, (_, base: string, sign: string, share: string) => `${Math.max(0, Math.round(Number(base) + (sign === "-" ? -1 : 1) * Number(share) * 3.75))}px`)
+    .replace(/(^|\s)(-?\d*\.?\d+)rem(?=\s|$)/g, (_, before: string, amount: string) => `${before}${Number(amount) * 16}px`)
+    .replace(/(^|\s)(-?\d*\.?\d+)em(?=\s|$)/g, (_, before: string, amount: string) => `${before}${Math.round(Number(amount) * em * 100) / 100}px`);
+}
+
 /** A run's style from a `style` attribute: the properties a Span or Link takes, in the new names. */
 const RUN_STYLES: Record<string, string> = {
   color: "color",
@@ -83,7 +91,11 @@ function runStyle(css: string | undefined, expression: (value: string) => string
       else entries.push(`${key}: ${JSON.stringify(weight)}`);
       continue;
     }
-    entries.push(`${key}: ${expression(key === "textDecoration" ? value.split(/\s+/)[0] : value)}`);
+    // In em, a letter spacing is of the size in this style, where it says.
+    const size = key === "letterSpacing" ? /(?:^|;)\s*font-size\s*:\s*([\d.]+)(px|rem)/i.exec(css ?? "") : null;
+    const em = size ? Number(size[1]) * (size[2].toLowerCase() === "rem" ? 16 : 1) : 16;
+    const length = key === "fontSize" || key === "letterSpacing" ? inPx(value, em) : value;
+    entries.push(`${key}: ${expression(key === "textDecoration" ? value.split(/\s+/)[0] : length)}`);
   }
   return { entries, dropped };
 }
@@ -96,13 +108,14 @@ const HOLES = /\uE000(\d+)\uE001/g;
 /** Text as JSX source: as it is where JSX keeps it so, else a string expression (spaces at its ends, braces, angle brackets). */
 export function plain(value: string): string {
   if (!value) return "";
-  return /^[^{}<>\s][^{}<>]*[^{}<>\s]$|^[^{}<>\s]$/.test(value) && !/\s{2,}/.test(value) ? value : `{${JSON.stringify(value)}}`;
+  // (JSX text decodes entities: `&apos;` that's meant as those letters goes in a string.)
+  return /^[^{}<>\s][^{}<>]*[^{}<>\s]$|^[^{}<>\s]$/.test(value) && !/\s{2,}|&#?\w+;/.test(value) ? value : `{${JSON.stringify(value)}}`;
 }
 
 /** Text, or JSX source (an element, a line break). */
 type Part = { text: string } | { jsx: string };
 /** An element open in the markup, and what's in it so far; `open` and `close` are its JSX (none for one left out). */
-type Frame = { tag: string; open: string; close: string; parts: Part[]; block?: boolean };
+type Frame = { tag: string; open: string; close: string; parts: Part[]; block?: boolean; apart?: boolean };
 
 /**
  * The markup as children's JSX source, the components they use, and what's left out of it (each a phrase that follows
@@ -185,6 +198,8 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
     const frame = stack.pop()!;
     if (frame.open) top().parts.push({ jsx: `${frame.open}${jsx(frame.parts)}${frame.close}` });
     else top().parts.push(...frame.parts);
+    // Boxes in a line of their own (inline-block) never run into each other; runs of text would.
+    if (frame.apart) top().parts.push({ jsx: '{" "}' });
   };
 
   const markup = html.replace(COMMENT, "").replace(NOT_TEXT, (_, tag: string) => {
@@ -258,7 +273,7 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
     }
     if (component) used.add(component);
     // An element written closed (`<span />`) holds nothing.
-    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: component ? `</${name(component)}>` : "", parts: [], block: onItsOwnLine });
+    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: component ? `</${name(component)}>` : "", parts: [], block: onItsOwnLine, apart: /(^|;)\s*display\s*:\s*inline-(block|flex)\b/i.test(attrs.style ?? "") });
   }
   pushText(markup.slice(at));
   // What isn't closed ends with the markup, as a browser draws it.

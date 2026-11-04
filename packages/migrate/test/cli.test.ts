@@ -172,12 +172,38 @@ Welcome.PreviewProps = ${preview};`,
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
   });
 
-  it("leave markup a value decides in today's components, where it would show as words", async () => {
+  it("write markup a value decides with the components too", async () => {
     const dir = emails('<Text>{note ? <em>{note}</em> : null}</Text>', '{ note: "Soon" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).toContain("kept in today's components");
-    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
+    expect(out.out).not.toContain("kept in today's components");
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain("{note}");
+    const compare = io(dir);
+    expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+  });
+
+  it("keep what no component says as an Html block of its JSX, and drop the helper today's components needed", async () => {
+    const dir = emails('<Text>Hi {name}</Text><table><tbody><tr><td style={{ color: "#123456" }}>{note}</td></tr></tbody></table>', '{ name: "Tom & Jerry", note: "a < b" }');
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).not.toContain("kept in today's components");
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).not.toContain("KeptHtml");
+    const compare = io(dir);
+    expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+  });
+
+  it("give a Button with no link the \"#\" they require, which isn't a link the original lacks", async () => {
+    const dir = project({
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
+      "emails/welcome.tsx": `import { Html, Body, Button } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Button>Go</Button></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).not.toContain("kept in today's components");
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
   });
 
   it("are checked with text props that hold markup: a template that escapes them twice fails, though its preview draws the same", async () => {
@@ -197,7 +223,7 @@ Welcome.PreviewProps = ${preview};`,
   it("leave a template that doesn't pass in them in today's components, and say why", async () => {
     const dir = setup();
     const out = io(dir);
-    const failing = { ...lib, verifyNewComponents: async () => { throw new Error("it can't be drawn"); } } as typeof lib;
+    const failing = { ...lib, verifyNewComponents: async () => { throw new Error("The template has 1 error:\n  it can't be drawn"); } } as typeof lib;
     expect(await run(["emails", "--out", "migrated"], out, failing), out.out + out.err).toBe(0);
     expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
     expect(out.out).toContain("kept in today's components");

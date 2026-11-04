@@ -56,7 +56,88 @@ export const T = ({ url }: { url: string }) => (
     expect(report.join("\n")).not.toContain("without an href");
     const computed = await migrateElements(`import { Email, Row, Column } from "@unlayer/react-elements";
 export const T = ({ cells }: { cells: number[] }) => <Email><Row cells={cells}><Column /></Row></Email>;`);
-    expect(computed.report.join("\n")).toContain("Columns are written one under another");
+    expect(computed.report.join("\n")).not.toContain("Columns are written one under another");
+    expect(computed.code).toContain("<SharedRow shares={cells}>");
+    expect(computed.code).toContain("function SharedRow(");
+    expect(computed.code).toMatch(/import \{[^}]*\bRow\b[^}]*\} from "@unlayer\/react-elements\/primitives"/);
+    expect(computed.code).not.toMatch(/import \{[^}]*SharedRow/);
+    const layout = await migrateElements(`import { Email, Row, Column } from "@unlayer/react-elements";
+export const T = ({ chosen }: { chosen: { cells: number[] } }) => <Email><Row layout={chosen}><Column /></Row></Email>;`);
+    expect(layout.report.join("\n")).toContain("Columns are written one under another");
+  });
+
+  it("writes markup inside a value with the components, its values unescaped", async () => {
+    const { code, report } = await migrate(`export const T = ({ note = "n", items = ["i"], name = "m" }: { note?: string; items?: string[]; name?: string }) => <Email><Row><Column>
+      <Paragraph html={\`\${note ? \`<em>\${htmlText(note)}</em>\` : ""} and \${items.map((item) => \`<b>\${htmlText(item)}</b>\`).join("")}\`} />
+      <Paragraph html={\`\${name ? \`\${htmlText(name)}<br/>\` : ""}\${note ? \`<em>\${htmlText(note)}</em>\` : ""}\`} />
+      <Paragraph html={\`\${htmlText(note ? "it&apos;s kept" : "")} as it is\`} />
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(flat).toContain('{note?(<><Spanstyle={{fontStyle:"italic"}}>{note}</Span></>):("")}');
+    expect(flat).toContain("{items.map((item)=>(<><Spanstyle={{fontWeight:700}}>{item}</Span></>))}");
+    expect(flat).toContain("{name?(<>{name}<LineBreak/></>):");
+    expect(code).toContain('"it&apos;s kept"');
+    expect(code).not.toMatch(/htmlText|\.join\(/);
+    expect(report).toEqual([]);
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("writes lengths in rem, em and following the window as the px the new components take", async () => {
+    const { code } = await migrate(`export const T = () => <Email><Row><Column mobile={{ padding: "0px calc(56px - 2.5vw) 32px calc(8px - 3.75vw)" }}>
+      <Paragraph fontSize="0.875rem" letterSpacing="-0.05em">A</Paragraph>
+      <Paragraph html='<span style="font-size:0.875rem;letter-spacing:-0.05em">B</span> <span style="letter-spacing:0.1em">C</span>' />
+    </Column></Row></Email>;`);
+    expect(code).toContain('padding: "0px 47px 32px 0px"');
+    expect(code).toContain("fontSize: 14");
+    expect(code).toContain("letterSpacing: -0.7");
+    expect(code).toContain('fontSize: "14px"');
+    expect(code).toContain('letterSpacing: "-0.7px"');
+    expect(code).toContain('letterSpacing: "1.6px"');
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("keeps a link from code on an Image", async () => {
+    const { code, report } = await migrate(`export const T = ({ social }: { social: { href: string } }) => <Email><Row><Column><Image src="https://example.com/a.png" action={social.href} /></Column></Row></Email>;`);
+    expect(squash(code)).toContain('<Linkhref={{href:social.href,target:"_blank"}}>');
+    expect(report.join("\n")).not.toContain("action");
+  });
+
+  it("keeps markup the migration kept as it renders, as an Html block of that JSX", async () => {
+    const { code, report } = await migrate(`function KeptHtml({ children }: { children: React.ReactNode; containerPadding?: string }) { return <>{children}</>; }
+KeptHtml.displayName = "Html";
+export const T = ({ name }: { name: string }) => <Email><Row><Column>
+      <KeptHtml containerPadding="16px 0px"><div style={{ color: "#333333" }}><b>{name}</b></div></KeptHtml>
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(flat).toContain('<Columnstyle={{padding:"16px0px"}}><Html><divstyle={{color:"#333333"}}><b>{name}</b></div></Html></Column>');
+    expect(report).toEqual([]);
+  });
+
+  it("keeps html with what a run of text can't hold as an Html block, with its text's styles", async () => {
+    const { code, report } = await migrate(`export const T = ({ name }: { name: string }) => <Email><Row><Column>
+      <Paragraph color="#123456" html={\`<ul><li>\${htmlText(name)}</li></ul>\`} />
+      <Paragraph html='Logo <img src="https://example.com/logo.png" alt="Logo"> here' />
+    </Column></Row></Email>;`);
+    expect(code).toContain("<Html html={`<ul><li>${htmlText(name)}</li></ul>`}");
+    expect(code).toContain('color: "#123456"');
+    expect(code).toContain("logo.png");
+    expect(code).not.toContain("<Paragraph");
+    expect(report).toEqual([]);
+  });
+
+  it("keeps boxes in a line apart, as words, and as an Html block where it can", async () => {
+    expect(inlineHtml('<span style="display:inline-block">A</span><span style="display:inline-block">B</span>').jsx).toContain('{" "}');
+    const { code } = await migrate(`export const T = ({ places }: { places: string[] }) => <Email><Row><Column>
+      <Paragraph html={\`\${(places ?? []).map((place) => \`<p style="display:inline-block;padding:4px;color:#ff0000">\${htmlText(place)}</p>\`).join("")}\`} />
+    </Column></Row></Email>;`);
+    expect(squash(code)).toContain("<Htmlhtml=");
+    expect(code).toContain("display:inline-block;padding:4px");
+  });
+
+  it("keeps a Button with no background transparent, where the new one has a color of its own", async () => {
+    const { code } = await migrate('export const T = () => <Email><Row><Column><Button href="https://example.com" backgroundColor="transparent">Go</Button></Column></Row></Email>;');
+    expect(code).toContain('backgroundColor: "transparent"');
+    expect(errors(code)).toEqual([]);
   });
 
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
@@ -101,8 +182,8 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
   it("writes html's paragraphs and blocks as lines, its entities decoded and its links as Links, and names each thing it leaves out", async () => {
     const { code, report } = await migrate(`export const T = () => <Email><Row><Column>
       <Paragraph html='<p>First line.</p><p>Second &amp; last, <a href="https://example.com" target="_blank">link</a></p>' />
-      <Paragraph html='Logo <img src="https://example.com/logo.png" alt="Logo"> here<sup>1</sup>, <font color="red">red</font>' />
-      <Paragraph html="<ul><li>One</li><li>Two</li></ul>" />
+      <Paragraph html='Logo here<sup>1</sup>, <font color="red">red</font>' />
+      <Paragraph html="<div>One</div><div>Two</div>" />
     </Column></Row></Email>;`);
     const flat = squash(code);
     expect(code).toContain('{"Second & last, "}');
@@ -111,9 +192,7 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     expect(flat).toContain("One<LineBreak/>Two");
     expect(report).toEqual([
       "line 3: its html's paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out",
-      'line 4: its html\'s image <img src="https://example.com/logo.png" alt="Logo"> is left out: text holds no image (put it in an Image beside this block)',
       "line 4: its html's <font> is left out, its text kept",
-      "line 5: its html's <ul> list is left out: its items are written as lines, with no bullets or numbers",
     ]);
     expect(errors(code)).toEqual([]);
   });

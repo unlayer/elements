@@ -13,26 +13,43 @@
 import * as prettier from "prettier";
 import ts from "typescript";
 import { formatTsx } from "@unlayer/convert-core";
-import { hole, inlineHtml, plain } from "./html";
+import { hole, inlineHtml, inPx, plain } from "./html";
 
 /**
- * A value in markup is escaped by the code that writes it there (`htmlText(name)`, `escapeHtml(name)`). A new component
- * escapes what it's given, so as children or a Link's address it goes in as it is: escaped twice, `&` would show as `&amp;`.
+ * A value in markup as the children it becomes. It's escaped by the code that writes it there (`htmlText(name)`,
+ * `escapeHtml(name)`), and a new component escapes what it's given, so it goes in as it is: escaped twice, `&` would
+ * show as `&amp;`. Markup inside it (`${note ? `<em>${htmlText(note)}</em>` : ""}`, a list joined into one string) is
+ * written by `inline`, as elements in a fragment.
  */
-function withoutEscaping(code: string): string {
+function asChildren(code: string, inline: (markup: string, holes: string[]) => string): string {
   const source = `(${code})`;
   const file = ts.createSourceFile("value.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const written = (node: ts.Node): string => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text) && node.arguments.length === 1) {
+  const written = (node: ts.Node, text = false): string => {
+    if (ts.isCallExpression(node) && node.arguments.length === 1) {
       const [value] = node.arguments;
-      // What the call held together stays together: `escapeHtml(a || b) + c` isn't `a || b + c`.
-      const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
-      return alone ? written(value) : `(${written(value)})`;
+      if (ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text)) {
+        // What the call held together stays together: `escapeHtml(a || b) + c` isn't `a || b + c`. It's text in there.
+        const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
+        return alone ? written(value, true) : `(${written(value, true)})`;
+      }
+      // Elements in a list are children as they are: joined, they'd be text.
+      const callee = node.expression;
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "join" && ts.isStringLiteralLike(value) && !value.text && ts.isCallExpression(callee.expression)) return written(callee.expression);
+    }
+    if (text) {
+      // Nothing in it is markup.
+    } else if (ts.isTemplateExpression(node)) {
+      const markup = node.head.text + node.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
+      const holes = node.templateSpans.map((span) => written(span.expression));
+      // (Elements in its holes would be text in a string: "[object Object]".)
+      if (/<[a-zA-Z/]|&[a-zA-Z#]/.test(markup) || holes.some((value) => value.includes("<>"))) return `<>${inline(markup, holes)}</>`;
+    } else if (ts.isStringLiteralLike(node) && /<[a-zA-Z/]|&[a-zA-Z#]/.test(node.text)) {
+      return `<>${inline(node.text, [])}</>`;
     }
     let out = "";
     let at = node.getStart(file);
     node.forEachChild((child) => {
-      out += source.slice(at, child.getStart(file)) + written(child);
+      out += source.slice(at, child.getStart(file)) + written(child, text);
       at = child.getEnd();
     });
     return out + source.slice(at, node.getEnd());
@@ -40,6 +57,27 @@ function withoutEscaping(code: string): string {
   const [statement] = file.statements;
   return statement && ts.isExpressionStatement(statement) && ts.isParenthesizedExpression(statement.expression) ? written(statement.expression.expression) : code;
 }
+
+/** A Row whose Columns take their shares when it renders, for shares worked out from a template's data. */
+function sharedRowSource(row: string, typescript: boolean): string {
+  const types = typescript ? `: ComponentProps<typeof ${row}> & { shares: number[] }` : "";
+  const element = typescript ? "<{ style?: object }>" : "";
+  return `/** A Row whose Columns take their shares when it renders: they're worked out from the template's data. */
+function SharedRow({ shares, children, ...row }${types}) {
+  const total = shares.reduce((sum, share) => sum + share, 0) || 1;
+  return (
+    <${row} {...row}>
+      {Children.toArray(children).map((column, index) =>
+        isValidElement${element}(column) ? cloneElement(column, { style: { ...column.props.style, width: \`\${((shares[index] ?? 0) / total) * 100}%\` } }) : column
+      )}
+    </${row}>
+  );
+}
+`;
+}
+
+/** What a run of text can't hold (a box in a line has a size and spacing of its own), which an Html block keeps: the markup is written as it is instead of losing it. */
+const NOT_A_RUN = /^(image |<hr>|<ul>|<ol>|<dl>|<table>|style display: inline-(block|flex))/;
 
 export interface MigrateElementsOptions {
   /** Module specifiers today's components are imported from (default: the package and its /legacy entry). */
@@ -416,7 +454,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const letterSpacing = (props: Props, fontSize: Value | undefined, at: ts.Node): Value | undefined => {
     const value = props.get("letterSpacing");
     if (!value || !isLiteral(value) || typeof value.literal !== "string" || !value.literal.trim().endsWith("em")) return value;
-    const size = isLiteral(fontSize!) ? px(fontSize!.literal) : undefined;
+    const size = isLiteral(fontSize!) && typeof fontSize!.literal === "string" ? px(inPx(fontSize!.literal)) : isLiteral(fontSize!) ? px(fontSize!.literal) : undefined;
     if (size === undefined) {
       report.push(`${where(at)}: letterSpacing ${value.literal} is in em and the font size isn't known here: it's left out (give it in px)`);
       return undefined;
@@ -425,8 +463,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   };
   /** "14px" as 14: a literal length in px written as a number; anything else as it is. */
   const n = (value: Value | undefined): Value | undefined => {
-    if (!isLiteral(value) || value.code !== undefined || typeof value.literal !== "string" || !/^\s*-?[\d.]+(px)?\s*$/.test(value.literal)) return value;
-    return lit(px(value.literal));
+    if (!isLiteral(value) || value.code !== undefined || typeof value.literal !== "string") return value;
+    const length = inPx(value.literal);
+    if (!/^\s*-?[\d.]+(px)?\s*$/.test(length)) return length === value.literal ? value : lit(length);
+    return lit(px(length));
   };
   /** A link as today's Button writes it: in a new window, unless it says otherwise. */
   const opensNewWindow = (href: Value, target: Value | undefined): Value => {
@@ -476,9 +516,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /**
    * A text block's words as today's draw them: a Paragraph's children, else its `text` (plain text: markup in it
    * shows), else its `html`; a Heading's or a Button's `text` (markup), else its children (an `html` they don't draw).
-   * What today's don't draw beside it is left out, and said.
+   * What today's don't draw beside it is left out, and said. `keepsMarkup` is called instead where its html has what a
+   * run of text can't hold (an image, a list, a table).
    */
-  const textChildren = (node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, at: ts.Node, component: string): string[] => {
+  const textChildren = (node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, at: ts.Node, component: string, keepsMarkup?: () => void): string[] => {
     // Children as JSX gives them: not the line breaks and indentation between tags, nor a comment in braces.
     const children = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces) && !(ts.isJsxExpression(c) && !c.expression)) : [];
     const sources = { children: children.length ? ({ code: "" } as Value) : undefined, text: props.get("text"), html: props.get("html") };
@@ -505,18 +546,30 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const template = !isLiteral(value) && value.node ? bare(value.node) : undefined;
     let markup: string;
     let holes: string[] = [];
+    const nested: Array<ReturnType<typeof inlineHtml>> = [];
     if (isLiteral(value) && typeof value.literal === "string") markup = value.literal;
     else if (template && ts.isTemplateExpression(template)) {
       markup = template.head.text + template.templateSpans.map((span, index) => hole(index) + span.literal.text).join("");
-      holes = template.templateSpans.map((span) => withoutEscaping(rewrite(span.expression)));
+      holes = template.templateSpans.map((span) => asChildren(rewrite(span.expression), (inner, innerHoles) => {
+        const parsed = inlineHtml(inner, innerHoles, nameOf);
+        nested.push(parsed);
+        return parsed.jsx;
+      }));
     } else {
       report.push(`${where(at)}: its ${drawn} comes from an expression (${code(value)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
       return [`{${code(value)}}`];
     }
     // What the new components hold is written with them; what they don't is named, each on a line of the report.
     const parsed = inlineHtml(markup, holes, nameOf);
-    for (const left of parsed.dropped) report.push(`${where(at)}: its ${drawn}'s ${left}`);
-    parsed.used.forEach((name) => used.add(name));
+    const all = [parsed, ...nested];
+    if (keepsMarkup && all.some(({ dropped }) => dropped.some((left) => NOT_A_RUN.test(left)))) {
+      keepsMarkup();
+      return [];
+    }
+    for (const { dropped, used: components } of all) {
+      for (const left of dropped) report.push(`${where(at)}: its ${drawn}'s ${left}`);
+      components.forEach((name) => used.add(name));
+    }
     return [parsed.jsx];
   };
   /** A block's padding (today's containerPadding, 10px by default): the block's own, or a Column around it. */
@@ -573,8 +626,9 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const layout = props.get("layout");
     if (layout && !isLiteral(layout)) report.push(`${where(node)}: this Row's layout can't be read (${layout.code}): its Columns are written one under another (give it as ColumnLayouts.TwoEqual or the like)`);
     const computed = props.get("cells");
-    if (computed && !isLiteral(computed)) report.push(`${where(node)}: this Row's cells can't be read (${computed.code}): its Columns are written one under another (give them as numbers)`);
-    const cells: number[] = (isLiteral(layout) && (layout.literal as { cells?: number[] })?.cells) || (isLiteral(props.get("cells")) && (props.get("cells") as { literal: number[] }).literal) || [1];
+    // Shares only known when it renders: the Row's Columns take them then (see `sharedRow`).
+    const shares = computed && !isLiteral(computed) ? code(computed) : undefined;
+    const cells: number[] = (isLiteral(layout) && (layout.literal as { cells?: number[] })?.cells) || (isLiteral(props.get("cells")) && (props.get("cells") as { literal: number[] }).literal) || (shares ? [1, 1] : [1]);
     const pad = props.get("padding");
     const p = isLiteral(pad) ? sides(pad.literal) : undefined;
     if (pad && !p) report.push(`${where(node)}: this Row's padding can't be read: it's kept as written, its sides inside the content (today's are outside it)`);
@@ -601,8 +655,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       const at = index++;
       if (isColumn(c)) {
         const share = cells[at] ?? 1;
-        const width = rowWidth !== undefined ? (share / total) * rowWidth : undefined;
-        return column(c, columnProps[at]!, cells.length > 1 ? `${round((share / total) * 100)}%` : undefined, width, cells.length === 1 ? color(props, "columnsBackgroundColor") : undefined, stacks ? shared : {}, Object.keys(shared), cells.length === 1 && columnProps.filter(Boolean).length === 1);
+        const width = rowWidth !== undefined && !shares ? (share / total) * rowWidth : undefined;
+        return column(c, columnProps[at]!, cells.length > 1 && !shares ? `${round((share / total) * 100)}%` : undefined, width, cells.length === 1 ? color(props, "columnsBackgroundColor") : undefined, stacks ? shared : {}, Object.keys(shared), cells.length === 1 && columnProps.filter(Boolean).length === 1);
       }
       return child(c);
     });
@@ -618,7 +672,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const inner =
       cells.length > 1
         ? [
-            element("Row", [
+            element(shares ? "SharedRow" : "Row", [
+              shares && `shares={${shares}}`,
               stacks ? undefined : "stackOnMobile={false}",
               styleAttr([["backgroundColor", color(props, "columnsBackgroundColor")], ["border", rowBorder]]),
               stacks && rowBorder ? mobileAttr([["border", { code: object(Object.keys(shared).map((side) => [side, lit("none")]))!.slice(1, -1) }]]) : undefined,
@@ -759,7 +814,13 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function paragraph(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, tag: "Paragraph" | "Text") {
     const fontSize = given(props, "fontSize", "14px");
-    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], textChildren(node, props, node, tag));
+    let kept = false;
+    const words = textChildren(node, props, node, tag, () => {
+      kept = true;
+    });
+    // In a box with its text's styles, which the markup takes from around it.
+    if (kept) return element("Column", [styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], [element("Html", [attr("html", props.get("html"))])]);
+    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
   }
 
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
@@ -772,7 +833,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       attr("href", opensNewWindow(href ?? lit("#"), props.get("target"))),
       styleAttr([
         ["width", isLiteral(props.get("width")) && (props.get("width") as { literal: unknown }).literal !== "auto" ? props.get("width") : undefined],
-        ["backgroundColor", color(props, "backgroundColor")],
+        // Transparent, where the new Button has a color of its own.
+        ["backgroundColor", isLiteral(props.get("backgroundColor")) && (props.get("backgroundColor") as { literal: unknown }).literal === "transparent" ? lit("transparent") : color(props, "backgroundColor")],
         ["color", color(props, "color")],
         ["fontFamily", font(props)],
         ["fontSize", n(fontSize)],
@@ -865,6 +927,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
    */
   function actionHref(action: Value | undefined, at: ts.Node): Value | undefined {
     if (!action) return undefined;
+    // A URL from code (`action={social.href}`). An action object from code stays reported below.
+    if (!isLiteral(action) && action.node && !ts.isObjectLiteralExpression(bare(action.node)) && !/\baction\b/i.test(action.code)) return { code: `{ href: ${code(action)}, target: "_blank" }` };
     const value = isLiteral(action) ? action.literal : undefined;
     if (typeof value === "string" && value) return lit({ href: value, target: "_blank" });
     if (value && typeof value === "object" && (value as { name?: unknown }).name === "web") {
@@ -1096,6 +1160,14 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** Converted JSX where an expression goes (`show && <Html />`, `return <Html />`): a placeholder there is a comment and `null`, nothing is `null`. */
   const asExpression = (out: string) => (out === "" ? "null" : out.startsWith("{/*") ? `${out.slice(1, -1)} null` : out);
 
+  /** The migration's own element for JSX it keeps as it renders (see from-react-email's `keep`). */
+  const keptMarkup = (node: ts.Node): node is ts.JsxElement => ts.isJsxElement(node) && /^KeptHtml\d*$/.test(node.openingElement.tagName.getText());
+  /** What it keeps, as an Html block of that JSX, in a Column with its padding. */
+  function keptAsHtml(node: ts.JsxElement): string {
+    const props = propsOf(node.openingElement);
+    return element("Column", [styleAttr([["padding", n(padding(props))]]), hidden(props)], [element("Html", [], node.children.map((c) => c.getText()))]);
+  }
+
   /** Source text with today's JSX inside it rewritten. */
   function rewrite(node: ts.Node): string {
     const edits: Array<{ start: number; end: number; text: string }> = [];
@@ -1104,6 +1176,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       const cells = layoutCells(n);
       if (cells) {
         edits.push({ start: n.getStart(), end: n.getEnd(), text: `{ cells: ${JSON.stringify(cells)} }` });
+        return;
+      }
+      if (keptMarkup(n)) {
+        edits.push({ start: n.getStart(), end: n.getEnd(), text: keptAsHtml(n) });
         return;
       }
       if ((ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && todays(n)) {
@@ -1115,6 +1191,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     };
     // Called on an expression (a prop's value, `{...}` in JSX, a template literal's hole): what it's converted to goes there.
     if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && todays(node)) return asExpression(convert(node));
+    if (keptMarkup(node)) return keptAsHtml(node);
     const cells = layoutCells(node);
     if (cells) return `{ cells: ${JSON.stringify(cells)} }`;
     ts.forEachChild(node, visit);
@@ -1145,8 +1222,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   if (!edits.length) return { code: source, report };
 
   const to = options.to ?? DEFAULT_TO;
+  // Its own component, for a Row whose shares are worked out when it renders.
+  const sharedRow = used.delete("SharedRow");
+  if (sharedRow) used.add("Row");
   const imported = [...used].sort().map((component) => (nameOf(component) === component ? component : `${component} as ${nameOf(component)}`));
-  const added = imported.length ? `import { ${imported.join(", ")} } from ${JSON.stringify(to)};` : "";
+  const fromReact = sharedRow ? `import { Children, cloneElement, isValidElement${typescript ? ", type ComponentProps" : ""} } from "react";\n` : "";
+  const added = imported.length ? `${fromReact}import { ${imported.join(", ")} } from ${JSON.stringify(to)};` : "";
   imports.forEach(({ statement, kept }, index) => {
     const rest = kept.length ? `import ${kept.join(", ")} from ${JSON.stringify((statement.moduleSpecifier as ts.StringLiteral).text)};` : "";
     edits.push({ start: statement.getStart(), end: statement.getEnd(), text: [index === 0 ? added : "", rest].filter(Boolean).join("\n") });
@@ -1156,6 +1237,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   if (!imports.length && added && first) edits.push({ start: first.getStart(), end: first.getStart(), text: `${added}\n` });
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
+  if (sharedRow) out += `\n${sharedRowSource(nameOf("Row"), typescript)}`;
   // JavaScript is formatted as JavaScript: TypeScript written into it would be an error here, not in the project.
   return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report };
 }

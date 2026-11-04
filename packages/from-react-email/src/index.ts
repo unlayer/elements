@@ -298,6 +298,10 @@ export async function verifyConversion(
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
 }
 
+/** A Button with no link has "#" in the new components, which require one: nothing a reader would follow. */
+const PLACEHOLDER_LINK = /^href #(\s|$)/;
+const withoutPlaceholderLinks = <Check extends { addedAttributes: string[] }>(check: Check): Check => ({ ...check, addedAttributes: check.addedAttributes.filter((attribute) => !PLACEHOLDER_LINK.test(attribute)) });
+
 /**
  * The migrated template against the original with values the preview props may not hold: an element where the migration
  * tells them apart, and text with markup and `&"` in it.
@@ -385,8 +389,11 @@ export async function verifyNewComponents(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
-  variants.push(...(await valueVariants(Original, Converted, props, async (migrated) => (await renderNewComponents(migrated as never)).html)));
-  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings: [], variants };
+  for (const found of await valueVariants(Original, Converted, props, async (migrated) => (await renderNewComponents(migrated as never)).html)) {
+    const left = { ...found, added: found.added.filter((word) => !PLACEHOLDER_LINK.test(word)) };
+    if (left.error || left.missing.length || left.added.length || left.missingAttributes.length) variants.push(left);
+  }
+  return { ...withoutPlaceholderLinks(compareText(originalHtml, convertedHtml)), originalHtml, convertedHtml, designWarnings: [], variants };
 }
 
 /** Elements' warning for a `<link>` among the email's rows. */

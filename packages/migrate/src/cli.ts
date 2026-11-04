@@ -1056,11 +1056,12 @@ async function withoutUnusedHelpers(code: string): Promise<string> {
   for (;;) {
     const file = ts.createSourceFile("template.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const unused = file.statements.find((statement) => {
-      if (!ts.isFunctionDeclaration(statement) || !statement.name || !/^(escapeHtml|htmlText|htmlAttribute|tailwindStyle|holdsElements|plainText)\d*$/.test(statement.name.text)) return false;
-      return (code.match(new RegExp(`\\b${statement.name.text}\\b`, "g")) ?? []).length === 1;
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !/^(escapeHtml|htmlText|htmlAttribute|KeptHtml|tailwindStyle|holdsElements|plainText)\d*$/.test(statement.name.text)) return false;
+      // (KeptHtml also names itself, in the line after it.)
+      return (code.match(new RegExp(`\\b${statement.name.text}\\b`, "g")) ?? []).length === (/^KeptHtml/.test(statement.name.text) ? 2 : 1);
     });
     if (!unused) return code;
-    code = code.slice(0, unused.getFullStart()) + code.slice(unused.getEnd());
+    code = (code.slice(0, unused.getFullStart()) + code.slice(unused.getEnd())).replace(/\n[ \t]*KeptHtml\d*\.displayName = "Html";/, "");
   }
 }
 
@@ -1109,7 +1110,8 @@ async function inNewComponents({ code, source, file, target, Original, props, li
     if (lost.length) return keptBecause(lost.join("; "));
     return { code: written, check, report: moved.report };
   } catch (error) {
-    return keptBecause(message(error).replace(/\s*\n\s*/g, "; "));
+    // All of it: "The template has 2 errors:" alone says nothing.
+    return keptBecause((error instanceof Error ? error.message : String(error)).replace(/\s*\n\s*/g, "; ").slice(0, 400));
   } finally {
     releaseProbe();
     removeProbe();
