@@ -38,12 +38,13 @@ export const social: Lowering = (block, place): TreeNode => {
     // An email's markup has it as a <div align>, which "middle" centers; a page's as text-align, which ignores it.
     align = asEmail && values.align === "middle" ? "center" : "start";
   }
-  const column = (children: TreeNode[]): TreeNode => ({ type: "Column", style: some(padding) ? { padding: padding! } : {}, ...(phonePadding ? { mobile: { padding: phonePadding } } : {}), children });
+  const column = (children: TreeNode[]): TreeNode => ({ type: "Column", style: some(padding) ? { padding: padding! } : {}, ...(phonePadding ? { mobile: { padding: phonePadding } } : {}), compat: { ariaLabel: "social" }, children });
   if (values.icons?.icons !== undefined && !Array.isArray(values.icons.icons)) said("icons", values.icons.icons);
   const listed: unknown[] = Array.isArray(values.icons?.icons) ? values.icons.icons : [];
   if (!listed.length) {
     if (asEmail) return column([]);
-    return { ...column([{ type: "Image", props: { src: `${cdn}/social/icons/default.png`, alt: "social icon" }, style: { height: size } }]), style: { ...(some(padding) ? { padding: padding! } : {}), alignItems: align } };
+    const { compat: _, ...placeholder } = column([{ type: "Image", props: { src: `${cdn}/social/icons/default.png`, alt: "social icon" }, style: { height: size } }]);
+    return { ...placeholder, style: { ...placeholder.style, alignItems: align } };
   }
   const icons = listed.filter((icon): icon is Values => {
     if (!icon || typeof icon !== "object") said("icon", icon);

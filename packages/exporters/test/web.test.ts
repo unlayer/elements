@@ -477,6 +477,11 @@ describe("web HTML", () => {
     expect(head).toContain("align-self:flex-end!important");
   });
 
+  it("writes a label for a screen reader that today's components give a Column or a Text", () => {
+    const { body } = web(page([{ type: "Column", compat: { ariaLabel: 'a "menu"' }, children: [{ type: "Text", compat: { ariaLabel: "item" }, children: ["Hi"] }] }]));
+    expect(body).toMatch(/<div aria-label="a &quot;menu&quot;" style="[^"]*"><div aria-label="item"/);
+  });
+
   it("writes what today's components draw that no style holds: a node's class names, and a root's rules", () => {
     const { head, body } = web(page([{ type: "Column", compat: { className: "mine" }, mobile: { maxWidth: "100%" }, children: [{ type: "Raw", compat: { className: "theirs" }, props: { html: "Hi" } }] }], { compat: { css: ".mine{color:red}" } }));
     expect(head).toContain(".mine{color:red}");

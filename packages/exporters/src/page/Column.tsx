@@ -5,7 +5,7 @@ import type { Component } from "./context";
 import { box, stackOf } from "./layout";
 
 export const Column: Component = ({ node, parent, placement, classes, children }) => (
-  <div id={node.id} class={classes()} style={[placement, stackOf(node), box(node, parent.type !== "Row"), textDeclarations(node.text, parent.text)]}>
+  <div id={node.id} class={classes()} aria-label={node.compat?.ariaLabel as string | undefined} style={[placement, stackOf(node), box(node, parent.type !== "Row"), textDeclarations(node.text, parent.text)]}>
     {children()}
   </div>
 );

@@ -13,6 +13,7 @@ export const textBlock = ({ node, style, parent, placement, classes, children }:
   <Tag
     id={node.id}
     class={classes()}
+    aria-label={node.compat?.ariaLabel as string | undefined}
     dir={node.props.dir as string | undefined}
     style={[placement, Tag === "div" ? null : { margin: 0 }, textDeclarations(node.text, parent.text, always), { textDecoration: style.textDecoration }, box(node, parent.type !== "Row")]}
   >

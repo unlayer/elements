@@ -795,6 +795,12 @@ describe("email HTML", () => {
       expect(body).toContain('<td class="promo" align="right">');
     });
 
+    it("writes a label for a screen reader on the cell that draws a Column's or a Text's box, giving it a box to have it", () => {
+      const { body } = render(email([{ type: "Column", compat: { ariaLabel: 'a "menu"' }, children: [{ type: "Text", compat: { ariaLabel: "item" }, children: ["Hi"] }] }]));
+      expect(body).toContain('<td aria-label="a &quot;menu&quot;">');
+      expect(body).toContain('<td aria-label="item">');
+    });
+
     it("writes a Column's class names on the cell that draws its box, giving it a box to have them", () => {
       const { body } = render(email([{ type: "Column", id: "c", compat: { className: "promo" }, children: [{ type: "Text", children: ["Hi"] }] }]));
       expect(body).toContain('<table id="c" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td class="promo">');

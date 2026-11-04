@@ -62,30 +62,37 @@ export const menu: Lowering = (block, place): TreeNode => {
       const url = (own?.href as { href?: string } | undefined)?.href;
       // No URL: on a page's markup a link to nothing, in an email's none, in the text's color.
       const linked = url || !asEmail;
-      const props = url ? own! : { href: { href: "", ...(item.link && normalizeLinkValue(item.link)?.target === "_blank" ? { target: "_blank" } : {}) } };
-      return { text: item.text === undefined || item.text === null ? "" : shown(String(item.text)), url, linked, props };
+      const text = item.text === undefined || item.text === null ? "" : shown(String(item.text));
+      const label = `Menu item - ${text}`;
+      const props = { ...(url ? own! : { href: { href: "", ...(item.link && normalizeLinkValue(item.link)?.target === "_blank" ? { target: "_blank" } : {}) } }), "aria-label": label };
+      return { text, url, linked, props, label };
     });
   const words = (item: (typeof items)[number]): Array<TreeNode | string> => {
     const held = item.text ? [item.text] : [];
     return item.linked ? [{ type: "Link", props: item.props as Record<string, Json>, style: { ...(item.url ? { color: linkColor } : textColor), textDecoration: "none" }, children: held }] : held;
   };
-  const inBlock = (children: TreeNode[]): TreeNode => ({ type: "Column", style: some(blockPadding) ? { padding: blockPadding! } : {}, ...(phoneBlock ? { mobile: { padding: phoneBlock } } : {}), children });
+  const inBlock = (children: TreeNode[]): TreeNode => ({ type: "Column", style: some(blockPadding) ? { padding: blockPadding! } : {}, ...(phoneBlock ? { mobile: { padding: phoneBlock } } : {}), compat: { ariaLabel: "menu" }, children });
+  // Text with no link has the label a link has on its own box.
+  const labelled = (item: (typeof items)[number]) => (item.linked ? {} : { compat: { ariaLabel: item.label } });
   // The template's lines: a page's 1.5 is what its text inherits; the font's own elsewhere.
   const lines: Record<string, Json> = place.mode === "web" ? {} : { lineHeight: "normal" };
-  if (!items.length) return inBlock([]);
+  if (!items.length) {
+    const { compat: _, ...none } = inBlock([]);
+    return asEmail ? inBlock([]) : none;
+  }
   // As legacy's plain text reads it: an email's markup has its items on lines of their own, a page's side by side.
   const reading = (parts: Array<Array<TreeNode | string>>): TreeNode => (asEmail ? { type: "Column", children: parts.map((part) => ({ type: "Column", children: [{ type: "Paragraph", children: part }] })) } : { type: "Paragraph", children: parts.flat() });
   if ((values.layout ?? "horizontal") === "vertical") {
     return {
-      ...inBlock(items.map((item): TreeNode => ({ type: "Text", ...mobile, style: { ...box, ...lines, textAlign: align === "start" ? "left" : align === "end" ? "right" : "center", ...(item.url ? {} : textColor) }, children: words(item) }))),
+      ...inBlock(items.map((item): TreeNode => ({ type: "Text", ...labelled(item), ...mobile, style: { ...box, ...lines, textAlign: align === "start" ? "left" : align === "end" ? "right" : "center", ...(item.url ? {} : textColor) }, children: words(item) }))),
       textAs: reading(items.map(words)),
     };
   }
   const separator = typeof values.separator === "string" ? shown(values.separator) : "";
   const hidden = place.mode === "document" ? {} : { hidden: { mobile: true } };
   const children: TreeNode[] = items.flatMap((item, index) => [
-    ...(index && separator ? [{ type: "Text", ...hidden, ...mobile, style: { flex: "none", ...box, ...textColor }, children: [separator] } as TreeNode] : []),
-    { type: "Text", ...mobile, style: { flex: "none", ...box, ...(item.url ? {} : textColor) }, children: words(item) },
+    ...(index && separator ? [{ type: "Text", compat: { ariaLabel: "menu separator" }, ...hidden, ...mobile, style: { flex: "none", ...box, ...textColor }, children: [separator] } as TreeNode] : []),
+    { type: "Text", ...labelled(item), ...mobile, style: { flex: "none", ...box, ...(item.url ? {} : textColor) }, children: words(item) },
   ]);
   const flow: Record<string, Json> = asEmail ? (place.mode === "email" ? { flexWrap: "words", ...(text.letterSpacing !== undefined ? { letterSpacing: text.letterSpacing } : {}) } : { flexWrap: "wrap", gap: WORD_SPACE }) : { flexWrap: "wrap" };
   const rtl = (place.config.textDirection ?? place.body.textDirection) === "rtl";

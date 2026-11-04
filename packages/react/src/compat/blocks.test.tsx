@@ -884,7 +884,8 @@ describe("a menu block", () => {
   });
 
   it("with no items has its padding and nothing in it", () => {
-    expect(lowered(<Menu items={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+    expect(lowered(<Menu items={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { ariaLabel: "menu" }, children: [] });
+    expect(lowered(<Menu items={[]} />, Page)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
   });
 
   it("says items that aren't a list, and draws none", () => {
@@ -919,17 +920,22 @@ describe("a menu block", () => {
 
   it("draws an item with no URL in the text's color: a link to nothing in a page's markup, plain text in an email's", () => {
     const plain = (Root: Root) => (row(lowered(<Menu values={items([{ text: "Plain" }])} textColor="#123456" />, Root)).children as TreeNode[])[0];
-    expect(plain(Page).children).toEqual([{ type: "Link", props: { href: { href: "" } }, style: { color: "#123456", textDecoration: "none" }, children: ["Plain"] }]);
-    expect(plain(Email)).toMatchObject({ style: { color: "#123456" }, children: ["Plain"] });
+    expect(plain(Page).children).toEqual([{ type: "Link", props: { href: { href: "" }, "aria-label": "Menu item - Plain" }, style: { color: "#123456", textDecoration: "none" }, children: ["Plain"] }]);
+    expect(plain(Email)).toMatchObject({ style: { color: "#123456" }, compat: { ariaLabel: "Menu item - Plain" }, children: ["Plain"] });
     // A link of another kind with no URL opens as it says.
     const phone = (row(lowered(<Menu values={items([{ text: "Call", link: { name: "phone", values: { phone: "+1" } } }])} />, Page)).children as TreeNode[])[0];
-    expect((phone.children as TreeNode[])[0].props).toEqual({ href: { href: "", target: "_blank" } });
+    expect((phone.children as TreeNode[])[0].props).toEqual({ href: { href: "", target: "_blank" }, "aria-label": "Menu item - Call" });
   });
 
   it("links an item of another kind where it has a URL, and shows what's in an item that isn't text", () => {
     const [mail, number] = row(lowered(<Menu values={items([{ text: "Mail", link: { name: "email", attrs: { href: "mailto:hi@example.com" }, values: { email: "hi@example.com" } } }, { text: 7, link: { name: "web", values: { href: "https://a.example" } } }])} />, Page)).children as TreeNode[];
-    expect((mail.children as TreeNode[])[0].props).toEqual({ href: { href: "mailto:hi@example.com", target: "_blank" } });
+    expect((mail.children as TreeNode[])[0].props).toEqual({ href: { href: "mailto:hi@example.com", target: "_blank" }, "aria-label": "Menu item - Mail" });
     expect((number.children as TreeNode[])[0].children).toEqual(["7"]);
+  });
+
+  it("labels its box, its items and its separators for a screen reader, in every output, as legacy's", () => {
+    const labels = (Root: Root) => [...renderToHtml(<Root><Row><Column><Menu items={[{ text: "Docs", href: "https://example.com/docs" }, { text: 'Say "hi"' }]} separator="|" /></Column></Row></Root>).matchAll(/aria-label="([^"]*)"/g)].map((match) => match[1]);
+    for (const Root of [Email, Page, Document] as Root[]) expect(labels(Root).filter((label) => /menu/i.test(label))).toEqual(["menu", "Menu item - Docs", "menu separator", "Menu item - Say &quot;hi&quot;"]);
   });
 
   it("keeps an item with no text as its padding, its link empty; says an item that's nothing", () => {
@@ -1007,7 +1013,13 @@ describe("a social block", () => {
       style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
       children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 } }],
     });
-    expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+    expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { ariaLabel: "social" }, children: [] });
+  });
+
+  it("labels its box for a screen reader in every output, and on a page or in a printed document its links, as legacy's", () => {
+    const labels = (Root: Root) => [...renderToHtml(<Root><Row><Column><Social icons={[{ name: "X", url: "https://x.example" }]} /></Column></Row></Root>).matchAll(/aria-label="([^"]*)"/g)].map((match) => match[1]);
+    expect(labels(Email).filter((label) => /social|icon/.test(label))).toEqual(["social"]);
+    for (const Root of [Page, Document] as Root[]) expect(labels(Root).filter((label) => /social|icon/.test(label))).toEqual(["social", "X icon"]);
   });
 
   const image = (node: TreeNode | undefined, index = 0) => ((((row(node).children as TreeNode[])[index].children as TreeNode[])[0].children as TreeNode[])[0]);
