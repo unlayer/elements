@@ -1,7 +1,7 @@
 # Migrating to the new components
 
-The new components (`@unlayer/react-elements/primitives`, the main import from the next major version) render
-without `@unlayer/exporters`, take typed `style` props, and come with the outputs and checks described in
+The new components (`@unlayer/react-elements/primitives`, the main import from the next major version) take typed
+`style` props, and come with the outputs and checks described in
 [RFC 0001](rfcs/0001-primitives-and-exporters.md). Today's components stay at
 `@unlayer/react-elements/legacy` with their API unchanged (since 0.3.0 they render through the new engine too),
 so a template can move when it's ready.
@@ -59,16 +59,16 @@ The codemod never drops anything quietly. It lists, with the line:
 - a horizontal `Menu` of links written out: it's written as a wrapping `Row` of its links and separators, with
   the spaces today's puts between them, so it draws as today's does (a `Menu` of links worked out at run
   time, or a vertical one, stays a `Menu`);
-- components with no new one yet (`Html`, `Table`, custom tools): a comment where each was, for you to rewrite;
+- `Html`, `Table` and custom tools, which it doesn't rewrite yet: a comment where each was, for you to rewrite;
 - today's functions it leaves imported (`renderToHtml`): render the new components with `render()`, which is
   async.
 
-## Checked against main
+## How it's checked
 
 main's example templates are migrated by the codemod in this repository
 (`packages/react/src/primitives/testing/codemod-examples.tsx`, the codemod's output unedited, each example in a scope
-of its own, which a test checks), and the round-trip tests take each migrated template to the
-builder and back. The comparison gate (`pnpm --filter @unlayer/react-elements test:compare`) renders main's templates
-as today's components do next to the new engine's render of them, and each migrated template as the builder draws it
-next to what comes back from the builder, in Chromium, at desktop and phone widths, and fails on any difference in
-where text sits, its styles, the images, or what's painted.
+of its own, which a test checks). The round-trip tests take each migrated template to the builder and back: each block
+a reader sees must stay in the same place and width, with the same words, styles, images and links. The codemod's own
+tests (`packages/migrate/test`) check what each of today's components becomes and what's noted, and that a generated
+template's migration is valid. No test draws a migrated template next to today's in a browser, so look at yours
+before you send it.
