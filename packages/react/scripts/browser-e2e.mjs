@@ -633,9 +633,9 @@ async function checkDeviceOverrides(page) {
       h(Row, { hideOnMobile: overrides, ...id("hidden-row") }, h(Column, null, h(Paragraph, null, "Hidden row")))
     ));
     const read = () => page.evaluate(() => {
-      // A column's padding: on its padding box in today's components' markup, on the column in the new engine's.
+      // A column's padding: on the column on a page, on its cell in an email, whose column is a table.
       const outer = document.getElementById("phone-column");
-      const column = outer.querySelector(".v-col-padding") ?? outer;
+      const column = outer.tagName === "TABLE" ? outer.querySelector("td") : outer;
       const image = document.querySelector("img");
       const css = getComputedStyle(column);
       const hidden = (id) => document.getElementById(id).getBoundingClientRect().height === 0 || getComputedStyle(document.getElementById(id)).display === "none";
