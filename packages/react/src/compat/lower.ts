@@ -223,12 +223,13 @@ function linesOr(css: string[], values: Values | undefined, frame: Frame, path: 
  * A class for a row's or column's settings for a device, whose rules legacy's own function writes (at legacy's 480px on
  * either side, whatever the output): undefined where it has none that draw.
  */
-function deviceClass(values: Values, collection: "rows" | "columns", frame: Frame): string | undefined {
+function deviceClass(values: Values, collection: "rows" | "columns", frame: Frame, path: string): string | undefined {
   const { desktop = {}, mobile = {} } = values._override ?? {};
   const set = (key: string) => key in desktop || key in mobile;
   if (!set("padding") && !set("border")) return undefined;
   const name = ruled(frame, []);
-  collectDeviceStyles(values, collection, "", frame.mode, frame.device, name);
+  const what = collection === "rows" ? "A row" : "A column";
+  collectDeviceStyles(values, collection, "", frame.mode, frame.device, name, (key, value, on) => say(frame, "warning", `${what}'s ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, `${path}.values._override.${on}.${key}`));
   return name;
 }
 
@@ -373,7 +374,7 @@ function column(design: Values, width: string | undefined, rigid: boolean, asCel
   const own = css.length ? ruled(frame, css) : undefined;
   // (On a phone too, where it's the row's whole width inside them.)
   if (sidesOfLines && options.mode === "web") frame.rules.push(`@media (max-width: 480px) { .${own}.${own} { width: calc(100% + ${sidesOfLines}px) !important; max-width: none !important; align-self: flex-start !important; } }`);
-  const className = classNames(values, "u_column", own, deviceClass(values, "columns", frame));
+  const className = classNames(values, "u_column", own, deviceClass(values, "columns", frame, path));
   const contents: DesignBlock[] = design.contents ?? [];
   return withGivenId(defined({
     type: "Column",
@@ -502,7 +503,7 @@ function row(design: Values, rowIndex: number, place: Omit<FramePlace, "row" | "
     if (band.some((declaration) => declaration.startsWith("padding"))) frame.rules.push(`@media (max-width: ${frame.width + EMAIL_PHONE_MARGIN}px) { .${own} { padding-left: 0 !important; padding-right: 0 !important; } }`);
     // Past the content width, the cells run out of their table to the right, as legacy's do, not moving it off centre.
     const fixedTable = asCells || pastItsShare ? (frame.fixedTable ??= ruled(frame, [])) : undefined;
-    const className = classNames(values, "u_row", own, frame.contentWidth, fixedTable, deviceClass(values, "rows", frame));
+    const className = classNames(values, "u_row", own, frame.contentWidth, fixedTable, deviceClass(values, "rows", frame, path));
     return withGivenId(defined({
       type: "Section",
       hidden: hide,
@@ -524,7 +525,7 @@ function row(design: Values, rowIndex: number, place: Omit<FramePlace, "row" | "
     type: "Column",
     style: defined({ backgroundColor: bandColor, padding: some(padding), alignItems: frame.contentAlign === "left" ? "start" : frame.contentAlign === "right" ? "end" : "center" }) as Record<string, Json>,
     hidden: hide,
-    compat: compatOf({ ...conditions, className: classNames(values, "u_row", band.length ? ruled(frame, band) : undefined, deviceClass(values, "rows", frame)) }),
+    compat: compatOf({ ...conditions, className: classNames(values, "u_row", band.length ? ruled(frame, band) : undefined, deviceClass(values, "rows", frame, path)) }),
     children: [
       defined({
         type: "Column",

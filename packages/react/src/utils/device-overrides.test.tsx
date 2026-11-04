@@ -1,7 +1,9 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, renderToHtml, renderToJson } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Html, Image, registerTool, renderToHtml, renderToJson } from "../index";
+import { lowerTemplate } from "../compat/template";
 import { collectDeviceStyles } from "./device-overrides";
+import { withRenderScope } from "./render-scope";
 import fixtures from "./fixtures/device-parity.json";
 
 const h = React.createElement;
@@ -177,8 +179,7 @@ describe("phone values that could break the head's CSS", () => {
     expect(deviceRules(stylesheet(html))).toContain(`${PHONE} #u_content_paragraph_2 .v-font-size{font-size:30px !important;}`);
   });
 
-  // BUG, for the bar's "no silent loss": a drawn block says so (the test before the last), one written as it is says nothing.
-  it.fails("says so of one it drops from a block written as it is", () => {
+  it("says so of one it drops from a block written as it is", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       renderToHtml(<Email><Row><Column><Paragraph html={AS_IT_IS} values={phone("calc(13px + 5px")} /></Column></Row></Email>);
@@ -186,6 +187,36 @@ describe("phone values that could break the head's CSS", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  const padding = (value: string, key = "padding", device = "mobile") => ({ _override: { [device]: { [key]: value } } }) as any;
+  const Tool = registerTool({ name: "device_probe", renderer: { exporters: { web: () => "<b>Tool</b>", email: () => "<b>Tool</b>" } } } as any) as any;
+  it.each<[string, (value: string) => React.ReactElement]>([
+    ["a text's padding written as it is", (value) => <Paragraph html={AS_IT_IS} values={padding(value, "containerPadding")} />],
+    ["a text's padding for desktop written as it is", (value) => <Paragraph html={AS_IT_IS} values={padding(value, "containerPadding", "desktop")} />],
+    ["a heading's line height written as it is", (value) => <Heading values={{ text: AS_IT_IS, ...padding(value, "lineHeight") } as any} />],
+    ["a row's padding", (value) => <Row values={padding(value)}><Column><Paragraph>x</Paragraph></Column></Row>],
+    ["a column's padding", (value) => <Row><Column values={padding(value)}><Paragraph>x</Paragraph></Column></Row>],
+    ["an Html block's padding", (value) => <Html html="<b>x</b>" values={padding(value, "containerPadding")} />],
+    ["a custom tool's padding", (value) => <Tool values={padding(value, "containerPadding")} />],
+  ])("says so of %s it drops, and doesn't write it", (what, block) => {
+    // (Its own value: a message is said once per process.)
+    const value = `calc(1px + ${what.replace(/\W/g, "")}`;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const element = block(value);
+      const inner = (element.type as any).displayName === "Row" ? element : <Row><Column>{element}</Column></Row>;
+      const html = renderToHtml(<Email>{inner}</Email>);
+      expect(html).not.toContain(value);
+      expect(warn.mock.calls.map(([message]) => String(message)).join()).toContain(value);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("says so of a value for phones a block written as it is doesn't read, as of a drawn block", () => {
+    const { diagnostics } = withRenderScope(() => lowerTemplate(<Email><Row><Column><Paragraph html={AS_IT_IS} values={padding("#ff0000", "color")} /></Column></Row></Email>, undefined, "renderToHtml"));
+    expect(diagnostics.map((d) => d.message)).toContain("A text's color on phones isn't read: it's drawn without it.");
   });
 
   it("writes a row's phone padding in em as it is", () => {

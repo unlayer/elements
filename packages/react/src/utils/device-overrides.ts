@@ -3,6 +3,8 @@ import { safeName } from "./create-component";
 
 type DeviceStyles = Record<string, string[]>;
 type Collection = "rows" | "columns" | "contents";
+/** Says a value for a device that CSS can't hold, so no rule is written for it. */
+export type Dropped = (option: string, value: unknown, device: string) => void;
 
 // Mirrors the Unlayer editor's device-override CSS, including option order.
 const contentOptions: Record<string, string[]> = {
@@ -45,7 +47,7 @@ function size(value: unknown): string | undefined {
  * its markup. An email's row has no sides on its element (legacy's are only classic Outlook's). A column's lines on a
  * page or in a printed document are on the element with its id, which legacy's selector doesn't reach: they draw nothing.
  */
-export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles, own?: string): void {
+export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles, own?: string, dropped?: Dropped): void {
   // The id the block's HTML has, escaped.
   const given = safeName(values._meta?.htmlID);
   if (!given && !own) return;
@@ -62,7 +64,11 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
       const selector = (attribute: string) => (own ? `.${own}` : `#${id} .v-${prefix}${property === attribute ? property : `${property}-${attribute}`}`);
       const push = (rule: string) => (styles[device] ||= []).push(rule);
       if (option === "padding" || option === "containerPadding") {
-        if (!(value || value === 0) || cssValue(value) === undefined) continue;
+        if (!(value || value === 0)) continue;
+        if (cssValue(value) === undefined) {
+          dropped?.(option, value, device);
+          continue;
+        }
         const direct = collection === "rows" || (mode === "web" && collection === "contents" && option === "containerPadding");
         const target = direct ? selector("padding").replace(`#${id} `, `#${id}`) : selector("padding");
         const vertical = mode === "email" && collection === "rows";
@@ -89,7 +95,10 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
       } else {
         if (!(value || (option === "lineHeight" && `${value}` === "0"))) continue;
         const rendered = cssValue(option === "fontSize" && typeof value === "number" ? `${value}px` : value);
-        if (rendered === undefined) continue;
+        if (rendered === undefined) {
+          dropped?.(option, value, device);
+          continue;
+        }
         push(`${selector(property)} { ${property}: ${rendered} !important; }`);
       }
     }

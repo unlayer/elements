@@ -78,8 +78,13 @@ function phoneStyles(phone: Values, stored: Values, place: Place): Record<string
     if (read !== undefined) out[key === "containerPadding" ? "padding" : key] = read;
     else unread(place, `${key} on phones`, value);
   }
-  for (const key of Object.keys(stored._override?.mobile ?? {})) if (key !== "hideMobile" && !DEVICE_KEYS.includes(key)) place.note(`A text's ${key} on phones isn't read: it's drawn without it.`, "info");
+  notRead(stored, place);
   return out;
+}
+
+/** What a block has for phones that nothing reads. */
+function notRead(stored: Values, place: Place): void {
+  for (const key of Object.keys(stored._override?.mobile ?? {})) if (key !== "hideMobile" && !DEVICE_KEYS.includes(key)) place.note(`A text's ${key} on phones isn't read: it's drawn without it.`, "info");
 }
 
 /**
@@ -144,7 +149,11 @@ function written(type: "Paragraph" | "Heading", values: Values, html: string, le
   const outlook = type === "Heading" && place.mode === "email" ? [`<!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->`, `<!--[if mso]></td></tr></table><![endif]-->`] : ["", ""];
   const name = type.toLowerCase();
   const device: Record<string, string[]> = {};
-  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "contents", type, place.mode, device);
+  // What its stylesheet can't hold is said, as of a drawn block (a text style for desktop is, with the block's text styles).
+  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "contents", type, place.mode, device, undefined, (key, value, on) => {
+    if (on === "mobile" || key === "containerPadding") unread(place, `${key} on ${on === "mobile" ? "phones" : "desktop"}`, value);
+  });
+  notRead(values, place);
   const rule = (selector: string, style: Record<string, Json> | null | undefined) => {
     const body = [declared("color", style?.color), declared("text-decoration", style?.textDecoration)].filter(Boolean).join(" ");
     return body ? `#${cssIdent(id)} ${selector} { ${body} }` : "";

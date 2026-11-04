@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { collectDeviceStyles, deviceStylesCss, deviceVisibilityCss } from "./device-overrides";
+import { collectDeviceStyles, deviceStylesCss, deviceVisibilityCss, type Dropped } from "./device-overrides";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
@@ -67,6 +67,8 @@ export interface ExtractHeadOptions {
   displayMode: RenderMode;
   /** Optional head config for feature flags and initial values */
   headConfig?: HeadConfig;
+  /** Says a block's value for a device that CSS can't hold; `id` is the block's. */
+  dropped?: (id: string, ...value: Parameters<Dropped>) => void;
 }
 
 /** A block whose HTML is the user's own (a custom tool's exporter, an Html block, markup kept from a component of theirs). */
@@ -125,7 +127,8 @@ function walkItem(
   styles: string[],
   scripts: string[],
   tags: string[],
-  deviceStyles: Record<string, string[]>
+  deviceStyles: Record<string, string[]>,
+  dropped: ExtractHeadOptions["dropped"]
 ): void {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
@@ -149,7 +152,7 @@ function walkItem(
   const finalValues = mergeValues(defaultValues, mappedValues);
   const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
 
-  collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles);
+  collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles, undefined, dropped && ((...value) => dropped(valuesWithMeta._meta.htmlID, ...value)));
 
   callHead(config.head as ComponentHead | undefined, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
 }
@@ -191,7 +194,7 @@ export function extractHeadFromTree(
   // Walk rows
   const children = collectChildren(element.props.children);
   const named = (parents: React.ReactElement[], name: string) => parents.filter((c) => getDisplayName(c) === name).flatMap((c) => collectChildren((c.props as { children?: React.ReactNode }).children));
-  for (const block of named(named(children, "Row"), "Column")) walkItem(block, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
+  for (const block of named(named(children, "Row"), "Column")) walkItem(block, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles, options.dropped);
 
   styles.unshift(deviceVisibilityCss(displayMode));
   const overrides = deviceStylesCss(deviceStyles, displayMode);
