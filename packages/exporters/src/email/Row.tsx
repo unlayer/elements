@@ -72,7 +72,7 @@ export const Row: Component = (props) => {
 /**
  * Each child a cell with its box on it, so its background and lines are as tall as the row; at least its share wide,
  * however much of the row's width its neighbours' content takes (a table shares it out by their content), or its
- * `compat.minWidth` (on phones, side by side, its `phoneMinWidth`). Markup among them (`Raw`) is as wide as its content lets it be.
+ * `compat.minWidth` (on phones its `phoneMinWidth`). Markup among them (`Raw`) is as wide as its content lets it be.
  */
 function boxedCells(props: Props, stacks: boolean): Html {
   const { node, render } = props;
@@ -94,7 +94,8 @@ function boxedCells(props: Props, stacks: boolean): Html {
                 width={width}
                 valign={valign}
                 bgcolor={bgcolor(backgroundColor)}
-                phone={stacks ? undefined : { width: child.style.width, minWidth: (child.compat?.phoneMinWidth as number | undefined) ?? 0 }}
+                // (Stacked, what it holds can still run past the window: a node's rule comes after the stacking's.)
+                phone={stacks ? { minWidth: child.compat?.phoneMinWidth as number | undefined } : { width: child.style.width, minWidth: (child.compat?.phoneMinWidth as number | undefined) ?? 0 }}
                 style={{ width, minWidth: Math.max(width ?? 0, (child.compat?.minWidth as number | undefined) ?? 0) || undefined, boxSizing: "border-box", padding, backgroundColor, border, borderRadius }}
               >
                 {render({ ...child, id: undefined, style, mobile: undefined, compat: undefined }, { fill: true })}

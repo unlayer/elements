@@ -460,7 +460,7 @@ function row(design: Values, rowIndex: number, place: Omit<FramePlace, "row" | "
   // Table cells, as legacy's columns are, where it shows: side by side with backgrounds or lines of their own (as tall
   // as the row), kept side by side on phones (their shares, whatever their content), or as wide as what's in them takes.
   const pastItsShare = columns.some((c, index) => widthHeld(c) > (frame.width * (cells[index] ?? 0)) / total);
-  const asCells = email && (holdsText || (columns.length > 1 && (!stacks || pastItsShare || cells.includes(0) || columns.some((c) => drawsBox(c.values)))));
+  const asCells = email && (holdsText || pastItsShare || (columns.length > 1 && (!stacks || cells.includes(0) || columns.some((c) => drawsBox(c.values)))));
   // On a page, what's more than a row's shares runs past it (legacy's columns keep their shares).
   const rigid = holdsText || columns.length !== cells.length || columns.some((c) => parseFloat(c.values?.border?.borderLeftWidth) > 0 || parseFloat(c.values?.border?.borderRightWidth) > 0);
   const at = { ...place, row: values, cells };

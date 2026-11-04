@@ -78,9 +78,11 @@ describe("lowerDesign()", () => {
     const section = (tree(template).children as TreeNode[])[0];
     expect(css(template)).toContain(`.${section.compat?.className} > table { table-layout: fixed; }`);
     expect(rowOf(<Email><Row cells={[1, 1, 1]}><Column><Paragraph>A</Paragraph></Column><Column><Divider width={120} /></Column><Column><Paragraph>B</Paragraph></Column></Row></Email>).compat?.stretch).toBeUndefined();
-    // A row's only column stays a block, whose line runs past the table the same way.
+    // A row's only column too, past the email and past a phone.
     const alone = <Email><Row><Column><Divider width={900} /></Column></Row></Email>;
-    expect(rowOf(alone).compat?.stretch).toBeUndefined();
+    expect(rowOf(alone).compat?.stretch).toBe(true);
+    expect((rowOf(alone).children as TreeNode[])[0].compat).toMatchObject({ minWidth: 920, phoneMinWidth: 920 });
+    expect(rowOf(<Email><Row><Column><Divider width={300} /></Column></Row></Email>).compat?.stretch).toBeUndefined();
     expect(css(alone)).toContain(`.${(tree(alone).children as TreeNode[])[0].compat?.className} > table { table-layout: fixed; }`);
   });
 

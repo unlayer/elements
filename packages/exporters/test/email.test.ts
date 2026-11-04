@@ -860,6 +860,11 @@ describe("email HTML", () => {
       expect(held.head).toContain("{width:50%!important;min-width:320px!important}");
     });
 
+    it("lets a Row's cell that stacks on phones hold its phoneMinWidth, after the stacking's rule", () => {
+      const { head } = render(email([{ type: "Row", compat: { stretch: true }, children: [{ type: "Column", compat: { minWidth: 920, phoneMinWidth: 920 }, children: [{ type: "Text", children: ["A"] }] }] }]));
+      expect(head).toMatch(/\{display:block!important;width:100%!important;min-width:0!important\}\.\w+\{min-width:920px!important\}/);
+    });
+
     it("hides a Section at the width it's told, not its own", () => {
       const { head, body } = render(email([{ type: "Section", hidden: { mobile: true }, children: [words] }, { type: "Section", hidden: { desktop: true }, children: [words] }]), { hideBelow: 480 });
       expect(head).toMatch(/@media \(max-width: 480px\)\{\.\w+\{display:none!important\}\.\w+\{display:table-row!important\}\}/);
