@@ -486,7 +486,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
     });
 
-    it("draw text that isn't a string as 0.2.1 draws it: a heading's and a button's, not a cell's", () => {
+    it("draw text that isn't a string as 0.2.1 draws it: a heading's and a button's", () => {
       const words = (L: Release, root: "Email" | "Page" | "Document", block: React.ReactElement) => {
         const Root = L[root] as typeof Email;
         const doc = new DOMParser().parseFromString(L.renderToHtml(<Root><L.Row><L.Column>{block}</L.Column></L.Row></Root>), "text/html");
@@ -507,10 +507,11 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
             expect(words(previous, root, asButton(previous)), `${value}`).toBe(button);
             expect(renderToPlainText(<Email><Row><Column>{asHeading(current)}{asButton(current)}</Column></Row></Email>)).toBe(previous.renderToPlainText(<previous.Email><previous.Row><previous.Column>{asHeading(previous)}{asButton(previous)}</previous.Column></previous.Row></previous.Email>));
           }
-          const cell = (L: Release) => <L.Table values={{ table: { headers: [], footers: [], rows: [{ cells: [{ text: 2024 }] }] } } as never} />;
-          expect(words(current, root, cell(current))).toBe(words(previous, root, cell(previous)));
+          // (A cell's, where 0.2.1's table fails on it and draws none, is drawn; one that's nothing is an empty cell, as 0.2.1's.)
+          const cell = (text: unknown) => <Table values={{ table: { headers: [], footers: [], rows: [{ cells: [{ text }, { text: "Beside" }] }] } } as never} />;
+          expect(words(current, root, cell(2024))).toBe("2024Beside");
+          expect(words(current, root, cell(0))).toBe("Beside");
         }
-        expect(warn.mock.calls.flat().join("\n")).toContain("A table's cell's text 2024 can't be read");
       } finally {
         warn.mockRestore();
       }

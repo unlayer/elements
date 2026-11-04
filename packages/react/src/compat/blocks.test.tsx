@@ -902,6 +902,12 @@ describe("a table block", () => {
       expect(html).toContain("Kept");
     });
 
+    it("draws no table where nothing's left of it, as 0.2.1's", () => {
+      for (const table of [{ ...empty, rows: [null] }, { ...empty, rows: [{ cells: [null] }] }, { ...empty, rows: [null, { cells: [null, 7] }] }]) expect(lowered(<Table values={{ table } as never} />, Root)).toBeUndefined();
+      // One that says it has no rows is drawn: its box, as 0.2.1's.
+      expect(lowered(<Table values={{ table: { ...empty, rows: [] } } as never} />, Root)?.type).toBe("Column");
+    });
+
     it("draws a cell that's nothing as an empty one, says so, and the cells after it keep their columns", () => {
       const table = { ...empty, rows: [cells("First", "Second"), { cells: [null, { text: "Third" }] }] };
       const html = renderToHtml(around(table));

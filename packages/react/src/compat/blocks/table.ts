@@ -64,9 +64,7 @@ function linkStyle(values: Values, place: Place): { style: Record<string, Json>;
 
 /** A cell's HTML: its Lexical textJson's, or its own; a cell that says nothing is a line of its height. */
 function cellHtml(cell: Values, place: Place): string {
-  // (Legacy draws no text that isn't a string in a cell, which is said.)
-  if (typeof cell.textJson !== "string" && cell.text && typeof cell.text !== "string") place.note(`A table's cell's text ${JSON.stringify(cell.text)} can't be read: it's drawn without it.`);
-  const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : typeof cell.text === "string" ? cell.text : "");
+  const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : cell.text ? String(cell.text) : "");
   return html.trim() ? place.keepHtml(html) : "​";
 }
 
@@ -92,15 +90,28 @@ function columnWidths(first: Values[], count: number): string[] | undefined {
   return new Set(all).size > 1 ? all.map((share) => `${Math.round((share / sum) * 1e6) / 1e4}%`) : undefined;
 }
 
-export function table(block: DesignBlock, place: Place): TreeNode {
+export function table(block: DesignBlock, place: Place): TreeNode | null {
   const { values: stored } = block;
   const { values, phone } = deviceValues(stored, ["containerPadding"], place.mode);
   const note = (what: string, value: unknown) => place.note(`A table's ${what} ${JSON.stringify(value)} can't be read: it's drawn without it.`);
   const data: Values = values.table ?? {};
   const isValues = (value: unknown): value is Values => !!value && typeof value === "object";
-  // A cell that can't be read is an empty one, which keeps the columns after it where they are; a row is left out.
-  const cellsOf = (row: Values): Values[] => (Array.isArray(row?.cells) ? row.cells : []).map((own: unknown) => (isValues(own) ? own : (note("cell", own), {})));
-  const rowsOf = (list: unknown): Values[] => (Array.isArray(list) ? list : []).filter((own: unknown) => isValues(own) || (note("row", own), false));
+  // A cell that can't be read is an empty one, which keeps the columns after it where they are. A row of nothing else is
+  // left out, as a row that can't be read is, and a table of no others isn't drawn (legacy's fails, and draws none).
+  let unread = false;
+  const leftOut = (what: string, value: unknown) => {
+    unread = true;
+    note(what, value);
+    return false;
+  };
+  const cellsOf = (row: Values): Values[] => (Array.isArray(row?.cells) ? row.cells : []).map((own: unknown) => (isValues(own) ? own : {}));
+  const readable = (own: unknown) => {
+    if (!isValues(own)) return leftOut("row", own);
+    const cells: unknown[] = Array.isArray(own.cells) ? own.cells : [];
+    for (const cell of cells) if (!isValues(cell)) note("cell", cell);
+    return !cells.length || cells.some(isValues) || leftOut("row", own);
+  };
+  const rowsOf = (list: unknown): Values[] => (Array.isArray(list) ? list : []).filter(readable);
   const [headers, rows, footers] = [rowsOf(data.headers), rowsOf(data.rows), rowsOf(data.footers)];
   // (A block given a mode of its own is drawn as that output's.)
   const document = (values.mode ?? place.mode) === "document";
@@ -109,6 +120,7 @@ export function table(block: DesignBlock, place: Place): TreeNode {
   const styles = { header: sectionStyle(values, "header", place.mode, note), content: sectionStyle(values, "content", place.mode, note), footer: sectionStyle(values, "footer", place.mode, note) };
 
   const shown = [...(values.enableHeader ? headers : []), ...rows, ...(values.enableFooter ? footers : [])];
+  if (unread && !shown.length) return null;
   const first = cellsOf(headers[0]).length ? cellsOf(headers[0]) : cellsOf(rows[0]);
   const count = Math.max(0, ...shown.map((row) => cellsOf(row).length));
   const widths = columnWidths(first, count);
