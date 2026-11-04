@@ -1,7 +1,7 @@
-import { MenuExporters } from "@unlayer/exporters";
 import { MenuDefaults } from "../utils/tool-defaults";
 import type { MenuValues, MenuItem, SizeInput, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 // Menu carries fontFamily/fontWeight/fontSize/letterSpacing (but not color or
@@ -78,7 +78,7 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
     );
   },
   displayName: "Menu",
-  exporters: MenuExporters,
+  draw: onItsOwn,
 });
 
 export default Menu;

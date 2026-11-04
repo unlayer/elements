@@ -491,7 +491,7 @@ export function amongRows(children: React.ReactNode, place: (child: React.ReactE
   return out.map((html) => withoutMarkers(html, c.collection.nonce));
 }
 
-/** A block's finished HTML, of a root with these `children`, without what `childrenHtml` takes out of the rest. */
+/** A block's finished HTML, of a root with these `children`, without a marker that got out of the collecting render (see `withoutMarkers`). */
 export const blockWithoutMarkers = (children: React.ReactNode, html: string): string => withoutMarkers(html, collect(children).collection.nonce);
 
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */

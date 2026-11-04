@@ -1,7 +1,7 @@
-import { ButtonExporters } from "@unlayer/exporters";
 import { ButtonDefaults } from "../utils/tool-defaults";
 import type { ButtonValues, TextStyleProps, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 /**
@@ -105,7 +105,7 @@ const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
     return mapped;
   },
   displayName: "Button",
-  exporters: ButtonExporters,
+  draw: onItsOwn,
 });
 
 export default Button;

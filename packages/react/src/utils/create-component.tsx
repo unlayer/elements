@@ -9,11 +9,10 @@
 import React from "react";
 import { collecting, RECORDS } from "./collect";
 import { recordBlock, whileCollecting } from "./record";
-import type { ExporterName } from "@unlayer/types";
-
-/** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
-type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
+
+/** A block's own HTML, by display mode: a custom tool's, an Html block's. */
+type ItemExporters = Partial<Record<RenderMode, (...args: any[]) => string>>;
 import type { DeviceProps, SizeInput } from "../types";
 import { contentSlotWidth, pinImageSrc } from "./image-sizing";
 import {
@@ -83,9 +82,11 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Display name for React DevTools */
   displayName?: string;
 
-  /** Per-component exporters map — enables tree-shaking.
-   *  Keys are display modes ('web', 'email', 'document'), values are exporter functions. */
-  exporters: ItemExporters;
+  /** The block's own HTML, for one that has it (a custom tool, an Html block, a page break). */
+  exporters?: ItemExporters;
+
+  /** How it renders straight through React where it has no HTML of its own: the new engine draws it (compat/render.ts). */
+  draw?: (type: React.ComponentType<any>, props: Record<string, any>) => React.ReactElement;
 
   /** Design-JSON content type override (defaults to the lowercased name).
    *  Custom tools use "custom". */
@@ -99,13 +100,8 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
    *  tools pass `custom_<slug>`, rendering as `u_content_custom_<slug>`. */
   metaName?: string;
 
-  /** Head contributions (css/js/tags builders) carried by the component
-   *  itself instead of looked up in the exporters registry. */
+  /** Head contributions (css/js/tags builders) carried by the component itself. */
   head?: Record<string, any>;
-
-  /** Skip the content-container wrapper when this component's exporter returns
-   *  an empty string for an unsupported mode. */
-  omitEmptyOutput?: boolean;
 }
 
 /**
@@ -153,29 +149,13 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
 interface RenderConfig<T = any> {
   type: string;
   values: T;
-  mode: RenderMode;
   className?: string;
   style?: React.CSSProperties;
   args?: any[];
   /** Column/body context merged into the exporter `meta` (8th arg). */
   metaContext?: Record<string, any>;
-  innerHTML?: string;
   _config?: UnlayerConfig;
   exporter: Function;
-}
-
-/**
- * Allocate the next unique HTML id for a prefix, scoped to one render.
- * Counters live on the threaded `_config` (`__ids`), which Body resets per
- * render — so renderToHtml produces unique ids (u_row_1, u_row_2, …) like the
- * editor and like renderToJson, instead of resetting per row. Falls back to
- * `${prefix}_1` when rendered standalone (no _config).
- */
-export function nextHtmlId(config: any, prefix: string): string {
-  if (!config) return `${prefix}_1`;
-  const ids: Record<string, number> = (config.__ids ??= {});
-  ids[prefix] = (ids[prefix] || 0) + 1;
-  return `${prefix}_${ids[prefix]}`;
 }
 
 /**
@@ -191,30 +171,15 @@ export function safeName(value: unknown, spaces = false): string {
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
 export const safeMeta = <T extends { htmlID?: unknown; htmlClassNames?: unknown }>(meta: T) => ({ ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) });
 
-/** Add _meta fields if not present. */
-function ensureMeta(values: any, type: string, index: number = 0): any {
-  return {
-    ...values,
-    _meta: {
-      htmlID: `u_content_${type.toLowerCase()}_${index + 1}`,
-      htmlClassNames: `u_content_${type.toLowerCase()}`,
-      ...(values._meta || {})
-    }
-  };
-}
-
-/**
- * Render a component by calling its exporter and wrapping the HTML output.
- * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
- */
 /** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
 export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
   const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
   return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
 }
 
+/** A block by its own exporter: its HTML in a <div>, or what says it failed. */
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
-  const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
+  const { type, values, className, style, args = [], _config, exporter, metaContext } = config;
 
   try {
     // Build exporterConfig from _config (falls back to defaults)
@@ -226,22 +191,14 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
       cdnBaseUrl: cfg.cdnBaseUrl,
     };
 
-    // Call exporter with appropriate arguments
-    let html: string;
-    if (innerHTML !== undefined) {
-      // Container components (Row, Body) take innerHTML first
-      html = exporter(innerHTML, values, ...args);
-    } else {
-      // Content components take values first
-      // Item exporters signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta)
-      // Args 2-7 are deprecated positional params; the 8th arg is a meta object with all context
-      const meta = {
-        exporterConfig,
-        mergeTagState: cfg.mergeTagState,
-        ...(metaContext ?? {}),
-      };
-      html = exporter(values, ...args, undefined, meta);
-    }
+    // Item exporters signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta)
+    // Args 2-7 are deprecated positional params; the 8th arg is a meta object with all context
+    const meta = {
+      exporterConfig,
+      mergeTagState: cfg.mergeTagState,
+      ...(metaContext ?? {}),
+    };
+    let html = exporter(values, ...args, undefined, meta);
 
     // Ensure string output
     html = typeof html === "string" ? html : String(html);
@@ -297,6 +254,7 @@ export function createItemComponent<
   function renderFn(
     props: ItemComponentProps<TSemanticProps>
   ): React.ReactElement | null {
+    if (config.draw) return config.draw(ItemComponent as React.ComponentType<any>, props);
     const {
       // Base props
       mode: modeProp,
@@ -382,13 +340,12 @@ export function createItemComponent<
     }
 
     // 6. Resolve exporter for this mode (fallback to web)
-    const exporter = (config.exporters[mode] || config.exporters.web)!;
+    const exporter = (config.exporters?.[mode] || config.exporters?.web)!;
 
-    // 7. Render using utility (handles all boilerplate)
+    // 7. Render it
     return renderComponent<TValues>({
       type: config.name,
       values: valuesForExporter as TValues,
-      mode,
       className,
       style,
       args: [index, colIndex, cells, safeBodyValues, rowValues],
@@ -421,7 +378,7 @@ export function createItemComponent<
   (ItemComponent as any)[UNLAYER_RENDER_KEY] = renderFn;
   (ItemComponent as any)[RECORDS] = true;
 
-  // Expose config for renderToJson to extract values without HTML rendering
+  // Expose config for renderToJson and the new engine to read values without rendering
   (ItemComponent as any)[UNLAYER_CONFIG_KEY] = {
     name: config.name,
     defaultValues: config.defaultValues,
@@ -430,7 +387,6 @@ export function createItemComponent<
     slug: config.slug,
     metaName: config.metaName,
     head: config.head,
-    omitEmptyOutput: config.omitEmptyOutput,
   };
 
   return ItemComponent;

@@ -1,7 +1,7 @@
-import { TableExporters } from "@unlayer/exporters";
 import { TableDefaults } from "../utils/tool-defaults";
 import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border"> & {
@@ -129,7 +129,7 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
     );
   },
   displayName: "Table",
-  exporters: TableExporters,
+  draw: onItsOwn,
 });
 
 export default Table;

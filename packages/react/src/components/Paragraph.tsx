@@ -1,7 +1,7 @@
-import { ParagraphExporters } from "@unlayer/exporters";
 import { ParagraphDefaults } from "../utils/tool-defaults";
 import type { ParagraphValues, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 /**
@@ -55,7 +55,7 @@ const Paragraph = createItemComponent<ParagraphValues, ParagraphSemanticProps>({
   propMapper: (props) =>
     mapSemanticProps(props as SemanticProps<ParagraphValues>, DEFAULT_VALUES, "Paragraph"),
   displayName: "Paragraph",
-  exporters: ParagraphExporters,
+  draw: onItsOwn,
 });
 
 export default Paragraph;

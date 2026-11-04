@@ -125,7 +125,8 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
       return restore(htmlToPlainText(textMarkup()));
     },
     get textMarkup() {
-      return restore(textMarkup());
+      // (Written as text: what reads this markup would take a tag for an element.)
+      return restoreServiceTags(textMarkup(), lowered.tags.map((tag) => tag.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")));
     },
     inner: inReact.piece ? restore(sheet + asPiece(result.body)) : framed(sheet + result.body),
     diagnostics: [...diagnostics, ...result.diagnostics],

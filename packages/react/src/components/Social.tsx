@@ -1,7 +1,7 @@
-import { SocialExporters } from "@unlayer/exporters";
 import { SocialDefaults } from "../utils/tool-defaults";
 import type { SocialValues, SocialIcon, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 // `iconSize`/`spacing` are pixel counts the exporter does arithmetic on, so they
@@ -107,7 +107,7 @@ const Social = createItemComponent<SocialValues, SocialSemanticProps>({
     );
   },
   displayName: "Social",
-  exporters: SocialExporters,
+  draw: onItsOwn,
 });
 
 export default Social;

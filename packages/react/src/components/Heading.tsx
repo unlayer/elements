@@ -1,10 +1,10 @@
-import { HeadingExporters } from "@unlayer/exporters";
 import { HeadingDefaults } from "../utils/tool-defaults";
 import type { HeadingValues, TextStyleProps, HeadingLevel } from "../types";
 import {
   createItemComponent,
   type ItemComponentProps
 } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 /**
@@ -71,7 +71,7 @@ const Heading = createItemComponent<HeadingValues, HeadingSemanticProps>({
     return result;
   },
   displayName: "Heading",
-  exporters: HeadingExporters,
+  draw: onItsOwn,
 });
 
 export default Heading;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -630,5 +630,216 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
   it("draw an image a template links as legacy links it", () => {
     const html = renderToHtml(<Page><Row><Column><Image src="https://example.com/a.png" alt="A" action={{ url: "#hero", target: "_self" } as never} /></Column></Row></Page>);
     expect(html).toMatch(/<a href="#hero" target="_self"[^>]*>\s*<img[^>]*alt="A"/);
+  });
+});
+
+describe("today's components straight through React", () => {
+  const words = <Paragraph>Words</Paragraph>;
+  const twoColumns = <Row cells={[1, 1]}><Column>{words}</Column><Column><Button href="https://example.com">Go</Button></Column></Row>;
+  /** Each class the new engine's writers name after a rule (`e` and five or more characters). */
+  const engineClasses = (html: string) => [...new Set([...html.replace(/<style>[\s\S]*?<\/style>/g, "").matchAll(/class="(e[a-z0-9]{5,})"/g)].map((m) => m[1]))];
+  const sheets = (html: string) => [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("");
+  const asBody = (element: React.ReactElement) => /<body\b/.test(renderToStaticMarkup(element));
+
+  it.each([["Email", Email, "email"], ["Page", Page, "web"], ["Document", Document, "document"]] as const)("draw a %s through the new engine, in its host <div>, with the stylesheet its markup needs", (_, Root, mode) => {
+    const html = renderToStaticMarkup(<Root className="mine" style={{ outline: "1px solid red" }}><Row cells={[1, 1]}><Column>{words}</Column><Column>{words}</Column></Row></Root>);
+    expect(html).toMatch(/^<div class="mine" style="outline:1px solid red">/);
+    expect(html.match(/Words/g)).toHaveLength(2);
+    // Not today's markup.
+    expect(html).not.toContain("u_row");
+    // A <body> tag in an email and a printed document, as legacy's; none on a page.
+    expect(/<body\b/.test(html)).toBe(mode !== "web");
+    // Nothing else holds what its classes need here.
+    if (mode !== "document") expect(engineClasses(html).length).toBeGreaterThan(0);
+    for (const name of engineClasses(html)) expect(sheets(html)).toContain(`.${name}`);
+    // renderToHtmlParts() has its stylesheet in its head.
+    expect(renderToHtmlParts(<Root><Row cells={[1, 1]}><Column>{words}</Column><Column>{words}</Column></Row></Root>).body).not.toContain("<style>");
+  });
+
+  it("keep a page's margin for the page it's in", () => {
+    expect(renderToStaticMarkup(<Page><Row><Column>{words}</Column></Row></Page>)).not.toContain("padding:8px");
+    expect(renderToHtml(<Page><Row><Column>{words}</Column></Row></Page>)).toContain("padding:8px");
+  });
+
+  it("leave out what fails of a live preview, and say so, rather than failing the app's render", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Missing = undefined as unknown as React.ComponentType;
+      expect(renderToStaticMarkup(<Email className="mine"><Row><Column><Missing /></Column></Row></Email>)).toBe('<div class="mine"></div>');
+      expect(error.mock.calls.join()).toContain("Body rendering failed");
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  describe("on their own", () => {
+    const pieces = [
+      ["a Row", (props: Record<string, unknown>) => <Row {...props}>{<Column>{words}</Column>}</Row>],
+      ["a Column", (props: Record<string, unknown>) => <Column {...props}>{words}</Column>],
+      ["a block", (props: Record<string, unknown>) => <Paragraph {...props}>Words</Paragraph>],
+    ] as const;
+
+    it.each(pieces)("draw %s through the new engine, in the mode it says or its config does", (_, piece) => {
+      const email = renderToStaticMarkup(piece({ mode: "email" }));
+      expect(email).toContain("Words");
+      expect(email).toContain('role="presentation"');
+      expect(email).toContain("<!--[if mso]>");
+      expect(renderToStaticMarkup(piece({ _config: { mode: "email" } }))).toContain('role="presentation"');
+      // A mode of its own wins over its config's.
+      expect(renderToStaticMarkup(piece({ mode: "web", _config: { mode: "email" } }))).not.toContain("<table");
+      expect(renderToStaticMarkup(piece({}))).not.toContain("<table");
+    });
+
+    it.each(pieces)("write %s alone: its markup in its host <div>, not a document or an email of its own", (_, piece) => {
+      for (const mode of ["email", "web", "document"]) {
+        const html = renderToStaticMarkup(piece({ mode, className: "mine", style: { outline: "1px solid red" } }));
+        expect(html).toMatch(/^<div class="mine" style="outline:1px solid red">/);
+        expect(html).not.toMatch(/<body\b|<main\b|<html\b|role="article"|aria-roledescription/);
+        // What it's in has its own background: no body's.
+        expect(html.replace(/<style>[\s\S]*?<\/style>/g, "")).not.toMatch(/background-color|bgcolor/);
+        for (const name of engineClasses(html)) expect(sheets(html)).toContain(`.${name}`);
+      }
+    });
+
+    it("keep a Row to its body's content width, and a Column or block to none, where they're put", () => {
+      expect(renderToStaticMarkup(<Row><Column>{words}</Column></Row>)).toContain("max-width:500px");
+      expect(renderToStaticMarkup(<Row bodyValues={{ contentWidth: "321px" }}><Column>{words}</Column></Row>)).toContain("max-width:321px");
+      expect(renderToStaticMarkup(<Column>{words}</Column>)).not.toContain("max-width:500px");
+      expect(renderToStaticMarkup(words)).not.toContain("max-width:500px");
+    });
+
+    it("give a block no box of its own, and the font of what it's in: a Column gives those", () => {
+      const alone = renderToStaticMarkup(<Paragraph containerPadding="33px">Words</Paragraph>);
+      expect(alone).not.toContain("padding:33px");
+      expect(alone).toContain("font-family:inherit");
+      const inColumn = renderToStaticMarkup(<Column><Paragraph containerPadding="33px">Words</Paragraph></Column>);
+      expect(inColumn).toContain("padding:33px");
+      expect(inColumn).not.toContain("font-family:inherit");
+    });
+
+    it("fail where a Row's Columns don't fit its layout, as 0.2.1 does", () => {
+      expect(() => renderToStaticMarkup(<Row layout={{ cells: [1, 1], expectedColumns: 2 } as never}><Column>{words}</Column></Row>)).toThrow();
+    });
+
+    it("can't take another render's frame classes for theirs, on one page", () => {
+      const frame = (html: string) => /u-frame-[\w-]+/.exec(html)?.[0];
+      const one = renderToStaticMarkup(<Row padding="1em"><Column>{words}</Column></Row>);
+      const other = renderToStaticMarkup(<Row padding="2em"><Column>{words}</Column></Row>);
+      expect(frame(one)).toBeDefined();
+      expect(frame(one)).not.toBe(frame(other));
+      // The same piece twice has the same.
+      expect(frame(renderToStaticMarkup(<Row padding="1em"><Column>{words}</Column></Row>))).toBe(frame(one));
+    });
+
+    it("draw the same as a root does: a block in a Row is what it is in a root", () => {
+      const inside = (html: string) => /<p\b[^>]*>Words<\/p>/.exec(html)?.[0];
+      expect(inside(renderToStaticMarkup(twoColumns))).toBe(inside(renderToStaticMarkup(<Page>{twoColumns}</Page>)));
+    });
+
+    it("hold their own hover and phone rules", () => {
+      const html = renderToStaticMarkup(<Button href="https://example.com" hoverBackgroundColor="#123456" mobile={{ fontSize: "23px" }}>Go</Button>);
+      expect(sheets(html)).toMatch(/:hover\{[^}]*#123456/);
+      expect(sheets(html)).toContain("font-size:23px");
+    });
+
+    it("a block with HTML of its own (a custom tool, an Html block, a page break) writes it, with no engine around it", () => {
+      const Tool = registerTool({ name: "on_its_own", renderer: { exporters: { web: () => "<i>Mine</i>", email: () => "<i>Mine</i>" } } });
+      expect(renderToStaticMarkup(<Tool />)).toBe("<div><i>Mine</i></div>");
+      expect(renderToStaticMarkup(<Html html="<b>Mine</b>" />)).toBe("<div><div><b>Mine</b></div></div>");
+      expect(renderToStaticMarkup(<PageBreak mode="document" />)).toContain("u-content-page-break");
+      expect(renderToStaticMarkup(<PageBreak mode="web" />)).toBe("<div></div>");
+    });
+  });
+
+  describe("among a template's rows", () => {
+    it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("draw a block and a Column where they are in a %s, with no word of the design's walk", (_, Root) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const template = <Root><Paragraph>Block among</Paragraph><Row><Column><Paragraph>In a row</Paragraph></Column></Row><Column><Paragraph>Column among</Paragraph></Column></Root>;
+        const html = renderToHtml(template);
+        expect(html.indexOf("Block among")).toBeGreaterThan(-1);
+        expect(html.indexOf("Block among")).toBeLessThan(html.indexOf("In a row"));
+        expect(html.indexOf("In a row")).toBeLessThan(html.indexOf("Column among"));
+        expect(renderToPlainText(template).split(/\n+/)).toEqual(["Block among", "In a row", "Column among"]);
+        expect(warn.mock.calls.join()).not.toContain("valid Body child");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("say nothing of markup among them, which is drawn; renderToJson says it isn't in the design", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const template = <Email><div>Markup among</div><Row><Column>{words}</Column></Row></Email>;
+        expect(renderToHtml(template)).toContain("Markup among");
+        renderToPlainText(template);
+        renderToHtmlParts(template);
+        expect(warn).not.toHaveBeenCalled();
+        renderToJson(template);
+        expect(warn.mock.calls.join()).toContain("renderToJson: <div> is not a valid Body child");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("say what's in a Row that isn't a Column, as a Row does, not as renderToJson does", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        renderToHtml(<Email><Row><Paragraph>Stray</Paragraph><Column>{words}</Column></Row></Email>);
+        expect(warn.mock.calls.join()).toContain("Row: <Paragraph> is not a valid Row child. Only <Column> components can be direct children of <Row>");
+        expect(warn.mock.calls.join()).not.toContain("renderToJson");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  describe("a Row or Column placed in a Column", () => {
+    // Rows a component of the template renders in a Column: 0.2.1's renderToHtml draws them; its renderToJson fails.
+    const Layout = ({ mode }: { mode?: "web" | "email" }) => (
+      <div>
+        <Row mode={mode} cells={[1]}><Column><Paragraph>Nested row</Paragraph></Column></Row>
+        <Column mode={mode}><Paragraph>Nested column</Paragraph></Column>
+      </div>
+    );
+    const template = (Root: typeof Email, mode?: "web" | "email") => <Root><Row><Column><Paragraph>Before</Paragraph><Layout mode={mode} /><Paragraph>After</Paragraph></Column></Row></Root>;
+
+    it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("draw in a %s, each in a block's box named after it, the blocks around them where they are", (_, Root) => {
+      const html = renderToHtml(template(Root as typeof Email));
+      for (const name of ["u_content_row_1", "u_content_column_1"]) expect(html).toContain(`id="${name}"`);
+      const at = ["Before", "Nested row", "Nested column", "After"].map((word) => html.indexOf(word));
+      expect(at[0]).toBeGreaterThan(-1);
+      expect([...at].sort((a, b) => a - b)).toEqual(at);
+    });
+
+    it("read as lines of their own in the plain text", () => {
+      expect(renderToPlainText(template(Email)).split(/\n+/)).toEqual(["Before", "Nested row", "Nested column", "After"]);
+    });
+
+    it("read in the plain text as they do on their own, not as their markup does", () => {
+      const social = <Social icons={[{ name: "Facebook", url: "https://a.example/" }, { name: "X", url: "https://b.example/" }]} />;
+      const own = renderToPlainText(<Page><Row><Column>{social}</Column></Row></Page>);
+      expect(own).toContain("(https://a.example/) (https://b.example/)");
+      expect(renderToPlainText(<Page><Row><Column><Row><Column>{social}</Column></Row></Column></Row></Page>)).toContain(own);
+    });
+
+    it("keep an email service's tag in their plain text, as a block's in a Column does", () => {
+      expect(renderToPlainText(<Email><Row><Column><Row><Column><Paragraph html="Hi <%= name %>, you have items" /></Column></Row></Column></Row></Email>)).toBe("Hi <%= name %>, you have items");
+    });
+
+    it("draw in the mode they say, or the template's", () => {
+      const row = (html: string) => html.slice(html.indexOf('id="u_content_row_1"'), html.indexOf("Nested row"));
+      expect(row(renderToHtml(template(Email)))).not.toContain("display:flex");
+      expect(row(renderToHtml(template(Email, "web")))).toContain("display:flex");
+    });
+
+    it("hold the stylesheet their own blocks need", () => {
+      const html = renderToHtml(<Page><Row><Column><Row cells={[1, 1]}><Column><Paragraph mobile={{ fontSize: "23px" }}>A</Paragraph></Column><Column>{words}</Column></Row></Column></Row></Page>);
+      expect(html).toContain("font-size:23px");
+    });
+
+    it("are still refused by renderToJson, as 0.2.1's is", () => {
+      expect(() => renderToJson(template(Email))).toThrow("<Row> is not a recognized Unlayer item component");
+    });
   });
 });

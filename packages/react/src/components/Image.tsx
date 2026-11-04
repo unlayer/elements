@@ -1,7 +1,7 @@
-import { ImageExporters } from "@unlayer/exporters";
 import { ImageDefaults } from "../utils/tool-defaults";
 import type { ImageValues, ImageSrcInput, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 /**
@@ -183,7 +183,7 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
     return base;
   },
   displayName: "Image",
-  exporters: ImageExporters,
+  draw: onItsOwn,
 });
 
 export default Image;

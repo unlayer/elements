@@ -35,6 +35,33 @@ describe("a page that renders on the server", () => {
   });
 });
 
+describe("a page that renders today's components straight through react-dom", () => {
+  it("renders what's after each of them, hooks and all: a root, a Row, a Column and a block each make renders of their own", () => {
+    function Counter() {
+      const [count] = useState(1);
+      const id = React.useId();
+      const memo = useMemo(() => count + 1, [count]);
+      return <span id={id}>{`count ${memo}`}</span>;
+    }
+    const html = renderToString(
+      <main>
+        <Paragraph>Block</Paragraph>
+        <Counter />
+        <Column><Paragraph>In a column</Paragraph></Column>
+        <Counter />
+        <Row><Column><Paragraph>In a row</Paragraph></Column></Row>
+        <Counter />
+        <Email><Row><Column><Paragraph>In an email</Paragraph></Column></Row></Email>
+        <Counter />
+      </main>
+    );
+    for (const words of ["Block", "In a column", "In a row", "In an email"]) expect(html).toContain(words);
+    expect(html.match(/count 2/g)).toHaveLength(4);
+    // React's ids stay the app's, each its own.
+    expect(new Set([...html.matchAll(/<span id="([^"]+)"/g)].map((m) => m[1])).size).toBe(4);
+  });
+});
+
 describe("a page that renders with react-dom's browser build (react-dom/server.browser)", () => {
   it("can work out the template's design and HTML while it renders, and use hooks after (as 0.1.22 could)", () => {
     function EditorPage() {

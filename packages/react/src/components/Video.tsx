@@ -1,7 +1,7 @@
-import { VideoExporters } from "@unlayer/exporters";
 import { VideoDefaults } from "../utils/tool-defaults";
 import type { VideoValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
+import { onItsOwn } from "../compat/render";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
 type VideoSemanticProps = SemanticProps<VideoValues> & {
@@ -98,7 +98,7 @@ const Video = createItemComponent<VideoValues, VideoSemanticProps>({
     );
   },
   displayName: "Video",
-  exporters: VideoExporters,
+  draw: onItsOwn,
 });
 
 export default Video;
