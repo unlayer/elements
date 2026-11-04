@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { legacyRenderToHtml, renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
+import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Body from "../components/Body";
 import Row from "../components/Row";
@@ -8,6 +8,7 @@ import Column from "../components/Column";
 import Paragraph from "../components/Paragraph";
 import Button from "../components/Button";
 import Heading from "../components/Heading";
+import Html from "../components/Html";
 import Image from "../components/Image";
 import Email from "../components/Email";
 import Page from "../components/Page";
@@ -15,27 +16,30 @@ import Document from "../components/Document";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToHtml", () => {
-  // Today's components' own HTML numbers every element (the new engine writes only the ids authors give).
-  it("generates unique element ids across the whole tree (no duplicates), in today's components' own HTML", () => {
-    const html = legacyRenderToHtml(
+  it("generates unique element ids across the whole tree (no duplicates), which head CSS selects", () => {
+    // The new engine writes an id only where one is selected: a block of open HTML's box, and what an author names.
+    const html = renderToHtml(
       <Email contentWidth="600px">
-        <Row layout={ColumnLayouts.OneColumn}>
+        <Row layout={ColumnLayouts.OneColumn} values={{ _meta: { htmlID: "first-row" } } as any}>
           <Column>
             <Heading>A</Heading>
+            <Html html="<b>1</b>" />
             <Image src="https://x/1.png" />
+            <Paragraph html="<ul><li>One</li></ul>" />
           </Column>
         </Row>
         <Row layout={ColumnLayouts.OneColumn}>
           <Column>
             <Heading>B</Heading>
+            <Html html="<b>2</b>" />
             <Image src="https://x/2.png" />
+            <Paragraph html="<ul><li>Two</li></ul>" />
           </Column>
         </Row>
       </Email>
     );
-    const ids = [...html.matchAll(/id="(u_[a-z0-9_]+)"/gi)].map((m) => m[1]);
-    expect(ids.length).toBeGreaterThan(6);
-    expect(new Set(ids).size).toBe(ids.length); // every id is unique
+    const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
+    expect(ids.sort()).toEqual(["first-row", "u_content_html_1", "u_content_html_2", "u_content_paragraph_1", "u_content_paragraph_2"]);
   });
 
   it("renders a simple element to HTML string", () => {
@@ -108,34 +112,59 @@ describe("renderToHtml", () => {
   });
 });
 
-// Today's components' own document shell (the legacy renderer's): a template the new engine can't draw renders in it.
-describe("today's components' own HTML: full document shell", () => {
-  const emailTree = (
-    <Email>
+describe("the full document", () => {
+  const tree = (Root: React.ElementType) => (
+    <Root>
       <Row>
         <Column>
           <Paragraph>Hello</Paragraph>
         </Column>
       </Row>
-    </Email>
+    </Root>
   );
+  const emailTree = tree(Email);
+  const ROOTS = [["Email", Email], ["Page", Page], ["Document", Document]] as const;
+  const bodyTags = (html: string) => html.match(/<body[\s>]/g);
 
-  it("email mode returns a complete XHTML document with MSO support", () => {
-    const html = legacyRenderToHtml(emailTree);
-    expect(html.startsWith('<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN"')).toBe(true);
+  it("email mode returns a complete document with what Outlook and Apple Mail read", () => {
+    const html = renderToHtml(emailTree);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
-    expect(html).toContain('xmlns:v="urn:schemas-microsoft-com:vml"');
-    expect(html).toContain("<!--[if gte mso 9]>");
+    expect(html).toContain('xmlns:o="urn:schemas-microsoft-com:office:office"');
+    expect(html).toContain("<!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->");
+    expect(html).toContain('<meta http-equiv="Content-Type" content="text/html; charset=utf-8">');
     expect(html).toContain('<meta name="x-apple-disable-message-reformatting">');
-    expect(html).toContain('<style type="text/css">');
-    // Exactly one <body> — the email body exporter's own tag, not doubled by the shell
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
-    // The Body renderer's <div> wrapper must not leak into the document
-    expect(html).not.toMatch(/<\/head>\s*<div>/);
+    expect(html).toContain("<style>");
+    // Exactly one <body>, right after the head: nothing of the root's own host in the document.
+    expect(bodyTags(html)).toHaveLength(1);
+    expect(html).toMatch(/<\/head><body /);
   });
 
-  it("web mode returns an HTML5 document with the shell's <body>", () => {
-    const html = legacyRenderToHtml(
+  it("email mode gives Outlook its columns' widths, which it reads in conditional tables and nowhere else", () => {
+    const html = renderToHtml(
+      <Email>
+        <Row cells={[1, 1]}>
+          <Column>
+            <Paragraph>Left</Paragraph>
+          </Column>
+          <Column>
+            <Paragraph>Right</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    const inOrder = html.slice(html.indexOf("<body")).match(/<!--\[if mso\]>.*?<!\[endif\]-->|>(Left|Right)</g);
+    expect(inOrder).toEqual([
+      '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="250" valign="top" style="width:250px"><![endif]-->',
+      ">Left<",
+      '<!--[if mso]></td><td width="250" valign="top" style="width:250px"><![endif]-->',
+      ">Right<",
+      "<!--[if mso]></td></tr></table><![endif]-->",
+    ]);
+  });
+
+  it("web mode returns an HTML5 document, with nothing for Outlook", () => {
+    const html = renderToHtml(
       <Body mode="web">
         <Row>
           <Column>
@@ -144,25 +173,26 @@ describe("today's components' own HTML: full document shell", () => {
         </Row>
       </Body>
     );
-    expect(html.startsWith("<!doctype html>")).toBe(true);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
     expect(html).toContain('<meta charset="utf-8">');
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
+    expect(bodyTags(html)).toHaveLength(1);
+    expect(html).not.toContain("<!--[if");
+    expect(html).not.toContain("xmlns:o=");
   });
 
-  it("renders the title escaped", () => {
-    const html = legacyRenderToHtml(emailTree, { title: 'Hi <"world"> & co' });
-    expect(html).toContain("<title>Hi &lt;&quot;world&quot;&gt; &amp; co</title>");
+  it("renders the title escaped, so it can't end its element", () => {
+    expect(renderToHtml(emailTree, { title: 'Hi <"world"> & co' })).toContain('<title>Hi &lt;"world"&gt; &amp; co</title>');
+    expect(renderToHtml(emailTree, { title: "</title><script>alert(1)</script>" })).toContain("<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;</title>");
   });
 
   it("renders font links (email wraps them in a !mso conditional)", () => {
-    const html = renderToHtml(emailTree, {
-      fonts: [{ url: "https://fonts.googleapis.com/css2?family=Inter" }],
-    });
-    expect(html).toContain(
-      '<link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet" type="text/css">'
-    );
-    expect(html).toContain("<!--[if !mso]><!--><link");
+    const fonts = [{ url: "https://fonts.googleapis.com/css2?family=Inter" }];
+    const link = '<link href="https://fonts.googleapis.com/css2?family=Inter" rel="stylesheet" type="text/css">';
+    expect(renderToHtml(emailTree, { fonts })).toContain(`<!--[if !mso]><!-->${link}<!--<![endif]-->`);
+    expect(renderToHtml(tree(Page), { fonts })).toContain(link);
+    expect(renderToHtml(tree(Page), { fonts })).not.toContain("<!--[if");
+    expect(renderToHtml(emailTree, { fonts: [{ url: 'https://example.com/a.css?x="><script>' }] })).toContain('href="https://example.com/a.css?x=&quot;&gt;&lt;script&gt;"');
   });
 
   it("links the root's own fonts prop, with the option's, each once", () => {
@@ -184,45 +214,31 @@ describe("today's components' own HTML: full document shell", () => {
 
   it("applies textDirection as the html dir attribute", () => {
     const html = renderToHtml(emailTree, { textDirection: "rtl" });
-    expect(html).toContain('<html dir="rtl" xmlns=');
+    expect(html).toMatch(/<html[^>]* dir="rtl"/);
   });
 
-  it("every <p> in the document carries the inline margin reset", () => {
-    const html = legacyRenderToHtml(emailTree);
-    const pTags = html.match(/<p[^>]*>/g) ?? [];
-    expect(pTags.length).toBeGreaterThan(0);
-    for (const tag of pTags) {
-      expect(tag).toContain("margin: 0px; margin-block-start: 0px; margin-block-end: 0px;");
-    }
+  it.each(ROOTS)("sets every <p>'s margins to 0, whatever a client's default: %s", (_, Root) => {
+    const tags = renderToHtml(tree(Root)).match(/<p[\s>][^>]*>/g) ?? [];
+    expect(tags.length).toBeGreaterThan(0);
+    for (const tag of tags) expect(tag).toMatch(/style="margin:0[;"]/);
   });
 
-  it("document mode returns a print-ready XHTML document", async () => {
-    const { default: Document } = await import("../components/Document");
-    const html = legacyRenderToHtml(
-      <Document>
-        <Row>
-          <Column>
-            <Paragraph>Hello</Paragraph>
-          </Column>
-        </Row>
-      </Document>
-    );
-    expect(html.startsWith('<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN"')).toBe(true);
+  it("document mode returns a print-ready document, with nothing for Outlook", () => {
+    const html = renderToHtml(tree(Document));
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
-    expect(html).toContain('<html xmlns="http://www.w3.org/1999/xhtml">');
-    // Document mode carries no VML/MSO email plumbing
-    expect(html).not.toContain("xmlns:v=");
-    expect(html).not.toContain("<!--[if gte mso 9]>");
-    // Exactly one <body> — the document body exporter's own tag
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
-    expect(html).not.toMatch(/<\/head>\s*<div>/);
+    expect(html).toContain("print-color-adjust: exact");
+    expect(html).not.toContain("xmlns:o=");
+    expect(html).not.toContain("<!--[if");
+    expect(bodyTags(html)).toHaveLength(1);
+    expect(html).toMatch(/<\/head><body /);
   });
 
-  it("renders an empty tree to a valid document without crashing", () => {
-    const html = legacyRenderToHtml(<Email />);
-    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+  it.each(ROOTS)("renders an empty tree to a valid document without crashing: %s", (_, Root) => {
+    const html = renderToHtml(<Root />);
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
+    expect(bodyTags(html)).toHaveLength(1);
   });
 
   it("keeps a bare item root's own wrapper div (only Unlayer wrappers get stripped)", () => {
@@ -232,8 +248,8 @@ describe("today's components' own HTML: full document shell", () => {
     expect(html).toContain('class="cta-wrapper"');
   });
 
-  it("strips the Body renderer's wrapper even when the root has className/style", () => {
-    const html = legacyRenderToHtml(
+  it("leaves the root's own host out of the document, even when it has className/style, and in the parts", () => {
+    const element = (
       <Email className="my-email" style={{ outline: "1px solid red" }}>
         <Row>
           <Column>
@@ -242,49 +258,13 @@ describe("today's components' own HTML: full document shell", () => {
         </Row>
       </Email>
     );
-    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
-    expect(html).not.toMatch(/<\/head>\s*<div/);
-  });
-});
-
-describe("renderToHtml: the new engine's document", () => {
-  const tree = (Root: typeof Email) => (
-    <Root>
-      <Row>
-        <Column>
-          <Paragraph>Hello</Paragraph>
-        </Column>
-      </Row>
-    </Root>
-  );
-
-  it("is a whole document, an email's with Outlook's settings, each with one <body>", () => {
-    for (const Root of [Email, Page, Document]) {
-      const html = renderToHtml(tree(Root));
-      expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
-      expect(html.trimEnd().endsWith("</html>")).toBe(true);
-      expect(html.match(/<body[\s>]/g)).toHaveLength(1);
-      expect(html.includes("<o:PixelsPerInch>96</o:PixelsPerInch>")).toBe(Root === Email);
-    }
-    expect(renderToHtml(tree(Email))).toContain('<meta name="x-apple-disable-message-reformatting">');
-  });
-
-  it("renders the title escaped", () => {
-    const html = renderToHtml(tree(Email), { title: 'Hi <"world"> & co' });
-    expect(html).toMatch(/<title>Hi &lt;("|&quot;)world("|&quot;)&gt; &amp; co<\/title>/);
-  });
-
-  it("sets every <p>'s margins to 0", () => {
-    const tags = renderToHtml(tree(Email)).match(/<p[\s>][^>]*>/g) ?? [];
-    expect(tags.length).toBeGreaterThan(0);
-    for (const tag of tags) expect(tag).toContain("margin:0");
-  });
-
-  it("renders an empty tree to a valid document without crashing", () => {
-    const html = renderToHtml(<Email />);
+    const html = renderToHtml(element);
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
-    expect(html.match(/<body[\s>]/g)).toHaveLength(1);
+    expect(bodyTags(html)).toHaveLength(1);
+    expect(html).not.toContain("my-email");
+    expect(html).toMatch(/<\/head><body /);
+    // An app embedding the parts has it around the body.
+    expect(renderToHtmlParts(element).body.startsWith('<div class="my-email" style="outline:1px solid red">')).toBe(true);
   });
 });
 
@@ -398,24 +378,22 @@ describe("renderToHtml with a template component", () => {
     expect(renderToHtml(<WithHook name="Ada" />)).toBe(direct);
   });
 
-  it("falls back to rendering through React, with a warning, for a wrapper past the depth limit", () => {
-    let Deep: React.ComponentType<{ name: string }> = Welcome;
-    for (let i = 0; i < 21; i++) {
-      const Inner = Deep;
-      Deep = (props: { name: string }) => <Inner {...props} />;
-    }
-    const warnings: string[] = [];
-    const warn = console.warn;
-    console.warn = (message: string) => void warnings.push(message);
-    try {
-      expect(renderToHtml(<Deep name="Ada" />)).toContain("Hello Ada");
-    } finally {
-      console.warn = warn;
-    }
-    expect(warnings.join()).toContain("couldn't unwrap");
+  it("reads a template through 20 components, and says why past them", () => {
+    const wrapped = (count: number) => {
+      let Deep: React.ComponentType<{ name: string }> = Welcome;
+      for (let i = 1; i < count; i++) {
+        const Inner = Deep;
+        Deep = (props: { name: string }) => <Inner {...props} />;
+      }
+      return Deep;
+    };
+    const AtTheLimit = wrapped(20);
+    const PastIt = wrapped(21);
+    expect(renderToHtml(<AtTheLimit name="Ada" />)).toBe(direct);
+    expect(() => renderToHtml(<PastIt name="Ada" />)).toThrow(/couldn't read <.*> as a template \(it wraps more than 20 components\)/);
   });
 
-  it("unwraps StrictMode and Profiler, keeping the root's settings; says why a class template isn't unwrapped", () => {
+  it("unwraps StrictMode and Profiler, and calls a class template through React, keeping the root's settings", () => {
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (message: string) => void warnings.push(message);
@@ -425,13 +403,11 @@ describe("renderToHtml with a template component", () => {
     try {
       expect(renderToHtml(<React.StrictMode><Welcome name="Ada" /></React.StrictMode>)).toBe(direct);
       expect(renderToHtml(<React.Profiler id="email" onRender={() => {}}><Welcome name="Ada" /></React.Profiler>)).toBe(direct);
-      expect(warnings).toEqual([]);
-      // A class renders through React, as in 0.1.22, and the message says why its root's settings aren't read.
-      expect(renderToHtml(<Template name="Ada" />)).toContain("Hello Ada");
+      expect(renderToHtml(<Template name="Ada" />)).toBe(direct);
     } finally {
       console.warn = warn;
     }
-    expect(warnings.join()).toContain("couldn't unwrap <Template> (<Template> is a class component");
+    expect(warnings).toEqual([]);
   });
 
   it("says nothing when the template has no root whose settings go unread (Rows, nothing, a list), as 0.1.22", () => {
@@ -442,18 +418,14 @@ describe("renderToHtml with a template component", () => {
     const Banner = () => <Row><Column><Paragraph>Hi</Paragraph></Column></Row>;
     const Nothing = () => null;
     const List = () => [<Banner key="a" />, <Banner key="b" />] as unknown as React.ReactElement;
-    const InMarkup = () => <div>{root({ name: "Ada" })}</div>;
     try {
       for (const template of [<Banner />, <Nothing />, <List />, <Theme.Provider value="dark"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Theme.Provider>]) {
         renderToHtml(template);
       }
-      expect(warnings).toEqual([]);
-      // A root inside other markup: its settings go unread, which the message says.
-      expect(renderToHtml(<InMarkup />)).toContain("Hello Ada");
     } finally {
       console.warn = warn;
     }
-    expect(warnings.join()).toContain("couldn't unwrap <InMarkup> (its root is inside other markup)");
+    expect(warnings).toEqual([]);
   });
 
   it("gives the design of a template named like an Elements component (`displayName = \"Row\"`), as 0.1.22 did", () => {
@@ -690,7 +662,7 @@ describe("what a render takes as a template", () => {
       ["markup", <div>Markup</div>, /<div> isn't a template.*<Html> block/],
       ["markup around Rows", <div>{rows}</div>, /<div> isn't a template/],
       ["a component that returns markup", <Markup />, /<div> isn't a template/],
-      ["a root in markup", <div><Email>{rows}</Email></div>, /<div> isn't a template/],
+      ["a root in markup", <div><Email>{rows}</Email></div>, /<div> isn't a template.*<Html> block/],
       ["a component with a root in its markup", <InMarkup />, /couldn't read <InMarkup> as a template \(its root is inside other markup\).*Pass the root element/],
       ["two roots", <><Email>{rows}</Email><Email>{rows}</Email></>, /its root is inside other markup/],
       ["a lazy component", <Lazy />, /async and suspending templates aren't supported/],
