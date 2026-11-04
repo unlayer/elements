@@ -9,7 +9,7 @@ import * as notion from "../examples/NotionWelcome.stories";
 import * as digest from "../examples/ProductDigest.stories";
 import * as stripe from "../examples/StripeReceipt.stories";
 import * as warby from "../examples/WarbyOrderShipped.stories";
-import { main as phoneOverrides } from "../primitives/compare/PhoneOverrides";
+import { phone } from "../primitives/testing/examples";
 import { args, argTypes, shadow, shadowOf, type Args } from "./story";
 
 const meta: Meta<Args> = {
@@ -30,7 +30,7 @@ export default meta;
 export const StripeReceipt = shadow(stripe, "Default");
 export const SpotifyWelcome = shadow(spotify, "Default");
 // Its story renders its template with renderToHtmlParts() inside a component of its own: the same template as here.
-export const PhoneOverrides = shadowOf(() => phoneOverrides);
+export const PhoneOverrides = shadowOf(() => phone.main);
 export const AirbnbConfirmation = shadow(airbnb, "Default");
 export const MercuryReceipt = shadow(mercury, "Default");
 export const LumaEventInvite = shadow(luma, "Default");
