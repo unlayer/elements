@@ -419,4 +419,10 @@ describe("web HTML", () => {
     expect(body).toContain('<p>Sale <b>now</b></p><div id="own"><hr></div>');
     expect(text).toBe("Sale now\n\nOur own words");
   });
+  it("writes what today's components draw that no style holds: a node's class names, and a root's rules", () => {
+    const { head, body } = web(page([{ type: "Column", compat: { className: "mine" }, mobile: { maxWidth: "100%" }, children: [{ type: "Raw", compat: { className: "theirs" }, props: { html: "Hi" } }] }], { compat: { css: ".mine{color:red}" } }));
+    expect(head).toContain(".mine{color:red}");
+    expect(body).toMatch(/<div class="mine \w+"/);
+    expect(body).toContain('<div class="theirs"');
+  });
 });

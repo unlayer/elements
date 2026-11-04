@@ -27,7 +27,15 @@ export interface Node {
   children?: Child[];
   /**
    * Data from another format that Elements doesn't render, kept so it goes
-   * back out unchanged (a builder block's display conditions).
+   * back out unchanged (a builder block's display conditions). The writers read
+   * what today's components draw that no style holds, as they lower into this
+   * tree (packages/react/src/compat): an id of any characters (`anyId`, read
+   * when the template is checked), a `className`; on a root the stylesheet
+   * rules that select it (`css`) and an email's `previewHtml`; on a Section an
+   * `align`; on a Section or an email's Row a `background` picture, and on a Row
+   * `stretch` (its columns table cells, as tall as it is, each at least its
+   * `minWidth` and `phoneMinWidth`); on an email's Section `device` (hiding at a phone's width of
+   * their own); on an email's Raw `wide` (across the window, between Sections).
    */
   compat?: Record<string, Json>;
 }

@@ -11,10 +11,14 @@ import { fontFamily, px, textDeclarations, textValue, type Declarations } from "
 export type MobileText = Record<string, Json>;
 const TEXT_KEYS = ["color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"];
 
-/** Hidden on phones: a class. Hidden on desktop: inline, and shown on phones by a class (`display` is how it shows). */
-export function hiding(node: Pick<ResolvedNode, "hidden">, display: string): { class?: string; style: Style } {
-  if (node.hidden?.mobile) return { class: rule("phone", "&{display:none!important}"), style: {} };
-  if (node.hidden?.desktop) return { class: rule("phone", `&{display:${display}!important}`), style: { display: "none" } };
+/**
+ * Hidden on phones: a class. Hidden on desktop: inline, and shown on phones by a class (`display` is how it shows). A
+ * node of today's components (`compat.device`) hides at their phone's width, not at the email's own.
+ */
+export function hiding(node: Pick<ResolvedNode, "hidden" | "compat">, display: string): { class?: string; style: Style } {
+  const media = node.compat?.device ? "device" : "phone";
+  if (node.hidden?.mobile) return { class: rule(media, "&{display:none!important}"), style: {} };
+  if (node.hidden?.desktop) return { class: rule(media, `&{display:${display}!important}`), style: { display: "none" } };
   return { style: {} };
 }
 

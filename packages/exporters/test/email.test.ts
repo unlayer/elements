@@ -706,6 +706,98 @@ describe("email HTML", () => {
     expect(render(template).html).toBe(render(template).html);
   });
 
+  describe("what today's components draw that no style holds (compat)", () => {
+    const words = { type: "Column", children: [{ type: "Text", children: ["Hi"] }] };
+
+    it("writes a Section's class names and where its content sits", () => {
+      const { body } = render(email([{ type: "Section", compat: { className: "promo", align: "right" }, children: [words] }]));
+      expect(body).toContain('<td class="promo" align="right">');
+    });
+
+    it("writes a Column's class names on the cell that draws its box, giving it a box to have them", () => {
+      const { body } = render(email([{ type: "Column", id: "c", compat: { className: "promo" }, children: [{ type: "Text", children: ["Hi"] }] }]));
+      expect(body).toContain('<table id="c" role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td class="promo">');
+    });
+
+    it("draws a Section's background picture for every client, and for Outlook a rectangle fitted to its content at the content width", () => {
+      const { body } = render(email([{ type: "Section", compat: { background: { url: 'https://example.com/a"b.png', repeat: "repeat", position: "left top", tile: true } }, children: [words] }]));
+      expect(body).toContain('background="https://example.com/a&quot;b.png"');
+      expect(body).toContain("background-image:url(&quot;https://example.com/a%22b.png&quot;);background-position:left top;background-repeat:repeat");
+      const outlook = outlookOnly(body);
+      expect(outlook).toContain('<v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px">');
+      expect(outlook).toContain('<v:fill type="tile" src="https://example.com/a&quot;b.png"></v:fill>');
+      expect(outlook).toContain('<v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true">');
+      expect(outlook).toContain("</v:textbox></v:rect>");
+      expect(notOutlook(body)).not.toContain("v:rect");
+    });
+
+    it("draws a Row's background picture on its cell, at its width", () => {
+      const { body } = render(email([{ type: "Section", children: [{ type: "Row", style: { maxWidth: 400 }, compat: { background: { url: "https://example.com/a.png" } }, children: [words] }] }]));
+      expect(notOutlook(body)).toMatch(/<td[^>]*background="https:\/\/example.com\/a.png"/);
+      expect(outlookOnly(body)).toContain('stroke="false" style="width:400px"');
+      expect(outlookOnly(body)).toContain('<v:fill type="frame"');
+    });
+
+    const row = (compat: Record<string, unknown>, props: Record<string, unknown> = {}) => ({
+      type: "Row",
+      props,
+      compat,
+      children: [
+        { type: "Column", id: "a", style: { width: "50%", backgroundColor: "#eeeeee", padding: 8, border: { top: "1px solid #ccc" }, borderRadius: 4 }, compat: { className: "mine" }, children: [{ type: "Text", children: ["A"] }] },
+        { type: "Column", style: { width: "50%" }, compat: { minWidth: 400 }, children: [{ type: "Text", children: ["B"] }] },
+      ],
+    });
+
+    it("draws a Row's columns as its cells (compat.stretch), their boxes on them, each at least its share, stacking on phones", () => {
+      const { head, body } = render(email([row({ stretch: true })]));
+      const dom = new JSDOM(body).window.document;
+      const cell = dom.getElementById("a")!;
+      expect(cell.tagName).toBe("TD");
+      expect(cell.getAttribute("bgcolor")).toBe("#eeeeee");
+      expect(cell.getAttribute("width")).toBe("300");
+      expect(cell.getAttribute("valign")).toBe("top");
+      expect(cell.classList.contains("mine")).toBe(true);
+      expect(cell.getAttribute("style")).toBe("width:300px;min-width:300px;box-sizing:border-box;padding:8px;background-color:#eee;border-top:1px solid #ccc;border-radius:4px");
+      expect((cell.nextElementSibling as HTMLElement).style.minWidth).toBe("400px");
+      expect(head).toMatch(/@media \(max-width: 620px\)\{[^}]*\.\w+\{display:block!important;width:100%!important;min-width:0!important\}/);
+      // No inline blocks: their line boxes and rules aren't its.
+      expect(body).not.toContain("display:inline-block");
+      expect(body).not.toContain("font-size:0");
+    });
+
+    it("keeps a Row's cells side by side on phones, at their shares, where it doesn't stack", () => {
+      const { head } = render(email([row({ stretch: true }, { stackOnMobile: false })]));
+      expect(head).not.toContain("display:block!important");
+      expect(head).toContain("{width:50%!important;min-width:0!important}");
+      const held = render(email([{ type: "Row", props: { stackOnMobile: false }, compat: { stretch: true }, children: [{ type: "Column", style: { width: "50%" }, compat: { phoneMinWidth: 320 } }, { type: "Column", style: { width: "50%" } }] }]));
+      expect(held.head).toContain("{width:50%!important;min-width:320px!important}");
+    });
+
+    it("hides a Section at a phone's width of today's components (compat.device), not its own", () => {
+      const { head, body } = render(email([{ type: "Section", hidden: { mobile: true }, compat: { device: true }, children: [words] }, { type: "Section", hidden: { desktop: true }, compat: { device: true }, children: [words] }, { type: "Section", hidden: { mobile: true }, children: [words] }]));
+      expect(head).toMatch(/@media \(max-width: 620px\)\{\.\w+\{display:none!important\}\}@media \(max-width: 480px\)\{\.\w+\{display:none!important\}\.\w+\{display:table-row!important\}\}/);
+      expect(body).toContain("<!--[if !mso]><!--><tr");
+    });
+
+    it("writes markup among the rows (compat.wide) as a row of the email's table, across the window", () => {
+      const { body } = render(email([{ type: "Raw", props: { html: "Before" }, compat: { wide: true } }, { type: "Section", children: [words] }]));
+      expect(body).toContain("<tr><td>Before</td></tr>");
+      expect(body).not.toContain('<div style="font-size:16px">Before');
+    });
+
+    it("gives markup that opens around rows a table of its own for them", () => {
+      const { body } = render(email([{ type: "Raw", props: { html: "<div>" }, compat: { wide: "open" } }, { type: "Section", children: [words] }, { type: "Raw", props: { html: "</div>" }, compat: { wide: "close" } }]));
+      expect(body).toContain('<tr><td><div><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td');
+      expect(body).toContain("</table></div></td></tr>");
+    });
+
+    it("writes a root's rules in the stylesheet, and an email's preview as it's given, where it's given", () => {
+      const { head, body } = render(email([words], { props: { width: 600, previewText: "Hi <%name%>" }, compat: { css: ".mine{color:red}", previewHtml: "Hi <%name%>" } }));
+      expect(head).toContain(".mine{color:red}");
+      expect(body).toContain('data-skip-in-text="true">Hi <%name%>&#847;');
+    });
+  });
+
   describe("imported markup (Raw)", () => {
     const block = (html: string, extra: Record<string, unknown> = {}) => ({ type: "Raw", props: { html, css: ".u-btn{color:red}", text: "Buy now" }, ...extra });
 
