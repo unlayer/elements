@@ -98,8 +98,3 @@ export const BUILDER_PHONE_KEYS: Readonly<Record<string, readonly string[]>> = {
   html: ["containerPadding", "hideMobile"],
   page_break: ["hideMobile"],
 };
-
-/** A tool's hidden property for a template path, where it has one. */
-export function hiddenKey(tool: string, path: string): Hidden | undefined {
-  return (HIDDEN[tool] ?? []).find((entry) => entry.path === path);
-}
