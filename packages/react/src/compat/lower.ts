@@ -4,9 +4,11 @@
  * `block()` makes of it (its new component, or a Raw node with its legacy HTML). Where legacy draws something other
  * than the design asks, the tree draws it as legacy does (quirks.ts).
  */
+import type React from "react";
 import type { Json } from "@unlayer-internal/elements-core";
-import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { safeName, textDirectionOf } from "../utils/create-component";
+import { escapeText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "../utils/create-component";
+import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 import { pageBodyColor, pageMargin, rowColorInEmail, rowPaddingInEmail } from "./quirks";
 import { border, color, px, serviceTag, sides, some, type Values } from "./values";
 
@@ -135,6 +137,86 @@ function givenClasses(values: Values, own: string, what: string): void {
   if (typeof names === "string" && names.trim() && names.trim() !== own) throw new Unlowerable(`${what}'s own class names`);
 }
 
+/** What a block's box says: its id and class, its padding, where it's hidden. */
+export interface ContentBox {
+  id: string;
+  className: string;
+  padding: unknown;
+  override?: { desktop?: Values; tablet?: Values; mobile?: Values };
+}
+
+/**
+ * A block's own HTML in the box today's components write around it, byte for byte: users' head CSS scopes on its id
+ * and class, its phone padding selects its `v-container-padding-padding`, and its `hide-*` classes hide it (the head
+ * has their rules: deviceVisibilityCss). A page's and a printed document's box is a <div>; a printed document's has
+ * the template's font and hides nothing; an email's is a table, with the font on the table and on its cell, and one
+ * hidden on desktop isn't there for Outlook or until the head's rules say so.
+ */
+export function contentBox(html: string, box: ContentBox, font: unknown, mode: Mode): string {
+  // In attributes: what a value holds can't end one.
+  const attribute = (value: unknown) => escapeText(String(value ?? "")).replace(/"/g, "&quot;");
+  const id = attribute(box.id);
+  const className = attribute(box.className);
+  const padding = attribute(box.padding);
+  const family = attribute(font);
+  const { desktop, tablet, mobile } = box.override ?? {};
+  const hide = `${desktop?.hideDesktop ? " hide-desktop" : ""}${tablet?.hideTablet ? " hide-tablet" : ""}${mobile?.hideMobile ? " hide-mobile" : ""}`;
+  if (mode === "document") return `\n  <div id="${id}" data-page-row="${id}" class="${className} v-container-padding" style="overflow-wrap: break-word;${padding && `padding: ${padding};`}${family && `font-family: ${family};`}">\n    ${html}\n  </div>\n`;
+  if (mode !== "email") return `\n  <div id="${id}" class="${className} v-container-padding-padding${hide}" style="overflow-wrap: break-word;padding: ${padding};">\n    ${html}\n  </div>\n`;
+  const byDefault = !!desktop?.hideDesktop;
+  const table = `\n<table id="${id}" class="${className}${byDefault ? " hide-default__display-table" : ""}${hide}" style="${byDefault ? "display: none;mso-hide: all;" : ""}font-family:${family};" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">\n  <tbody>\n    <tr>\n      <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:${padding};font-family:${family};" align="left">\n        ${html}\n      </td>\n    </tr>\n  </tbody>\n</table>\n`;
+  return byDefault ? `<!--[if !mso]><!-->${table}<!--<![endif]-->` : table;
+}
+
+/** A block's id and class base: a custom tool's (custom_<slug>), else its component's name. */
+export const blockName = (type: any): string => type?.[UNLAYER_CONFIG_KEY]?.metaName ?? (type?.displayName || type?.name || "component").toLowerCase();
+
+/** Where a block is, as today's Body, Row and Column give it to its exporter. */
+export interface BlockFrame {
+  colIndex: number;
+  cells: number[];
+  bodyValues: Values;
+  rowValues: Values;
+  columnValues: Values;
+}
+
+/**
+ * A block as a Column writes it: its markup (its exporter's, or what a component of the user's rendered) in its box.
+ * "" where it writes nothing in this output; undefined where it has no markup (its exporter failed, which it says).
+ */
+export function writeBlock(element: React.ReactElement<any>, id: string, frame: BlockFrame, mode: Mode, config: unknown): string | undefined {
+  const type = element.type as any;
+  const rendered = (type[UNLAYER_RENDER_KEY] ?? type)({ ...element.props, _config: config, _metaHtmlId: id, ...frame });
+  const inner = rendered?.props?.dangerouslySetInnerHTML;
+  if (!inner) {
+    if (rendered) console.warn(`Column: <${type.displayName || type.name || "Unknown"}> did not produce renderable HTML. Ensure it is an Unlayer component (Button, Text, Image, etc.).`);
+    return undefined;
+  }
+  const own = type[UNLAYER_CONFIG_KEY];
+  if (!inner.__html && own?.omitEmptyOutput) return "";
+  const { containerPadding, values, hideOnMobile, hideOnDesktop } = element.props;
+  const padding = containerPadding ?? values?.containerPadding ?? DEFAULT_CONTAINER_PADDING;
+  // A custom tool's props are its own values: a `hideOnMobile` of its own isn't a device setting.
+  const device = own?.contentType !== "custom";
+  const override = values?._override;
+  return contentBox(
+    inner.__html,
+    {
+      id: values?._meta?.htmlID ? safeName(values._meta.htmlID) : id,
+      className: `u_content_${blockName(type)}`,
+      // A bare number is in px.
+      padding: typeof padding === "number" ? `${padding}px` : padding,
+      override: {
+        ...override,
+        mobile: { ...override?.mobile, ...(device && hideOnMobile !== undefined ? { hideMobile: hideOnMobile } : {}) },
+        desktop: { ...override?.desktop, ...(device && hideOnDesktop !== undefined ? { hideDesktop: hideOnDesktop } : {}) },
+      },
+    },
+    frame.bodyValues.fontFamily?.value,
+    mode
+  );
+}
+
 export const defined = <T extends object>(object: T): T => Object.fromEntries(Object.entries(object).filter(([, v]) => v !== undefined)) as T;
 
 /** The sides of a line every column of a row has (legacy stretches columns to the row's height: one line across it). */
@@ -170,7 +252,7 @@ function column(design: Values, width: string | undefined, rowLines: Lines, back
     children: (design.contents ?? []).flatMap((block: DesignBlock) => {
       const node = options.block(block, at);
       if (!node) return [];
-      // A Raw block is hidden by its own markup's classes, as legacy hides it; a printed document hides nothing.
+      // A Raw block is hidden by its own box's classes, as legacy hides it (see contentBox); a printed document hides nothing.
       const hide = node.type === "Raw" || options.mode === "document" ? undefined : hidden(block.values ?? {});
       return [hide ? { ...node, hidden: { ...node.hidden, ...hide } } : node];
     }),

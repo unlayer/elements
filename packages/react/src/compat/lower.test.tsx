@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ContentExporters } from "@unlayer/exporters";
 import { Column, Divider, Document, Email, Heading, Page, Paragraph, Row, renderToJson } from "../index";
 import { withRenderScope } from "../utils/render-scope";
-import { lowerDesign, PAGE_WIDTH, type TreeNode } from "./lower";
+import { contentBox, lowerDesign, PAGE_WIDTH, type Mode, type TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
 
 const template = (
@@ -116,5 +117,59 @@ describe("lowerDesign()", () => {
     expect(block?.hidden).toBeUndefined();
     const column = find(tree(<Page><Row><Column padding="40px" mobile={{ padding: "0px" } as never}><Paragraph>A</Paragraph></Column></Row></Page>), (n) => !!n.designColumn);
     expect(column?.mobile).toEqual({ padding: { top: 0, right: 0, bottom: 0, left: 0 } });
+  });
+});
+
+describe("contentBox()", () => {
+  const box = { id: "u_content_html_1", className: "u_content_html", padding: "10px" };
+  const font = "arial,helvetica,sans-serif";
+
+  it("is a <div> on a page, with the block's id, class and padding, and classes that hide it", () => {
+    expect(contentBox("X", box, font, "web")).toBe('\n  <div id="u_content_html_1" class="u_content_html v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">\n    X\n  </div>\n');
+    expect(contentBox("X", { ...box, override: { mobile: { hideMobile: true }, desktop: { hideDesktop: true } } }, font, "web")).toContain('class="u_content_html v-container-padding-padding hide-desktop hide-mobile"');
+  });
+
+  it("is a <div> in a printed document, named for its pages, in the template's font, hiding nothing", () => {
+    const expected = '\n  <div id="u_content_html_1" data-page-row="u_content_html_1" class="u_content_html v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">\n    X\n  </div>\n';
+    expect(contentBox("X", box, font, "document")).toBe(expected);
+    expect(contentBox("X", { ...box, override: { mobile: { hideMobile: true }, desktop: { hideDesktop: true } } }, font, "document")).toBe(expected);
+  });
+
+  it("is a table in an email, the font on it and its cell, its padding on the cell", () => {
+    expect(contentBox("X", box, font, "email")).toBe(
+      '\n<table id="u_content_html_1" class="u_content_html" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">\n  <tbody>\n    <tr>\n      <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">\n        X\n      </td>\n    </tr>\n  </tbody>\n</table>\n'
+    );
+    expect(contentBox("X", { ...box, override: { mobile: { hideMobile: true } } }, font, "email")).toContain('class="u_content_html hide-mobile" style="font-family:');
+  });
+
+  it("isn't there in an email for Outlook, or until the head's rules say so, where it's hidden on desktop", () => {
+    const html = contentBox("X", { ...box, override: { desktop: { hideDesktop: true } } }, font, "email");
+    expect(html.startsWith('<!--[if !mso]><!-->\n<table id="u_content_html_1" class="u_content_html hide-default__display-table hide-desktop" style="display: none;mso-hide: all;font-family:')).toBe(true);
+    expect(html.endsWith("</table>\n<!--<![endif]-->")).toBe(true);
+  });
+
+  it("can't be ended by what a value holds", () => {
+    const html = contentBox("X", { ...box, padding: '1px"><script>', id: 'a"b' }, '"Open Sans"', "web");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain('id="a&quot;b"');
+  });
+
+  it("writes what the closed ContentExporters write, byte for byte, in every mode and setting", () => {
+    const overrides = [undefined, {}, { mobile: { hideMobile: true } }, { desktop: { hideDesktop: true } }, { tablet: { hideTablet: true } }, { mobile: { hideMobile: false }, desktop: { hideDesktop: false }, tablet: { hideTablet: false } }, { mobile: { hideMobile: true }, desktop: { hideDesktop: true }, tablet: { hideTablet: true } }];
+    let checked = 0;
+    for (const mode of ["web", "email", "document"] as Mode[]) {
+      for (const override of overrides) {
+        for (const padding of ["10px", "0px", "1px 2px 3px 4px", "2em", "", undefined]) {
+          for (const family of [font, "'Open Sans',sans-serif", "", undefined]) {
+            for (const [id, className] of [["u_content_custom_my_tool_2", "u_content_custom_my_tool"], ["given.id", "u_content_mine"]]) {
+              const closed = (ContentExporters as Record<string, (...args: any[]) => string>)[mode]("<b>inner</b>", { containerPadding: padding, _override: override, _meta: { htmlID: id, htmlClassNames: className } }, { fontFamily: family === undefined ? undefined : { value: family } }, {});
+              expect(contentBox("<b>inner</b>", { id, className, padding, override }, family, mode)).toBe(closed);
+              checked++;
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBe(3 * 7 * 6 * 4 * 2);
   });
 });

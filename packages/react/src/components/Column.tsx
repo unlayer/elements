@@ -1,15 +1,15 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta } from "../utils/create-component";
+import { ColumnExporters } from "@unlayer/exporters";
+import { nextHtmlId, safeMeta } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
-import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 import { blockHtml, nextBlock, outsideRecording } from "../utils/block-html";
+import { blockName, writeBlock } from "../compat/lower";
 
 /** Unlayer's default content-block padding when a block sets none. */
 
@@ -43,17 +43,6 @@ type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, i
 function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
   const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
   return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
-}
-
-// Canonical content-container wrapper (the `u_content_*` block that carries
-// each item's containerPadding). Signature per mode: (innerHTML, values,
-// bodyValues, meta). Delegating to the exporter keeps padding, classes, and the
-// per-mode div/table structure consistent with the canonical exporter output.
-type ContentExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, meta?: Record<string, any>) => string;
-
-function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode): string {
-  const contentExporter = (ContentExporters[mode] || ContentExporters.web) as ContentExporterFunction;
-  return contentExporter(innerHTML, values, bodyValues, {});
 }
 
 // ============================================
@@ -122,23 +111,13 @@ export const Column: React.FC<ColumnProps> = (props) => {
         } else if (React.isValidElement(child)) {
           // Call component function to get rendered result
           if (typeof child.type === "function") {
-            const ComponentType = child.type as any;
-            // Use __unlayerRender (hook-free) if available, otherwise call directly
-            const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
             // Allocate the content id BEFORE rendering and thread it in, so
             // the value-level _meta.htmlID exporters see (custom tool head
             // css scopes on it) is unique per instance and matches both the
             // wrapper id and the head-extraction/json numbering. Custom
             // tools carry an explicit meta base (custom_<slug>); built-ins
             // derive it from the component name.
-            const componentName =
-              ComponentType?.[UNLAYER_CONFIG_KEY]?.metaName ??
-              (
-                ComponentType?.displayName ||
-                ComponentType?.name ||
-                "component"
-              ).toLowerCase();
-            const contentHtmlId = nextHtmlId(_config, `u_content_${componentName}`);
+            const contentHtmlId = nextHtmlId(_config, `u_content_${blockName(child.type)}`);
             // A render recording its blocks' HTML writes only those it asks for (see block-html.ts).
             const slot = nextBlock();
             if (slot && !slot.wanted) return;
@@ -147,94 +126,10 @@ export const Column: React.FC<ColumnProps> = (props) => {
             // fraction) instead of the fallback. Mirrors the editor, which passes
             // this context to the content exporters.
             // (Its own renders, a nested Row's blocks, aren't the template's: see block-html.ts.)
-            const rendered = outsideRecording(() =>
-              renderFn({
-                ...child.props,
-                _config,
-                _metaHtmlId: contentHtmlId,
-                colIndex: index,
-                cells,
-                bodyValues,
-                rowValues,
-                columnValues: valuesWithMeta,
-              })
-            );
-
-            // Extract HTML from dangerouslySetInnerHTML
-            if (
-              rendered &&
-              typeof rendered === "object" &&
-              rendered.props &&
-              rendered.props.dangerouslySetInnerHTML
-            ) {
-              const componentHTML =
-                rendered.props.dangerouslySetInnerHTML.__html;
-
-              // Some components intentionally produce no output in unsupported
-              // modes. Do not turn that into a padded content wrapper.
-              if (
-                !componentHTML &&
-                ComponentType?.[UNLAYER_CONFIG_KEY]?.omitEmptyOutput
-              ) return blockHtml(slot?.n, "");
-
-              // Resolve the block's OWN containerPadding directly from props.
-              // `containerPadding` is a universal base-content prop: it passes
-              // straight through mapSemanticProps untouched and is not present in
-              // any item's defaultValues, so reading it from props (flat prop +
-              // `values` escape hatch) is equivalent to running the item's full
-              // value pipeline — without paying for a second propMapper call per
-              // child (for Paragraph that re-runs the Lexical textJson convert).
-              // Falls back to Unlayer's content default. (Previously this read
-              // `child.props.values?.containerPadding` only, which is undefined
-              // for the flat-prop API, so every block collapsed to 0px padding.)
-              const childProps = child.props as {
-                containerPadding?: string | number;
-                mobile?: { containerPadding?: string | number };
-                hideOnMobile?: boolean;
-                hideOnDesktop?: boolean;
-                values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
-              };
-              const rawContainerPadding =
-                childProps.containerPadding ??
-                childProps.values?.containerPadding ??
-                DEFAULT_CONTAINER_PADDING;
-              // A bare number is treated as px (same idiom as other size props).
-              const containerPadding =
-                typeof rawContainerPadding === "number"
-                  ? `${rawContainerPadding}px`
-                  : rawContainerPadding;
-
-              // A custom tool's props are its own values, as in 0.1.22: a `hideOnMobile` of its own isn't a device setting.
-              const device = ComponentType?.[UNLAYER_CONFIG_KEY]?.contentType === "custom" ? {} : childProps;
-
-              // Wrap via the canonical content-container exporter for this mode.
-              const contentValues = {
-                containerPadding,
-                _override: {
-                  ...childProps.values?._override,
-                  mobile: { ...childProps.values?._override?.mobile,
-                    ...(device.hideOnMobile !== undefined ? { hideMobile: device.hideOnMobile } : {}),
-                  },
-                  desktop: { ...childProps.values?._override?.desktop,
-                    ...(device.hideOnDesktop !== undefined ? { hideDesktop: device.hideOnDesktop } : {}),
-                  },
-                },
-                _meta: {
-                  htmlID: contentHtmlId,
-                  htmlClassNames: `u_content_${componentName}`,
-                  ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}),
-                },
-              };
-              const block = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
-              blockHtml(slot?.n, block);
-              innerHTML += block;
-            } else if (rendered) {
-              const name = (child.type as any)?.displayName || (child.type as any)?.name || "Unknown";
-              console.warn(
-                `Column: <${name}> did not produce renderable HTML. ` +
-                `Ensure it is an Unlayer component (Button, Text, Image, etc.).`
-              );
-            }
+            const block = outsideRecording(() => writeBlock(child, contentHtmlId, { colIndex: index, cells, bodyValues, rowValues, columnValues: valuesWithMeta }, mode, _config));
+            if (block === undefined) return;
+            blockHtml(slot?.n, block);
+            innerHTML += block;
           }
         }
       });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
@@ -93,15 +93,20 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
   });
 
   it("write no block with today's exporters where every block moves over", () => {
-    const write = vi.spyOn(exporters.ContentExporters, "email");
+    const write = vi.spyOn(exporters.ColumnExporters, "email");
+    const table = vi.spyOn(exporters.TableExporters, "email");
+    const button = vi.spyOn(exporters.ButtonExporters, "email");
     try {
       renderToHtml(<Email><Row><Column><Paragraph>One</Paragraph><Button href="https://example.com">Two</Button></Column></Row></Email>);
       expect(write).not.toHaveBeenCalled();
-      // A block that keeps its legacy HTML (the user's own HTML) is the only one written by them.
-      renderToHtml(<Email><Row><Column><Paragraph>One</Paragraph><Html html="<b>Two</b>" /></Column></Row></Email>);
-      expect(write).toHaveBeenCalledTimes(1);
+      // A block that keeps its legacy HTML (a table, until it moves over) is the only one written by them.
+      renderToHtml(<Email><Row><Column><Button href="https://example.com">One</Button><Table /></Column></Row></Email>);
+      expect(table).toHaveBeenCalledTimes(1);
+      expect(button).not.toHaveBeenCalled();
     } finally {
       write.mockRestore();
+      table.mockRestore();
+      button.mockRestore();
     }
   });
 
