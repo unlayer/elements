@@ -17,7 +17,7 @@ import { looseText } from "../utils/render-scope";
 import { recordingBlockHtml } from "../utils/block-html";
 import { extractHeadFromTree, writesOpenHtml } from "../utils/extract-head";
 import { renderBody, resolveConfig, resolveDisplayMode } from "../utils/render-to-html";
-import { extractSemanticProps, renderToJson } from "../utils/render-to-json";
+import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
 import { getDisplayName, ROOT_NAMES } from "../utils/unwrap-root";
 import { htmlRoot } from "../utils/unwrap-root";
@@ -48,6 +48,12 @@ export interface Lowered {
   tags: string[];
 }
 
+/** What a render says of what's among a template's rows and in its Rows: markup among the rows is drawn (0.2.1 says nothing of it). */
+const STRAYS: Strays = {
+  inBody: () => {},
+  inRow: (name) => console.warn(`Row: <${name}> is not a valid Row child. Only <Column> components can be direct children of <Row>. Wrap it in a <Column>: <Row><Column><${name} /></Column></Row>`),
+};
+
 /**
  * A template of today's components as the new engine's tree: undefined where its root isn't one of today's (a block
  * on its own, a component that doesn't return one). Called inside a render's scope.
@@ -60,7 +66,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   if (!OWN_ROOTS.has(root.type)) return undefined;
   const merged = resolveConfig(root, config);
   const mode = resolveDisplayMode(root, merged) as Mode;
-  const design = renderToJson(root) as unknown as { body: Record<string, any> };
+  const design = collectedDesign(normalizedRoot(root), STRAYS) as unknown as { body: Record<string, any> };
   const { blocks: sources, body, rows } = blockSources(root);
   // A Row whose Columns don't fit its layout: today's Body says so and renders without its rows (a mailer that never
   // expected renderToHtml to throw would fail).

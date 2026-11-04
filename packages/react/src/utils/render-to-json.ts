@@ -62,6 +62,17 @@ function unwrapForJson(element: React.ReactElement): React.ReactElement {
 /** The element children of a collected (Elements-only) tree. */
 const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
 
+/** What a walk says of a child its place has no room for, by its name. */
+export interface Strays {
+  inBody(name: string): void;
+  inRow(name: string): void;
+}
+
+const IN_JSON: Strays = {
+  inBody: (name) => console.warn(`[Unlayer] renderToJson: <${name}> is not a valid Body child. Only <Row> is allowed.`),
+  inRow: (name) => console.warn(`[Unlayer] renderToJson: <${name}> is not a valid Row child. Only <Column> is allowed.`),
+};
+
 /**
  * Strip internal/base props from an element's props,
  * returning only the semantic props that should be mapped to values.
@@ -268,7 +279,8 @@ function processColumn(
 function processRow(
   element: React.ReactElement,
   counters: Record<string, number>,
-  parentLayout: Pick<LayoutContext, "bodyValues"> = {}
+  parentLayout: Pick<LayoutContext, "bodyValues"> = {},
+  strays: Strays = IN_JSON
 ): DesignRow {
   const count = nextCounter(counters, "u_row");
   const id = makeId("u_row", count);
@@ -334,9 +346,7 @@ function processRow(
       );
       columnIndex += 1;
     } else {
-      console.warn(
-        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Row child. Only <Column> is allowed.`
-      );
+      strays.inRow(componentName(child) ?? String(child.type));
     }
   }
 
@@ -345,7 +355,8 @@ function processRow(
 
 function processBody(
   element: React.ReactElement,
-  counters: Record<string, number>
+  counters: Record<string, number>,
+  strays: Strays
 ): DesignBody {
   const id = "u_body";
 
@@ -385,11 +396,9 @@ function processBody(
   for (const child of children) {
     const name = getDisplayName(child);
     if (name === "Row") {
-      rows.push(processRow(child, counters, { bodyValues: valuesWithMeta }));
+      rows.push(processRow(child, counters, { bodyValues: valuesWithMeta }, strays));
     } else {
-      console.warn(
-        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Body child. Only <Row> is allowed.`
-      );
+      strays.inBody(componentName(child) ?? String(child.type));
     }
   }
 
@@ -494,12 +503,12 @@ function designJson(element: React.ReactElement): DesignJSON {
 
   // For Email/Page/Document, the children and semantic props are on the
   // wrapper element directly, same as Body.
-  const counters: Record<string, number> = {};
-  const body = processBody(element, counters);
+  return collectedDesign(element);
+}
 
-  return {
-    counters,
-    body,
-    schemaVersion,
-  };
+/** The design of a root whose children are collected already (normalizedRoot), each stray said by `strays`. */
+export function collectedDesign(root: React.ReactElement, strays: Strays = IN_JSON): DesignJSON {
+  const counters: Record<string, number> = {};
+  const body = processBody(root, counters, strays);
+  return { counters, body, schemaVersion };
 }

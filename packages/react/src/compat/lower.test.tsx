@@ -388,7 +388,7 @@ describe("lowerDesign()", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
         expect((rowOf(<Page><Row><div>Markup</div>{cell}</Row></Page>).children as TreeNode[]).map((c) => c.type)).toEqual(["Column"]);
-        // (Said by renderToJson, which the lowering reads.)
+        // (Said as a Row said it, by what walks the design the lowering reads.)
         expect(warn.mock.calls.join()).toContain("is not a valid Row child");
       } finally {
         warn.mockRestore();
