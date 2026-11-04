@@ -65,7 +65,11 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 393KB.
+      # Fail if the react-elements ESM bundle exceeds 412.5KB.
+      # Drawing every template's frame through the new engine (what used to
+      # render a whole template as today: a row's or the body's picture, settings
+      # for a device at legacy's width, class names, columns as table cells,
+      # markup and text among them, what it refuses left out) added about 19KB.
       # Today's components' default values as data in this package added about
       # 5KB, and writing custom tools, Html blocks and a user's own markup without
       # @unlayer/exporters (their box, their head, what today's body, row and
@@ -95,7 +99,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=393000
+          MAX_SIZE=412500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -111,7 +115,9 @@ jobs:
       # Canvas: what they can't show, content that can't fit; the Raw node
       # importers make for markup they bring in; a Menu that wraps and says
       # where it can't, messages at a Grid's places in the template, the
-      # layout version), with no @unlayer/exporters in it. Raise it on
+      # layout version; what today's components draw that no style holds: a
+      # background picture on a Section or a Row, a Row's columns as table cells,
+      # class names, about 3KB), with no @unlayer/exporters in it. Raise it on
       # purpose, with what grew.
       - name: Check /primitives bundle size
         run: |
@@ -119,7 +125,7 @@ jobs:
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=232000
+          MAX_SIZE=235500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -146,7 +152,8 @@ jobs:
       # saves as its export writes it (its links, merge tags, headings and
       # lists, which the shared generator leaves out) grew it by about 9KB
       # more; writing a block's box without @unlayer/exporters by about 1KB,
-      # for now. It imports @unlayer/exporters for today's
+      # for now, and the writers' reading of what today's components draw that
+      # no style holds by about 3KB. It imports @unlayer/exporters for today's
       # components' defaults, as the main entry does. Raise it on purpose,
       # with what grew.
       - name: Check /builder bundle size
@@ -154,7 +161,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=452500
+          MAX_SIZE=456000
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
