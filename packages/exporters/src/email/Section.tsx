@@ -18,20 +18,21 @@ export const Section: Component = ({ node, style, mobile, parent: root, render }
   const phonePadding = mobile.padding as Sides | undefined;
   const hidden = hiding(node, "table-row");
   const picture = compatPicture(node.compat, width);
+  const align = (node.compat?.align as string | undefined) ?? "center";
 
   const row = (
     <tr class={hidden.class} style={hidden.style}>
       <td
         id={node.id}
         class={node.compat?.className as string | undefined}
-        align={(node.compat?.align as string | undefined) ?? "center"}
+        align={align}
         background={picture?.background}
         bgcolor={bgcolor(style.backgroundColor)}
         phone={{ paddingTop: phonePadding?.top, paddingBottom: phonePadding?.bottom, border: mobile.border, backgroundColor: mobile.backgroundColor }}
         style={{ paddingTop: padding.top || undefined, paddingBottom: padding.bottom || undefined, backgroundColor: style.backgroundColor, ...picture?.style, border: style.border }}
       >
         {picture?.open}
-        <OutlookWidth width={width}>
+        <OutlookWidth width={width} align={align}>
           {padding.left || padding.right ? (
             // The side padding on a cell around the content.
             <Table width="100%" style={{ maxWidth: width }}>

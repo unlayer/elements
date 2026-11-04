@@ -22,12 +22,12 @@ export function Table({ children, style, ...attributes }: TableProps) {
  */
 export const ownBorders = (...styles: Array<Record<string, unknown> | undefined>) => (styles.some((style) => style?.border !== undefined || style?.borderTop !== undefined || style?.borderRadius !== undefined) ? "separate" : undefined);
 
-/** The content's width for classic Outlook, in a table of that width around it, as the editor's email has it. */
-export function OutlookWidth({ width, children }: { width: number; children?: Child }) {
+/** The content's width and alignment for classic Outlook, in a table of that width around it, as the editor's email has it. */
+export function OutlookWidth({ width, align = "center", children }: { width: number; align?: string; children?: Child }) {
   return (
     <>
       <Outlook>
-        {open(<table {...TABLE} width={width} align="center" />)}
+        {open(<table {...TABLE} width={width} align={align} />)}
         {open(<tr />)}
         {open(<td />)}
       </Outlook>

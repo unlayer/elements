@@ -161,6 +161,14 @@ describe("email HTML", () => {
     expect(body).toContain('</td></tr><tr><td style="font-size:0;line-height:10px;mso-line-height-rule:exactly">&nbsp;</td></tr><tr><td align="center">');
   });
 
+  it("gives Outlook's table of the content's width the Section's alignment", () => {
+    const at = (align?: string) => render(email([{ type: "Section", ...(align ? { compat: { align } } : {}), children: [{ type: "Text", children: ["a"] }] }])).body;
+    expect(at()).toContain(`<td align="center">${OUTLOOK_WIDTH()}`);
+    for (const align of ["left", "right"]) {
+      expect(at(align)).toContain(`<td align="${align}"><!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="${align}"><tr><td><![endif]-->`);
+    }
+  });
+
   it("writes a divider as a bordered table Word can't make taller", () => {
     const { body } = render(email([{ type: "Divider", style: { width: "50%" } }], { style: { textAlign: "center" } }));
     expect(body).toContain(
