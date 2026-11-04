@@ -504,3 +504,27 @@ export function normalizedChildren(children: React.ReactNode): React.ReactNode[]
 export function normalizedRoot(root: React.ReactElement): React.ReactElement {
   return React.cloneElement(root, undefined, ...normalizedChildren((root.props as { children?: React.ReactNode }).children));
 }
+
+/**
+ * A Row or Column placed in a Column, as a block: the design has no place for it (renderToJson says so), and a render
+ * draws what it renders on its own in a block's box, named after it (`u_content_row_1`).
+ */
+function nestedBlock(child: React.ReactElement<any>): React.ReactElement {
+  const Rendered = (props: Record<string, unknown>) => (child.type as (props: Record<string, unknown>) => React.ReactElement)(props);
+  Rendered.displayName = (child.type as { displayName?: string }).displayName;
+  (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, { html: "" });
+  return React.createElement(Rendered, child.props);
+}
+
+/** `parent` (what `name` says) with each of its children mapped. */
+function withChildren(parent: React.ReactNode, name: string, map: (child: React.ReactNode) => React.ReactNode): React.ReactNode {
+  if (!React.isValidElement<{ children?: React.ReactNode }>(parent) || (parent.type as { displayName?: string }).displayName !== name) return parent;
+  return React.cloneElement(parent, undefined, ...React.Children.toArray(parent.props.children).map(map));
+}
+
+/** `root` as a render draws it: as `normalizedRoot` gives it, with a Row or Column placed in a Column a block (see `nestedBlock`). */
+export function drawnRoot(root: React.ReactElement): React.ReactElement<any> {
+  const inColumn = (child: React.ReactNode) => (React.isValidElement(child) && /^(Row|Column)$/.test((child.type as { displayName?: string }).displayName ?? "") ? nestedBlock(child) : child);
+  const collected = normalizedRoot(root) as React.ReactElement<{ children?: React.ReactNode }>;
+  return React.cloneElement(collected, undefined, ...React.Children.toArray(collected.props.children).map((row) => withChildren(row, "Row", (column) => withChildren(column, "Column", inColumn))));
+}

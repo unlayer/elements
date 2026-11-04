@@ -294,10 +294,11 @@ export interface BlockFrame {
 }
 
 /**
- * A block as a Column writes it: its markup (its exporter's, or what a component of the user's rendered) in its box.
+ * A block as a Column writes it: its markup (its exporter's, or what a component of the user's rendered) in its box,
+ * and what's read for it in the plain text where that isn't its markup (a Row or Column placed there, drawn on its own).
  * Undefined where it has no markup (its exporter failed, which it says).
  */
-export function writeBlock(element: React.ReactElement<any>, id: string, frame: BlockFrame, mode: Mode, config: unknown): string | undefined {
+export function writeBlock(element: React.ReactElement<any>, id: string, frame: BlockFrame, mode: Mode, config: unknown): { html: string; text?: string } | undefined {
   const type = element.type as any;
   const rendered = (type[UNLAYER_RENDER_KEY] ?? type)({ ...element.props, _config: config, _metaHtmlId: id, ...frame });
   const inner = rendered?.props?.dangerouslySetInnerHTML;
@@ -311,7 +312,7 @@ export function writeBlock(element: React.ReactElement<any>, id: string, frame: 
   // A custom tool's props are its own values: a `hideOnMobile` of its own isn't a device setting.
   const device = own?.contentType !== "custom";
   const override = values?._override;
-  return contentBox(
+  const html = contentBox(
     inner.__html,
     {
       id: values?._meta?.htmlID ? safeName(values._meta.htmlID) : id,
@@ -327,6 +328,7 @@ export function writeBlock(element: React.ReactElement<any>, id: string, frame: 
     frame.bodyValues.fontFamily?.value,
     mode
   );
+  return { html, text: inner.__text };
 }
 
 export const defined = <T extends object>(object: T): T => Object.fromEntries(Object.entries(object).filter(([, v]) => v !== undefined)) as T;

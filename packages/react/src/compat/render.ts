@@ -30,6 +30,8 @@ export interface Rendered {
   text: string;
   /** What a React render of it writes in its host <div>: the body with its stylesheet, as there's no head to hold it there. */
   inner: string;
+  /** The markup its plain text is read from (only when asked: it's another render). */
+  textMarkup: string;
   /** The new engine's notes. */
   diagnostics: RenderResult["diagnostics"];
 }
@@ -103,7 +105,7 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const head = [css ? `<style>${styleText(css)}</style>` : "", js ? `<script>${js}</script>` : "", ...tags].filter(Boolean).join("\n");
   // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render). A tag goes
   // back once it's read, so its service still fills it in, in the words as in a link's address.
-  const text = () => restore(htmlToPlainText(renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, "")));
+  const textMarkup = () => renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, "");
   // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
   // document (a page's has none).
   const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
@@ -120,7 +122,10 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     js,
     tags,
     get text() {
-      return text();
+      return restore(htmlToPlainText(textMarkup()));
+    },
+    get textMarkup() {
+      return restore(textMarkup());
     },
     inner: inReact.piece ? restore(sheet + asPiece(result.body)) : framed(sheet + result.body),
     diagnostics: [...diagnostics, ...result.diagnostics],
@@ -139,8 +144,10 @@ export function onItsOwn(type: React.ComponentType<any>, props: Record<string, a
   if ((type as unknown as Record<string, unknown>)[UNLAYER_CONFIG_KEY]) delete own.cells;
   try {
     const element = React.createElement(type, own);
-    const { inner } = withRenderScope(() => renderThroughNewEngine(element, { ..._config, ...(mode ? { mode } : {}) }, name, { embedded: true, piece: true, body: bodyValues }), true);
-    return React.createElement("div", { className, style, dangerouslySetInnerHTML: { __html: inner } });
+    const rendered = withRenderScope(() => renderThroughNewEngine(element, { ..._config, ...(mode ? { mode } : {}) }, name, { embedded: true, piece: true, body: bodyValues }), true);
+    // (React reads only `__html`. `__text` is for a Row or Column placed in a Column: see writeBlock.)
+    const markup = { __html: rendered.inner, get __text() { return withRenderScope(() => rendered.textMarkup, true); } };
+    return React.createElement("div", { className, style, dangerouslySetInnerHTML: markup });
   } catch (error) {
     console.error(`${name} rendering failed:`, error);
     return React.createElement(ErrorFallback, { type: name, error: error as Error, className, style });

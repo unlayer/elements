@@ -11,7 +11,7 @@ import { Stylesheet } from "@unlayer-internal/elements-exporters";
 import { DEFAULT_CONFIG, htmlToPlainText, mergeValues, validateColumnLayout, type RenderMode, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
 import { safeMeta, textDirectionOf, UNLAYER_CONFIG_KEY } from "../utils/create-component";
-import { amongRows, blockWithoutMarkers, KEPT, normalizedRoot } from "../utils/normalize";
+import { amongRows, blockWithoutMarkers, drawnRoot, KEPT } from "../utils/normalize";
 import { looseText } from "../utils/render-scope";
 import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
@@ -131,7 +131,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const { root, given, wide } = templateRoot(element, name, config, inReact);
   const merged = resolveConfig(root, config);
   const mode = resolveDisplayMode(root, merged) as Mode;
-  const collected = normalizedRoot(root);
+  const collected = drawnRoot(root);
   const design = collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> };
   const names = inReact.embedded ? frameNames(mode, design) : undefined;
   const shape = { embedded: inReact.embedded, wide, names };
@@ -192,7 +192,10 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   for (const n of raw.keys()) {
     if (html.has(n)) continue;
     const source = sources[n];
-    html.set(n, blockWithoutMarkers(children, writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode }) ?? ""));
+    const written = writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode });
+    html.set(n, blockWithoutMarkers(children, written?.html ?? ""));
+    // A Row or Column in a Column reads as it does on its own.
+    if (written?.text !== undefined) raw.get(n)!.textAs = { type: "Raw", props: { html: written.text } };
   }
   const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig, open: true });
   // (A printed document's own markup CSS is on its root.)
