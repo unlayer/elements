@@ -208,9 +208,10 @@ describe("Image Component", () => {
   // not a fixed fallback, so this matches the editor.
   describe("sizes against contentWidth × column width", () => {
     const big = { url: "https://x/p.jpg", width: 1200, height: 600 };
+    // Its width attribute (Outlook's) and its max-width (everyone else's) must agree.
     const imgWidth = (html: string) => {
-      const m = html.match(/<img[^>]*\bwidth="(\d+)"/);
-      return m ? Number(m[1]) : null;
+      const m = html.match(/<img[^>]*\bwidth="(\d+)"[^>]*max-width:(\d+)px/);
+      return m && m[1] === m[2] ? Number(m[1]) : null;
     };
     const renderImg = (contentWidth: string, layout: ColumnLayout, cols: number) => {
       const columns = Array.from({ length: cols }, (_, i) => (
