@@ -8,6 +8,7 @@ export const Row: Component = ({ node, style, parent, placement, classes, childr
   <div
     id={node.id}
     class={classes()}
+    dir={node.props.dir as string | undefined}
     style={[
       placement,
       {
@@ -15,7 +16,7 @@ export const Row: Component = ({ node, style, parent, placement, classes, childr
         gap: style.gap,
         alignItems: FLEX_ALIGN[style.alignItems as string],
         justifyContent: JUSTIFY[style.justifyContent as string],
-        flexWrap: style.flexWrap === "wrap" ? "wrap" : undefined,
+        flexWrap: style.flexWrap === "wrap" || style.flexWrap === "words" ? "wrap" : undefined,
       },
       box(node, parent.type !== "Row"),
       textDeclarations(node.text, parent.text),

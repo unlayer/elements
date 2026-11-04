@@ -168,7 +168,8 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
 
   const resets =
     "table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}img{-ms-interpolation-mode:bicubic}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}";
-  const stylesheet = resets + sheet.css(`@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`);
+  const phoneQuery = `@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`;
+  const stylesheet = resets + sheet.css(phoneQuery, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`, options.hideBelow ? `@media (max-width: ${options.hideBelow}px)` : phoneQuery);
   const head = [
     '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',

@@ -120,6 +120,7 @@ describe("fonts", () => {
     expect(value(lineHeight(), 1.5)).toBe(1.5);
     expect(value(lineHeight(), "150%")).toBe(1.5);
     expect(value(lineHeight(), "24px")).toBe("24px");
+    expect(value(lineHeight(), "normal")).toBe("normal");
     rejects(lineHeight(), "1.5");
     rejects(lineHeight(), 0);
   });

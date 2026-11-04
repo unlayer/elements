@@ -7,7 +7,8 @@
  * give one name two meanings.
  */
 
-export type Media = "all" | "phone" | "desktop";
+/** "hiding": what's hidden or shown by width, which a template may start at another width than its phone styles. */
+export type Media = "all" | "phone" | "desktop" | "hiding";
 
 /**
  * Which rule wins where two set the same property on one element with the
@@ -35,7 +36,7 @@ export const CLASS_PREFIX = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 export class Stylesheet {
   private readonly names = new Map<string, string>();
   private readonly keys = new Map<string, string>();
-  private readonly rules: Record<Media, Array<{ level: Level; text: string }>> = { all: [], phone: [], desktop: [] };
+  private readonly rules: Record<Media, Array<{ level: Level; text: string }>> = { all: [], phone: [], desktop: [], hiding: [] };
   private readonly imported = new Set<string>();
 
   constructor(private readonly prefix = "e") {
@@ -73,7 +74,7 @@ export class Stylesheet {
    * level, then in the order they were made. Without queries (`null`), what's of a fixed size (a Canvas, a Document)
    * has no phone: its phone rules are left out, and its desktop rules always apply.
    */
-  css(phone: string | null, desktop: string | null): string {
+  css(phone: string | null, desktop: string | null, hiding: string | null = phone): string {
     const ordered = (media: Media) =>
       LEVELS.flatMap((level) => this.rules[media].filter((rule) => rule.level === level))
         .map((rule) => rule.text)
@@ -83,6 +84,7 @@ export class Stylesheet {
       ordered("all"),
       ...(this.rules.desktop.length ? [desktop === null ? ordered("desktop") : `${desktop}{${ordered("desktop")}}`] : []),
       ...(this.rules.phone.length && phone !== null ? [`${phone}{${ordered("phone")}}`] : []),
+      ...(this.rules.hiding.length && hiding !== null ? [`${hiding}{${ordered("hiding")}}`] : []),
     ].join("");
   }
 }

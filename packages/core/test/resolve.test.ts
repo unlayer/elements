@@ -1,4 +1,4 @@
-import { checkTarget, parseDocument, resolveDocument, type ResolvedNode } from "../src";
+import { checkTarget, parseDocument, resolveDocument, type ResolvedNode, lineHeightPx } from "../src";
 
 const resolve = (root: unknown) => resolveDocument(parseDocument({ root }));
 const child = (node: ResolvedNode, ...path: number[]): ResolvedNode => path.reduce((n, i) => n.children[i] as ResolvedNode, node);
@@ -135,6 +135,8 @@ describe("text styles", () => {
     expect(heading.text).toMatchObject({ fontFamily: "Inter, Arial, sans-serif", color: "#333333", fontSize: 24, fontWeight: 700, textAlign: "center", lineHeightPx: 30 });
     const paragraph = child(root, 0, 1);
     expect(paragraph.text).toMatchObject({ fontSize: 14, fontWeight: 400, lineHeight: 1.5, lineHeightPx: 21 });
+    // The font's own line height, where something needs a number for it.
+    expect(lineHeightPx("normal", 20)).toBe(24);
     const link = child(root, 0, 1, 1);
     expect(link.text).toMatchObject({ fontSize: 14, color: "#0000ee" });
     expect(link.style.textDecoration).toBe("underline");

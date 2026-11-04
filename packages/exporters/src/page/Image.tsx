@@ -22,6 +22,8 @@ export const Image: Component = ({ node, style, parent, placement, classes }) =>
         maxWidth: style.maxWidth ?? "100%",
         width: parent.type === "Row" ? undefined : style.width,
         height: style.height ?? "auto",
+        alignSelf: style.alignSelf,
+        verticalAlign: style.verticalAlign,
         border: style.border,
         borderRadius: style.borderRadius,
       },

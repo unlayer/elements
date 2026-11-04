@@ -11,6 +11,7 @@ const OVERRIDE: Record<string, (value: Json) => Declarations> = {
   gap: (v) => [["gap", length(v)]],
   backgroundColor: (v) => [["background-color", v as string]],
   textDecoration: (v) => [["text-decoration", v as string]],
+  alignSelf: (v) => [["align-self", v as string]],
 };
 
 function declarationsOf(values: Record<string, Json>): Declarations {

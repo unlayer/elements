@@ -639,23 +639,24 @@ export function fontWeight(): Kind<FontWeightInput, number> {
   });
 }
 
-export type LineHeightInput = number | `${number}px` | `${number}%`;
+export type LineHeightInput = number | `${number}px` | `${number}%` | "normal";
 /** A multiple of the font size (1.5), or a fixed height in px ("24px"). */
-export type LineHeight = number | `${number}px`;
+export type LineHeight = number | `${number}px` | "normal";
 
 export function lineHeight(): Kind<LineHeightInput, LineHeight> {
-  const accepts = 'a multiple of the font size (1.5), a percentage ("150%") or px ("24px")';
-  return kind({
+  const accepts = 'a multiple of the font size (1.5), a percentage ("150%"), px ("24px") or "normal" (the font\'s own)';
+  return kind<LineHeightInput, LineHeight>({
     name: "lineHeight",
     editor: "lineHeight",
     accepts,
     parse(input) {
+      if (input === "normal") return ok("normal");
       if (typeof input === "number") return input > 0 && Number.isFinite(input) ? ok(input) : fail(`expected ${accepts}, not ${show(input)}`);
       const parsed = typeof input === "string" && /^\s*-?[\d.]+\s*$/.test(input) ? undefined : readLength(input);
       if (!parsed || parsed.value <= 0 || (parsed.unit !== "px" && parsed.unit !== "%")) return fail(`expected ${accepts}, not ${show(input)}`);
       return ok(parsed.unit === "%" ? Math.round(parsed.value * 1000) / 100000 : (`${parsed.value}px` as const));
     },
-    jsonSchema: () => ({ anyOf: [{ type: "number", exclusiveMinimum: 0 }, { type: "string", pattern: `^${NUMBER}(px|%)$` }] }),
+    jsonSchema: () => ({ anyOf: [{ type: "number", exclusiveMinimum: 0 }, { type: "string", pattern: `^${NUMBER}(px|%)$` }, { const: "normal" }] }),
   });
 }
 
@@ -755,7 +756,8 @@ export function link(): Kind<LinkInput, LinkValue> {
     accepts,
     parse(input) {
       const href = typeof input === "string" ? input : isObject(input) ? input.href : undefined;
-      if (typeof href !== "string" || !href.trim()) return fail(`expected ${accepts}, not ${show(input)}`);
+      // A link to nothing is { href: "" }, as a template from another format says one has no URL; a string that's empty is a mistake.
+      if (typeof href !== "string" || (!href.trim() && (typeof input === "string" || href !== ""))) return fail(`expected ${accepts}, not ${show(input)}`);
       if (unsafeUrl(href)) return fail(`${show(href)} isn't a link Elements will write (scripts, data and local files aren't)`);
       if (typeof input === "string") return ok(href.trim());
       const extra = Object.keys(input as object).find((key) => !["href", "target"].includes(key));
@@ -768,9 +770,27 @@ export function link(): Kind<LinkInput, LinkValue> {
     jsonSchema: () => ({
       anyOf: [
         { type: "string", minLength: 1 },
-        { type: "object", required: ["href"], properties: { href: { type: "string", minLength: 1 }, target: { enum: ["_blank", "_self"] } }, additionalProperties: false },
+        { type: "object", required: ["href"], properties: { href: { type: "string" }, target: { enum: ["_blank", "_self"] } }, additionalProperties: false },
       ],
     }),
+  });
+}
+
+/** More attributes for an element, by name (a link's class, a `data-` attribute): not its handlers, which run scripts. */
+export function attributes(): Kind<Record<string, string>, Record<string, string>> {
+  const accepts = "attributes by name, each a text value (no on… handlers, href or style)";
+  return kind<Record<string, string>, Record<string, string>>({
+    name: "attributes",
+    editor: "text",
+    accepts,
+    parse(input) {
+      if (!isObject(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      for (const [name, value] of Object.entries(input)) {
+        if (!/^[a-zA-Z_:][\w:.-]*$/.test(name) || /^(on|href$|style$)/i.test(name) || typeof value !== "string") return fail(`${show(name)} isn't an attribute Elements will write, with ${show(value)}`);
+      }
+      return ok(input as Record<string, string>);
+    },
+    jsonSchema: () => ({ type: "object", additionalProperties: { type: "string" } }),
   });
 }
 

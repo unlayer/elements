@@ -20,12 +20,13 @@ What a property takes, where it says *kind*:
 - *color*: a color ("#0879a1", "rgb(…)", "rgba(…)" or a CSS name)
 - *fontFamily*: a font stack, as CSS writes it ("Inter, Arial, sans-serif")
 - *fontWeight*: 100 to 900 in hundreds, "normal" or "bold"
-- *lineHeight*: a multiple of the font size (1.5), a percentage ("150%") or px ("24px")
+- *lineHeight*: a multiple of the font size (1.5), a percentage ("150%"), px ("24px") or "normal" (the font's own)
 - *insets*: px for all sides, "8px 16px" (1 to 4 values), [v, h] or [t, r, b, l], or { top, right, bottom, left }
 - *border*: "1px solid #ccc", { width, style, color } for all sides, or { top, right, bottom, left } with one of those each
 - *radius*: px for every corner, [topLeft, topRight, bottomRight, bottomLeft], or { topLeft, topRight, bottomRight, bottomLeft }
 - *flex*: a share of the free width (0 or more), or "none"
 - *link*: a URL (http, https, mailto, tel, a path, or a merge tag) or { href, target }
+- *attributes*: attributes by name, each a text value (no on… handlers, href or style)
 - *asset*: an image URL (http, https or a data:image URI), or { src, width, height }
 - *line*: "1px solid #ccc" or { width, style, color }
 - *video*: a YouTube or Vimeo video's https link
@@ -193,6 +194,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 
 Props:
 - `stackOnMobile`: true or false (default `true`). Its children stack full-width on phones (in an Email or a Page).
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited)
@@ -216,7 +218,7 @@ Props:
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
-- `flexWrap`: one of "nowrap", "wrap". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones).
+- `flexWrap`: one of "nowrap", "wrap", "words". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones). "words": in an email, also a space of the text's font apart, on lines at least as tall as its, as words are.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`, `gap`.
@@ -249,6 +251,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
+- `breakAfter`: one of "page". "page": a printed page ends after it.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`, `gap`.
@@ -347,7 +350,7 @@ Props:
 
 A block of text with no meaning of its own (a div).
 
-Holds: text; PageNumber, Span, Link, LineBreak, MergeTag. Drawn in: email, page.
+Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, Image. Drawn in: email, page.
 
 Props:
 - `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
@@ -486,8 +489,10 @@ Props:
 - `border`: *border*
 - `borderRadius`: *radius*
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
+- `alignSelf`: one of "start", "center", "end". Where it sits in its stack on phones, where that's another place than on desktop.
+- `verticalAlign`: one of "top", "middle". Where it sits in a line of text it's in.
 
-`mobile` (on phones): `width`, `maxWidth`, `border`.
+`mobile` (on phones): `width`, `maxWidth`, `border`, `alignSelf`.
 
 ### Divider
 
@@ -674,6 +679,7 @@ Props:
 - `href`: *link* (required)
 - `title`: text. Shown as a tooltip by mail clients and browsers that show one.
 - `aria-label`: text. What a screen reader says for it, where its text alone doesn't say enough ("Read more about pricing").
+- `attrs`: *attributes*. More attributes for it: a class, a `data-` attribute.
 
 `style`:
 - `color`: *color* (default `"#0000ee"`, inherited)

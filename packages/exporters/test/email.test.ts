@@ -738,4 +738,61 @@ describe("email HTML", () => {
       expect(text).toBe("Buy now");
     });
   });
+
+  describe("a Row whose children wrap as words do", () => {
+    const words = (style: Record<string, unknown> = {}) => render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "words", justifyContent: "center", lineHeight: "normal", ...style }, children: [{ type: "Text", style: { flex: "none" }, children: ["One"] }, { type: "Text", style: { flex: "none" }, children: ["Two"] }] }])).body;
+
+    it("has a real space between them, of the text's font and size, in every client but Outlook's table", () => {
+      const body = words({ letterSpacing: 2 });
+      expect(notOutlook(body)).toMatch(/<\/div> <div[^>]*display:inline-block/);
+      expect(body).toMatch(/<td align="center" style="font-family:Arial, Helvetica, sans-serif;font-size:16px;letter-spacing:2px;text-align:center">/);
+      expect(outlookOnly(body)).not.toContain(" </td>");
+    });
+
+    it("leaves a wrapping Row's children touching, in a cell of no text", () => {
+      const body = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap" }, children: [{ type: "Text", style: { flex: "none" }, children: ["One"] }, { type: "Text", style: { flex: "none" }, children: ["Two"] }] }])).body;
+      expect(body).toContain("font-size:0");
+      expect(notOutlook(body)).not.toMatch(/<\/div> <div/);
+    });
+  });
+
+  it("writes no line height where it's the font's own, and says nothing to Outlook about one", () => {
+    const { body } = render(email([{ type: "Text", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
+    expect(body).toContain('style="color:#000;font-family:Arial, Helvetica, sans-serif;font-size:14px;text-align:left"');
+    const { head } = render(email([{ type: "Text", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
+    expect(head).toContain("font-size:20px!important");
+    expect(head).not.toContain("line-height");
+  });
+
+  it("starts what's in a box of its own height at its top, as on a page", () => {
+    const { body } = render(email([{ type: "Column", style: { height: 40, padding: 1 }, children: [{ type: "Text", children: ["Words"] }] }]));
+    expect(body).toMatch(/<td height="40" valign="top"/);
+    expect(render(email([{ type: "Column", style: { padding: 1 }, children: [{ type: "Text", children: ["Words"] }] }])).body).not.toContain('valign="top"');
+  });
+
+  it("sets an Image in text in the line, by where it says; alone, as a block", () => {
+    const image = { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100, verticalAlign: "middle" } };
+    expect(render(email([{ type: "Text", children: [image] }])).body).toMatch(/<img[^>]*style="display:inline-block;vertical-align:middle/);
+    expect(render(email([{ ...image, style: { width: 100 } }])).body).toMatch(/<img[^>]*style="display:block;width/);
+  });
+
+  it("places an Image on phones by its margins, and gives a share of its cell on phones where it has a maximum", () => {
+    const { head } = render(email([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: "40%", maxWidth: 100 }, mobile: { alignSelf: "end", width: "80%", maxWidth: "80%" } }]));
+    expect(head).toContain("width:80%!important;max-width:80%!important;margin-left:auto!important;margin-right:0!important");
+  });
+
+  it("hides on phones at the width it's told, where its phone styles start at its own", () => {
+    const hidden = email([{ type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
+    const told = render(hidden, { hideBelow: 480 }).head;
+    expect(told).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{font-size:20px!important[^}]*\}\}@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
+    expect(render(hidden).head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{display:none!important\}\}/);
+    const onDesktop = render(email([{ type: "Text", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
+    expect(onDesktop).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:table-row!important\}\}/);
+  });
+
+  it("writes a Row's direction on its cell, and a Link's other attributes", () => {
+    const { body } = render(email([{ type: "Row", props: { stackOnMobile: false, dir: "ltr" }, style: { flexWrap: "wrap" }, children: [{ type: "Link", props: { href: { href: "" }, attrs: { target: "_top" } }, children: [{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 10 } }] }] }]));
+    expect(body).toContain('dir="ltr"');
+    expect(body).toMatch(/<a href="" target="_top"/);
+  });
 });

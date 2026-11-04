@@ -4,12 +4,15 @@
  * file's size is known.
  */
 import { assetParts, type Asset, type Json } from "@unlayer-internal/elements-core";
-import { h } from "../jsx";
+import { h, type Style } from "../jsx";
 import type { Component } from "./context";
 import { toNumber } from "./layout";
 import { hiding } from "./styles";
 
-export const Image: Component = ({ node, style, mobile, parent, fill }) => {
+/** Where it sits in its cell on phones: its margins (the cell's `align` is for desktop). */
+const PLACE: Record<string, Style> = { start: { marginLeft: 0, marginRight: "auto" }, center: { marginLeft: "auto", marginRight: "auto" }, end: { marginLeft: "auto", marginRight: 0 } };
+
+export const Image: Component = ({ node, style, mobile, parent, fill, inline }) => {
   const { src, width: fileWidth, height: fileHeight } = assetParts(node.props.src as Asset);
   const width = node.width ?? undefined;
   const height = style.height !== undefined ? toNumber(style.height) : undefined;
@@ -27,7 +30,8 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
     <img
       id={node.id}
       class={hidden.class}
-      phone={{ maxWidth: mobile.maxWidth ?? mobile.width }}
+      // (With a maximum, a share of its cell is its own on phones.)
+      phone={[{ width: mobile.maxWidth !== undefined ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]]}
       src={src}
       alt={(node.props.alt as string) ?? ""}
       title={node.props.title as string | undefined}
@@ -36,8 +40,10 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
       height={height ?? (width !== undefined && fileWidth && fileHeight ? Math.round((fileHeight * width) / fileWidth) : undefined)}
       border="0"
       style={[
-        { display: "block", width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? cap : (percent ?? width ?? "100%"), height: height ?? "auto", border: "0" },
+        // Among text it's in the line.
+        { display: inline ? "inline-block" : "block", verticalAlign: style.verticalAlign, width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? cap : (percent ?? width ?? "100%"), height: height ?? "auto", border: "0" },
         { border: style.border, borderRadius: style.borderRadius },
+        PLACE[style.alignSelf as string],
         hidden.style,
       ]}
     />

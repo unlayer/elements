@@ -91,6 +91,8 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
           phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
           bgcolor={bgcolor(style.backgroundColor)}
           height={height}
+          // What's in a box of its own height starts at its top, as on a page.
+          valign={height !== undefined ? "top" : undefined}
           style={{
             padding: style.padding,
             backgroundColor: style.backgroundColor,
