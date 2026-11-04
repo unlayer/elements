@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import React, { forwardRef, memo, useState } from "react";
-import { legacyRenderToHtml, renderToHtml } from "../utils/render-to-html";
+import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Html } from "../index";
 import { lines } from "./lines";
@@ -62,9 +62,7 @@ describe.each(Object.keys(PATTERNS))("%s", (name) => {
   it("renders the reviewed HTML and design", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      // Today's components' own HTML (the legacy renderer), and renderToHtml()'s, through the new engine (RFC 0001 step 7).
-      await expect(lines(legacyRenderToHtml(PATTERNS[name]()))).toMatchFileSnapshot(`__snapshots__/patterns/${name}.html`);
-      await expect(lines(renderToHtml(PATTERNS[name]()))).toMatchFileSnapshot(`__snapshots__/patterns/${name}.next.html`);
+      await expect(lines(renderToHtml(PATTERNS[name]()))).toMatchFileSnapshot(`__snapshots__/patterns/${name}.html`);
       await expect(`${JSON.stringify(renderToJson(PATTERNS[name]()), null, 1)}\n`).toMatchFileSnapshot(`__snapshots__/patterns/${name}.json`);
     } finally {
       warn.mockRestore();
