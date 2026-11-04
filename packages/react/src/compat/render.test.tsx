@@ -364,6 +364,16 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
+  it("hide on phones in an email at legacy's 480px, whatever its width, its columns still stacking at its width", () => {
+    const html = renderToHtml(<Email contentWidth="600px"><Row cells={[1, 1]}><Column><Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} /></Column><Column><Paragraph>Text</Paragraph></Column></Row></Email>);
+    expect(html).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
+    expect(html).toContain("@media (max-width: 620px)");
+  });
+
+  it("put an email service's tag back after reading the plain text: in a link's address, one reads as a tag of its own", () => {
+    expect(renderToPlainText(<Page><Row><Column><Menu items={[{ text: "Docs", href: "https://a.example/<%id%>" }]} /></Column></Row></Page>)).toContain("(https://a.example/<%id%>)");
+  });
+
   it("draw an image a template links as legacy links it", () => {
     const html = renderToHtml(<Page><Row><Column><Image src="https://example.com/a.png" alt="A" action={{ url: "#hero", target: "_self" } as never} /></Column></Row></Page>);
     expect(html).toMatch(/<a href="#hero" target="_self"[^>]*>\s*<img[^>]*alt="A"/);

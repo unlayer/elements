@@ -168,8 +168,105 @@ describe("a menu block", () => {
     ]);
   });
 
-  it("keeps its legacy HTML in an email, whose lines are the font's own height", () => {
-    expect(lowered(menu)?.type).toBe("Raw");
+  const row = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+
+  it("is in an email its links and separators a word space apart, on lines of the font's own height, separators left out on phones", () => {
+    const line = row(lowered(menu));
+    expect(line).toMatchObject({ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "words", lineHeight: "normal", justifyContent: "center" } });
+    expect((line.children as TreeNode[]).map((c) => c.hidden)).toEqual([undefined, { mobile: true }, undefined]);
+    expect(lowered(<Menu items={[{ text: "Docs", href: "https://a.example" }]} letterSpacing="2px" />)?.children?.[0]).toMatchObject({ style: { letterSpacing: 2 } });
+  });
+
+  it("is in a printed document on lines of the font's own height, its separators always there", () => {
+    const line = row(lowered(menu, Document as Root));
+    expect(line.style).toMatchObject({ flexWrap: "wrap", lineHeight: "normal" });
+    expect((line.children as TreeNode[])[1].hidden).toBeUndefined();
+    expect(row(lowered(menu, Page)).style?.lineHeight).toBeUndefined();
+  });
+
+  it("draws as its own markup does where it says it's another output's: a page's in an email has no word spaces, an email's on a page a gap as wide", () => {
+    expect(row(lowered(<Menu items={[{ text: "A", href: "https://a.example" }]} mode="web" />)).style?.flexWrap).toBe("wrap");
+    expect(row(lowered(<Menu items={[{ text: "A", href: "https://a.example" }]} mode="email" />, Page)).style).toMatchObject({ flexWrap: "wrap", gap: 4.45 });
+  });
+
+  it("is vertical its links one under another, no separators", () => {
+    const node = lowered(<Menu layout="vertical" align="left" separator="|" items={[{ text: "Docs", href: "https://a.example" }, { text: "Blog", href: "https://b.example" }]} />, Page);
+    expect((node?.children as TreeNode[]).map((c) => [c.type, c.style?.textAlign, (c.children?.[0] as TreeNode).type])).toEqual([["Text", "left", "Link"], ["Text", "left", "Link"]]);
+  });
+
+  it("with no items has its padding and nothing in it", () => {
+    expect(lowered(<Menu items={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+  });
+
+  it("says items that aren't a list, and draws none", () => {
+    const { node, said } = drawn(<Menu values={{ menu: { items: "Docs" } } as never} />, Page);
+    expect(node?.children).toEqual([]);
+    expect(said).toEqual(['A menu\'s items "Docs" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("is drawn without what can't be read, as CSS draws a value it can't read, each said", () => {
+    const { node, said } = drawn(<Menu values={{ fontSize: "big", fontWeight: "heavy", letterSpacing: "wide", padding: "lots", containerPadding: "lots", align: "middle", menu: { items: [{ text: "Docs", link: { name: "web", values: { href: "https://a.example" } } }] } } as never} />, Page);
+    expect(node?.style).toEqual({});
+    const item = (row(node).children as TreeNode[])[0];
+    expect(item.style).toEqual({ flex: "none" });
+    expect(row(node).style?.justifyContent).toBe("start");
+    expect(said.map((message) => /menu's (.+?) "/.exec(message)?.[1])).toEqual(["links' padding", "padding", "font size", "font weight", "letter spacing", "alignment"]);
+  });
+
+  it("draws a color the new engine refuses without it, and says so", () => {
+    const { node, said } = drawn(<Menu items={[{ text: "A", href: "https://a.example" }]} linkColor="notacolor" />, Page);
+    expect(((row(node).children as TreeNode[])[0].children as TreeNode[])[0].style).toEqual({ textDecoration: "none" });
+    expect(said.join()).toContain("notacolor");
+  });
+
+  it("takes on a page's phones its links' size and padding and the block's padding; says what can't be read", () => {
+    const node = lowered(<Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} mobile={{ fontSize: "20px", padding: "1px 2px", containerPadding: "30px" } as never} />, Page);
+    expect(node?.mobile).toEqual({ padding: { top: 30, right: 30, bottom: 30, left: 30 } });
+    for (const child of row(node).children as TreeNode[]) expect(child.mobile).toEqual({ fontSize: 20, padding: { top: 1, right: 2, bottom: 1, left: 2 } });
+    expect(drawn(<Menu items={[{ text: "A", href: "https://a.example" }]} mobile={{ fontSize: "big" } as never} />, Page).said).toEqual(['A menu\'s font size on phones "big" can\'t be read: it\'s drawn without it.']);
+  });
+
+  const items = (list: unknown[]) => ({ menu: { items: list } }) as never;
+
+  it("draws an item with no URL in the text's color: a link to nothing in a page's markup, plain text in an email's", () => {
+    const plain = (Root: Root) => (row(lowered(<Menu values={items([{ text: "Plain" }])} textColor="#123456" />, Root)).children as TreeNode[])[0];
+    expect(plain(Page).children).toEqual([{ type: "Link", props: { href: { href: "" } }, style: { color: "#123456", textDecoration: "none" }, children: ["Plain"] }]);
+    expect(plain(Email)).toMatchObject({ style: { color: "#123456" }, children: ["Plain"] });
+    // A link of another kind with no URL opens as it says.
+    const phone = (row(lowered(<Menu values={items([{ text: "Call", link: { name: "phone", values: { phone: "+1" } } }])} />, Page)).children as TreeNode[])[0];
+    expect((phone.children as TreeNode[])[0].props).toEqual({ href: { href: "", target: "_blank" } });
+  });
+
+  it("links an item of another kind where it has a URL, and shows what's in an item that isn't text", () => {
+    const [mail, number] = row(lowered(<Menu values={items([{ text: "Mail", link: { name: "email", attrs: { href: "mailto:hi@example.com" }, values: { email: "hi@example.com" } } }, { text: 7, link: { name: "web", values: { href: "https://a.example" } } }])} />, Page)).children as TreeNode[];
+    expect((mail.children as TreeNode[])[0].props).toEqual({ href: { href: "mailto:hi@example.com", target: "_blank" } });
+    expect((number.children as TreeNode[])[0].children).toEqual(["7"]);
+  });
+
+  it("keeps an item with no text as its padding, its link empty; says an item that's nothing", () => {
+    const { node, said } = drawn(<Menu values={items([{ link: { name: "web", values: { href: "https://a.example" } } }, null, { text: "A", link: { name: "web", values: { href: "https://b.example" } } }])} />, Page);
+    const children = row(node).children as TreeNode[];
+    expect(children).toHaveLength(2);
+    expect((children[0].children as TreeNode[])[0]).toMatchObject({ type: "Link", children: [] });
+    expect(said).toEqual(["A menu's item null can't be read: it's drawn without it."]);
+  });
+
+  it("keeps entity references and an email service's tags as written in an email's markup, in plain text as its markup reads", () => {
+    const html = (Root: Root) => renderToHtml(<Root><Row><Column><Menu items={[{ text: "Shop &rarr; <%first%>", href: "https://a.example/<%id%>" }]} /></Column></Row></Root>);
+    expect(html(Email)).toContain("Shop &rarr; <%first%>");
+    expect(html(Email)).toContain('href="https://a.example/<%id%>"');
+    expect(html(Page)).toContain("Shop &amp;rarr; &lt;%first%&gt;");
+    const reading = (Root: Root) => lowered(<Menu separator="|" items={[{ text: "A", href: "https://a.example" }, { text: "B", href: "https://b.example" }]} />, Root)?.textAs;
+    expect(reading(Email)?.type).toBe("Column");
+    expect(reading(Email)?.children).toHaveLength(3);
+    expect(reading(Page)?.type).toBe("Paragraph");
+  });
+
+  it("is laid out left to right in a template written right to left, as legacy's", () => {
+    const element = (Root: Root) => <Root textDirection="rtl"><Row><Column><Menu items={[{ text: "A", href: "https://a.example" }]} /></Column></Row></Root>;
+    const result = (Root: Root) => withRenderScope(() => lowerTemplate(element(Root), undefined, "renderToHtml")) as Lowered;
+    expect(JSON.stringify(result(Page).tree)).toContain('"dir":"ltr"');
+    expect(JSON.stringify(lowered(menu, Page))).not.toContain('"dir"');
   });
 });
 
