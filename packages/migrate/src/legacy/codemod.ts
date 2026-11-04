@@ -23,7 +23,12 @@ function withoutEscaping(code: string): string {
   const source = `(${code})`;
   const file = ts.createSourceFile("value.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const written = (node: ts.Node): string => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text) && node.arguments.length === 1) return written(node.arguments[0]);
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && /^\w*(?:htmlText|escapeHtml)\w*$/i.test(node.expression.text) && node.arguments.length === 1) {
+      const [value] = node.arguments;
+      // What the call held together stays together: `escapeHtml(a || b) + c` isn't `a || b + c`.
+      const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
+      return alone ? written(value) : `(${written(value)})`;
+    }
     let out = "";
     let at = node.getStart(file);
     node.forEachChild((child) => {

@@ -21,6 +21,14 @@ const syntaxErrors = (code: string, fileName: string) =>
   (ts.transpileModule(code, { fileName, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve, allowJs: true } }).diagnostics ?? []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 
 describe("migrateElements", () => {
+  it("takes a value in markup out of the call that escapes it, keeping what the call held together", async () => {
+    const { code } = await migrate('export const T = ({ name }) => <Email><Row><Column><Paragraph html={`<b>${escapeHtml(name || "Guest") + ", welcome"}</b> ${htmlText(name)} ${escapeHtml(a ? b : c)}`} /></Column></Row></Email>;');
+    expect(code).toContain('(name || "Guest") + ", welcome"');
+    expect(code).toContain("{name}");
+    expect(code).toContain("{a ? b : c}");
+    expect(code).not.toMatch(/htmlText|escapeHtml/);
+  });
+
   it("writes a radius as the new components take it, keeps links from code, and a Button's new window", async () => {
     const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, Button } from "@unlayer/react-elements";
 export const T = ({ url }: { url: string }) => (
