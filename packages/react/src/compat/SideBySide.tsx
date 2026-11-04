@@ -1,7 +1,7 @@
 import type { StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { Email, Page, render } from "../primitives/index";
-import { legacyRenderToHtml } from "../utils/render-to-html";
+import { renderToHtml } from "../utils/render-to-html";
 
 /**
  * The window each render is shown in: an email client's on a desktop, or a phone's. The desktop one has room for
@@ -119,7 +119,7 @@ export const compare = (design: Design): StoryObj<Args> => ({
   loaders: [
     async ({ args }) => {
       const next = await render(args.quirks && design.nextAsMain ? design.nextAsMain : design.next);
-      return { main: legacyRenderToHtml(design.main), next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
+      return { main: renderToHtml(design.main), next: next.html, notes: next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`) };
     },
   ],
   render: ({ width, quirks }, { loaded }) => (

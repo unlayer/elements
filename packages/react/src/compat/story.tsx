@@ -1,6 +1,6 @@
 /**
- * Stories of today's components (their Storybook modules), each rendered both ways: as today's components render it
- * (legacyRenderToHtml), and through the new engine, as renderToHtml() renders it. The comparison gate
+ * Stories of today's components (their Storybook modules), each rendered both ways: both are the new engine's now, so
+ * this and its comparison stories have nothing left to compare and are going. The comparison gate
  * (scripts/storybook-compare.mjs) checks each pair draws the same, at desktop and phone widths.
  *
  * A story is its template where it renders one (a root, a template component, a provider around one, a live preview
@@ -12,7 +12,7 @@ import type { StoryObj } from "@storybook/react-vite";
 import React, { type ReactElement } from "react";
 import { Column, Email, Page, Row } from "../index";
 import { UNLAYER_CONFIG_KEY } from "../utils/create-component";
-import { legacyRenderToHtml } from "../utils/render-to-html";
+import { renderToHtml } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import { renderThroughNewEngine } from "./render";
 import { SideBySide, type Width } from "./SideBySide";
@@ -127,8 +127,7 @@ export const shadowOf = (template: () => ReactElement, allowance?: Allowance, fi
   loaders: [
     async () => {
       const next = withRenderScope(() => renderThroughNewEngine(template(), undefined, "renderToHtml"));
-      if (!next) throw new Error("Only a template with a root (Email, Page, Document, Body) renders through the new engine");
-      const main = withFixes(legacyRenderToHtml(template()), fixes);
+      const main = withFixes(renderToHtml(template()), fixes);
       const accepted = fixes.map((fix) => `Main drawn with a fix accepted over it: ${fix.why}`);
       return { main, next: next.html, notes: [...next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`), ...accepted] };
     },

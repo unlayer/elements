@@ -1,8 +1,7 @@
 /**
  * renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine (RFC 0001 step 7, decision 13):
  * a template of today's components lowered into the new engine's tree (template.ts) and written by its writers. The
- * HTML is the new engine's; what a reader gets is legacy's. Undefined where the template renders as today: a root
- * that isn't one of today's (a block on its own).
+ * HTML is the new engine's; what a reader gets is legacy's.
  */
 import React from "react";
 import { renderToStaticMarkup } from "../utils/server-renderer";
@@ -49,13 +48,12 @@ const PREVIEW = /^<div style="display:none;max-height:0;overflow:hidden;mso-hide
 const DIVIDER = /<hr\b[^>]*style="[^"]*border:0;border-top:[^"]*"[^>]*>/g;
 
 /**
- * A template rendered through the new engine; undefined where it renders as today. `name` is the API's, for messages.
- * Called inside a render's scope.
+ * A template rendered through the new engine, or says why it can't be (template.ts's `templateRoot`). `name` is the
+ * API's, for messages. Called inside a render's scope.
  */
-export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string): Rendered | undefined {
+export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string): Rendered {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   const lowered = lowerTemplate(element, config, name);
-  if (!lowered) return undefined;
   const rootProps = (lowered.root.props ?? {}) as { lang?: string; fonts?: Array<{ url: string }> };
   const lang = optionLang ?? rootProps.lang;
   const { root } = lowered.tree;
@@ -71,8 +69,8 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const fonts = [...(rootProps.fonts ?? []), ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
   const links = fonts.map((font) => `<link href="${attribute(font.url)}" rel="stylesheet" type="text/css">`).join("");
   // What today's head functions add for blocks that keep their legacy HTML (a custom tool's script and tags).
-  const js = lowered.legacyHead?.js ?? "";
-  const tags = lowered.legacyHead?.tags ?? [];
+  const js = lowered.head?.js ?? "";
+  const tags = lowered.head?.tags ?? [];
   const extra = [
     tags.join("\n"),
     js ? `<script type="application/javascript">\n${js}\n</script>` : "",
@@ -86,7 +84,10 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">',
     () => ""
   );
-  const html = restore(extra.length ? shell.replace("</head>", () => `${extra.join("\n")}</head>`) : shell);
+  const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };
+  const hosted = (markup: string) => renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: markup }, className, style }));
+  const withHost = lowered.bare && (className || style) ? shell.replace(result.body, () => hosted(result.body)) : shell;
+  const html = restore(extra.length ? withHost.replace("</head>", () => `${extra.join("\n")}</head>`) : withHost);
 
   // The parts: the stylesheet with the body's own style (an app's page embedding them takes the template's margin and
   // background, as legacy's head gave them), the script and the tags; the body.
@@ -98,14 +99,14 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const text = () => restore(htmlToPlainText(renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, "")));
   // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
   // document (a page's has none).
-  const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };
   const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
-  const inner = restore(lowered.mode === "web" ? result.body : `\n${bodyTag}${result.body}</body>\n`);
-  const body = renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: inner }, className, style }));
+  const framed = (content: string) => restore(lowered.mode === "web" ? content : `\n${bodyTag}${content}</body>\n`);
   return {
     html,
     head,
-    body,
+    get body() {
+      return hosted(framed(result.body));
+    },
     css,
     js,
     tags,

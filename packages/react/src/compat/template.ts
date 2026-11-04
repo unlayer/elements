@@ -2,46 +2,71 @@
  * A template of today's components as the new engine's tree (RFC 0001 step 7): its design lowered (lower.ts), each
  * block in the new components, by its tool (blocks/). What the new engine can't read of a block is said instead, and a
  * tool may write HTML no node holds as a Raw node of its own. A Raw node of a custom tool, an Html block or a user's own
- * markup holds that HTML in its box (contentBox), with what its head needs from the blocks themselves: nothing of the
- * closed exporters runs. Any other Raw node holds the HTML its exporter writes and the legacy stylesheet; only those
- * blocks are written by today's exporters. What the template holds beside its design (markup among its rows, text in a
- * row or a column) is in the tree where legacy draws it.
+ * markup holds that HTML in its box (contentBox), with what its head needs from the blocks themselves. What the template
+ * holds beside its design (markup among its rows, text in a row or a column) is in the tree where legacy draws it.
  */
 import React from "react";
 import { checkDocument, type Diagnostic } from "@unlayer-internal/elements-core";
-import { htmlToPlainText, mergeValues, validateColumnLayout, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG, htmlToPlainText, mergeValues, validateColumnLayout, type RenderMode, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
-import { safeMeta, UNLAYER_CONFIG_KEY } from "../utils/create-component";
+import { safeMeta, textDirectionOf, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { amongRows, blockWithoutMarkers, KEPT, normalizedRoot } from "../utils/normalize";
 import { looseText } from "../utils/render-scope";
-import { recordingBlockHtml } from "../utils/block-html";
-import { extractHeadFromTree, writesOpenHtml } from "../utils/extract-head";
-import { renderBody, resolveConfig, resolveDisplayMode } from "../utils/render-to-html";
+import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
-import { getDisplayName, ROOT_NAMES } from "../utils/unwrap-root";
-import { htmlRoot } from "../utils/unwrap-root";
+import { callIsolated, getDisplayName, htmlRoot, isElementsType, ROOT_NAMES } from "../utils/unwrap-root";
 import Body from "../components/Body";
+import Column from "../components/Column";
 import Document from "../components/Document";
 import Email from "../components/Email";
 import Page from "../components/Page";
+import Row from "../components/Row";
 import { BLOCKS } from "./blocks";
 import { ownMarkupCss } from "./quirks";
 import { keepServiceTags } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
-/** This copy's root components. */
-const OWN_ROOTS = new Set<unknown>([Body, Email, Page, Document]);
+/** Whether a type is one of this copy's root components. */
+const isOwnRoot = (type: unknown) => type === Body || type === Email || type === Page || type === Document;
+
+// Email/Page/Document lock their render mode internally (they render <Body mode="...">), so the top-level element's own
+// props never carry it. Each wrapper's mode, so the document always matches what the body rendered as.
+const MODE_BY_WRAPPER: Record<string, RenderMode> = { Email: "email", Page: "web", Document: "document" };
+
+/** A template's direction follows its root props; explicit renderer options still win. */
+function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
+  const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
+  const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
+  return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
+}
+
+/** A tree's output: its wrapper's (Email, Page, Document), then an explicit `mode` prop (Body), then the config's. */
+function resolveDisplayMode(element: React.ReactElement, merged: Partial<UnlayerConfig>): RenderMode {
+  return MODE_BY_WRAPPER[getDisplayName(element) ?? ""] ?? (element.props as { mode?: RenderMode }).mode ?? merged.mode ?? "web";
+}
+
+/** Where a template is drawn, when it's not a document of its own. */
+export interface InReact {
+  /** Rendered by React into a page of someone else's (a root's or a piece's own render): the page's margin and background are theirs, and its class names can't meet another's. */
+  embedded?: boolean;
+  /** A Row, Column or block on its own, its markup alone. */
+  piece?: boolean;
+  /** What its body would have given a piece on its own (its `bodyValues`). */
+  body?: Record<string, any>;
+}
 
 export interface Lowered {
-  /** The template's root, as it renders (a template component called). */
+  /** The template's root, as it renders (a template component called; for a piece on its own, the root it's given). */
   root: React.ReactElement;
+  /** A piece on its own: its host <div> (its className and style) is its own markup, in a document too. */
+  bare: boolean;
   /** The template as the new engine's tree. */
   tree: { root: TreeNode };
   mode: Mode;
   config: Partial<UnlayerConfig>;
   /** What the head has for the Raw blocks that need it (custom tools' scripts and tags). */
-  legacyHead: { css: string; js: string; tags: string[] } | undefined;
+  head: { css: string; js: string; tags: string[] } | undefined;
   /** What's drawn otherwise than the template asks, of its frame and its blocks. */
   diagnostics: Diagnostic[];
   /** The email service's tags the tree holds as marks (values.ts), which go back into what's written. */
@@ -55,29 +80,57 @@ const STRAYS: Strays = {
 };
 
 /**
- * A template of today's components as the new engine's tree: undefined where its root isn't one of today's (a block
- * on its own, a component that doesn't return one). Called inside a render's scope.
+ * A template's root: what its element comes to, for a piece on its own (a Row, a Column, a block, what a component
+ * returns that isn't a root) a root around it. Says why where it can't be drawn: markup isn't a template, and a root of
+ * another copy of this package can't be read by this one.
  */
-export function lowerTemplate(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined, name: string): Lowered | undefined {
-  const root = htmlRoot(element, name);
-  if (!ROOT_NAMES.has(getDisplayName(root) ?? "")) return undefined;
-  // Another copy of this package's components (a tool that loads templates with one of its own): they collect and
-  // render themselves, which this copy's lowering can't read; it renders as today, through them.
-  if (!OWN_ROOTS.has(root.type)) return undefined;
+function templateRoot(element: React.ReactElement, name: string, config: Partial<UnlayerConfig> | undefined, inReact: InReact): { root: React.ReactElement; given?: boolean; wide?: boolean } {
+  const found = htmlRoot(element, name) as React.ReactElement<any>;
+  const display = getDisplayName(found) ?? "";
+  if (ROOT_NAMES.has(display)) {
+    if (isOwnRoot(found.type)) return { root: found, given: true };
+    // A function of the user's own named after a root, around one of this copy's, is called like any template.
+    const type = found.type as unknown as { (props: unknown): unknown; prototype?: { isReactComponent?: unknown } };
+    const inside = typeof type === "function" && !type.prototype?.isReactComponent ? callIsolated(() => type({ ...found.props })) : undefined;
+    if (React.isValidElement(inside) && isOwnRoot(inside.type)) return { root: inside, given: true };
+    throw new Error(`[Unlayer] ${name}: this <${display}> is from another copy of @unlayer/react-elements, which this one can't read. Import the component and ${name} from the same copy (\`npm ls @unlayer/react-elements\` shows a duplicate install).`);
+  }
+  if (typeof found.type === "string") throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. Put your markup in an <Html> block in one: <Email><Row><Column><Html html="…" /></Column></Row></Email>.`);
+  // What it's in has its own background, where it's in something.
+  const { className, style } = found.props;
+  const body = (values?: Record<string, unknown>) => ({ mode: found.props.mode ?? config?.mode, className, style, values: { ...inReact.body, ...(inReact.piece ? { backgroundColor: "" } : {}), ...values } });
+  if (display === "Row") return { root: React.createElement(Body, body(), found) };
+  // A Column or block on its own is where it's put, not in a content width of its own.
+  const alone = (content: React.ReactNode, values?: Record<string, unknown>) => ({ root: React.createElement(Body, body({ contentAlign: "left", ...values }), React.createElement(Row, found.props.cells ? { cells: found.props.cells } : null, content)), wide: true });
+  if (display === "Column") return alone(found);
+  // A block has no box of its own (a Column gives it its padding), and it's in the font of what it's in.
+  if (isElementsType(found.type)) return alone(React.createElement(Column, null, React.cloneElement(found, { containerPadding: "0px" })), { fontFamily: { label: "", value: "" } });
+  // What holds neither (nothing, Rows in a list or a provider).
+  return { root: React.createElement(Body, body(), found) };
+}
+
+/**
+ * A template of today's components as the new engine's tree, or says why it can't be: see `templateRoot`. Called inside
+ * a render's scope.
+ */
+export function lowerTemplate(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined, name: string, inReact: InReact = {}): Lowered {
+  const { root, given, wide } = templateRoot(element, name, config, inReact);
   const merged = resolveConfig(root, config);
   const mode = resolveDisplayMode(root, merged) as Mode;
-  const design = collectedDesign(normalizedRoot(root), STRAYS) as unknown as { body: Record<string, any> };
-  const { blocks: sources, body, rows } = blockSources(root);
+  const collected = normalizedRoot(root);
+  const design = collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> };
+  const shape = { wide };
+  const { blocks: sources, body, rows } = blockSources(collected);
   // A Row whose Columns don't fit its layout: today's Body says so and renders without its rows (a mailer that never
   // expected renderToHtml to throw would fail).
-  const unfit = layoutThatDoesNotFit(root);
+  const unfit = layoutThatDoesNotFit(collected);
   if (unfit) {
     console.error("Body: Failed to render children:", unfit);
-    const { root: empty, diagnostics } = lowerDesign({ body: { ...design.body, rows: [] } }, { mode, config: merged, block: () => null });
-    return { root, tree: { root: empty }, mode, config: merged, legacyHead: undefined, diagnostics: [...diagnostics, { code: "compat/layout", severity: "warning", message: `${unfit.message}: the body has no rows`, path: "body.rows" }], tags: [] };
+    const { root: empty, diagnostics } = lowerDesign({ body: { ...design.body, rows: [] } }, { mode, config: merged, ...shape, block: () => null });
+    return { root, bare: !given, tree: { root: empty }, mode, config: merged, head: undefined, diagnostics: [...diagnostics, { code: "compat/layout", severity: "warning", message: `${unfit.message}: the body has no rows`, path: "body.rows" }], tags: [] };
   }
   // Today's Body gives what's among its rows these (a block or a Column there is rendered as it renders it).
-  const place = (child: React.ReactElement) => React.cloneElement(child as React.ReactElement<any>, { _config: { ...merged, mode, __ids: {} }, bodyValues: body });
+  const place = (child: React.ReactElement) => React.cloneElement(child as React.ReactElement<any>, { _config: { ...merged, mode }, bodyValues: body });
   const outside: OutsideTheDesign = { among: amongRows((root.props as { children?: React.ReactNode }).children, place), rows };
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
@@ -88,6 +141,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const { root: lowered, diagnostics: ofFrame } = lowerDesign(design, {
     mode,
     config: merged,
+    ...shape,
     outside,
     block: (block, place) => {
       const n = next++;
@@ -117,32 +171,29 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   });
   const tree = { root: lowered };
   const diagnostics = [...ofFrame, ...ofBlocks];
-  if (!raw.size) return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: undefined, diagnostics, tags };
+  if (!raw.size) return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head: undefined, diagnostics, tags };
   // Each is written here, once the template is lowered.
-  const closed = new Set<number>();
   const { children } = root.props as { children?: React.ReactNode };
   for (const n of raw.keys()) {
     if (html.has(n)) continue;
     const source = sources[n];
-    if (!source || !writesOpenHtml(source.element.type)) closed.add(n);
-    else html.set(n, blockWithoutMarkers(children, writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode }) ?? ""));
+    html.set(n, blockWithoutMarkers(children, writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode }) ?? ""));
   }
-  if (closed.size) recordingBlockHtml((n) => closed.has(n), (n, written) => html.set(n, written), () => renderBody(root, config, name));
-  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig, open: !closed.size });
+  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig, open: true });
   // (A printed document's own markup CSS is on its root.)
-  const css = closed.size || mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
+  const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
   for (const [n, node] of raw) {
     const written = html.get(n) ?? "";
     // In a printed document, legacy's text is in the font's own line height ("normal"), where a page's root has 1.5.
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
     node.props = { html: markup, css: [css, node.props?.css].filter(Boolean).join("\n"), text: htmlToPlainText(written) };
   }
-  return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: head, diagnostics, tags };
+  return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head, diagnostics, tags };
 }
 
 /** What's wrong with the layout of a Row whose Columns don't fit it. */
-function layoutThatDoesNotFit(root: React.ReactElement): Error | undefined {
-  for (const row of React.Children.toArray((normalizedRoot(root).props as { children?: React.ReactNode }).children)) {
+function layoutThatDoesNotFit(collected: React.ReactElement): Error | undefined {
+  for (const row of React.Children.toArray((collected.props as { children?: React.ReactNode }).children)) {
     if (!React.isValidElement(row) || getDisplayName(row) !== "Row") continue;
     const { layout, children } = row.props as { layout?: Parameters<typeof validateColumnLayout>[0]; children?: React.ReactNode };
     if (!layout) continue;
@@ -231,7 +282,7 @@ interface BlockSource {
  * Each block of the template, in the design's order (rows, their columns, their blocks, as renderToJson walks the same
  * collected template), and the body's values.
  */
-function blockSources(root: React.ReactElement): { blocks: BlockSource[]; body: Record<string, any>; rows: OutsideTheDesign["rows"] } {
+function blockSources(collected: React.ReactElement<any>): { blocks: BlockSource[]; body: Record<string, any>; rows: OutsideTheDesign["rows"] } {
   const out: BlockSource[] = [];
   const rows: OutsideTheDesign["rows"] = [];
   // What's in a Row or a Column that isn't one of its children in the design, as today's Row and Column write it.
@@ -241,7 +292,6 @@ function blockSources(root: React.ReactElement): { blocks: BlockSource[]; body: 
   const counts: Record<string, number> = {};
   const nextId = (prefix: string) => `${prefix}_${(counts[prefix] = (counts[prefix] ?? 0) + 1)}`;
   const mapped = (element: React.ReactElement<any>, defaults: any, name: string) => mapSemanticProps<Record<string, any>>(extractSemanticProps(element.props), defaults, name);
-  const collected = normalizedRoot(root);
   const bodyValues = mergeValues<Record<string, any>>(BODY_DEFAULTS as Record<string, any>, mapped(collected, BODY_DEFAULTS, "Body"));
   for (const row of elements(collected.props.children)) {
     if (getDisplayName(row) !== "Row") continue;

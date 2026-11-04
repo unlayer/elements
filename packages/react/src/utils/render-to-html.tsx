@@ -1,102 +1,22 @@
 import React from "react";
-import { renderToStaticMarkup } from "./server-renderer";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
-import { htmlToPlainText } from "@unlayer-internal/shared-elements";
-import type { RenderMode } from "@unlayer-internal/shared-elements";
-import { extractHeadFromTree } from "./extract-head";
-import { htmlRoot } from "./unwrap-root";
-import { normalizedRoot } from "./normalize";
 import { withRenderScope } from "./render-scope";
 import { renderThroughNewEngine, type Rendered } from "../compat/render";
-import { textDirectionOf } from "./create-component";
-import {
-  emailLayout,
-  webLayout,
-  documentLayout,
-  type DocumentLayoutArgs,
-} from "./document-layouts";
-
-// Email/Page/Document lock their render mode internally (they render
-// <Body mode="...">), so the top-level element's own props never carry it.
-// Map wrapper displayName → mode so head extraction and the document layout
-// always match what the body actually rendered as.
-const MODE_BY_WRAPPER: Record<string, RenderMode> = {
-  Email: "email",
-  Page: "web",
-  Document: "document",
-};
-
-/** A template's direction follows its root props; explicit renderer options still win. */
-export function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
-  const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
-  const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
-  return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
-}
 
 /**
- * Resolve the display mode for a tree: wrapper component type first
- * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
+ * A template through the new engine: what fails is said with the API that failed and what to check, and what's already
+ * said so (a template that isn't one) as it is.
  */
-export function resolveDisplayMode(
-  element: React.ReactElement,
-  mergedConfig: Partial<UnlayerConfig>
-): RenderMode {
-  const displayName = (element.type as { displayName?: string })?.displayName;
-  const wrapperMode = displayName ? MODE_BY_WRAPPER[displayName] : undefined;
-  return (
-    wrapperMode ??
-    (element.props as { mode?: RenderMode }).mode ??
-    mergedConfig.mode ??
-    "web"
-  );
-}
-
-/**
- * Render the element tree to body markup (no document shell).
- *
- * - Passes merged config via the `config` prop (no React context — works in
- *   Server Components)
- * - Uses `renderToStaticMarkup` — no React hydration markers
- */
-export function renderBody(
-  element: React.ReactElement,
-  config?: Partial<UnlayerConfig>,
-  name = "renderToHtml"
-): string {
-  const mergedConfig = resolveConfig(element, config);
-
-  try {
-    // Pass config via prop (not context) so this works in React Server Components.
-    // Body reads `config` prop and threads it as `_config` to children via cloneElement.
-    const enriched = React.cloneElement(element, { config: mergedConfig });
-    return renderToStaticMarkup(enriched);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `[Unlayer] ${name} failed: ${message}\n` +
-        `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
-    );
-  }
-}
-
-/**
- * Strip the outer `<div>` wrapper that Body's renderer adds around the
- * exporter output, leaving the raw body markup for document assembly.
- */
-function stripOuterDiv(html: string): string {
-  const match = html.match(/^\s*<div[^>]*>([\s\S]*)<\/div>\s*$/);
-  return match ? match[1] : html;
-}
-
-/** Minimal escaping for text interpolated into HTML (title, font URLs). */
-function escapeForHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function throughNewEngine<T>(element: React.ReactElement, options: RenderToHtmlOptions | undefined, name: string, read: (result: Rendered) => T): T {
+  return withRenderScope(() => {
+    try {
+      return read(renderThroughNewEngine(element, options, name));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("[Unlayer]")) throw error;
+      throw Object.assign(new Error(`[Unlayer] ${name} failed: ${message}\nTip: Ensure your tree uses Body > Row > Column > Item structure.`), { cause: error });
+    }
+  });
 }
 
 /**
@@ -116,26 +36,21 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
 }
 
 /**
- * Renders an Unlayer element tree to a complete HTML document — from
- * `<!DOCTYPE ...>` to `</html>` — matching the editor's exportHtml layouts.
- *
- * Per-mode document shells (mirroring the editor's layout templates):
- * - `email`: XHTML transitional doctype, VML/Office namespaces, and the MSO
- *   conditional comments Outlook needs
- * - `web`: HTML5 doctype with standard viewport/charset meta tags
- * - `document`: XHTML transitional doctype for print/PDF pipelines
+ * Renders an Unlayer element tree to a complete HTML document, from
+ * `<!DOCTYPE html>` to `</html>`, for its output: an email (tables, with the
+ * conditional comments Outlook needs), a page, or a printed document.
  *
  * Use {@link renderToHtmlParts} instead when your app owns the document
  * shell and only needs the head/body chunks.
  *
  * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`), or a
- *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`).
- *   A template is called in a render of its own to reach its root (its hooks work); a class
- *   component, or one that doesn't return an element, renders without its root's settings,
- *   with a warning.
+ *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`/a
+ *   class). A template is called in a render of its own to reach its root (its hooks work). A
+ *   Row, Column or block on its own, or Rows in a list, get a root around them.
  * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
  * @returns Complete HTML document string
- * @throws {Error} If rendering fails, with a helpful message
+ * @throws {Error} If rendering fails, or `element` isn't a template (plain markup, a root of
+ *   another copy of this package, a root inside other markup), with a helpful message
  *
  * @example
  * ```tsx
@@ -152,110 +67,7 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  return withRenderScope(() => throughNewEngine(element, options, "renderToHtml")?.html ?? htmlDocument(element, options));
-}
-
-/**
- * renderToHtml(), renderToHtmlParts() and renderToPlainText() as today's components render them, without the new
- * engine: what a root that isn't one of today's renders as, and what the new engine's output is compared with.
- */
-export function legacyRenderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions): string {
-  return withRenderScope(() => htmlDocument(element, options));
-}
-
-export function legacyRenderToHtmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
-  return withRenderScope(() => htmlParts(element, config));
-}
-
-export function legacyRenderToPlainText(element: React.ReactElement, config?: Partial<UnlayerConfig>): string {
-  return htmlToPlainText(withRenderScope(() => legacyBodyHtml(element, config)));
-}
-
-/** The body's HTML legacy's plain text is made from. */
-function legacyBodyHtml(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined): string {
-  const root = htmlRoot(element, "renderToPlainText");
-  // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
-  // empty text (Body leaves out what fails, for a live preview).
-  normalizedRoot(root);
-  return renderBody(root, config, "renderToPlainText");
-}
-
-/**
- * A template rendered through the new engine (RFC 0001 step 7): its HTML is the new engine's, what a reader gets is
- * today's. Undefined where it renders as today: a root that isn't one of today's (a block on its own), or a template
- * that fails to render, which today's render then reports as it does.
- */
-function throughNewEngine(element: React.ReactElement, options: RenderToHtmlOptions | undefined, name: string): Rendered | undefined {
-  try {
-    return renderThroughNewEngine(element, options, name);
-  } catch {
-    return undefined;
-  }
-}
-
-/** A template's plain text through the new engine (another render of it, guarded as the first is). */
-function throughNewEngineText(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined): string | undefined {
-  try {
-    return throughNewEngine(element, config, "renderToPlainText")?.text;
-  } catch {
-    return undefined;
-  }
-}
-
-/** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
-function styleText(css: string): string {
-  return css.replace(/<\/(style)/gi, "<\\/$1");
-}
-
-function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
-  const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
-  // A template component (<Welcome/>) renders as its root, whose settings follow.
-  element = htmlRoot(element, "renderToHtml");
-  // The root's own `fonts` prop, then the option's, each URL once.
-  const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
-  const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
-
-  const lang = optionLang ?? (element.props as { lang?: string }).lang;
-  const mergedConfig = resolveConfig(element, config);
-  const displayMode = resolveDisplayMode(element, mergedConfig);
-
-  // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
-  // host <div> stripped — for any other root (a bare item, a custom
-  // component) the outer div is the element's own markup and must stay.
-  const wrapperName = (element.type as { displayName?: string })?.displayName;
-  const isUnlayerWrapper =
-    wrapperName === "Body" || (wrapperName ? wrapperName in MODE_BY_WRAPPER : false);
-  const rawBody = renderBody(element, config);
-  const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
-  const { css, js, tags } = extractHeadFromTree(element, {
-    displayMode,
-    headConfig: mergedConfig.headConfig,
-  });
-
-  const layoutArgs: DocumentLayoutArgs = {
-    lang: lang ? ` lang="${escapeForHtml(String(lang))}"` : "",
-    dir: mergedConfig.textDirection
-      ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
-      : "",
-    titleTag: title ? `<title>${escapeForHtml(title.trim())}</title>` : "",
-    styleTag: css ? `<style type="text/css">\n${styleText(css)}\n</style>` : "",
-    scriptTag: js
-      ? `<script type="application/javascript">\n${js}\n</script>`
-      : "",
-    tagLines: tags.join("\n"),
-    fontLinks: fonts
-      .filter((font) => font?.url)
-      .map(
-        (font) =>
-          `<link href="${escapeForHtml(String(font.url))}" rel="stylesheet" type="text/css">`
-      )
-      .join(""),
-    body,
-  };
-
-  if (displayMode === "email") return emailLayout(layoutArgs);
-  if (displayMode === "document") return documentLayout(layoutArgs);
-  return webLayout(layoutArgs);
+  return throughNewEngine(element, options, "renderToHtml", ({ html }) => html);
 }
 
 /**
@@ -284,7 +96,7 @@ export function renderToPlainText(
   config?: Partial<UnlayerConfig>
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  return withRenderScope(() => throughNewEngineText(element, config) ?? htmlToPlainText(legacyBodyHtml(element, config)));
+  return throughNewEngine(element, config, "renderToPlainText", ({ text }) => text);
 }
 
 /**
@@ -356,47 +168,5 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withRenderScope(() => {
-    const next = throughNewEngine(element, config, "renderToHtmlParts");
-    return next ? { head: next.head, body: next.body, css: next.css, js: next.js, tags: next.tags } : htmlParts(element, config);
-  });
-}
-
-function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
-  element = htmlRoot(element, "renderToHtmlParts");
-  // Render body markup
-  const body = renderBody(element, config, "renderToHtmlParts");
-
-  // Resolve display mode from the wrapper component, element props, or config
-  const mergedConfig = resolveConfig(element, config);
-  const displayMode = resolveDisplayMode(element, mergedConfig);
-
-  // Extract head CSS/JS/tags by walking the element tree
-  const { css, js, tags } = extractHeadFromTree(element, {
-    displayMode,
-    headConfig: mergedConfig.headConfig,
-  });
-
-  // Build head string
-  const headParts: string[] = [];
-
-  if (css) {
-    headParts.push(`<style>${styleText(css)}</style>`);
-  }
-
-  if (js) {
-    headParts.push(`<script>${js}</script>`);
-  }
-
-  if (tags.length > 0) {
-    headParts.push(...tags);
-  }
-
-  return {
-    head: headParts.join("\n"),
-    body,
-    css,
-    js,
-    tags,
-  };
+  return throughNewEngine(element, config, "renderToHtmlParts", ({ head, body, css, js, tags }) => ({ head, body, css, js, tags }));
 }

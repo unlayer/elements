@@ -69,11 +69,15 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
-  it("render a template of another copy of today's components as today, through them", () => {
-    const Foreign = Object.assign((props: Record<string, unknown>) => <Email {...props} />, { displayName: "Email" });
+  it("call a function of the user's own named after a root, around one of today's", () => {
+    const Named = Object.assign((props: Record<string, unknown>) => <Email {...props} />, { displayName: "Email" });
+    expect(renderToHtml(<Named lang="ar"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Named>)).toBe(renderToHtml(<Email lang="ar"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>));
+  });
+
+  it("say so of a root of another copy of today's components, which they can't read", () => {
+    const Foreign = Object.assign((props: { children?: React.ReactNode }) => <div>{props.children}</div>, { displayName: "Email" });
     const template = <Foreign><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Foreign>;
-    expect(withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"))).toBeUndefined();
-    expect(renderToHtml(template)).toBe(legacyRenderToHtml(template));
+    for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText]) expect(() => render(template)).toThrow(/another copy of @unlayer\/react-elements.*duplicate install/);
   });
 
   it("draw what the new engine refuses without it, and say so, rather than as today", () => {
@@ -517,7 +521,6 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     });
     const template = <Email><Row><Column><Nested /><Html html="<p>Critical final notice</p>" /></Column></Row></Email>;
     const html = renderToHtml(template);
-    expect(legacyRenderToHtml(template)).toContain("Critical final notice");
     expect(html).toContain("Inner words");
     expect(html).toContain("Critical final notice");
   });
@@ -528,7 +531,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(html).toContain('<meta name="x-apple-disable-message-reformatting">');
   });
 
-  it("render the plain text as today where the new engine's plain text fails", () => {
+  it("say which render failed, and what to check, where the new engine's plain text fails", () => {
     const spy = vi.spyOn(compat, "renderThroughNewEngine").mockReturnValue({
       get text(): string {
         throw new Error("the plain text failed");
@@ -536,7 +539,8 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     } as never);
     try {
       const template = <Email><Row><Column><Paragraph>Plain words</Paragraph></Column></Row></Email>;
-      expect(renderToPlainText(template)).toBe(legacyRenderToPlainText(template));
+      expect(() => renderToPlainText(template)).toThrow("[Unlayer] renderToPlainText failed: the plain text failed");
+      expect(() => renderToPlainText(template)).toThrow("Body > Row > Column > Item");
     } finally {
       spy.mockRestore();
     }

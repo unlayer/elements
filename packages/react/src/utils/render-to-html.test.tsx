@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { legacyRenderToHtml, renderToHtml } from "./render-to-html";
+import { legacyRenderToHtml, renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Body from "../components/Body";
 import Row from "../components/Row";
@@ -569,5 +569,167 @@ describe("renderToHtml inside a React render", () => {
     const html = renderToHtml(<Template name="Ada" />);
     expect(html).toContain("Hello Ada");
     expect(html).toContain('dir="rtl"');
+  });
+});
+
+describe("what a render takes as a template", () => {
+  const block = <Paragraph>Words</Paragraph>;
+  const rows = <Row><Column>{block}</Column></Row>;
+  const renders = [["renderToHtml", renderToHtml], ["renderToHtmlParts", renderToHtmlParts], ["renderToPlainText", renderToPlainText]] as const;
+  const text = (element: React.ReactElement) => renderToPlainText(element);
+  const quietly = (run: () => void) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      run();
+      return warn.mock.calls.map((call) => String(call[0]));
+    } finally {
+      warn.mockRestore();
+    }
+  };
+
+  describe("with no root of its own, in a root around it, in the mode it says or the render's", () => {
+    const Banner = () => rows;
+    const List = () => [<Banner key="a" />, <Banner key="b" />] as unknown as React.ReactElement;
+    const Theme = React.createContext("from no provider");
+    const FromContext = () => <Paragraph>{React.useContext(Theme)}</Paragraph>;
+
+    it.each([
+      ["a block", block],
+      ["a Column", <Column>{block}</Column>],
+      ["a Row", rows],
+      ["a component that returns a Row", <Banner />],
+      ["a memo around one", React.createElement(React.memo(Banner))],
+      ["a Fragment of Rows", <>{rows}{rows}</>],
+      ["a component that returns a list", <List />],
+    ])("%s", (_, template) => {
+      const warnings = quietly(() => {
+        expect(renderToHtml(template)).toMatch(/^<!DOCTYPE html>/);
+        expect(renderToHtml(template)).toContain("Words");
+        expect(renderToHtml(template)).not.toContain("<table");
+        expect(renderToHtml(template, { mode: "email" })).toContain('role="presentation"');
+        expect(renderToHtmlParts(template).body).toContain("Words");
+        expect(text(template)).toContain("Words");
+      });
+      expect(warnings).toEqual([]);
+    });
+
+    it("a Row's own mode wins over the render's, as a root's does", () => {
+      expect(renderToHtml(<Row mode="email"><Column>{block}</Column></Row>, { mode: "web" })).toContain('role="presentation"');
+    });
+
+    it("what's in a provider stays in it", () => {
+      expect(text(<Theme.Provider value="from the provider"><Row><Column><FromContext /></Column></Row></Theme.Provider>)).toBe("from the provider");
+    });
+
+    it("nothing: a document with nothing in it", () => {
+      const Nothing = () => null;
+      expect(quietly(() => expect(renderToHtml(<Nothing />)).toMatch(/^<!DOCTYPE html>[\s\S]*<\/html>$/))).toEqual([]);
+      expect(text(<Nothing />)).toBe("");
+    });
+
+    it("a block's own host <div>, with its className and style, in the document", () => {
+      const html = renderToHtml(<Button className="cta-wrapper" style={{ outline: "1px solid red" }}>Go</Button>);
+      expect(html).toContain('<div class="cta-wrapper" style="outline:1px solid red">');
+      expect(html.indexOf("cta-wrapper")).toBeLessThan(html.indexOf("Go"));
+    });
+
+    it("a block's own padding isn't a Column's: it has none here", () => {
+      expect(renderToHtml(<Paragraph containerPadding="33px">Words</Paragraph>)).not.toContain("padding:33px");
+    });
+  });
+
+  describe("a template component, its root's settings read", () => {
+    class Template extends React.Component<{ name: string }> {
+      static contextType = React.createContext("from context");
+      declare context: string;
+      state = { greeting: "Hello" };
+      render() {
+        return <Email lang="ar"><Row><Column><Paragraph>{`${this.state.greeting} ${this.props.name}, ${this.context}`}</Paragraph></Column></Row></Email>;
+      }
+    }
+
+    it("a class, called by React so its state and context work", () => {
+      const warnings = quietly(() => {
+        const html = renderToHtml(<Template name="Ada" />);
+        expect(html).toContain("Hello Ada, from context");
+        expect(html).toContain('lang="ar"');
+        expect(html).toContain('role="article"');
+      });
+      expect(warnings).toEqual([]);
+    });
+
+    it("a class that throws fails the render, saying so", () => {
+      class Broken extends React.Component {
+        render(): React.ReactNode {
+          throw new Error("boom");
+        }
+      }
+      expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] renderToHtml failed: boom");
+    });
+
+    it("in a Suspense, which waits for nothing here", () => {
+      expect(renderToHtml(<React.Suspense fallback={null}><Email lang="ar">{rows}</Email></React.Suspense>)).toContain('lang="ar"');
+    });
+
+    it("renderToJson still says a class isn't called", () => {
+      expect(() => renderToJson(<Template name="Ada" />)).toThrow("Root element must be");
+    });
+  });
+
+  describe("what can't be one, saying so", () => {
+    const Markup = () => <div>Markup</div>;
+    const InMarkup = () => <div><Email>{rows}</Email></div>;
+    const Lazy = React.lazy(() => Promise.resolve({ default: () => <Email>{rows}</Email> }));
+    let Deep: React.ComponentType = () => <Email>{rows}</Email>;
+    for (let i = 0; i < 21; i++) {
+      const Inner = Deep;
+      Deep = () => <Inner />;
+    }
+
+    it.each([
+      ["markup", <div>Markup</div>, /<div> isn't a template.*<Html> block/],
+      ["markup around Rows", <div>{rows}</div>, /<div> isn't a template/],
+      ["a component that returns markup", <Markup />, /<div> isn't a template/],
+      ["a root in markup", <div><Email>{rows}</Email></div>, /<div> isn't a template/],
+      ["a component with a root in its markup", <InMarkup />, /couldn't read <InMarkup> as a template \(its root is inside other markup\).*Pass the root element/],
+      ["two roots", <><Email>{rows}</Email><Email>{rows}</Email></>, /its root is inside other markup/],
+      ["a lazy component", <Lazy />, /async and suspending templates aren't supported/],
+      ["a component past the depth limit", <Deep />, /couldn't read <.*> as a template \(it wraps more than 20 components\)/],
+      ["what isn't an element", "Words" as unknown as React.ReactElement, /a template is a React element.*not string/],
+    ])("%s", (_, template, why) => {
+      for (const [name, render] of renders) {
+        expect(() => render(template)).toThrow(why);
+        expect(() => render(template)).toThrow(`[Unlayer] ${name}`);
+      }
+    });
+  });
+
+  it("says what a failure is once: what's said by Elements isn't said again", () => {
+    const Broken = () => {
+      throw new Error("boom");
+    };
+    let message = "";
+    try {
+      renderToHtml(<Email><Row><Column>{block}</Column></Row><Broken /></Email>);
+      renderToHtml(<div />);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message.match(/\[Unlayer\]/g)).toHaveLength(1);
+  });
+
+  it("keeps the first error as the cause, where it says more than a message", () => {
+    const boom = new Error("boom");
+    const Broken = () => {
+      throw boom;
+    };
+    let thrown: Error | undefined;
+    try {
+      renderToHtml(<Broken />);
+    } catch (error) {
+      thrown = error as Error;
+    }
+    expect(thrown?.message).toContain("[Unlayer] renderToHtml failed: boom");
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(boom);
   });
 });

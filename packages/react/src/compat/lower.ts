@@ -89,6 +89,8 @@ export interface LowerOptions {
   /** A block as a node of the tree, or null where it draws nothing in this output. */
   block(block: DesignBlock, place: FramePlace): TreeNode | null;
   outside?: OutsideTheDesign;
+  /** On a page, as wide as what it's in: a Column or block on its own, which no content width keeps. */
+  wide?: boolean;
 }
 
 /**
@@ -120,6 +122,8 @@ interface Frame {
   contentWidth?: string;
   /** An email's class for a Section whose cells may run past its content's table. */
   fixedTable?: string;
+  /** Rows no content width keeps (see LowerOptions). */
+  wide?: boolean;
 }
 
 /** Said of the frame. A warning where it's drawn otherwise than asked; a note where legacy draws nothing of it either. */
@@ -519,7 +523,7 @@ function row(design: Values, rowIndex: number, place: Omit<FramePlace, "row" | "
         type: "Column",
         // Legacy's rows take a phone's whole width at 480px and below, whatever the content width.
         mobile: options.mode === "web" && (contentWidth === undefined || contentWidth < 480) ? { maxWidth: "100%" } : undefined,
-        style: defined({ width: "100%", maxWidth: contentWidth ?? (contentClass ? undefined : 500), backgroundColor: innerColor }) as Record<string, Json>,
+        style: defined({ width: "100%", maxWidth: frame.wide ? undefined : contentWidth ?? (contentClass ? undefined : 500), backgroundColor: innerColor }) as Record<string, Json>,
         compat: compatOf({ className: contentClass }),
         children: [innerRow],
       }),
@@ -553,7 +557,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
   const email = options.mode === "email";
   // An email's rows are at least a phone's 320px wide, as legacy's; a width that isn't in px has them at legacy's 500px at most.
   const contentWidth = px(values.contentWidth);
-  const frame: Frame = { mode: options.mode, width: contentWidth === undefined ? 500 : Math.max(contentWidth, 320), rules: [], device: {}, names: 0, notes: [], loose: false };
+  const frame: Frame = { mode: options.mode, width: contentWidth === undefined ? 500 : Math.max(contentWidth, 320), rules: [], device: {}, names: 0, notes: [], loose: false, wide: options.wide };
   unread(values, "body", frame, "body");
   frame.contentAlign = values.contentAlign === "left" || values.contentAlign === "right" ? values.contentAlign : "center";
   // A content width that isn't in px (80%, 30em): legacy's rows take as much of the window as that, up to 500px, in an email.
