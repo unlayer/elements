@@ -202,14 +202,16 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
       if (onPhones !== undefined) phone.lineHeight = onPhones;
     }
   }
-  return {
+  const node: TreeNode = {
     type,
     ...(level || dir ? { props: { ...(level ? { level } : {}), ...(dir ? { dir } : {}) } } : {}),
     style: { ...style, ...(some(padding) ? { padding: padding! } : {}) },
     ...(Object.keys(phone).length ? { mobile: phone } : {}),
-    // An empty block is a line of its height, as legacy's.
-    children: children.length ? styled(children, linkStyleOf(values, "email") ?? undefined, linkHoverOf(values, place.mode)) : ["\u200b"],
+    children: styled(children, linkStyleOf(values, "email") ?? undefined, linkHoverOf(values, place.mode)),
   };
+  // HTML with nothing to draw (a line break) is a line of its height, as legacy's, with no words in its plain text. No
+  // text at all is only its padding.
+  return html && !children.length ? { ...node, children: ["\u200b"], textAs: node } : node;
 }
 
 /** A line height in %, as px at a font size. */

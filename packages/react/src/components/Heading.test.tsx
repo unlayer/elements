@@ -11,6 +11,11 @@ describe("Heading Component", () => {
     expect(h1!.textContent).toBe("Title");
   });
 
+  it("draws no line of its own with no text", () => {
+    const { container } = render(<Heading text="" />);
+    expect(container.querySelector("h1")?.textContent).toBe("");
+  });
+
   it("applies color style", () => {
     const { container } = render(<Heading color="#ff0000">Red</Heading>);
     const h1 = container.querySelector("h1");

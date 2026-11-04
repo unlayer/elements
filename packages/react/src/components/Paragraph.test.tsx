@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Paragraph from "./Paragraph";
+import { Column, Email, Row, renderToPlainText } from "../index";
 
 describe("Paragraph Component", () => {
   it("renders text content", () => {
@@ -40,12 +41,21 @@ describe("Paragraph Component", () => {
     expect(email.querySelector("p")?.textContent).toBe("Text");
   });
 
-  // Known bug: compat/blocks/text.ts gives a block with no text a zero-width space, a line of its height. 0.2.1 draws
-  // only its padding, so what follows sits 19.6px lower in Chromium, on a page and in an email. Measured with
-  // <Paragraph /><Paragraph>then</Paragraph> in a Page: "then" at y=39 on 0.2.1, y=58.6 here. Remove `.fails` with the fix.
-  it.fails("draws no line of its own with no text", () => {
-    const { container } = render(<Paragraph />);
-    expect(container.querySelector("p")?.textContent ?? "").toBe("");
+  // 0.2.1 draws only its padding, so what follows sits where it would (the corpus's `empty-text-*` inputs measure it).
+  it.each([
+    ["no props", <Paragraph />],
+    ["an empty text", <Paragraph text="" />],
+    ["an empty html", <Paragraph html="" />],
+    ["an empty text in its values", <Paragraph values={{ text: "" } as never} />],
+  ])("draws no line of its own with %s", (_, block) => {
+    const { container } = render(block);
+    expect(container.querySelector("p")?.textContent).toBe("");
+  });
+
+  it("draws a line of its height for a line break alone, which is no words in its plain text", () => {
+    const { container } = render(<Paragraph html="<br>" />);
+    expect(container.querySelector("p")?.textContent).toBe("\u200b");
+    expect(renderToPlainText(<Email><Row><Column><Paragraph html="<br>" /><Paragraph>then</Paragraph></Column></Row></Email>)).toBe("then");
   });
 
   it("has correct displayName", () => {
