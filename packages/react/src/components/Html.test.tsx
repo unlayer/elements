@@ -38,10 +38,14 @@ describe("Html Component", () => {
     expect(container.querySelector("li")).not.toBeNull();
   });
 
-  it("renders empty when no html provided", () => {
+  it("renders the tool's default when no html is provided", () => {
     const { container } = render(<Html />);
-    // Should render without crashing, even with no content
-    expect(container.firstChild).toBeTruthy();
+    expect(container.querySelector("strong")?.textContent).toBe("Hello, world!");
+  });
+
+  it("keeps its markup in an email", () => {
+    const { container } = render(<Html mode="email" html="<p>Custom HTML</p>" />);
+    expect(container.querySelector("p")?.textContent).toBe("Custom HTML");
   });
 
   it("has correct displayName", () => {

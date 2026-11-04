@@ -232,7 +232,8 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
         </Row>
       </Page>
     );
-    expect(html).toMatch(/width:\s*100%/);
+    const pinned = new DOMParser().parseFromString(html, "text/html").querySelector("img")!;
+    expect(pinned.style.width).toBe("100%");
     expect(html).not.toMatch(/width:\s*300px/);
   });
 });

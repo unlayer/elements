@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Video, { parseVideoUrl } from "./Video";
+import { expectNoRenderError } from "../test-utils";
 
 describe("parseVideoUrl", () => {
   it("parses youtube.com/watch?v= URL", () => {
@@ -58,9 +59,9 @@ describe("Video Component", () => {
     const { container } = render(
       <Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
     );
-    expect(container.firstChild).toBeTruthy();
-    // YouTube thumbnail URL should be in output
-    expect(container.innerHTML).toContain("youtube");
+    expectNoRenderError(container);
+    // A page plays it where it is
+    expect(container.querySelector("iframe")?.getAttribute("src")).toBe("https://www.youtube.com/embed/dQw4w9WgXcQ");
   });
 
   it("renders with full values object", () => {
@@ -76,7 +77,8 @@ describe("Video Component", () => {
 
   it("renders without crashing with defaults", () => {
     const { container } = render(<Video />);
-    expect(container.firstChild).toBeTruthy();
+    expectNoRenderError(container);
+    expect(container.querySelector("img")?.getAttribute("src")).toContain("placeholder");
   });
 
   it("has correct displayName", () => {

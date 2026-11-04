@@ -33,10 +33,11 @@ describe("PageBreak", () => {
     const { container: web } = render(<Page>{tree}</Page>);
     const { container: email } = render(<Email>{tree}</Email>);
 
-    expect(web.querySelector(".u-content-page-break")).toBeNull();
-    expect(email.querySelector(".u-content-page-break")).toBeNull();
-    expect(web.querySelector('[id^="u_content_page_break"]')).toBeNull();
-    expect(email.querySelector('[id^="u_content_page_break"]')).toBeNull();
+    // Nothing between the words: no break, and no empty box of its padding.
+    expect(web.innerHTML).not.toContain("break-after");
+    expect(email.innerHTML).not.toContain("break-after");
+    expect(web.querySelector("p")?.nextElementSibling?.textContent).toBe("After");
+    expect(email.querySelectorAll('td[style*="padding"]')).toHaveLength(2);
   });
 
   it("adds print break rules to document HTML", () => {

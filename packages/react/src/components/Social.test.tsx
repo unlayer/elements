@@ -8,11 +8,9 @@ describe("Social Component", () => {
     const { container } = render(
       <Social icons={[{ name: "Facebook", url: "https://facebook.com/page" }]} />
     );
-    const links = container.querySelectorAll("a");
-    const facebookLink = Array.from(links).find(
-      a => a.getAttribute("href")?.includes("facebook.com")
-    );
-    expect(facebookLink).not.toBeNull();
+    const facebookLink = container.querySelector("a");
+    expect(facebookLink?.getAttribute("href")).toBe("https://facebook.com/page");
+    expect(facebookLink?.querySelector("img")?.getAttribute("alt")).toBe("Facebook icon");
   });
 
   it("renders img elements for icons", () => {
@@ -21,6 +19,11 @@ describe("Social Component", () => {
     );
     const imgs = container.querySelectorAll("img");
     expect(imgs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders a placeholder icon when it has none", () => {
+    const { container } = render(<Social />);
+    expect(container.querySelector("img")?.getAttribute("src")).toContain("social/icons/default");
   });
 
   it("renders aria-label for accessibility", () => {
@@ -50,8 +53,8 @@ describe("Social Component", () => {
         { name: "X", url: "https://x.com" },
       ]} />
     );
-    const links = container.querySelectorAll("a");
-    expect(links.length).toBeGreaterThanOrEqual(2);
+    const links = Array.from(container.querySelectorAll("a"));
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["https://facebook.com", "https://x.com"]);
   });
 
   it("has correct displayName", () => {
