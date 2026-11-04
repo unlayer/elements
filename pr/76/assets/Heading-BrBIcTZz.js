@@ -1,1 +1,0 @@
-import{c as r,a as s,m as p,j as i}from"./create-component-iJx3Zvg2.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},d=r({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=p(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{d as H};

@@ -1,0 +1,1 @@
+import{c as r,m as i,D as s,k as p}from"./create-component-Df6eRtdD.js";const e={...s},o=r({name:"Divider",defaultValues:e,propMapper:a=>i(a,e,"Divider"),displayName:"Divider",exporters:p});export{o as D};
