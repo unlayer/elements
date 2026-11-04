@@ -252,10 +252,10 @@ async function pixels([sources, give, compose]) {
 const near = (a, b, tol) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const fmtBox = (b) => `(${b.map((v) => Math.round(v)).join(",")})`;
 const quote = (s, n = 60) => JSON.stringify(s.length > n ? `${s.slice(0, n)}…` : s);
-/** Where a word or an image goes when clicked: its link's address and target, or no link. */
-const destination = (page, i) => {
+/** Where a word or an image goes when clicked: its link's whole address and target, or no link (`n` shortens the address for the report). */
+const destination = (page, i, n = Infinity) => {
   const l = i >= 0 ? page.links[i] : null;
-  return l ? `${quote(l.href ?? "", 70)}${l.target ? ` [${l.target}]` : ""}` : "no link";
+  return l ? `${quote(l.href ?? "", n)}${l.target ? ` [${l.target}]` : ""}` : "no link";
 };
 
 /** What differs between OLD's page and NEW's, as lines a reader of the report can act on. */
@@ -279,9 +279,9 @@ export function differences(a, b, tol) {
     const y = b.words[j];
     const [was, now] = [destination(a, x.link), destination(b, y.link)];
     if (was !== now) {
-      const entry = goes.get(`${now} in place of ${was}`) ?? { count: 0, first: x.t };
+      const entry = goes.get(`${now} ${was}`) ?? { count: 0, first: x.t, shown: `${destination(b, y.link, 70)} in place of ${destination(a, x.link, 70)}` };
       entry.count++;
-      goes.set(`${now} in place of ${was}`, entry);
+      goes.set(`${now} ${was}`, entry);
     }
     for (const k of Object.keys(x.style)) {
       if (x.style[k] === y.style[k]) continue;
@@ -293,7 +293,7 @@ export function differences(a, b, tol) {
     if (!near(x.box, y.box, tol)) moved.push([x, y]);
   }
   // A link that covers other words sends those words elsewhere, with the same links in the same order.
-  for (const [key, { count, first }] of goes) out.push({ kind: "link", what: "words", line: `link: ${count} word(s) go to ${key}, first ${quote(first, 30)}` });
+  for (const { count, first, shown } of goes.values()) out.push({ kind: "link", what: "words", line: `link: ${count} word(s) go to ${shown}, first ${quote(first, 30)}` });
   for (const [key, { count, first }] of styleDiffs) out.push({ kind: "style", line: `style: ${key} on ${count} word(s), first ${quote(first, 30)}` });
   if (moved.length) {
     const worst = moved.reduce((w, m) => (Math.max(...m[0].box.map((v, i) => Math.abs(v - m[1].box[i]))) > Math.max(...w[0].box.map((v, i) => Math.abs(v - w[1].box[i]))) ? m : w));
@@ -314,8 +314,7 @@ export function differences(a, b, tol) {
     if (x.kind !== y.kind) out.push({ kind: "image", what: "drawn", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: drawn as ${x.kind} → ${y.kind}` });
     if (!near(x.box, y.box, tol)) out.push({ kind: "image", what: "box", line: `image ${i + 1} ${quote(x.src ?? "", 50)}: ${fmtBox(x.box)} → ${fmtBox(y.box)}` });
     if (x.alt !== y.alt) out.push({ kind: "image", what: "alt", line: `image ${i + 1} alt: ${quote(String(x.alt))} → ${quote(String(y.alt))}` });
-    const [was, now] = [destination(a, x.link), destination(b, y.link)];
-    if (was !== now) out.push({ kind: "link", what: "images", line: `link: image ${i + 1} ${quote(x.src ?? "", 50)} goes to ${now} in place of ${was}` });
+    if (destination(a, x.link) !== destination(b, y.link)) out.push({ kind: "link", what: "images", line: `link: image ${i + 1} ${quote(x.src ?? "", 50)} goes to ${destination(b, y.link, 70)} in place of ${destination(a, x.link, 70)}` });
   }
   // 4. Links: where they go and how they open.
   const links = align(a.links, b.links, (l) => `${l.href} ${l.target}`);

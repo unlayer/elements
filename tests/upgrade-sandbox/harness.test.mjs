@@ -39,6 +39,18 @@ test("a word in another link is a difference, with the same links in the same or
   );
 });
 
+test("a word or an image in another link is a difference when the addresses differ only past what the report shows", () => {
+  const long = `https://example.com/track?${"x".repeat(80)}`;
+  const at = (middle) => {
+    const p = page(middle);
+    p.links[0].href = `${long}&to=first`;
+    p.links[1].href = `${long}&to=second`;
+    p.images = [{ src: "logo.png", kind: "img", alt: "", box: [0, 40, 80, 20], link: middle }];
+    return p;
+  };
+  assert.deepEqual(differences(at(1), at(0), 1).map((d) => d.what), ["words", "images"]);
+});
+
 // One template whose email at 600px differs as an email row's side padding fix does, plus `more`.
 const template = (more) => ({
   id: "demo-welcome",
