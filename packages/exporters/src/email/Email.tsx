@@ -4,13 +4,12 @@
  * window between runs of content.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, NotOutlook, raw, type Html } from "../jsx";
-import { px } from "../shared/css";
-import { gapHidden, gapsBefore, gapShown, runHidden, type GapAt } from "../shared/gaps";
+import { Fragment, h } from "../jsx";
+import { gapsBefore, gapShown, runHidden } from "../shared/gaps";
 import { isNode, shown, type Component } from "./context";
 import { Stack } from "./layout";
 import { bgcolor, Table } from "./markup";
-import { hiding } from "./styles";
+import { spacerRow } from "./spacers";
 
 export const Email: Component = ({ node: root, style, mobile, render }) => {
   const width = root.width ?? 600;
@@ -33,7 +32,7 @@ export const Email: Component = ({ node: root, style, mobile, render }) => {
     <Table width="100%" bgcolor={bgcolor(style.backgroundColor)} style={{ backgroundColor: style.backgroundColor }}>
       {parts.map((part, index) => (
         <>
-          {spacer(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
+          {spacerRow(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
           {Array.isArray(part) ? (
             <tr>
               <td align="center">
@@ -48,17 +47,3 @@ export const Email: Component = ({ node: root, style, mobile, render }) => {
     </Table>
   );
 };
-
-/** A gap as a row of its own: as tall as the gap, the phone gap on phones, hidden where there's none (and out of Outlook's view then). */
-function spacer(at: GapAt, gap: number, phoneGap: number): Html | null {
-  if (!at.desktop && !at.phone) return null;
-  const hidden = hiding({ hidden: gapHidden(at) }, "table-row");
-  const row = (
-    <tr class={hidden.class} style={hidden.style}>
-      <td phone={at.phone && phoneGap !== gap ? { lineHeight: px(phoneGap) } : undefined} style={{ fontSize: 0, lineHeight: px(gap), msoLineHeightRule: "exactly" }}>
-        {raw("&nbsp;")}
-      </td>
-    </tr>
-  );
-  return at.desktop ? row : <NotOutlook>{row}</NotOutlook>;
-}

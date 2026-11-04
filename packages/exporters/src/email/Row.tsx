@@ -10,13 +10,13 @@
  * Menu's) is the same inline-blocks, onto another line where they don't fit
  * (classic Outlook's table keeps them on one).
  */
-import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html, type Style } from "../jsx";
+import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
-import { boxWidth, phoneWidth, toNumber, VALIGN } from "./layout";
+import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, toNumber, valignOf } from "./layout";
 import { bgcolor, Table, TABLE } from "./markup";
+import { gapCell, spacer } from "./spacers";
 import { hiding } from "./styles";
-import { gapHidden, gapsBefore, gapShown, type GapAt } from "../shared/gaps";
+import { gapsBefore, gapShown } from "../shared/gaps";
 
 const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "right" };
 
@@ -53,11 +53,6 @@ export const Row: Component = (props) => {
     </Table>
   );
 };
-
-const gapOf = (props: Props) => (typeof props.style.gap === "number" ? props.style.gap : 0);
-/** The gap on phones: the Row's phone gap, else its gap. */
-const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? props.mobile.gap : gapOf(props));
-const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
 function fluidHybrid(props: Props, stacks: boolean): Html {
@@ -160,71 +155,4 @@ function sideBySide(props: Props): Html {
       </tr>
     </Table>
   );
-}
-
-/**
- * Each child's width on phones in a side-by-side Row whose children share it: a table shares its width out by its
- * cells' content, flexbox (as on desktop) by their widths. A cell's share is a percentage, and the gaps are the cells'
- * side padding, inside their width (a cell's share of the gaps, split so neighbours leave one gap between them): the
- * shares add up to the whole, which every client's table gives exactly. None where a padding would be negative.
- */
-function phoneShares(children: readonly ResolvedNode[], gap: number): Map<ResolvedNode, Style> | undefined {
-  const onPhones = children.filter((child) => !child.hidden?.mobile);
-  // Only children that share the Row (no width of their own, a flex): one of its own size keeps it, as on the page.
-  const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
-  if (onPhones.length < 2 || !onPhones.every(sharing)) return undefined;
-  const total = onPhones.reduce((sum, child) => sum + child.width!, 0);
-  const gaps = gap * (onPhones.length - 1);
-  const out = new Map<ResolvedNode, Style>();
-  let left = 0;
-  for (const [index, child] of onPhones.entries()) {
-    const share = child.width! / total;
-    const right = index === onPhones.length - 1 ? 0 : share * gaps - left;
-    if (left < -0.01 || right < -0.01) return undefined;
-    const px = (n: number) => Math.round(n * 100) / 100;
-    out.set(child, { width: `${px(share * 100)}%`, paddingLeft: left ? px(left) : undefined, paddingRight: right ? px(right) : undefined, boxSizing: "border-box" });
-    left = gap - right;
-  }
-  return out;
-}
-
-/**
- * The gap before a stacking or wrapping Row's child, where there is one (`at`, from gapShown): a cell in Outlook's
- * table on desktop; for the rest, an inline-block as wide as the gap, and as tall as the phone gap where the children
- * stack (as wide as it, where they wrap).
- */
-function spacer(at: GapAt, gap: number, phoneGap: number, stacks: boolean): Html | null {
-  if (!at.desktop && !at.phone) return null;
-  const hidden = hiding({ hidden: gapHidden(at) }, "inline-block");
-  const phone = stacks ? { height: phoneGap } : phoneGap !== gap ? { width: phoneGap } : undefined;
-  return (
-    <>
-      {at.desktop && (
-        <Outlook>
-          <td width={gap} style={{ width: gap }} />
-        </Outlook>
-      )}
-      <NotOutlook>
-        <div class={hidden.class} phone={phone} style={[{ display: "inline-block", width: gap || undefined }, hidden.style]} />
-      </NotOutlook>
-    </>
-  );
-}
-
-/**
- * The gap before a side-by-side Row's child, where there is one, as a cell: the phone gap's width on phones, and kept
- * from Outlook where there's none on desktop. Beside cells that take all the room (`solid`: empty cells packing the
- * children, or the children's shares on phones), an empty cell would give its width up: a div as wide as the gap
- * holds it.
- */
-function gapCell(at: GapAt, gap: number, phoneGap: number, solid = false): Html | null {
-  if (!at.desktop && !at.phone) return null;
-  const hidden = hiding({ hidden: gapHidden(at) }, "table-cell");
-  const phone = at.phone && phoneGap !== gap ? { width: phoneGap } : undefined;
-  const cell = (
-    <td class={hidden.class} width={gap || undefined} phone={phone} style={[{ width: gap || undefined }, hidden.style]}>
-      {solid && <div phone={phone} style={{ width: gap || undefined }} />}
-    </td>
-  );
-  return at.desktop ? cell : <NotOutlook>{cell}</NotOutlook>;
 }

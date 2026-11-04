@@ -1,7 +1,8 @@
 /**
  * Email layout: widths from the resolver as Word reads them (table and cell
  * attributes, px maximums), where a child sits in its cell, `<Box>` (a node's
- * box as a table around its content) and `<Stack>` (children as table rows).
+ * box as a table around its content) and `<Stack>` (children as table rows);
+ * a Row's gaps and its children's shares on phones.
  */
 import { toPx, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { h, NotOutlook, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
@@ -140,3 +141,35 @@ export function Stack({ node, render, style }: { node: ResolvedNode; render: Pro
     </Table>
   );
 }
+
+export const gapOf = (props: Props) => (typeof props.style.gap === "number" ? props.style.gap : 0);
+/** The gap on phones: the Row's phone gap, else its gap. */
+export const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? props.mobile.gap : gapOf(props));
+export const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
+
+/**
+ * Each child's width on phones in a side-by-side Row whose children share it: a table shares its width out by its
+ * cells' content, flexbox (as on desktop) by their widths. A cell's share is a percentage, and the gaps are the cells'
+ * side padding, inside their width (a cell's share of the gaps, split so neighbours leave one gap between them): the
+ * shares add up to the whole, which every client's table gives exactly. None where a padding would be negative.
+ */
+export function phoneShares(children: readonly ResolvedNode[], gap: number): Map<ResolvedNode, Style> | undefined {
+  const onPhones = children.filter((child) => !child.hidden?.mobile);
+  // Only children that share the Row (no width of their own, a flex): one of its own size keeps it, as on the page.
+  const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
+  if (onPhones.length < 2 || !onPhones.every(sharing)) return undefined;
+  const total = onPhones.reduce((sum, child) => sum + child.width!, 0);
+  const gaps = gap * (onPhones.length - 1);
+  const out = new Map<ResolvedNode, Style>();
+  let left = 0;
+  for (const [index, child] of onPhones.entries()) {
+    const share = child.width! / total;
+    const right = index === onPhones.length - 1 ? 0 : share * gaps - left;
+    if (left < -0.01 || right < -0.01) return undefined;
+    const px = (n: number) => Math.round(n * 100) / 100;
+    out.set(child, { width: `${px(share * 100)}%`, paddingLeft: left ? px(left) : undefined, paddingRight: right ? px(right) : undefined, boxSizing: "border-box" });
+    left = gap - right;
+  }
+  return out;
+}
+
