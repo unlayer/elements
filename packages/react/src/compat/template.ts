@@ -16,7 +16,7 @@ import { looseText } from "../utils/render-scope";
 import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
-import { callIsolated, getDisplayName, htmlRoot, isElementsType, ROOT_NAMES } from "../utils/unwrap-root";
+import { callIsolated, getDisplayName, htmlRoot, isElementsType, MARKUP_ADVICE, ROOT_NAMES } from "../utils/unwrap-root";
 import { ROOT } from "../utils/collect";
 import Body from "../components/Body";
 import Column from "../components/Column";
@@ -94,7 +94,7 @@ function templateRoot(element: React.ReactElement, name: string, config: Partial
     if (React.isValidElement(inside) && isReadableRoot(inside.type)) return { root: inside, given: true };
     throw new Error(`[Unlayer] ${name}: this <${display}> is from another copy of @unlayer/react-elements, older than 0.3, which this one can't read. Install one version of it (\`npm ls @unlayer/react-elements\` shows a duplicate install).`);
   }
-  if (typeof found.type === "string") throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. Put your markup in an <Html> block in one: <Email><Row><Column><Html html="…" /></Column></Row></Email>.`);
+  if (typeof found.type === "string") throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. ${MARKUP_ADVICE}`);
   // What it's in has its own background, where it's in something.
   const { className, style } = found.props;
   const body = (values?: Record<string, unknown>) => ({ mode: found.props.mode ?? config?.mode, className, style, values: { ...inReact.body, ...(inReact.piece ? { backgroundColor: "" } : {}), ...values } });

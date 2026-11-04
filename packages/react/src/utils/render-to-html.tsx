@@ -60,7 +60,7 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  *   <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>,
  *   { title: "Welcome" }
  * );
- * // "<!DOCTYPE HTML PUBLIC ...><html ...>...</html>"
+ * // "<!DOCTYPE html><html ...>...</html>"
  * ```
  */
 export function renderToHtml(

@@ -204,6 +204,8 @@ function holdsRoot(node: React.ReactNode): boolean {
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */
 export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a function component that returns one.";
+/** Where a user's own markup goes in a template. */
+export const MARKUP_ADVICE = 'Put your markup in an <Html> block in one: <Email><Row><Column><Html html="…" /></Column></Row></Email>.';
 
 /**
  * What a template's element comes to for renderToHtml: a root, or a Row, Column or block on its own, its wrappers
@@ -225,7 +227,7 @@ export function htmlRoot(element: React.ReactElement, api: string): React.ReactE
   if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
   if ((root.type as any)?.$$typeof === LAZY) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
   // A template of Rows, or nothing: there's no root whose settings go unread.
-  if (why.unread || holdsRoot(root)) throw new Error(`[Unlayer] ${api}: couldn't read <${componentName(element) || "wrapper"}> as a template (${why.unread ?? "its root is inside other markup"}). ${UNWRAP_ADVICE}`);
+  if (why.unread || holdsRoot(root)) throw new Error(`[Unlayer] ${api}: couldn't read <${componentName(element) || "wrapper"}> as a template (${why.unread ?? "its root is inside other markup"}). ${UNWRAP_ADVICE}${typeof root.type === "string" ? ` ${MARKUP_ADVICE}` : ""}`);
   // (A Row in a provider stays in it: what's in it may read its context.)
   return why.inProvider ? element : root;
 }

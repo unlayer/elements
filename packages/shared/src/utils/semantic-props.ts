@@ -422,8 +422,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
  * the exporter expects: `{ url, target, ...customAttrs }`.
  *
  * The schema stores links as `{ name, values: { href, target } }`, but
- * exporters (consumed via @unlayer/exporters) expect the editor's render
- * value shape `{ url, target, customAttrs?, class?, onClick? }`. The editor
+ * exporters expect the editor's render value shape
+ * `{ url, target, customAttrs?, class?, onClick? }`. The editor
  * runs this conversion via the link property-editor's `renderValue()` —
  * `normalizeValuesForExporter` (in render-time code) mirrors it so React
  * rendered output matches.

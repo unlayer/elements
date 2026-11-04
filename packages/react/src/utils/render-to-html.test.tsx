@@ -663,7 +663,7 @@ describe("what a render takes as a template", () => {
       ["markup around Rows", <div>{rows}</div>, /<div> isn't a template/],
       ["a component that returns markup", <Markup />, /<div> isn't a template/],
       ["a root in markup", <div><Email>{rows}</Email></div>, /<div> isn't a template.*<Html> block/],
-      ["a component with a root in its markup", <InMarkup />, /couldn't read <InMarkup> as a template \(its root is inside other markup\).*Pass the root element/],
+      ["a component with a root in its markup", <InMarkup />, /couldn't read <InMarkup> as a template \(its root is inside other markup\).*Pass the root element.*<Html> block/],
       ["two roots", <><Email>{rows}</Email><Email>{rows}</Email></>, /its root is inside other markup/],
       ["a lazy component", <Lazy />, /async and suspending templates aren't supported/],
       ["a component past the depth limit", <Deep />, /couldn't read <.*> as a template \(it wraps more than 20 components\)/],
