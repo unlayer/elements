@@ -27,7 +27,7 @@ import Page from "../components/Page";
 import { BLOCKS, DRAWN } from "./blocks";
 import { ownMarkupCss } from "./quirks";
 import { deviceValues, keepServiceTags, sides } from "./values";
-import { blockName, givenId, lowerDesign, Unlowerable, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
+import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
 /** This copy's root components. */
 const OWN_ROOTS = new Set<unknown>([Body, Email, Page, Document]);
@@ -91,7 +91,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
       };
       const drawn = DRAWN.has(block.type);
       const shown = drawn ? withoutPhone(block, mode) : onDevices(withoutPhone(block, mode), mode);
-      const lowered = blockNode(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern?: RegExp) => keepServiceTags(text, tags, pattern) });
+      const lowered = BLOCKS[block.type]?.(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern?: RegExp) => keepServiceTags(text, tags, pattern) });
       // The block's own HTML in its box, as its tool writes it (it says what its head needs).
       if (lowered?.type === "Raw") {
         raw.set(n, lowered);
@@ -99,7 +99,10 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
         return lowered;
       }
       const node = lowered ? withGivenId(lowered, givenId(block.values ?? {})) : lowered;
-      if (node && drawn) return ownPhone(drawable(node, mode, note), mode);
+      if (node && drawn) {
+        const kept = drawable(node, mode, note);
+        return kept && ownPhone(kept, mode);
+      }
       if (node === null) return node;
       if (node && valid(node, mode)) return ownPhone(withPhonePadding(stackedCap(node), shown), mode);
       const kept: TreeNode = { type: "Raw", props: { html: "" } };
@@ -147,16 +150,6 @@ function layoutThatDoesNotFit(root: React.ReactElement): Error | undefined {
   return undefined;
 }
 
-/** A block as its tool lowers it: undefined where it keeps its legacy HTML, null where it draws nothing in this output. */
-function blockNode(block: DesignBlock, place: Parameters<(typeof BLOCKS)[string]>[1]): TreeNode | null | undefined {
-  try {
-    return BLOCKS[block.type]?.(block, place);
-  } catch (error) {
-    if (error instanceof Unlowerable) return undefined;
-    throw error;
-  }
-}
-
 /** A block's node as the new engine checks it, in a document of its own. */
 function documentOf(node: TreeNode, mode: Mode): { root: TreeNode } {
   const written = (n: TreeNode): TreeNode => {
@@ -173,14 +166,16 @@ function valid(node: TreeNode, mode: Mode): boolean {
 
 /**
  * A block's node without what the new engine refuses of it (a color it doesn't read), each value said: its component's
- * default is drawn instead. A link it refuses (one that runs a script) is a link to nothing.
+ * default is drawn instead. A link it refuses (one that runs a script) is a link to nothing. Null where what it refuses
+ * isn't a value to take out: the block draws nothing, which is said.
  */
-function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): TreeNode {
+function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): TreeNode | null {
   const document = documentOf(node, mode);
   for (let errors = refused(document); errors.length; errors = refused(document)) {
-    for (const error of errors) {
+    // (From the last: taking a child out moves those after it.)
+    for (const error of errors.reverse()) {
       note(error.message);
-      removeAt(document, error.path);
+      if (!removeAt(document, error.path)) return null;
     }
   }
   const drawn = (document.root.children![0] as TreeNode).children![0] as TreeNode;
@@ -189,17 +184,18 @@ function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): 
 
 const refused = (document: { root: TreeNode }) => checkDocument(document).diagnostics.filter((d) => d.severity === "error");
 
-/** Takes the value at a diagnostic's path (`root.children[0].style.color`) out of a document. */
-function removeAt(document: { root: TreeNode }, path: string): void {
+/** Takes the value at a diagnostic's path (`root.children[0].style.color`) out of a document; false where it isn't one. */
+function removeAt(document: { root: TreeNode }, path: string): boolean {
   const keys = path.match(/[^.[\]]+/g) ?? [];
   const last = keys.pop();
   let at: any = document;
   for (const key of keys) at = at?.[key];
-  if (at === undefined || at === null || last === undefined) throw new Unlowerable(`what the new engine can't read at ${path}`);
+  if (at === undefined || at === null || last === undefined) return false;
   if (last === "href") at.href = { href: "" };
   else if (Array.isArray(at)) at.splice(Number(last), 1);
   else if (last in at) delete at[last];
-  else throw new Unlowerable(`what the new engine can't read at ${path}`);
+  else return false;
+  return true;
 }
 
 /**

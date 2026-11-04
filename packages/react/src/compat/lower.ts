@@ -99,9 +99,6 @@ export function hidden(values: Values): TreeNode["hidden"] {
   return desktop || mobile ? { ...(desktop ? { desktop } : {}), ...(mobile ? { mobile } : {}) } : undefined;
 }
 
-/** Thrown by a block whose whole template legacy draws in a way a row of the new engine can't: it keeps its legacy HTML. */
-export class Unlowerable extends Error {}
-
 /** What lowering a template's frame (its body, rows and columns) gathers beside the tree. */
 interface Frame {
   mode: Mode;
