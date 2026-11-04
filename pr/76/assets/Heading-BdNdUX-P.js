@@ -1,0 +1,1 @@
+import{c as s,H as r,m as i}from"./Html-C-w4j9wG.js";import{x as p}from"./render-nAMjbzZ2.js";const t={...r,color:"#000000",fontWeight:400,text:"Heading"},g=s({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=i(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",draw:p});export{g as H};
