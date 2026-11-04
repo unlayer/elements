@@ -1,16 +1,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { args, argTypes, compare, type Args } from "../compat/SideBySide";
-import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
-import * as luma from "../primitives/codemod/LumaEventInvite";
-import * as mercury from "../primitives/codemod/MercuryReceipt";
-import * as brew from "../primitives/codemod/MorningBrewDigest";
-import * as nike from "../primitives/codemod/NikeDrop";
-import * as notion from "../primitives/codemod/NotionWelcome";
-import * as digest from "../primitives/codemod/ProductDigest";
-import * as spotify from "../primitives/codemod/SpotifyWelcome";
-import * as stripe from "../primitives/codemod/StripeReceipt";
-import * as warby from "../primitives/codemod/WarbyOrderShipped";
+import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../primitives/testing/codemod-examples";
 import { fromDesign, toDesign } from "./index";
 import { legacyOf, withoutHidden } from "./testing/legacy";
 

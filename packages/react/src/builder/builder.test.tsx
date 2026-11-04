@@ -1,8 +1,7 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
 import { Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
-import * as stripe from "../primitives/codemod/StripeReceipt";
-import * as airbnb from "../primitives/codemod/AirbnbConfirmation";
+import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
 import { toDesign } from "./index";
 import { raise } from "./raise";

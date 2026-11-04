@@ -65,8 +65,9 @@ The codemod never drops anything quietly. It lists, with the line:
 
 ## Checked against main
 
-main's example templates are migrated by the codemod in this repository (`packages/react/src/primitives/codemod`,
-the codemod's output unedited, which a test checks), and the round-trip tests take each migrated template to the
+main's example templates are migrated by the codemod in this repository
+(`packages/react/src/primitives/testing/codemod-examples.tsx`, the codemod's output unedited, each example in a scope
+of its own, which a test checks), and the round-trip tests take each migrated template to the
 builder and back. The comparison gate (`pnpm --filter @unlayer/react-elements test:compare`) renders main's templates
 as today's components do next to the new engine's render of them, and each migrated template as the builder draws it
 next to what comes back from the builder, in Chromium, at desktop and phone widths, and fails on any difference in

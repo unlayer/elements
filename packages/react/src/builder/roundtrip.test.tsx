@@ -13,16 +13,18 @@ import * as primitives from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { generate, toElement, type Root } from "../primitives/testing/templates";
 import { airbnb, brew, digest, luma, menu, mercury, nike, notion, phone, social, spotify, stripe, video, warby } from "../primitives/testing/examples";
-import * as codemodAirbnb from "../primitives/codemod/AirbnbConfirmation";
-import * as codemodBrew from "../primitives/codemod/MorningBrewDigest";
-import * as codemodLuma from "../primitives/codemod/LumaEventInvite";
-import * as codemodMercury from "../primitives/codemod/MercuryReceipt";
-import * as codemodNike from "../primitives/codemod/NikeDrop";
-import * as codemodNotion from "../primitives/codemod/NotionWelcome";
-import * as codemodDigest from "../primitives/codemod/ProductDigest";
-import * as codemodSpotify from "../primitives/codemod/SpotifyWelcome";
-import * as codemodStripe from "../primitives/codemod/StripeReceipt";
-import * as codemodWarby from "../primitives/codemod/WarbyOrderShipped";
+import {
+  airbnb as codemodAirbnb,
+  brew as codemodBrew,
+  digest as codemodDigest,
+  luma as codemodLuma,
+  mercury as codemodMercury,
+  nike as codemodNike,
+  notion as codemodNotion,
+  spotify as codemodSpotify,
+  stripe as codemodStripe,
+  warby as codemodWarby,
+} from "../primitives/testing/codemod-examples";
 import { fromDesign, toDesign, type DisplayMode } from "./index";
 import { seen, type Seen } from "./testing/reader";
 import { TEMPLATES } from "./testing/templates";

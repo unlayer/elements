@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import * as codemodSpotify from "../primitives/codemod/SpotifyWelcome";
+import { spotify as codemodSpotify } from "../primitives/testing/codemod-examples";
 import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import type { Node } from "@unlayer-internal/elements-core";

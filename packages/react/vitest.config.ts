@@ -16,7 +16,7 @@ export default defineConfig({
         // So are the frames the comparison gate reads (test:compare); and the fixtures: designs in the new components, and the codemod's output
         'src/compat/SideBySide.tsx',
         'src/primitives/testing/examples.tsx',
-        'src/primitives/codemod/**',
+        'src/primitives/testing/codemod-examples.tsx',
         ...coverageConfigDefaults.exclude,
       ],
     },
