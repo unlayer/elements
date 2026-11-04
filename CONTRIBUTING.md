@@ -123,7 +123,8 @@ Version bumps are automatic on merge to `main`. To control the bump type, add a 
 
 - TypeScript strict mode
 - Use the `createItemComponent` factory for new content components
-- Follow existing naming conventions: `Component.tsx`, `Component.test.tsx`, `Component.stories.tsx`
+- Follow existing naming conventions: `Component.tsx`, `Component.test.tsx`
+- Storybook, the READMEs, the guides and the examples show the new components only (`@unlayer/react-elements/primitives`). Today's components are covered by tests, and their old stories are test fixtures (`Component.fixture.tsx`)
 - Keep the shared package framework-agnostic — no React imports
 
 ## Questions?

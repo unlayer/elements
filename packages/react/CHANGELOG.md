@@ -50,7 +50,10 @@
   `border-collapse: separate` on that table.
 - Changed: the ids and classes 0.2.1 generated for its own markup (`#u_row_1`, `#u_content_button_1`, `.u-row`,
   `.v-color`, `.v-button`) aren't written, so CSS that selects them no longer matches. Ids and classes you set in
-  a block's or row's `_meta`, and a custom tool's `u_content_custom_<slug>_<n>` id and class, are kept.
+  a block's or row's `_meta`, and a custom tool's `u_content_custom_<slug>_<n>` id and class, are kept. Text kept as your own
+  markup still has `.v-line-height`, `.v-font-size` and `.v-text-align`.
+- Changed: a Social icon with no name draws the rest of the block, with a warning, where 0.2.1's page lost the block.
+  A table whose rows have more cells than its first row shares its columns evenly, with a warning.
 - New, as a preview of the next major version: `@unlayer/react-elements/primitives`, the new components, with
   `render()` and `validate()`. Today's API is also at `@unlayer/react-elements/legacy`.
 - New in `/primitives`: `Html`, markup written as it is (the builder's HTML block); a PDF and an image draw its
@@ -60,6 +63,8 @@
   property of that tool; what the builder can't arrange comes back with the same look, flatter. `fromDesign()`
   takes a `toSafeHtml` for a design's markup, as today's components do.
 - Types for `/primitives`, `/builder` and `/legacy` resolve under `moduleResolution: "node"` too.
+- Docs: the READMEs, guides, examples and Storybook show the new components only. Today's components keep working, and
+  stay covered by tests.
 
 ## 0.1.0
 
