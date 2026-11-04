@@ -2,6 +2,7 @@ import React from "react";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
 import type { SemanticProps } from "../utils/semantic-props";
 import type { SizeInput } from "../types";
+import { ROOT } from "../utils/collect";
 import { withRenderScope } from "../utils/render-scope";
 import { renderThroughNewEngine } from "../compat/render";
 
@@ -64,5 +65,6 @@ const Body: React.FC<BodyProps> = (props) => {
 };
 
 Body.displayName = "Body";
+(Body as unknown as Record<symbol, boolean>)[ROOT] = true;
 
 export default Body;

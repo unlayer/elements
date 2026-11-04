@@ -17,19 +17,17 @@ import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
 import { mapSemanticProps } from "../utils/semantic-props";
 import { callIsolated, getDisplayName, htmlRoot, isElementsType, ROOT_NAMES } from "../utils/unwrap-root";
+import { ROOT } from "../utils/collect";
 import Body from "../components/Body";
 import Column from "../components/Column";
-import Document from "../components/Document";
-import Email from "../components/Email";
-import Page from "../components/Page";
 import Row from "../components/Row";
 import { BLOCKS } from "./blocks";
 import { ownMarkupCss } from "./quirks";
 import { keepServiceTags } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
-/** Whether a type is one of this copy's root components. */
-const isOwnRoot = (type: unknown) => type === Body || type === Email || type === Page || type === Document;
+/** Whether a type is a root component the new engine reads (see ROOT): this copy's, or the same package's in another build. */
+const isReadableRoot = (type: unknown) => !!(type as Record<symbol, unknown> | null)?.[ROOT];
 
 // Email/Page/Document lock their render mode internally (they render <Body mode="...">), so the top-level element's own
 // props never carry it. Each wrapper's mode, so the document always matches what the body rendered as.
@@ -83,18 +81,18 @@ const STRAYS: Strays = {
 /**
  * A template's root: what its element comes to, for a piece on its own (a Row, a Column, a block, what a component
  * returns that isn't a root) a root around it. Says why where it can't be drawn: markup isn't a template, and a root of
- * another copy of this package can't be read by this one.
+ * an older copy of this package can't be read by this one.
  */
 function templateRoot(element: React.ReactElement, name: string, config: Partial<UnlayerConfig> | undefined, inReact: InReact): { root: React.ReactElement; given?: boolean; wide?: boolean } {
   const found = htmlRoot(element, name) as React.ReactElement<any>;
   const display = getDisplayName(found) ?? "";
   if (ROOT_NAMES.has(display)) {
-    if (isOwnRoot(found.type)) return { root: found, given: true };
-    // A function of the user's own named after a root, around one of this copy's, is called like any template.
+    if (isReadableRoot(found.type)) return { root: found, given: true };
+    // A function of the user's own named after a root, around a real one, is called like any template.
     const type = found.type as unknown as { (props: unknown): unknown; prototype?: { isReactComponent?: unknown } };
     const inside = typeof type === "function" && !type.prototype?.isReactComponent ? callIsolated(() => type({ ...found.props })) : undefined;
-    if (React.isValidElement(inside) && isOwnRoot(inside.type)) return { root: inside, given: true };
-    throw new Error(`[Unlayer] ${name}: this <${display}> is from another copy of @unlayer/react-elements, which this one can't read. Import the component and ${name} from the same copy (\`npm ls @unlayer/react-elements\` shows a duplicate install).`);
+    if (React.isValidElement(inside) && isReadableRoot(inside.type)) return { root: inside, given: true };
+    throw new Error(`[Unlayer] ${name}: this <${display}> is from another copy of @unlayer/react-elements, older than 0.3, which this one can't read. Install one version of it (\`npm ls @unlayer/react-elements\` shows a duplicate install).`);
   }
   if (typeof found.type === "string") throw new Error(`[Unlayer] ${name}: <${found.type}> isn't a template: its root is an <Email>, <Page>, <Document> or <Body>. Put your markup in an <Html> block in one: <Email><Row><Column><Html html="…" /></Column></Row></Email>.`);
   // What it's in has its own background, where it's in something.

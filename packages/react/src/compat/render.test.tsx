@@ -74,6 +74,15 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(renderToHtml(<Named lang="ar"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Named>)).toBe(renderToHtml(<Email lang="ar"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>));
   });
 
+  it("read a root of another build of the package, as a project's CommonJS one and a tool's ES module one are: its mark says so", () => {
+    const Twin = Object.assign((props: Record<string, unknown>) => <Email {...props} />, { displayName: "Email", [Symbol.for("@unlayer/react-elements/root")]: true });
+    // Read as a root, by its props: it isn't called.
+    const called = vi.fn();
+    const template = <Twin lang="ar" onCalled={called}><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Twin>;
+    expect(renderToHtml(template)).toContain('lang="ar"');
+    expect(called).not.toHaveBeenCalled();
+  });
+
   it("say so of a root of another copy of today's components, which they can't read", () => {
     const Foreign = Object.assign((props: { children?: React.ReactNode }) => <div>{props.children}</div>, { displayName: "Email" });
     const template = <Foreign><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Foreign>;

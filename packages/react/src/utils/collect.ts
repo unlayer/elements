@@ -57,6 +57,12 @@ export const MARK = "unlayer-mark";
 export const RECORDS = Symbol.for("@unlayer/react-elements/records");
 
 /**
+ * On the root components (0.3 and later) whose props the new engine reads. Any such copy's root will do: a project's
+ * CommonJS build and a tool's ES module build of one install are two copies. One older has no mark, and is refused.
+ */
+export const ROOT = Symbol.for("@unlayer/react-elements/root");
+
+/**
  * The collecting render's `identifierPrefix`: React puts it at the start of every `useId()` there (after its
  * opening `:` or `«`), so a Row, Column or block can tell that render from another one started inside it (a
  * component rendering a block to a string with react-dom), where it renders what it renders instead of a

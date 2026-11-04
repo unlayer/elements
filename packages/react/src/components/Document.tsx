@@ -1,4 +1,5 @@
 import Body, { type BodyProps } from "./Body";
+import { ROOT } from "../utils/collect";
 
 export type DocumentPageSize =
   | "A3"
@@ -40,3 +41,4 @@ export default function Document(props: DocumentProps) {
 }
 
 Document.displayName = "Document";
+(Document as unknown as Record<symbol, boolean>)[ROOT] = true;
