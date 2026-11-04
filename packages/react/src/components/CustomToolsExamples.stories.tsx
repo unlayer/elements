@@ -261,7 +261,7 @@ const productLibraryTool = {
           </div>
         </div>`,
       email: (v: any) =>
-        `<table cellspacing="0" cellpadding="0" role="presentation" style="min-width:0;word-wrap:break-word;background-color:#fff;border:1px solid rgba(0,0,0,.125);border-radius:6px;margin:auto;text-align:center;max-width:360px;">
+        `<table cellspacing="0" cellpadding="0" role="presentation" style="border-collapse:separate;min-width:0;word-wrap:break-word;background-color:#fff;border:1px solid rgba(0,0,0,.125);border-radius:6px;margin:auto;text-align:center;max-width:360px;">
           <tbody>
             <tr><td width="100%"><img src="${v.productImage.url}" alt="${v.productTitle}" style="width:100%;object-fit:contain;border-top-left-radius:6px;border-top-right-radius:6px;"/></td></tr>
             <tr><td width="100%"><h3 style="text-align:left;margin:8px 0 12px 0;padding:0 16px;color:${v.productTitleColor};">${v.productTitle}</h3></td></tr>

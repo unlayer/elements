@@ -114,7 +114,7 @@ const productTool = {
            </div>
          </div>`,
       email: (v: any) =>
-        `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:340px;margin:0 auto;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:14px;">
+        `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:separate;max-width:340px;margin:0 auto;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:14px;">
            <tr><td><img src="${v.image.url}" alt="${v.title}" width="338" style="display:block;width:100%;border-radius:14px 14px 0 0;"/></td></tr>
            <tr><td style="padding:16px 18px 6px;font-family:Arial,sans-serif;"><span style="font-size:17px;font-weight:bold;color:#111827;">${v.title}</span>
              <span style="font-size:17px;font-weight:bold;color:#6366f1;float:right;">$${v.price}</span></td></tr>
