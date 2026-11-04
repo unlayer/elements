@@ -1126,13 +1126,14 @@ describe("a video block", () => {
     expect(said).toEqual(['A video\'s padding "lots" can\'t be read: it\'s drawn without it.']);
   });
 
-  it("caps an email's thumbnail on phones at legacy's maximum where that's past its width on desktop", () => {
+  it("caps an email's thumbnail at legacy's maximum where its row stacks, where that's past its width on desktop", () => {
     const image = (Root: Root) => {
       const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column>{video}</Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
       const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
       return find(result.tree.root);
     };
-    expect(image(Email)).toMatchObject({ style: { maxWidth: 250 }, mobile: { maxWidth: 250 } });
+    expect(image(Email)).toMatchObject({ style: { maxWidth: 250 }, compat: { stackedMaxWidth: 250 } });
+    expect(image(Email)?.mobile).toBeUndefined();
   });
 });
 

@@ -39,10 +39,10 @@ export const video: Lowering = (block, place): TreeNode => {
     const room = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: imagePadding(values, place.source) });
     const given = video.thumbnail ? drawnImageUrl(video.thumbnail, place.keep, (message) => place.note(`A video's thumbnail ${message}`)) : undefined;
     const max = Math.round(room * 100) / 100;
-    // Legacy's maximum is its own on phones too, where a stacked column is wider than on desktop (see image.ts).
+    // Legacy's maximum is its own where its row stacks, a stacked column being wider than on desktop (see image.ts).
     const slot = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
     const stacks = place.mode === "email" && place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
-    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, ...(stacks && max > slot + 0.5 ? { mobile: { maxWidth: max } } : {}) };
+    const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, ...(stacks && max > slot + 0.5 ? { compat: { stackedMaxWidth: max } } : {}) };
     const link = values.href ?? (typeof video.url === "string" && video.url ? { url: video.url, target: "" } : undefined);
     const href = link ? drawnLink(link, place.keep, place.note) : undefined;
     const linked = href && (href.href as { href: string }).href ? { type: "Link", props: href as Record<string, Json>, children: [image] } : image;
