@@ -16,7 +16,7 @@ import {
   Text,
 } from "../index";
 
-// main's examples/AirbnbConfirmation.stories.tsx
+// main's examples/AirbnbConfirmation.fixture.tsx
 //
 // What the codemod reported:
 // - line 35: its html comes from an expression (label): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
@@ -187,7 +187,7 @@ export const airbnb = (() => {
   return { AirbnbConfirmation };
 })();
 
-// main's examples/LumaEventInvite.stories.tsx
+// main's examples/LumaEventInvite.fixture.tsx
 //
 // What the codemod reported:
 // - line 153: today's draw this Image's 48px as 20% of its column, at most 52px: that's written out so it doesn't move (give it its width in px to draw it at that)
@@ -441,7 +441,7 @@ export const luma = (() => {
   return { LumaEventInvite };
 })();
 
-// main's examples/MercuryReceipt.stories.tsx
+// main's examples/MercuryReceipt.fixture.tsx
 //
 // What the codemod reported:
 // - line 45: its html comes from an expression (label): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
@@ -654,7 +654,7 @@ export const mercury = (() => {
   return { MercuryReceipt };
 })();
 
-// main's examples/MorningBrewDigest.stories.tsx
+// main's examples/MorningBrewDigest.fixture.tsx
 //
 // What the codemod reported:
 // - line 37: <Email>'s linkStyle isn't migrated: it's left out (the new components have nothing it becomes)
@@ -949,7 +949,7 @@ export const brew = (() => {
   return { MorningBrewDigest };
 })();
 
-// main's examples/NikeDrop.stories.tsx
+// main's examples/NikeDrop.fixture.tsx
 export const nike = (() => {
   // Reconstructed from the "fresh agent" Nike build — verbatim natural forms:
   // full-width hero src string + width="100%", oversized fontSize="48px"
@@ -1062,7 +1062,7 @@ export const nike = (() => {
   return { NikeDrop };
 })();
 
-// main's examples/NotionWelcome.stories.tsx
+// main's examples/NotionWelcome.fixture.tsx
 export const notion = (() => {
   // Notion/Figma-style onboarding welcome — approachable, clean, generous whitespace.
   const INK = "#2B2B33";
@@ -1278,7 +1278,7 @@ export const notion = (() => {
   return { NotionWelcome };
 })();
 
-// main's examples/ProductDigest.stories.tsx
+// main's examples/ProductDigest.fixture.tsx
 //
 // What the codemod reported:
 // - line 102: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu
@@ -1455,7 +1455,7 @@ export const digest = (() => {
   return { ProductDigest };
 })();
 
-// main's examples/StripeReceipt.stories.tsx
+// main's examples/StripeReceipt.fixture.tsx
 //
 // What the codemod reported:
 // - line 38: its html comes from an expression (label): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
@@ -1679,7 +1679,7 @@ export const stripe = (() => {
   return { StripeReceipt };
 })();
 
-// main's examples/WarbyOrderShipped.stories.tsx
+// main's examples/WarbyOrderShipped.fixture.tsx
 //
 // What the codemod reported:
 // - line 45: its html comes from an expression (label): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
@@ -2009,7 +2009,7 @@ export const warby = (() => {
   return { WarbyOrderShipped };
 })();
 
-// main's SpotifyWelcome.stories.tsx
+// main's SpotifyWelcome.fixture.tsx
 //
 // What the codemod reported:
 // - line 31: its html comes from an expression (desc): it's written as text, so markup in it would show; write that with Span, Link and LineBreak

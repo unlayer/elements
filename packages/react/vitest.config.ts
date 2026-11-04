@@ -13,6 +13,7 @@ export default defineConfig({
         'scripts/**',
         // Storybook stories are exercised by the Storybook smoke/visual gates
         '**/*.stories.tsx',
+        '**/*.fixture.tsx',
         // So are the frames two of them draw in; and the fixtures: designs in the new components, and the codemod's output
         'src/compat/SideBySide.tsx',
         'src/primitives/testing/examples.tsx',

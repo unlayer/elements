@@ -13,7 +13,7 @@ type Release = typeof current;
 /** The last published release, the reference for what legacy drew. A template has to be made with its own components. */
 const previous = published as unknown as Release;
 
-const stories = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"]);
+const stories = import.meta.glob(["../components/*.fixture.tsx", "../examples/*.fixture.tsx", "../SpotifyWelcome.fixture.tsx", "../context/*.fixture.tsx"]);
 
 /** What a story renders, called as Storybook calls it (its args, its meta's). */
 function storyElement(module: Record<string, any>, name: string): React.ReactElement {
@@ -93,7 +93,7 @@ async function templates(): Promise<Array<[string, React.ReactElement]>> {
 
 /** The same templates, made with the published release's components. */
 async function publishedTemplates(): Promise<Array<[string, React.ReactElement]>> {
-  const components = import.meta.glob(["../components/*.tsx", "!../components/*.stories.tsx", "!../components/*.test.tsx"]);
+  const components = import.meta.glob(["../components/*.tsx", "!../components/*.fixture.tsx", "!../components/*.test.tsx"]);
   const ours = ["../index", "../context", "../context/UnlayerProvider", "../layouts/ColumnLayouts", "../utils/register-tool", "../utils/render-to-html", ...Object.keys(components)];
   vi.resetModules();
   for (const path of ours) {

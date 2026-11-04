@@ -20,7 +20,7 @@ const FILE = path.join(REACT, "primitives/testing/codemod-examples.tsx");
  */
 const SCOPES: Record<string, string> = { AirbnbConfirmation: "airbnb", LumaEventInvite: "luma", MercuryReceipt: "mercury", MorningBrewDigest: "brew", NikeDrop: "nike", NotionWelcome: "notion", ProductDigest: "digest", StripeReceipt: "stripe", WarbyOrderShipped: "warby", SpotifyWelcome: "spotify" };
 const EXAMPLES = Object.keys(SCOPES);
-const sourceOf = (name: string) => path.join(REACT, name === "SpotifyWelcome" ? "" : "examples", `${name}.stories.tsx`);
+const sourceOf = (name: string) => path.join(REACT, name === "SpotifyWelcome" ? "" : "examples", `${name}.fixture.tsx`);
 
 /** The example without what makes it a story (Storybook's import, its meta and its story), so the template is left. */
 function template(source: string): string {

@@ -35,7 +35,7 @@ async function example(name: string, release: "current" | "previous"): Promise<{
   vi.resetModules();
   if (release === "previous") vi.doMock("../index", () => import("@unlayer/react-elements-previous"));
   else vi.doUnmock("../index");
-  const stories = await import(`../examples/${name}.stories.tsx`);
+  const stories = await import(`../examples/${name}.fixture.tsx`);
   const render = (release === "previous" ? await import("@unlayer/react-elements-previous") : await import("../index")) as unknown as Renderers;
   return { element: stories[name](), render };
 }

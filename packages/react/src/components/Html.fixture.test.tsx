@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import * as stories from "./Html.stories";
+import * as stories from "./Html.fixture";
 
 // The <Html> component is a raw passthrough (no default sanitizer), so its story
 // HTML must itself be valid and safe. Two things have bitten us:
