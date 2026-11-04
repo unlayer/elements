@@ -51,7 +51,10 @@ export function phoneWidth(value: Json | undefined): Style {
  * `align`, which every client (Word too) applies to the tables and images in it.
  */
 export function cellAlign(child: ResolvedNode, stack: ResolvedNode): string | undefined {
-  if (child.type === "Divider") return TEXT_ALIGN[stack.text.textAlign] === "left" ? undefined : TEXT_ALIGN[stack.text.textAlign];
+  if (child.type === "Divider") {
+    if (stack.style.alignItems && stack.style.alignItems !== "stretch") return ALIGN[stack.style.alignItems as string];
+    return TEXT_ALIGN[stack.text.textAlign] === "left" ? undefined : TEXT_ALIGN[stack.text.textAlign];
+  }
   if (child.definition.sizing !== "shrink" && !sized(child)) return undefined;
   const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align) return ALIGN[align];
@@ -86,6 +89,9 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
   const mobile = node.mobile ?? {};
   const width = boxWidth(node, fill);
   const height = style.height !== undefined ? toNumber(style.height) : undefined;
+  // A cell's CSS height leaves out its padding; Word's attribute, and a page's box, hold it.
+  const padding = style.padding as { top: number; bottom: number } | undefined;
+  const contentHeight = height !== undefined && padding ? Math.max(0, height - padding.top - padding.bottom) : height;
   return (
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth, borderCollapse: ownBorders(style, mobile) }}>
       <tr>
@@ -102,7 +108,7 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
             backgroundColor: style.backgroundColor,
             border: style.border,
             borderRadius: style.borderRadius,
-            height,
+            height: contentHeight,
             overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
@@ -153,6 +159,9 @@ export const gapOf = (props: Props) => (typeof props.style.gap === "number" ? pr
 export const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? props.mobile.gap : gapOf(props));
 export const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
+/** A child that shares its Row (no width of its own, a flex). */
+const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
+
 /**
  * Each child's width on phones in a side-by-side Row whose children share it: a table shares its width out by its
  * cells' content, flexbox (as on desktop) by their widths. A cell's share is a percentage, and the gaps are the cells'
@@ -161,9 +170,13 @@ export const valignOf = (props: Props) => VALIGN[(props.style.alignItems as stri
  */
 export function phoneShares(children: readonly ResolvedNode[], gap: number): Map<ResolvedNode, Style> | undefined {
   const onPhones = children.filter((child) => !child.hidden?.mobile);
-  // Only children that share the Row (no width of their own, a flex): one of its own size keeps it, as on the page.
-  const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
-  if (onPhones.length < 2 || !onPhones.every(sharing)) return undefined;
+  // Only children that share the Row: one of its own size keeps it, as on the page.
+  if (onPhones.length < 2) return undefined;
+  // Beside one of its own size, they take what it leaves: a table would shrink it with them.
+  if (!onPhones.every(sharing)) {
+    const beside = onPhones.filter(sharing);
+    return beside.length ? new Map(beside.map((child) => [child, { width: "auto" }])) : undefined;
+  }
   const total = onPhones.reduce((sum, child) => sum + child.width!, 0);
   const gaps = gap * (onPhones.length - 1);
   const out = new Map<ResolvedNode, Style>();

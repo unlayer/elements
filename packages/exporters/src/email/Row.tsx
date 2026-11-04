@@ -176,6 +176,8 @@ function sideBySide(props: Props): Html {
   const children = node.children.filter(isNode).filter(shown);
   const gaps = gapsBefore(children);
   const shares = packed ? undefined : phoneShares(children, phoneGap);
+  // Whether the gaps on phones are the cells' padding: not beside a child of its own size.
+  const inShares = !!shares && children.every((child) => child.hidden?.mobile || shares.get(child)?.width !== undefined) && ![...shares.values()].some((style) => style.width === "auto");
   const cells = children.map((child, index) => {
     const width = child.width ?? undefined;
     const hidden = hiding(child, "table-cell");
@@ -195,7 +197,7 @@ function sideBySide(props: Props): Html {
     return (
       <>
         {/* With the shares, the gaps on phones are the cells' padding. */}
-        {gapCell(gapShown(shares ? { ...gaps[index], phone: false } : gaps[index], gap, phoneGap), gap, phoneGap, packed)}
+        {gapCell(gapShown(shares && inShares ? { ...gaps[index], phone: false } : gaps[index], gap, phoneGap), gap, phoneGap, packed)}
         {child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell}
       </>
     );

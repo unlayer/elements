@@ -33,8 +33,8 @@ export const Table: Component = ({ node, style, parent, placement, classes, rend
       ]}
     >
       <colgroup>
-        {columns.map((width) => (
-          <col style={{ width: share(width, total) }} />
+        {columns.map((width, index) => (
+          <col style={{ width: node.ownColumns ? (node.ownColumns[index] ? width : "auto") : share(width, total) }} />
         ))}
       </colgroup>
       {header.length > 0 && <thead>{header.map((row) => render(row, []))}</thead>}

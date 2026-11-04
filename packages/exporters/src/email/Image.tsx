@@ -31,8 +31,8 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
     <img
       id={node.id}
       class={hidden.class}
-      // (With a maximum, a share of its cell is its own on phones.)
-      phone={[{ width: mobile.maxWidth !== undefined ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]]}
+      // (With a maximum, a share of its cell is its own on phones. A width there replaces that share, or it would still be the share.)
+      phone={[{ width: mobile.maxWidth !== undefined || capped ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]]}
       src={src}
       alt={(node.props.alt as string) ?? ""}
       aria-label={node.compat?.ariaLabel as string | undefined}

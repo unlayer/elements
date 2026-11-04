@@ -257,7 +257,7 @@ describe("web HTML", () => {
         },
       ])
     );
-    expect(body).toContain('<table style="border-collapse:separate;border-spacing:0;table-layout:fixed;box-sizing:border-box;border:1px solid #ccc;width:100%"><colgroup><col style="width:16.72%"><col style="width:83.28%"></colgroup>');
+    expect(body).toContain('<table style="border-collapse:separate;border-spacing:0;table-layout:fixed;box-sizing:border-box;border:1px solid #ccc;width:100%"><colgroup><col style="width:100px"><col style="width:auto"></colgroup>');
     expect(body).toContain('<thead><tr style="font-weight:700"><th scope="col" style="box-sizing:border-box;padding:8px;vertical-align:top;font-weight:700;text-align:left">A</th>');
     expect(body).toContain('<tbody><tr><td colspan="2" style="box-sizing:border-box;padding:8px;vertical-align:top">C</td></tr></tbody></table>');
   });

@@ -26,7 +26,8 @@ export const TableCell: Component = ({ node, style, mobile, parent: row, phoneTe
         // A header cell is bold of its own: its weight is always written.
         fullText(node, { weight: Cell === "th" }),
         {
-          width: node.width !== null && row.width ? share(node.width, row.width) : undefined,
+          // Beside a column that keeps its own px, the others take what it leaves: Word's attribute isn't theirs.
+          width: node.width !== null && row.width ? (row.ownColumns ? (typeof style.width === "number" ? style.width : "auto") : share(node.width, row.width)) : undefined,
           boxSizing: "border-box",
           padding: style.padding,
           backgroundColor: style.backgroundColor,

@@ -58,6 +58,8 @@ export interface ResolvedNode {
   children: Array<ResolvedNode | string>;
   /** A Table's column widths in px, each column's from its cells, the rest shared (null where the table's width isn't known). */
   columns?: number[] | null;
+  /** On a Table and its rows: which of its columns have a width of their own in px, where others share what's left (otherwise, none: every column is a share of the table). */
+  ownColumns?: boolean[] | null;
   compat?: Record<string, Json>;
 }
 
@@ -458,12 +460,14 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
   let columns: number[] | null = null;
   if (available !== null && count > 0) {
     const set: Array<number | null> = new Array(count).fill(null);
+    const own: boolean[] = new Array(count).fill(false);
     for (const { cells } of rows) {
       let column = 0;
       for (const { resolved } of cells) {
         if (span(resolved) === 1 && set[column] === null) {
           const width = toPx(resolved.style.width, available);
           set[column] = width === null ? null : Math.round(width);
+          own[column] = typeof resolved.style.width === "number";
         }
         column += span(resolved);
       }
@@ -478,6 +482,12 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
     // Every column has a width and they don't add up to the table: they grow or shrink in proportion to fill it, as
     // the writers' shares of the table draw them (too wide is still warned about, above).
     if (free.length === 0 && fixed > 0 && Math.abs(fixed - available) > 0.5) columns = share(available, columns);
+    // A column of its own px stays that wide in a narrower window, the others taking what's left: as a share of the
+    // table it would shrink past its words. With no other to take it, the whole table would run past the window.
+    if (free.length > 0 && own.some(Boolean)) {
+      table.ownColumns = own;
+      for (const { row } of rows) row.ownColumns = own;
+    }
   }
   table.columns = columns;
 

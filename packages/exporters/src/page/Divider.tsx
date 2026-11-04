@@ -6,7 +6,7 @@ const MARGIN: Record<string, string> = { center: "0 auto", right: "0 0 0 auto" }
 
 export const Divider: Component = ({ node, style, parent, placement, classes }) => {
   const line: Style = {
-    margin: MARGIN[parent.text.textAlign] ?? "0",
+    margin: MARGIN[({ center: "center", end: "right" } as Record<string, string>)[parent.style.alignItems as string] ?? parent.text.textAlign] ?? "0",
     border: "0",
     borderTop: style.borderTop,
     width: style.width,

@@ -384,6 +384,49 @@ describe("validate()", () => {
     expect(validate(<Email><Html><Text>x</Text></Html></Email>).valid).toBe(false);
   });
 
+  it("draws an image at its width on phones, in place of a share of its column on desktop", async () => {
+    const { html } = await render(<Email><Image src={{ src: "https://example.com/a.png", width: 96, height: 30 }} alt="" style={{ width: "16%", maxWidth: 96 }} mobile={{ width: 96 }} /></Email>);
+    const rule = /@media[^{]*\{([^}]*\{[^}]*\})\}/.exec(html)?.[1];
+    expect(rule).toContain("width:96px!important");
+    expect(rule).toMatch(/[{;]width:96px!important/);
+  });
+
+  it("holds a box's padding inside its height in an email, as on a page", async () => {
+    const { html } = await render(<Email><Column style={{ height: 80, padding: 12 }}><Text>x</Text></Column></Email>);
+    expect(html).toMatch(/<td[^>]*height="80"[^>]*style="[^"]*height:56px/);
+  });
+
+  it("keeps a Column's own width on phones beside one that shares a Row, as on a page", async () => {
+    const { html } = await render(
+      <Email>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: 64 }}><Text>a</Text></Column>
+          <Column><Text>b</Text></Column>
+        </Row>
+      </Email>
+    );
+    expect(/@media[^{]*\{([\s\S]*?)\}\s*<\/style>/.exec(html)?.[1] ?? "").toContain("width:auto!important");
+    expect(html).toMatch(/<td[^>]*width="64"/);
+  });
+
+  it("places a short Divider by its parent's alignItems, in an email and on a page", async () => {
+    const email = await render(<Email><Column style={{ alignItems: "center" }}><Divider style={{ width: 80 }} /></Column></Email>);
+    expect(email.html).toMatch(/<td align="center"[^>]*>\s*<table[^>]*max-width:80px/);
+    const page = await render(<Page><Column style={{ alignItems: "end" }}><Divider style={{ width: 80 }} /></Column></Page>);
+    expect(page.html).toMatch(/<hr[^>]*margin:0 0 0 auto/);
+  });
+
+  it("keeps a Table column's px beside columns that take what's left; with none to take it, every column is a share", async () => {
+    const mixed = (Root: typeof Email) => <Root width={560}><Table><TableRow><TableCell>Item</TableCell><TableCell style={{ width: 80 }}>$136.00</TableCell></TableRow></Table></Root>;
+    for (const Root of [Email, Page]) {
+      const { html } = await render(mixed(Root as typeof Email));
+      expect(html).toMatch(/<col[^>]*style="width:auto"/);
+      expect(html).toMatch(/<col[^>]*style="width:80px"/);
+    }
+    const all = await render(<Email width={560}><Table><TableRow><TableCell style={{ width: 300 }}>Item</TableCell><TableCell style={{ width: 100 }}>$136.00</TableCell></TableRow></Table></Email>);
+    expect(all.html).toMatch(/<col[^>]*style="width:75%"/);
+  });
+
   it("gives an Html block the text around it in an email too, as on a page", async () => {
     const { html } = await render(<Email style={{ color: "#123456", fontFamily: "Georgia, serif" }}><Html html="<p>x</p>" /></Email>);
     const around = /<div[^>]*style="([^"]*)"[^>]*><p>x<\/p>/.exec(html)?.[1];

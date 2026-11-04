@@ -23,8 +23,8 @@ export const Table: Component = ({ node, style, fill, render }) => {
     <Box node={node} fill={fill}>
       <table cellpadding={TABLE.cellpadding} cellspacing={TABLE.cellspacing} border={TABLE.border} width="100%" style={{ tableLayout: "fixed", borderCollapse: style.borderCollapse ?? "separate" }}>
         <colgroup>
-          {columns.map((width) => (
-            <col width={width} style={{ width: share(width, total) }} />
+          {columns.map((width, index) => (
+            <col width={width} style={{ width: node.ownColumns ? (node.ownColumns[index] ? width : "auto") : share(width, total) }} />
           ))}
         </colgroup>
         {header.length > 0 && <thead>{header.map((row) => render(row))}</thead>}
