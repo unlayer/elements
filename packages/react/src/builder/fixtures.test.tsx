@@ -65,8 +65,9 @@ describe("designs the real builder saved", () => {
     ["every-tool.saved-in-builder", everyTool, "email", ["block 0 (Heading) own", "block 2 (Button) own", "block 3 (Link) own", "block 5 (Paragraph) runs", "block 11 (Paragraph) hidden"]],
     // The body had no background written: the builder's grey.
     ["invoice.saved-in-builder", invoice, "document", [0, 1, 2, 3, 4, 5, 6].map((i) => `block ${i} (${i === 1 ? "Heading" : "Paragraph"}) behind`)],
-    // A heading's words changed in the builder's editor; the button's hover is the builder's default (white on blue).
-    ["SpotifyPremiumWelcome.edited-in-builder", <codemodSpotify.SpotifyPremiumWelcome key="spotify" />, "email", ["block 3 (Heading) runs", "block 5 (Button) own"]],
+    // A heading's words changed in the builder's editor; the button's hover is the builder's default (white on blue);
+    // the logo's width is from before the example's images followed the editor's.
+    ["SpotifyPremiumWelcome.edited-in-builder", <codemodSpotify.SpotifyPremiumWelcome key="spotify" />, "email", ["block 0 (Image) width", "block 3 (Heading) runs", "block 5 (Button) own"]],
   ];
   for (const [name, template, displayMode, expected] of cases) {
     it(`reads ${name} as the template it was written from`, () => {

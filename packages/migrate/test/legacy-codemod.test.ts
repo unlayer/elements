@@ -74,7 +74,8 @@ export const T = ({ chosen }: { chosen: { cells: number[] } }) => <Email><Row la
     </Column></Row></Email>;`);
     const flat = squash(code);
     expect(flat).toContain('{note?(<><Spanstyle={{fontStyle:"italic"}}>{note}</Span></>):("")}');
-    expect(flat).toContain("{items.map((item)=>(<><Spanstyle={{fontWeight:700}}>{item}</Span></>))}");
+    expect(flat).toContain("{items.map((item,index)=>(<Fragmentkey={index}><Spanstyle={{fontWeight:700}}>{item}</Span></Fragment>))}");
+    expect(code).toMatch(/import \{ Fragment \} from "react";/);
     expect(flat).toContain("{name?(<>{name}<LineBreak/></>):");
     expect(code).toContain('"it&apos;s kept"');
     expect(code).not.toMatch(/htmlText|\.join\(/);
@@ -249,14 +250,14 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
 
   it("writes an image's px width as the share of its column today's draw it at, and reports it", async () => {
     const { code, report } = await migrate(`export const T = () => <Email contentWidth="600px"><Row padding="0 40px"><Column><Image src="https://example.com/logo.png" width="120px" alt="Logo" /></Column></Row></Email>;`);
-    // 120 of 600 less the Row's 80 and the block's 20: 24%, at most 24% of the 520px column.
-    expect(squash(code)).toContain('style={{width:"24%",maxWidth:124.8}}');
-    expect(report.join("\n")).toMatch(/120px as 24% of its column, at most 124.8px/);
+    // 120 of 600 less the block's 20 (the Row's side padding is outside its Columns): 20.69%, at most that of the 600px column.
+    expect(squash(code)).toContain('style={{width:"20.69%",maxWidth:124.14}}');
+    expect(report.join("\n")).toMatch(/120px as 20.69% of its column, at most 124.14px/);
   });
 
-  it("caps a full-width image at its column less the Row's side padding, as today's do", async () => {
+  it("caps a full-width image at its column, the Row's side padding outside it, as the editor's do", async () => {
     const { code } = await migrate(`export const T = () => <Email contentWidth="600px"><Row padding="0 48px"><Column><Image src="https://example.com/photo.jpg" width="100%" /></Column></Row></Email>;`);
-    expect(squash(code)).toContain('style={{width:"100%",maxWidth:504}}');
+    expect(squash(code)).toContain('style={{width:"100%",maxWidth:600}}');
   });
 
   it("rewrites today's JSX inside expressions (a map, a condition) in place, an element's key kept", async () => {

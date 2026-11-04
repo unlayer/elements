@@ -32,9 +32,22 @@ function asChildren(code: string, inline: (markup: string, holes: string[]) => s
         const alone = ts.isIdentifier(value) || ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value) || ts.isCallExpression(value) || ts.isLiteralExpression(value) || ts.isParenthesizedExpression(value);
         return alone ? written(value, true) : `(${written(value, true)})`;
       }
-      // Elements in a list are children as they are: joined, they'd be text.
+      // Elements in a list are children as they are, each with a key: joined, they'd be text.
       const callee = node.expression;
-      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "join" && ts.isStringLiteralLike(value) && !value.text && ts.isCallExpression(callee.expression)) return written(callee.expression);
+      if (ts.isPropertyAccessExpression(callee) && callee.name.text === "join" && ts.isStringLiteralLike(value) && !value.text && ts.isCallExpression(callee.expression)) {
+        const map = callee.expression;
+        const each = map.arguments[0];
+        if (!text && map.arguments.length === 1 && ts.isArrowFunction(each) && each.parameters.length <= 2 && !ts.isBlock(each.body)) {
+          const params = each.parameters.map((parameter) => parameter.getText(file));
+          const key = params.length === 2 ? each.parameters[1].name.getText(file) : "index";
+          // (`.map((item) => …)` gains its index.)
+          if (params.length < 2) params.push("index");
+          const body = written(each.body);
+          const inner = body.startsWith("<>") && body.endsWith("</>") ? body.slice(2, -3) : `{${body}}`;
+          return `${source.slice(map.getStart(file), each.getStart(file))}(${params.join(", ")}) => <Fragment key={${key}}>${inner}</Fragment>)`;
+        }
+        return written(map, text);
+      }
     }
     if (text) {
       // Nothing in it is markup.
@@ -633,7 +646,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const p = isLiteral(pad) ? sides(pad.literal) : undefined;
     if (pad && !p) report.push(`${where(node)}: this Row's padding can't be read: it's kept as written, its sides inside the content (today's are outside it)`);
     const total = cells.reduce((sum, cell) => sum + cell, 0) || 1;
-    const rowWidth = body !== undefined && (p || !pad) ? body - (p ? p[1] + p[3] : 0) : undefined;
+    // (Its side padding is outside the content: its Columns share all of it, as the editor's do.)
+    const rowWidth = body !== undefined && (p || !pad) ? body : undefined;
     const columns = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && !c.text.trim())) : [];
     const isColumn = (c: ts.JsxChild): c is ts.JsxElement | ts.JsxSelfClosingElement => (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && todays(c) === "Column";
     const columnProps = columns.map((c) => (isColumn(c) ? propsOf(opening(c)) : undefined));
@@ -1226,7 +1240,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const sharedRow = used.delete("SharedRow");
   if (sharedRow) used.add("Row");
   const imported = [...used].sort().map((component) => (nameOf(component) === component ? component : `${component} as ${nameOf(component)}`));
-  const fromReact = sharedRow ? `import { Children, cloneElement, isValidElement${typescript ? ", type ComponentProps" : ""} } from "react";\n` : "";
+  const reactNames = [...(sharedRow ? ["Children", "cloneElement", "isValidElement", ...(typescript ? ["type ComponentProps"] : [])] : []), ...(edits.some((edit) => edit.text.includes("<Fragment key={")) ? ["Fragment"] : [])];
+  const fromReact = reactNames.length ? `import { ${reactNames.join(", ")} } from "react";\n` : "";
   const added = imported.length ? `${fromReact}import { ${imported.join(", ")} } from ${JSON.stringify(to)};` : "";
   imports.forEach(({ statement, kept }, index) => {
     const rest = kept.length ? `import ${kept.join(", ")} from ${JSON.stringify((statement.moduleSpecifier as ts.StringLiteral).text)};` : "";

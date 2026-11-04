@@ -104,7 +104,7 @@ export const airbnb = (() => {
             <Image
               src={"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&q=80"}
               alt="Oceanview Villa"
-              style={{ width: "100%", maxWidth: 520 }}
+              style={{ width: "100%", maxWidth: 600 }}
             />
           </Column>
         </Section>
@@ -190,8 +190,8 @@ export const airbnb = (() => {
 // main's examples/LumaEventInvite.fixture.tsx
 //
 // What the codemod reported:
-// - line 153: today's draw this Image's 48px as 20% of its column, at most 52px: that's written out so it doesn't move (give it its width in px to draw it at that)
-// - line 163: today's draw this Image's 48px as 20% of its column, at most 52px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 153: today's draw this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 163: today's draw this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
 export const luma = (() => {
   // Luma-style event invite — modern, energetic, full-bleed hero.
   const INK = "#0B0B0F";
@@ -357,7 +357,7 @@ export const luma = (() => {
                     "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80"
                   }
                   alt="Maya Okonkwo"
-                  style={{ width: "20%", maxWidth: 52 }}
+                  style={{ width: "17.14%", maxWidth: 51.42 }}
                 />
               </Column>
               <Paragraph
@@ -390,7 +390,7 @@ export const luma = (() => {
                     "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80"
                   }
                   alt="Theo Park"
-                  style={{ width: "20%", maxWidth: 52 }}
+                  style={{ width: "17.14%", maxWidth: 51.42 }}
                 />
               </Column>
               <Paragraph
@@ -740,7 +740,7 @@ export const brew = (() => {
             <Image
               src={"https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1040&q=80"}
               alt="Stock market chart on a screen"
-              style={{ width: "100%", maxWidth: 504 }}
+              style={{ width: "100%", maxWidth: 600 }}
             />
           </Column>
         </Section>
@@ -1137,7 +1137,7 @@ export const notion = (() => {
             <Image
               src={"https://images.unsplash.com/photo-1517842645767-c639042777db?w=1040&q=80"}
               alt="A tidy desk workspace"
-              style={{ width: "100%", maxWidth: 504 }}
+              style={{ width: "100%", maxWidth: 600 }}
             />
           </Column>
         </Section>
@@ -2013,7 +2013,7 @@ export const warby = (() => {
 //
 // What the codemod reported:
 // - line 31: its html comes from an expression (desc): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
-// - line 42: today's draw this Image's 120px as 24% of its column, at most 124.8px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 42: today's draw this Image's 120px as 20.69% of its column, at most 124.14px: that's written out so it doesn't move (give it its width in px to draw it at that)
 export const spotify = (() => {
   // Spotify brand: bright green #1ED760, near-black #121212, muted #B3B3B3.
   const GREEN = "#1ED760";
@@ -2051,7 +2051,7 @@ export const spotify = (() => {
             <Image
               src="https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_White.png"
               alt="Spotify"
-              style={{ width: "24%", maxWidth: 124.8 }}
+              style={{ width: "20.69%", maxWidth: 124.14 }}
             />
           </Column>
         </Section>
