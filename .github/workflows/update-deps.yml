@@ -1,6 +1,6 @@
 # Update Unlayer Dependencies
 #
-# Checks npm for new versions of @unlayer/exporters and @unlayer/types
+# Checks npm for new versions of @unlayer/types
 # and opens a PR to update the pnpm catalog if newer versions exist.
 # Runs build + tests first and includes the result in the PR body.
 #
@@ -46,7 +46,7 @@ jobs:
           CATALOG="pnpm-workspace.yaml"
           CHANGED=false
 
-          for PKG in "@unlayer/exporters" "@unlayer/types"; do
+          for PKG in "@unlayer/types"; do
             CURRENT=$(grep "\"$PKG\":" "$CATALOG" | sed 's/.*: *"\(.*\)"/\1/')
             LATEST=$(npm view "$PKG" version 2>/dev/null || echo "")
 
@@ -126,7 +126,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "deps: update @unlayer/exporters and @unlayer/types"
+          git commit -m "deps: update @unlayer/types"
           git push --force-with-lease origin "$BRANCH"
 
           # Build PR body with test status
@@ -151,7 +151,7 @@ jobs:
             gh pr edit "$EXISTING_PR" --body "$BODY"
           else
             gh pr create \
-              --title "deps: update @unlayer/exporters and @unlayer/types" \
+              --title "deps: update @unlayer/types" \
               --body "$BODY" \
               --base main \
               --head "$BRANCH"

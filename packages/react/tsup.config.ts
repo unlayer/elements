@@ -19,7 +19,7 @@ export default defineConfig({
   },
   // Bundle @unlayer-internal/shared-elements, elements-core and elements-exporters into the output so consumers
   // don't need to install it separately (it's a private workspace package).
-  // Its own deps (Lexical, exporters) stay external via our dependencies.
+  // Its own deps (Lexical) stay external via our dependencies.
   noExternal: ['@unlayer-internal/shared-elements', '@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
   treeshake: true,
 });

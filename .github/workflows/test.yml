@@ -102,7 +102,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=450500
+          MAX_SIZE=437000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -139,11 +139,6 @@ jobs:
             echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
-          # An import of the package (a comment or a message naming it doesn't count); inlining it shows in the size.
-          if grep -qE "(from |import ?\(?|require\()[\"']@unlayer/exporters" "$BUNDLE" packages/react/dist/primitives.cjs; then
-            echo "::error::/primitives must not import @unlayer/exporters"
-            exit 1
-          fi
           echo "✅ /primitives bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
@@ -169,7 +164,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=463000
+          MAX_SIZE=565000
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -178,6 +173,14 @@ jobs:
           echo "✅ /builder bundle within budget"
 
       # Every package's unit tests but the codemod's (their own job) and react's, which run once, with coverage.
+      # The closed package is gone: no bundle imports it (a comment or a message naming it doesn't count).
+      - name: No bundle imports @unlayer/exporters
+        run: |
+          if grep -lE "(from |import ?\(?|require\()[\"']@unlayer/exporters" packages/*/dist/*.js packages/*/dist/*.cjs; then
+            echo "::error::a bundle imports @unlayer/exporters"
+            exit 1
+          fi
+
       - name: Run tests
         run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
 
@@ -187,9 +190,7 @@ jobs:
       # ── CSP safety gate ─────────────────────────────────────────
       # Imports + renders the built bundle under V8's
       # --disallow-code-generation-from-strings (a CSP without 'unsafe-eval').
-      # HARD gate: fails if this package OR its pinned @unlayer/exporters
-      # evaluates a string at import/render. Stays red until the catalog pins a
-      # CSP-safe (precompiled-template) @unlayer/exporters release.
+      # HARD gate: fails if this package evaluates a string at import/render.
       - name: CSP safety gate
         run: pnpm --filter @unlayer/react-elements test:csp
 

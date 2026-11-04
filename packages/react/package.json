@@ -33,7 +33,6 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@unlayer/exporters": "catalog:",
     "@unlayer/types": "catalog:"
   },
   "type": "module",
@@ -114,7 +113,7 @@
     "@unlayer-internal/elements-core": "workspace:*",
     "@unlayer-internal/elements-exporters": "workspace:*",
     "@unlayer-internal/shared-elements": "workspace:*",
-    "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.1.22",
+    "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.2.1",
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^3.2.4",
     "concurrently": "9.2.1",

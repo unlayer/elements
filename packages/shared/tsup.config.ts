@@ -15,6 +15,5 @@ export default defineConfig({
     '@lexical/link',
     '@lexical/list',
     '@lexical/rich-text',
-    '@unlayer/exporters',
   ],
 });
