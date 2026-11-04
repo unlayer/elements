@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HtmlExporters } from "@unlayer/exporters";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video, registerTool } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video, registerTool, renderToHtml } from "../index";
 import { recordingBlockHtml } from "../utils/block-html";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { renderBody } from "../utils/render-to-html";
@@ -15,6 +15,13 @@ function lowered(block: React.ReactElement, Root: Root = Email): TreeNode | unde
   const result = withRenderScope(() => lowerTemplate(<Root><Row><Column>{block}</Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
   const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
   return find(result.tree.root);
+}
+
+/** The node a block lowers to and what it says, in an Email or a Page. */
+function drawn(block: React.ReactElement, Root: Root = Email): { node: TreeNode | undefined; said: string[] } {
+  const result = withRenderScope(() => lowerTemplate(<Root><Row><Column>{block}</Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
+  const find = (node: TreeNode): TreeNode | undefined => (node.type === "Column" && node.designColumn ? (node.children as TreeNode[])[0] : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
+  return { node: find(result.tree.root), said: result.diagnostics.map((d) => d.message) };
 }
 
 describe("a text block", () => {
@@ -167,21 +174,120 @@ describe("a menu block", () => {
 });
 
 describe("a social block", () => {
-  it("is on a page a Row of its icons, each a link around its icon from the CDN", () => {
-    const row = (lowered(<Social icons={[{ name: "Facebook", url: "https://facebook.com/acme" }]} iconSize={32} spacing={8} />, Page)?.children as TreeNode[])[0];
-    expect(row).toEqual({
+  const icons = [{ name: "Facebook", url: "https://facebook.com/acme" }, { name: "Email", url: "hi@example.com" }];
+  const row = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+  const given = (list: unknown[], extra: Record<string, unknown> = {}) => ({ icons: { icons: list }, ...extra }) as never;
+
+  it("is on a page a Row of its icons that wraps, each a link around its icon from the CDN, the space to the next inside its box", () => {
+    expect(row(lowered(<Social icons={icons} iconSize={32} spacing={8} />, Page))).toEqual({
       type: "Row",
       props: { stackOnMobile: false },
-      style: { gap: 8, justifyContent: "center" },
+      style: { flexWrap: "wrap", justifyContent: "center" },
       children: [
         {
-          type: "Link",
-          props: { href: { href: "https://facebook.com/acme", target: "_blank" }, "aria-label": "Facebook icon" },
-          style: { flex: "none" },
-          children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon" }, style: { width: 32, height: 32 } }],
+          type: "Column",
+          style: { flex: "none", width: 40, padding: { top: 0, right: 8, bottom: 0, left: 0 } },
+          children: [
+            {
+              type: "Link",
+              props: { href: { href: "https://facebook.com/acme", target: "_blank" }, "aria-label": "Facebook icon" },
+              children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon" }, style: { width: 32, height: 32 } }],
+            },
+          ],
         },
+        expect.objectContaining({ type: "Column", style: { flex: "none", width: 32 }, children: [expect.objectContaining({ props: expect.objectContaining({ href: { href: "mailto:hi@example.com", target: "_blank" } }) })] }),
       ],
     });
+  });
+
+  it("is in an email the same, each in a box of the icon's height, its image as tall as its file makes it, with its name as a title", () => {
+    const [first] = row(lowered(<Social icons={icons} iconSize={32} spacing={8} />)).children as TreeNode[];
+    expect(first.style).toEqual({ flex: "none", width: 40, padding: { top: 0, right: 8, bottom: 0, left: 0 }, height: 32 });
+    expect((first.children as TreeNode[])[0]).toEqual({
+      type: "Link",
+      props: { href: { href: "https://facebook.com/acme", target: "_blank" }, title: "Facebook" },
+      children: [{ type: "Image", props: { src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/facebook.png", width: 32, height: 32 }, alt: "Facebook icon", title: "Facebook" }, style: { width: 32 } }],
+    });
+  });
+
+  it("draws as its own markup does where it says it's another output's", () => {
+    expect(((row(lowered(<Social icons={icons} mode="web" />)).children as TreeNode[])[0].children as TreeNode[])[0].props).toHaveProperty("aria-label");
+    expect((row(lowered(<Social icons={icons} mode="email" />, Page)).children as TreeNode[])[0].style).toHaveProperty("height");
+  });
+
+  it("with no icons draws a page's placeholder, placed by its alignment, and in an email's markup nothing", () => {
+    expect(lowered(<Social icons={[]} iconSize={40} align="left" />, Page)).toEqual({
+      type: "Column",
+      style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
+      children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 } }],
+    });
+    expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, children: [] });
+  });
+
+  const image = (node: TreeNode | undefined, index = 0) => ((((row(node).children as TreeNode[])[index].children as TreeNode[])[0].children as TreeNode[])[0]);
+
+  it("says icons that aren't a list, and draws as with none", () => {
+    const { node, said } = drawn(<Social values={{ icons: { icons: "X" } } as never} />);
+    expect(node?.children).toEqual([]);
+    expect(said).toEqual(['A social block\'s icons "X" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("draws an icon's own image, and a custom icon's for its style", () => {
+    expect((image(lowered(<Social values={given([{ name: "Mine", url: "https://mine.example", imgUrl: "https://cdn.example/mine.png" }])} />)).props?.src as { src: string }).src).toBe("https://cdn.example/mine.png");
+    const custom = { icons: { iconType: "rounded", icons: [{ name: "Mine", url: "https://mine.example" }, { name: "X", url: "https://x.example" }], editor: { data: { customIcons: [{ name: "Mine", icons: { circle: "https://cdn.example/c.png", rounded: "https://cdn.example/r.png" } }] } } } } as never;
+    const node = lowered(<Social values={custom} />, Page);
+    expect((image(node).props?.src as { src: string }).src).toBe("https://cdn.example/r.png");
+    expect((image(node, 1).props?.src as { src: string }).src).toBe("https://cdn.tools.unlayer.com/social/icons/rounded/x.png");
+  });
+
+  it("draws icons however wide they are: they wrap", () => {
+    const wide = Array.from({ length: 14 }, (_, i) => ({ name: "X", url: `https://x.example/${i}` }));
+    expect(row(lowered(<Social icons={wide} iconSize={48} />)).children).toHaveLength(14);
+  });
+
+  it("is drawn without what can't be read, each said", () => {
+    const { node, said } = drawn(<Social containerPadding="lots" values={given([{ name: "X", url: "https://x.example" }], { iconSize: { no: 1 }, spacing: { no: 1 }, align: "middle" })} />, Page);
+    expect(node?.style).toEqual({});
+    expect(row(node).style?.justifyContent).toBe("start");
+    expect(image(node).style).toEqual({ width: 32, height: 32 });
+    expect(said.map((message) => /social block's (.+?) [{"]/.exec(message)?.[1])).toEqual(["icon size", "spacing", "padding", "alignment"]);
+    expect(row(lowered(<Social values={given([{ name: "X", url: "https://x.example" }], { align: "middle" })} />)).style?.justifyContent).toBe("center");
+  });
+
+  it("draws what it can of a malformed icon, each said: no name (its link kept), no link (no link), a number as a link and as an image, and leaves out what isn't an icon", () => {
+    const { node, said } = drawn(<Social values={given([{ url: "https://noname.example" }, { name: "Facebook" }, { name: "Facebook", url: 42 }, null, { name: "Instagram", url: "https://i.example", imgUrl: 7 }, { name: "X", url: "https://x.example", imgUrl: { no: 1 } }])} />);
+    const boxes = row(node).children as TreeNode[];
+    expect(boxes).toHaveLength(5);
+    const [nameless, noLink, numeric, numericImage, oddImage] = boxes.map((box) => (box.children as TreeNode[])[0]);
+    expect(nameless).toMatchObject({ type: "Link", props: { href: { href: "https://noname.example" } }, children: [{ props: { alt: " icon", src: { src: "https://cdn.tools.unlayer.com/social/icons/circle/.png" } } }] });
+    expect(noLink.type).toBe("Image");
+    expect(numeric.props?.href).toEqual({ href: "42", target: "_blank" });
+    expect(((numericImage.children as TreeNode[])[0].props?.src as { src: string }).src).toBe("7");
+    expect(((oddImage.children as TreeNode[])[0].props?.src as { src: string }).src).toBe("https://cdn.tools.unlayer.com/social/icons/circle/x.png");
+    expect(said).toEqual([
+      "A social block's icon null can't be read: it's drawn without it.",
+      "A social block's icon's name undefined can't be read: it's drawn without it.",
+      "A social icon's 7 isn't a URL: it's written as it is.",
+      'A social icon\'s {"no":1} can\'t be read.',
+    ]);
+  });
+
+  it("draws an icon size of none without a size for its file (which the new engine refuses)", () => {
+    const { node, said } = drawn(<Social values={given([{ name: "X", url: "https://x.example" }], { iconSize: 0 })} />, Page);
+    expect(image(node).props?.src).toBe("https://cdn.tools.unlayer.com/social/icons/circle/x.png");
+    expect(said).toEqual([]);
+  });
+
+  it("is laid out left to right in a template written right to left, as legacy's", () => {
+    const tree = (Root: Root) => (withRenderScope(() => lowerTemplate(<Root textDirection="rtl"><Row><Column><Social icons={icons} /></Column></Row></Root>, undefined, "renderToHtml")) as Lowered).tree;
+    expect(JSON.stringify(tree(Page))).toContain('"dir":"ltr"');
+    expect(JSON.stringify(lowered(<Social icons={icons} />, Page))).not.toContain('"dir"');
+  });
+
+  it("reads as its links' addresses in plain text: on one line in a page's markup, each on its own in an email's", () => {
+    const addresses = (Root: Root) => lowered(<Social icons={icons} />, Root)?.textAs;
+    expect(addresses(Page)).toMatchObject({ type: "Paragraph", children: [{ type: "Link", children: [] }, " ", { type: "Link", children: [] }] });
+    expect(addresses(Email)).toMatchObject({ type: "Column", children: [{ type: "Column" }, { type: "Column" }] });
   });
 });
 

@@ -6,7 +6,7 @@
  * the HTML its exporter writes and the legacy stylesheet; only those blocks are written by today's exporters.
  */
 import React from "react";
-import { checkDocument } from "@unlayer-internal/elements-core";
+import { checkDocument, type Diagnostic } from "@unlayer-internal/elements-core";
 import { htmlToPlainText, mergeValues, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
 import { safeMeta, UNLAYER_CONFIG_KEY } from "../utils/create-component";
@@ -22,9 +22,9 @@ import Body from "../components/Body";
 import Document from "../components/Document";
 import Email from "../components/Email";
 import Page from "../components/Page";
-import { BLOCKS } from "./blocks";
+import { BLOCKS, DRAWN } from "./blocks";
 import { ownMarkupCss } from "./quirks";
-import { serviceTag } from "./values";
+import { keepServiceTags, serviceTag } from "./values";
 import { blockName, givenId, hidden, lowerDesign, Unlowerable, writeBlock, type BlockFrame, type DesignBlock, type Mode, type TreeNode } from "./lower";
 
 /** This copy's root components. */
@@ -39,6 +39,10 @@ export interface Lowered {
   config: Partial<UnlayerConfig>;
   /** What the head has for the Raw blocks that need it (custom tools' scripts and tags). */
   legacyHead: { css: string; js: string; tags: string[] } | undefined;
+  /** What's drawn otherwise than a block asks. */
+  diagnostics: Diagnostic[];
+  /** The email service's tags the tree holds as marks (values.ts), which go back into what's written. */
+  tags: string[];
 }
 
 /**
@@ -60,6 +64,8 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const { blocks: sources, body } = blockSources(root);
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
+  const diagnostics: Diagnostic[] = [];
+  const tags: string[] = [];
   let next = 0;
   let tree: { root: TreeNode };
   try {
@@ -68,9 +74,12 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
       config: merged,
       block: (block, place) => {
         const n = next++;
-        const lowered = legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, source: sources[n]?.values });
+        const note = (message: string, severity: "warning" | "info" = "warning") => diagnostics.push({ code: "compat/block", severity, message, path: `blocks[${n}]` });
+        const drawn = DRAWN.has(block.type);
+        const lowered = !drawn && legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, source: sources[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern) });
         const id = lowered ? givenId(block.values ?? {}) : undefined;
         const node = lowered && id ? { ...lowered, id } : lowered;
+        if (node && drawn) return drawable(node, mode, note);
         if (node === null || (node && valid(node, mode))) return node;
         const kept: TreeNode = { type: "Raw", props: { html: "" } };
         raw.set(n, kept);
@@ -81,7 +90,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     if (error instanceof Unlowerable) return { unlowered: error.message };
     throw error;
   }
-  if (!raw.size) return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: undefined };
+  if (!raw.size) return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: undefined, diagnostics, tags };
   // Each is written here, once the template is lowered (a template that isn't renders as today, which writes them).
   const html = new Map<number, string>();
   const closed = new Set<number>();
@@ -100,7 +109,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
     node.props = { html: markup, css, text: htmlToPlainText(written) };
   }
-  return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: head };
+  return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: head, diagnostics, tags };
 }
 
 /**
@@ -126,14 +135,49 @@ function outsideTheDesign(root: React.ReactElement): string | undefined {
   return undefined;
 }
 
-/** Whether a block's node is one the new engine takes (its values of the kinds its component's say): else it keeps its legacy HTML. */
-function valid(node: TreeNode, mode: Mode): boolean {
+/** A block's node as the new engine checks it, in a document of its own. */
+function documentOf(node: TreeNode, mode: Mode): { root: TreeNode } {
   const written = (n: TreeNode): TreeNode => {
     const { textAs: _, designColumn: __, ...rest } = n;
     return rest.children ? { ...rest, children: rest.children.map((c) => (typeof c === "string" ? c : written(c))) } : rest;
   };
-  const document = { root: { type: mode === "email" ? "Email" : "Page", children: [{ type: "Column", children: [written(node)] }] } };
-  return !checkDocument(document).diagnostics.some((d) => d.severity === "error");
+  return { root: { type: mode === "email" ? "Email" : "Page", children: [{ type: "Column", children: [written(node)] }] } };
+}
+
+/** Whether a block's node is one the new engine takes (its values of the kinds its component's say): else it keeps its legacy HTML. */
+function valid(node: TreeNode, mode: Mode): boolean {
+  return !checkDocument(documentOf(node, mode)).diagnostics.some((d) => d.severity === "error");
+}
+
+/**
+ * A block's node without what the new engine refuses of it (a color it doesn't read), each value said: its component's
+ * default is drawn instead. A link it refuses (one that runs a script) is a link to nothing.
+ */
+function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): TreeNode {
+  const document = documentOf(node, mode);
+  for (let errors = refused(document); errors.length; errors = refused(document)) {
+    for (const error of errors) {
+      note(error.message);
+      removeAt(document, error.path);
+    }
+  }
+  const drawn = (document.root.children![0] as TreeNode).children![0] as TreeNode;
+  return node.textAs ? { ...drawn, textAs: node.textAs } : drawn;
+}
+
+const refused = (document: { root: TreeNode }) => checkDocument(document).diagnostics.filter((d) => d.severity === "error");
+
+/** Takes the value at a diagnostic's path (`root.children[0].style.color`) out of a document. */
+function removeAt(document: { root: TreeNode }, path: string): void {
+  const keys = path.match(/[^.[\]]+/g) ?? [];
+  const last = keys.pop();
+  let at: any = document;
+  for (const key of keys) at = at?.[key];
+  if (at === undefined || at === null || last === undefined) throw new Unlowerable(`what the new engine can't read at ${path}`);
+  if (last === "href") at.href = { href: "" };
+  else if (Array.isArray(at)) at.splice(Number(last), 1);
+  else if (last in at) delete at[last];
+  else throw new Unlowerable(`what the new engine can't read at ${path}`);
 }
 
 /**

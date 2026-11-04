@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
+import { Button, Column, Document, Email, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import * as exporters from "@unlayer/exporters";
 import * as compat from "./render";
-import { renderThroughNewEngine } from "./render";
+import { renderThroughNewEngine, type Rendered } from "./render";
 import { storyElement, storyTemplate } from "./story";
 
 const modules = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"], { eager: true }) as Record<string, any>;
@@ -348,6 +348,19 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       const html = renderToHtml(<Root><Row><Column><Tool /></Column></Row></Root>);
       expect(html.match(/<\/head>/g)).toHaveLength(1);
       expect(html).toContain(script);
+    }
+  });
+
+  it("say what's drawn otherwise than a block asks, in the render's diagnostics and on the console, and draw the rest", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const template = <Page><Row><Column><Social containerPadding="lots" icons={[{ name: "X", url: "https://x.example" }]} /></Column></Row></Page>;
+      const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml")) as Rendered;
+      expect(rendered.diagnostics.map((d) => d.message)).toContain('A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
+      expect(warn).toHaveBeenCalledWith('[Elements] A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
+      expect(rendered.html).toContain('href="https://x.example"');
+    } finally {
+      warn.mockRestore();
     }
   });
 
