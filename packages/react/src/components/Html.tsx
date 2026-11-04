@@ -1,4 +1,3 @@
-import { HtmlExporters } from "@unlayer/exporters";
 import { HtmlDefaults } from "../utils/tool-defaults";
 import type { HtmlValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
@@ -10,6 +9,21 @@ export interface HtmlProps extends ItemComponentProps<SemanticProps<HtmlValues>>
 const DEFAULT_VALUES = {
   ...HtmlDefaults,
 } as unknown as HtmlValues;
+
+/** The block's HTML: through the config's sanitizer where it has one (an exporter's last argument carries it). */
+const safeHtml = (values: HtmlValues, args: unknown[]): unknown => {
+  const toSafeHtml = (args[args.length - 1] as { exporterConfig?: { toSafeHtml?: (html: unknown) => unknown } } | undefined)?.exporterConfig?.toSafeHtml;
+  return (toSafeHtml ? toSafeHtml(values.html) : values.html) ?? "";
+};
+
+const inDiv = (values: HtmlValues, ...args: unknown[]) => `<div>${safeHtml(values, args)}</div>`;
+
+/** A page's and a printed document's <div> holds the HTML as it is; an email's has it on lines of its own. */
+const EXPORTERS = {
+  web: inDiv,
+  document: inDiv,
+  email: (values: HtmlValues, ...args: unknown[]) => `\n  <div>\n    ${safeHtml(values, args)}\n  </div>\n`,
+} as Record<"web" | "document" | "email", (...args: any[]) => string>;
 
 /**
  * Html - Universal SSR/Client Component for custom HTML with Automatic Semantic Props
@@ -36,7 +50,7 @@ const Html = createItemComponent<HtmlValues, SemanticProps<HtmlValues>>({
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Html"),
   displayName: "Html",
-  exporters: HtmlExporters,
+  exporters: EXPORTERS,
 });
 
 export default Html;

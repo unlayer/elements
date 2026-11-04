@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Button, Column, Divider, Document, Email, Heading, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
+import { HtmlExporters } from "@unlayer/exporters";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
+import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -198,5 +200,31 @@ describe("a page break", () => {
       expect(lowered(<PageBreak />, Root)).toBeUndefined();
     }
     expect(lowered(<PageBreak />, Document as Root)?.type).toBe("Raw");
+  });
+});
+
+describe("an Html block's own HTML", () => {
+  const written = (html: unknown, mode: string, toSafeHtml?: (html: string) => string) =>
+    (Html as any)[UNLAYER_RENDER_KEY]({ values: { html }, mode, _config: { toSafeHtml } }).props.dangerouslySetInnerHTML.__html;
+
+  it("is in a <div>, on lines of its own in an email", () => {
+    expect(written("<b>x</b>", "web")).toBe("<div><b>x</b></div>");
+    expect(written("<b>x</b>", "document")).toBe("<div><b>x</b></div>");
+    expect(written("<b>x</b>", "email")).toBe("\n  <div>\n    <b>x</b>\n  </div>\n");
+  });
+
+  it("goes through the config's sanitizer where it has one", () => {
+    for (const mode of ["web", "document", "email"]) expect(written("<b>x</b>", mode, (html) => html.replace("x", "safe"))).toContain("<b>safe</b>");
+  });
+
+  it("is what the closed HtmlExporters write, byte for byte", () => {
+    const closed = HtmlExporters as Record<string, (...args: any[]) => string>;
+    for (const mode of ["web", "document", "email"]) {
+      for (const html of ["<b>x</b>", "", "  spaced  ", "<p>a</p>\n<p>b</p>", "&amp; &copy; $& $' <!-- c -->", "<%tag%> {{merge}}", "</div>", "é ✓"]) {
+        for (const toSafeHtml of [undefined, (text: string) => `[${text}]`]) {
+          expect(written(html, mode, toSafeHtml)).toBe(closed[mode]({ html }, 0, 0, [], {}, {}, undefined, { exporterConfig: { toSafeHtml } }));
+        }
+      }
+    }
   });
 });
