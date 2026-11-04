@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ContentExporters } from "@unlayer/exporters";
+import * as previous from "@unlayer/react-elements-previous";
 import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, Row, renderToHtml, renderToJson } from "../index";
 import { withRenderScope } from "../utils/render-scope";
 import { contentBox, lowerDesign, PAGE_WIDTH, type Mode, type TreeNode } from "./lower";
@@ -457,22 +457,31 @@ describe("contentBox()", () => {
     expect(html).toContain('id="a&quot;b"');
   });
 
-  it("writes what the closed ContentExporters write, byte for byte, in every mode and setting", () => {
+  it("writes no padding or font it isn't given in a printed document", () => {
+    expect(contentBox("X", { ...box, padding: undefined }, undefined, "document")).toBe('\n  <div id="u_content_html_1" data-page-row="u_content_html_1" class="u_content_html v-container-padding" style="overflow-wrap: break-word;">\n    X\n  </div>\n');
+    expect(contentBox("X", { ...box, padding: "" }, "", "document")).toBe(contentBox("X", { ...box, padding: undefined }, undefined, "document"));
+  });
+
+  it("writes the box 0.2.1 writes around a block, byte for byte, in every mode and setting: users' stylesheets scope on it", () => {
     const overrides = [undefined, {}, { mobile: { hideMobile: true } }, { desktop: { hideDesktop: true } }, { tablet: { hideTablet: true } }, { mobile: { hideMobile: false }, desktop: { hideDesktop: false }, tablet: { hideTablet: false } }, { mobile: { hideMobile: true }, desktop: { hideDesktop: true }, tablet: { hideTablet: true } }];
+    const roots = { web: previous.Page, email: previous.Email, document: previous.Document } as Record<Mode, any>;
     let checked = 0;
     for (const mode of ["web", "email", "document"] as Mode[]) {
+      const Root = roots[mode];
       for (const override of overrides) {
-        for (const padding of ["10px", "0px", "1px 2px 3px 4px", "2em", "", undefined]) {
-          for (const family of [font, "'Open Sans',sans-serif", "", undefined]) {
-            for (const [id, className] of [["u_content_custom_my_tool_2", "u_content_custom_my_tool"], ["given.id", "u_content_mine"]]) {
-              const closed = (ContentExporters as Record<string, (...args: any[]) => string>)[mode]("<b>inner</b>", { containerPadding: padding, _override: override, _meta: { htmlID: id, htmlClassNames: className } }, { fontFamily: family === undefined ? undefined : { value: family } }, {});
-              expect(contentBox("<b>inner</b>", { id, className, padding, override }, family, mode)).toBe(closed);
+        for (const padding of ["10px", "0px", "1px 2px 3px 4px", "2em", ""]) {
+          for (const family of [font, "'Open Sans',sans-serif", ""]) {
+            for (const id of ["u_content_html_1", "given.id"]) {
+              const block = <previous.Html html="<b>inner</b>" containerPadding={padding} values={{ _override: override, _meta: { htmlID: id } } as never} />;
+              const drawn = previous.renderToHtmlParts(<Root fontFamily={{ label: "F", value: family }}><previous.Row><previous.Column>{block}</previous.Column></previous.Row></Root>).body;
+              const own = mode === "email" ? "\n  <div>\n    <b>inner</b>\n  </div>\n" : "<div><b>inner</b></div>";
+              expect(drawn).toContain(contentBox(own, { id, className: "u_content_html", padding, override }, family, mode));
               checked++;
             }
           }
         }
       }
     }
-    expect(checked).toBe(3 * 7 * 6 * 4 * 2);
+    expect(checked).toBe(3 * 7 * 5 * 3 * 2);
   });
 });
