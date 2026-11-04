@@ -107,17 +107,19 @@ Email clients do not share a modern browser CSS baseline. To keep layout behavio
 Repository evidence:
 
 - `<Email>` is documented and tested as table-based output for email clients: [packages/react/README.md](./packages/react/README.md)
-- The email document shell includes MSO conditionals and Office namespaces: [packages/react/src/utils/document-layouts.ts](./packages/react/src/utils/document-layouts.ts)
+- The email document shell includes MSO conditionals and Office's namespace: [packages/exporters/src/email/index.tsx](./packages/exporters/src/email/index.tsx)
 - Golden output asserts table markup and Outlook-specific conditionals (`[if mso]`): [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
 
 ### Known Compatibility Caveats (Current Repo Scope)
 
 - Validation in this repo is renderer-focused and browser-based (snapshots + Chromium E2E). It is not a client-emulator matrix checked into this repository.
+- The email output is checked in Chromium and against a model of Outlook's layout, not in real Outlook.
 - Email responsive stacking depends on head CSS/media queries; this is explicitly exercised by the E2E gate in Chromium, not by an inbox simulator.
 
 Validation references:
 
-- Snapshot coverage (components in email + web modes): [packages/react/src/components/snapshots.test.tsx](./packages/react/src/components/snapshots.test.tsx)
+- Reviewed HTML snapshots of realistic examples: [packages/react/src/regression/previous-release.test.tsx](./packages/react/src/regression/previous-release.test.tsx)
+- Reviewed HTML snapshots of the ways templates are put together: [packages/react/src/regression/patterns.test.tsx](./packages/react/src/regression/patterns.test.tsx)
 - Golden end-to-end template coverage: [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
 - Browser E2E gate and exact assertions: [packages/react/scripts/browser-e2e.mjs](./packages/react/scripts/browser-e2e.mjs)
 
@@ -127,11 +129,10 @@ Elements includes a strict CSP gate that runs the built package under:
 
 - `node --disallow-code-generation-from-strings`
 
-The gate's purpose is to fail if import/render paths evaluate strings (`eval` / `new Function`), including behavior coming from pinned dependencies.
+The gate's purpose is to fail if import/render paths evaluate strings (`eval` / `new Function`).
 
 - CSP probe implementation: [packages/react/scripts/csp-probe.mjs](./packages/react/scripts/csp-probe.mjs)
 - Package script (`test:csp`): [packages/react/package.json](./packages/react/package.json)
-- Pinned exporter dependency source: [pnpm-workspace.yaml](./pnpm-workspace.yaml)
 
 Interpretation guidance:
 
@@ -165,9 +166,9 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 `renderToHtml()` generates a complete, production-ready HTML document with no React hydration markers, no framework artifacts, and no client-side JavaScript required. Need to compose the document yourself? `renderToHtmlParts()` returns `{ head, body }` chunks.
 
-### Lightweight & Tree-Shakeable
+### No Client-Side JavaScript
 
-~12KB gzipped (under 60KB ESM), tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+Tree-shakeable, with zero client-side JavaScript required. Designed for server-side rendering environments.
 
 ## Real-World Use Cases
 
@@ -307,19 +308,20 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements generates its HTML with the same battle-tested engine that powers exports in the [Unlayer editor](https://unlayer.com), an engine used in production by thousands of companies for years. The engine version is pinned per release, and every component's output is locked down by snapshot tests, a golden-template test, and browser-level gates (see below), so upgrades cannot silently change the HTML you ship. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
+Elements writes its HTML with its own open-source writers, in [this repository](./packages/exporters). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 
 Every release must pass, in CI:
 
-- **Golden template test:** a full, realistic email rendered through all render pipelines and compared against committed output.
-- **Snapshot tests:** every component rendered in both email and web modes.
+- **Golden template test:** a full, realistic email rendered through all render pipelines and checked by what it draws.
+- **Snapshot tests:** realistic examples and the ways templates are put together, compared with reviewed HTML.
+- **Previous-release tests:** the examples rendered with this build and with the last published release, whose designs, plain text, words, links and images must match.
 - **Browser E2E gate:** complete documents rendered from the built package and verified in headless Chromium: responsive columns stack at the mobile breakpoint, paragraphs compute to true zero margins, RTL text direction propagates, button hover states apply, the preheader stays invisible, no horizontal overflow on mobile, and accessibility basics hold (image alt text, link names, `role="presentation"` on layout tables). The suite includes a negative control that must fail, proving the gate can catch regressions rather than just pass vacuously.
 - **Visual-drift gate:** the computed styles of every Storybook story are fingerprinted at desktop and mobile widths and diffed against a committed baseline, so unintended style changes fail the build with property-level diffs.
 - **Next.js integration test:** a real Next.js 15 app with Server Components builds against the published package artifact.
 
-The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer's editor exports, which land in real inboxes every day. Our templates are tested on Litmus and Email on Acid across major email clients, including Outlook, Gmail, Yahoo, and Apple Mail. For repository-scoped compatibility evidence and caveats, see [Email Client Compatibility Notes](#email-client-compatibility-notes).
+Email mode writes table-based HTML, with Outlook's markup in conditional comments. The output is checked in Chromium and against a model of Outlook's layout, not in real Outlook. For repository-scoped compatibility evidence and caveats, see [Email Client Compatibility Notes](#email-client-compatibility-notes).
 
 ### Is the PDF output a real PDF engine?
 
