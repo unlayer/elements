@@ -9,7 +9,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
 import { imageBox, imagePadding, outlookCopy } from "../quirks";
-import { ALIGN, deviceValues, drawnImageUrl, drawnLink, inAttribute, sides, some, webLink, type Values } from "../values";
+import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, inAttribute, sides, some, webLink, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -104,7 +104,7 @@ export const image: Lowering = (block, place): TreeNode => {
     borders[0] -
     borders[1];
   const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
-  const stacks = place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
+  const stacks = columnsStack(place);
   const stackedMaxWidth = place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 ? size.maxWidth : undefined;
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
@@ -146,8 +146,7 @@ export const image: Lowering = (block, place): TreeNode => {
  * comment, which the plain text reads too) where it knows the image's height, so its alternate text is there twice.
  */
 function imageText(src: Values, alt: string, asEmail: boolean): TreeNode {
-  const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-  const img = `<img alt="${escape(alt)}">`;
+  const img = `<img alt="${attribute(alt)}">`;
   return { type: "Column", children: [{ type: "Raw", props: { html: img.repeat(asEmail && outlookCopy(src) ? 2 : 1) } }] };
 }
 

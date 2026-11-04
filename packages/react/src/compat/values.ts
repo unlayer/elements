@@ -1,9 +1,21 @@
 /** Legacy design values as the new engine's: lengths, sides, colors, borders, line heights and weights. */
 import { asset, type Json } from "@unlayer-internal/elements-core";
-import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
+import { escapeText, normalizeLinkValue } from "@unlayer-internal/shared-elements";
 
 export type Values = Record<string, any>;
 export type Sides = { top: number; right: number; bottom: number; left: number };
+
+/** The alignments of a block's text legacy reads. */
+export const TEXT_ALIGNS: ReadonlySet<string> = new Set(["left", "center", "right", "justify"]);
+
+/** Where today's components' icons and placeholders come from, unless the render says otherwise. */
+export const DEFAULT_CDN = "https://cdn.tools.unlayer.com";
+
+/** A value as an HTML attribute's, escaped as legacy escapes it. */
+export const attribute = (value: unknown): string => escapeText(String(value ?? "")).replace(/"/g, "&quot;");
+
+/** Whether a block's row has columns that stack on phones. */
+export const columnsStack = ({ cells, row }: { cells: number[]; row: Values }): boolean => cells.length > 1 && !(row.noStackMobile || row._override?.mobile?.noStackMobile);
 
 /** px from 12, "12" or "12px"; undefined for anything else. */
 export const px = (value: unknown): number | undefined => {

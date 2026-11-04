@@ -10,9 +10,8 @@ import { collectDeviceStyles, cssIdent, deviceStylesCss } from "../../utils/devi
 import { contentBox, givenId, type DesignBlock, type Place, type TreeNode } from "../lower";
 import { parseRuns } from "../runs";
 import { fontOfValues, spaceBeforeTag, textTransformOfText } from "../quirks";
-import { deviceValues, drawnWeight, letterSpacing, lineHeight, px, sides, some, type Values } from "../values";
+import { deviceValues, drawnWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 
-const ALIGNS = new Set(["left", "center", "right", "justify"]);
 const DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
 
 const PERCENT = /^\s*[\d.]+%\s*$/;
@@ -52,7 +51,7 @@ function textStyles(values: Values, place: Place, level: number | undefined): Re
   }
   const spacing = said(values.letterSpacing) ? letterSpacing(values.letterSpacing, size ?? 16) : 0;
   if (spacing === undefined) unread(place, "letter spacing", values.letterSpacing);
-  const align = ALIGNS.has(values.textAlign) ? values.textAlign : undefined;
+  const align = TEXT_ALIGNS.has(values.textAlign) ? values.textAlign : undefined;
   if (said(values.textAlign) && !align) unread(place, "alignment", values.textAlign);
   return Object.fromEntries(
     Object.entries({
@@ -75,7 +74,7 @@ const DEVICE_KEYS = ["containerPadding", "fontSize", "lineHeight", "textAlign"];
 function phoneStyles(phone: Values, stored: Values, place: Place): Record<string, Json> {
   const out: Record<string, Json> = {};
   for (const [key, value] of Object.entries<unknown>(phone)) {
-    const read = key === "containerPadding" ? paddingOf(value, place.mode) : key === "fontSize" ? fontPx(value, place.mode) : key === "lineHeight" ? lineHeight(value) : ALIGNS.has(value as string) ? (value as string) : undefined;
+    const read = key === "containerPadding" ? paddingOf(value, place.mode) : key === "fontSize" ? fontPx(value, place.mode) : key === "lineHeight" ? lineHeight(value) : TEXT_ALIGNS.has(value as string) ? (value as string) : undefined;
     if (read !== undefined) out[key === "containerPadding" ? "padding" : key] = read;
     else unread(place, `${key} on phones`, value);
   }

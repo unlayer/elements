@@ -9,9 +9,8 @@ import type { DesignBlock, Place, TreeNode } from "../lower";
 import { linesInHeaderAndFooter, spaceBeforeTag } from "../quirks";
 import { parseRuns } from "../runs";
 import { styled } from "./text";
-import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, type Values } from "../values";
+import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 
-const ALIGNS = new Set(["left", "center", "right", "justify"]);
 const VERTICAL = new Set(["top", "middle", "bottom"]);
 
 /** The styles of a cell in a section (`header`, `content`, `footer`), which its own override. */
@@ -34,7 +33,7 @@ function sectionStyle(values: Values, section: string, mode: Place["mode"], note
     fontWeight: read("FontWeight", "font weight", fontWeight) ?? (section === "header" ? 700 : undefined),
     fontFamily: font(of("FontFamily")),
     color: of("Color"),
-    textAlign: read("TextAlign", "alignment", (value) => (ALIGNS.has(value as string) ? (value as string) : undefined)) ?? (section === "header" ? "center" : undefined),
+    textAlign: read("TextAlign", "alignment", (value) => (TEXT_ALIGNS.has(value as string) ? (value as string) : undefined)) ?? (section === "header" ? "center" : undefined),
     verticalAlign: read("VerticalAlign", "vertical alignment", (value) => (VERTICAL.has(value as string) ? (value as string) : undefined)) ?? "middle",
     backgroundColor: of("BackgroundColor"),
     // No padding is the browser's own, 1px.
@@ -122,7 +121,7 @@ export function table(block: DesignBlock, place: Place): TreeNode {
       ...(width ? { width } : {}),
       ...(own.backgroundColor ? { backgroundColor: own.backgroundColor } : {}),
       ...(own.color ? { color: own.color } : {}),
-      ...(ALIGNS.has(own.textAlign) ? { textAlign: own.textAlign } : {}),
+      ...(TEXT_ALIGNS.has(own.textAlign) ? { textAlign: own.textAlign } : {}),
       ...(VERTICAL.has(own.verticalAlign) ? { verticalAlign: own.verticalAlign } : {}),
       ...(padding ? { padding } : {}),
       ...(lines ? { border: lines } : {}),

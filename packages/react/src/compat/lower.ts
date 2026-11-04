@@ -7,12 +7,12 @@
 import type React from "react";
 import { line, parseColor, type Diagnostic, type Json } from "@unlayer-internal/elements-core";
 import { EMAIL_PHONE_MARGIN } from "@unlayer-internal/elements-exporters";
-import { escapeKeepingTags, escapeText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { escapeKeepingTags, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { collectDeviceStyles, cssValue, deviceStylesCss } from "../utils/device-overrides";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 import { documentBodyPicture, ownMarkupCss, pageBodyColor, pageMargin, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
-import { ALIGN, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
+import { ALIGN, attribute, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
 
 /** A block of the design: its tool and values. */
 export interface DesignBlock {
@@ -258,7 +258,6 @@ export interface ContentBox {
  */
 export function contentBox(html: string, box: ContentBox, font: unknown, mode: Mode): string {
   // In attributes: what a value holds can't end one.
-  const attribute = (value: unknown) => escapeText(String(value ?? "")).replace(/"/g, "&quot;");
   const id = attribute(box.id);
   const className = attribute(box.className);
   const padding = attribute(box.padding);
@@ -583,7 +582,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
     const opens = leftOpen(html);
     return [looseMarkup(html, frame, email ? { wide: opens > 0 ? "open" : opens < 0 ? "close" : true } : undefined, opens)];
   };
-  const anchor = (r: Values): TreeNode[] => (r.values?.anchor ? [{ type: "Raw", props: { html: `<a name="${escapeText(String(r.values.anchor)).replace(/"/g, "&quot;")}"></a>`, text: "" }, ...(email ? { compat: { wide: true } } : {}) }] : []);
+  const anchor = (r: Values): TreeNode[] => (r.values?.anchor ? [{ type: "Raw", props: { html: `<a name="${attribute(r.values.anchor)}"></a>`, text: "" }, ...(email ? { compat: { wide: true } } : {}) }] : []);
   const rows = ((design.body.rows ?? []) as Values[]).flatMap((r, index) => [...wide(among[index]), ...anchor(r), row(r, index, place, options, frame)]);
   rows.push(...wide(among[(design.body.rows ?? []).length]));
   const textColor = email ? values.textColor : pageBodyColor(values.textColor, "#000000");

@@ -149,14 +149,14 @@ function layoutThatDoesNotFit(root: React.ReactElement): Error | undefined {
   return undefined;
 }
 
-/** A block's node as the new engine checks it, in a document of its own. */
-function documentOf(node: TreeNode, mode: Mode): { root: TreeNode } {
-  const written = (n: TreeNode): TreeNode => {
-    const { textAs: _, designColumn: __, ...rest } = n;
-    return rest.children ? { ...rest, children: rest.children.map((c) => (typeof c === "string" ? c : written(c))) } : rest;
-  };
-  return { root: { type: mode === "email" ? "Email" : "Page", children: [{ type: "Column", children: [written(node)] }] } };
+/** A node as the new engine writes it: what's only for the plain text left out. */
+export function forWriting(node: TreeNode): TreeNode {
+  const { textAs: _, designColumn: __, ...rest } = node;
+  return rest.children ? { ...rest, children: rest.children.map((c) => (typeof c === "string" ? c : forWriting(c))) } : rest;
 }
+
+/** A block's node as the new engine checks it, in a document of its own. */
+const documentOf = (node: TreeNode, mode: Mode): { root: TreeNode } => ({ root: { type: mode === "email" ? "Email" : "Page", children: [{ type: "Column", children: [forWriting(node)] }] } });
 
 /**
  * A block's node without what the new engine refuses of it (a color it doesn't read), each value said: its component's
@@ -169,7 +169,7 @@ function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): 
     // (From the last: taking a child out moves those after it.)
     for (const error of errors.reverse()) {
       note(error.message);
-      if (!removeAt(document, error.path)) return null;
+      if (!takeOut(document, error.path)) return null;
     }
   }
   const drawn = (document.root.children![0] as TreeNode).children![0] as TreeNode;
@@ -178,13 +178,16 @@ function drawable(node: TreeNode, mode: Mode, note: (message: string) => void): 
 
 const refused = (document: { root: TreeNode }) => checkDocument(document).diagnostics.filter((d) => d.severity === "error");
 
-/** Takes the value at a diagnostic's path (`root.children[0].style.color`) out of a document; false where it isn't one. */
-function removeAt(document: { root: TreeNode }, path: string): boolean {
+/**
+ * Takes the value at a diagnostic's path (`root.children[0].style.color`) out of a tree; false where it isn't one. A link
+ * is a link to nothing, which it needs one to be drawn.
+ */
+export function takeOut(tree: { root: TreeNode }, path: string): boolean {
   const keys = path.match(/[^.[\]]+/g) ?? [];
   const last = keys.pop();
-  let at: any = document;
+  let at: any = tree;
   for (const key of keys) at = at?.[key];
-  if (at === undefined || at === null || last === undefined) return false;
+  if (at === undefined || at === null || typeof at !== "object" || last === undefined) return false;
   if (last === "href") at.href = { href: "" };
   else if (Array.isArray(at)) at.splice(Number(last), 1);
   else if (last in at) delete at[last];

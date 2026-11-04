@@ -7,10 +7,8 @@
  * a page's placeholder, or in an email's markup nothing. It always draws: what can't be read is said.
  */
 import type { TreeNode } from "../lower";
-import { ALIGN, deviceValues, drawnImageUrl, encodedUrl, inAttribute, px, sides, some, type Values } from "../values";
+import { ALIGN, DEFAULT_CDN, deviceValues, drawnImageUrl, encodedUrl, inAttribute, px, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
-
-const DEFAULT_CDN = "https://cdn.tools.unlayer.com";
 
 export const social: Lowering = (block, place): TreeNode => {
   const { values, phone } = deviceValues(block.values, ["containerPadding"], place.mode);

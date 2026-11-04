@@ -9,14 +9,12 @@ import { videoParts, type Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
 import { imagePadding } from "../quirks";
-import { deviceValues, drawnImageUrl, drawnLink, sides, some, type Values } from "../values";
+import { attribute, columnsStack, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
-const DEFAULT_CDN = "https://cdn.tools.unlayer.com";
 const WATCH: Record<string, (id: string) => string> = { youtube: (id) => `https://www.youtube.com/watch?v=${id}`, vimeo: (id) => `https://vimeo.com/${id}` };
 const EMBED: Record<string, string> = { youtube: "https://www.youtube.com/embed/", vimeo: "https://player.vimeo.com/video/" };
 
-const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const FILLS = "position:absolute;top:0;left:0;width:100%;height:100%";
 
 /** The 16:9 box a page's markup has, around what's in it. */
@@ -41,7 +39,7 @@ export const video: Lowering = (block, place): TreeNode => {
     const max = Math.round(room * 100) / 100;
     // Legacy's maximum is its own where its row stacks, a stacked column being wider than on desktop (see image.ts).
     const slot = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
-    const stacks = place.mode === "email" && place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
+    const stacks = place.mode === "email" && columnsStack(place);
     const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, ...(stacks && max > slot + 0.5 ? { compat: { stackedMaxWidth: max } } : {}) };
     const link = values.href ?? (typeof video.url === "string" && video.url ? { url: video.url, target: "" } : undefined);
     const href = link ? drawnLink(link, place.keep, place.note) : undefined;

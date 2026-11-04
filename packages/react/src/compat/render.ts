@@ -10,8 +10,8 @@ import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core"
 import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import type { TreeNode } from "./lower";
-import { lowerTemplate } from "./template";
-import { restoreServiceTags } from "./values";
+import { forWriting, lowerTemplate, takeOut } from "./template";
+import { attribute, restoreServiceTags } from "./values";
 
 export interface Rendered {
   /** The whole document. */
@@ -36,9 +36,6 @@ export interface RenderOptions extends Partial<UnlayerConfig> {
   lang?: string;
   fonts?: Array<{ url: string }>;
 }
-
-/** Text interpolated into HTML (a font's URL), escaped as legacy escapes it. */
-const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** CSS for a `<style>` element: a `</style` in it would end the element. */
 const styleText = (css: string) => css.replace(/<\/(style)/gi, "<\\/$1");
@@ -72,7 +69,7 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
 
   // The root's fonts, then the option's, each URL once: stylesheets legacy links (an email's out of Outlook's view).
   const fonts = [...(rootProps.fonts ?? []), ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
-  const links = fonts.map((font) => `<link href="${escapeHtml(String(font.url))}" rel="stylesheet" type="text/css">`).join("");
+  const links = fonts.map((font) => `<link href="${attribute(font.url)}" rel="stylesheet" type="text/css">`).join("");
   // What today's head functions add for blocks that keep their legacy HTML (a custom tool's script and tags).
   const js = lowered.legacyHead?.js ?? "";
   const tags = lowered.legacyHead?.tags ?? [];
@@ -128,25 +125,15 @@ type Tree = { root: TreeNode };
 function writeWhatItTakes(tree: Tree, refused: Diagnostic[]): RenderResult {
   for (;;) {
     try {
-      return renderTemplate(forWriting(tree), { hideBelow: PHONE_WIDTH });
+      return renderTemplate({ root: forWriting(tree.root) }, { hideBelow: PHONE_WIDTH });
     } catch (error) {
       if (!(error instanceof ElementsError)) throw error;
-      const out = error.diagnostics.filter((d) => d.severity === "error" && takeOut(tree, d.path));
+      // (From the last: taking a child out moves those after it.)
+      const out = [...error.diagnostics].reverse().filter((d) => d.severity === "error" && takeOut(tree, d.path));
       if (!out.length) throw error;
       refused.push(...out.map((d) => ({ code: "compat/refused", severity: "warning" as const, message: `${d.message}: it isn't drawn`, path: d.path })));
     }
   }
-}
-
-/** Takes a value out of the tree, by its path (`root.children[1].style.padding`); false where it isn't one. */
-function takeOut(tree: Tree, path: string): boolean {
-  const keys = path.match(/[^.[\]]+/g) ?? [];
-  const last = keys.pop();
-  let at: any = tree;
-  for (const key of keys) at = at?.[key];
-  if (last === undefined || at === null || typeof at !== "object" || Array.isArray(at) || !(last in at)) return false;
-  delete at[last];
-  return true;
 }
 
 /** What's drawn otherwise than a template asks, each message once per process: a template renders many times. */
@@ -159,15 +146,6 @@ function warnOnce(diagnostics: Diagnostic[]): void {
     warned.add(message);
     console.warn(`[Unlayer] ${message} (${path})`);
   }
-}
-
-/** The tree the new engine writes: what's only for the plain text left out. */
-function forWriting(tree: Tree): Tree {
-  const visit = (node: TreeNode): TreeNode => {
-    const { textAs: _, designColumn: __, ...rest } = node;
-    return rest.children ? { ...rest, children: rest.children.map((c) => (typeof c === "string" ? c : visit(c))) } : rest;
-  };
-  return { root: visit(tree.root) };
 }
 
 /**
