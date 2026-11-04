@@ -65,7 +65,9 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 384KB.
+      # Fail if the react-elements ESM bundle exceeds 389KB.
+      # Today's components' default values as data in this package added about
+      # 5KB, for now: the legacy render paths still in it go with @unlayer/exporters.
       # Today's components render through the new engine (RFC 0001 step 7): the
       # main entry bundles its core and writers too (the /primitives entry's,
       # without its JSX API), and the lowering of today's designs into them,
@@ -90,7 +92,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=384000
+          MAX_SIZE=389000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -128,7 +130,7 @@ jobs:
           echo "✅ /primitives bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 447KB unminified ESM. It writes the builder's design
+      # own budget: about 451KB unminified ESM. It writes the builder's design
       # through today's components and renderToJson, so it bundles the main
       # entry's (today's components, the new engine they render through, the
       # lowering of their designs) and the /primitives entry's JSX API, with
@@ -148,7 +150,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=450000
+          MAX_SIZE=452000
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
