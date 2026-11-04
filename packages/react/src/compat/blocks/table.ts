@@ -64,7 +64,9 @@ function linkStyle(values: Values, place: Place): { style: Record<string, Json>;
 
 /** A cell's HTML: its Lexical textJson's, or its own; a cell that says nothing is a line of its height. */
 function cellHtml(cell: Values, place: Place): string {
-  const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : String(cell.text ?? ""));
+  // (Legacy draws no text that isn't a string in a cell, which is said.)
+  if (typeof cell.textJson !== "string" && cell.text && typeof cell.text !== "string") place.note(`A table's cell's text ${JSON.stringify(cell.text)} can't be read: it's drawn without it.`);
+  const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : typeof cell.text === "string" ? cell.text : "");
   return html.trim() ? place.keepHtml(html) : "​";
 }
 

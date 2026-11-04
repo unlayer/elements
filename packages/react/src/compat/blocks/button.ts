@@ -68,7 +68,8 @@ export function button(block: DesignBlock, place: Place): TreeNode {
 
   // Its label as stored (legacy's exporter unescapes it, after the props escape it once: the stored HTML).
   const textJson = place.source?.textJson;
-  const stored = typeof textJson === "string" ? generateHtmlFromTextJson(textJson) : typeof values.text === "string" ? values.text : "";
+  // (Text that isn't a string is its text, as legacy writes it: `text={49}`, `text={0}`.)
+  const stored = typeof textJson === "string" ? generateHtmlFromTextJson(textJson) : values.text === undefined || values.text === null ? "" : String(values.text);
   const html = place.keepHtml(place.config.toSafeHtml ? place.config.toSafeHtml(stored) : stored);
   const { children, left } = parseRuns(html, { weight: weight ?? 400, links: false });
   // (Paragraphs in a label are lines either way, but legacy's plain text reads them as one.)

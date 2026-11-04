@@ -486,6 +486,58 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
     });
 
+    it("draw text that isn't a string as 0.2.1 draws it: a heading's and a button's, not a cell's", () => {
+      const words = (L: Release, root: "Email" | "Page" | "Document", block: React.ReactElement) => {
+        const Root = L[root] as typeof Email;
+        const doc = new DOMParser().parseFromString(L.renderToHtml(<Root><L.Row><L.Column>{block}</L.Column></L.Row></Root>), "text/html");
+        doc.querySelectorAll("style, script, title").forEach((element) => element.remove());
+        return doc.body.textContent?.replace(/[\s\u200b]+/g, " ").trim();
+      };
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        for (const root of ["Email", "Page", "Document"] as const) {
+          for (const [value, heading, button] of [[2024, "2024", "2024"], [49.5, "49.5", "49.5"], [0, "", "0"], [true, "true", "true"], [["a", "b"], "a,b", "a,b"]] as const) {
+            const asHeading = (L: Release) => <L.Heading text={value as never} />;
+            const asButton = (L: Release) => <L.Button href="https://example.com" text={value as never} />;
+            const asValues = (L: Release) => <L.Heading values={{ text: value } as never} />;
+            expect(words(current, root, asHeading(current)), `${value}`).toBe(heading);
+            expect(words(previous, root, asHeading(previous)), `${value}`).toBe(heading);
+            expect(words(current, root, asValues(current)), `${value}`).toBe(heading);
+            expect(words(current, root, asButton(current)), `${value}`).toBe(button);
+            expect(words(previous, root, asButton(previous)), `${value}`).toBe(button);
+            expect(renderToPlainText(<Email><Row><Column>{asHeading(current)}{asButton(current)}</Column></Row></Email>)).toBe(previous.renderToPlainText(<previous.Email><previous.Row><previous.Column>{asHeading(previous)}{asButton(previous)}</previous.Column></previous.Row></previous.Email>));
+          }
+          const cell = (L: Release) => <L.Table values={{ table: { headers: [], footers: [], rows: [{ cells: [{ text: 2024 }] }] } } as never} />;
+          expect(words(current, root, cell(current))).toBe(words(previous, root, cell(previous)));
+        }
+        expect(warn.mock.calls.flat().join("\n")).toContain("A table's cell's text 2024 can't be read");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("draw a `<` that starts no tag as text, as a browser reads 0.2.1's, and keep its words in the plain text, where 0.2.1 loses them", () => {
+      const inputs = ["a < b > c", "< i >x</ i >", "< span >x", "x< br >y", '< a href="https://example.com" >y', "<b>bold</b> a < b"];
+      for (const html of inputs) {
+        for (const root of ["Email", "Page", "Document"] as const) {
+          const template = (L: Release) => {
+            const Root = L[root] as typeof Email;
+            return <Root><L.Row><L.Column><L.Paragraph html={html} /><L.Paragraph>After</L.Paragraph></L.Column></L.Row></Root>;
+          };
+          const read = (L: Release) => {
+            const doc = new DOMParser().parseFromString(L.renderToHtml(template(L)), "text/html");
+            doc.querySelectorAll("style, script, title").forEach((element) => element.remove());
+            return { words: doc.body.textContent?.replace(/\s+/g, ""), bold: doc.querySelectorAll("b, strong, [style*='font-weight:700'], [style*='font-weight: 700']").length };
+          };
+          expect(read(current).words, html).toBe(read(previous).words);
+          expect(read(current).bold, html).toBe(html.includes("<b>") ? 1 : 0);
+          // (`</ i >` is a comment to a browser: that block is written as it is, and reads as 0.2.1's.)
+          if (html.includes("</ ")) expect(renderToPlainText(template(current)), html).toBe(previous.renderToPlainText(template(previous)));
+          else for (const word of html.replace(/<\/? *\w+>/g, " ").split(/\s+/).filter((part) => /^\w+$/.test(part))) expect(renderToPlainText(template(current)), html).toContain(word);
+        }
+      }
+    });
+
     it("read an `&amp;` in a URL, and an entity in an image's text or a link's own attribute, as 0.2.1 reads them", () => {
       const url = "https://example.com/a?a=1&amp;b=2&c=3";
       const words = "Tom &amp; Jerry &copy; A&B";

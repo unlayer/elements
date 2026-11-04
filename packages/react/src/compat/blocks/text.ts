@@ -94,7 +94,8 @@ function notRead(stored: Values, place: Place): void {
  */
 export const textHtml = (values: Values, place: Place): string => {
   const textJson = place.source?.textJson;
-  const html = typeof textJson === "string" ? generateHtmlFromTextJson(textJson) : typeof values.text === "string" ? values.text : "";
+  // (Text that isn't a string is its text, as legacy writes it: a number, a heading's `text={2024}`.)
+  const html = typeof textJson === "string" ? generateHtmlFromTextJson(textJson) : values.text ? String(values.text) : "";
   return spaceBeforeTag(place.config.toSafeHtml ? place.config.toSafeHtml(html) : html);
 };
 
