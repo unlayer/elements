@@ -16,8 +16,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { forwardRef, memo, useMemo, useState } from "react";
 import * as current from "../index";
-import { legacyRenderToHtml } from "../utils/render-to-html";
 import * as previous from "@unlayer/react-elements-previous";
+import { reads } from "./lines";
 
 type Lib = typeof current;
 const releases: Record<"current" | "previous", Lib> = { current, previous: previous as unknown as Lib };
@@ -265,28 +265,9 @@ const BLOCKS: Record<string, (L: any, r: Random) => React.ReactElement> = {
   Social: (L, r) => <L.Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }, { name: "Twitter", url: "https://twitter.com/x" }]} {...some(r, { textAlign: ALIGNS, containerPadding: PADDINGS })} />,
 };
 
-/**
- * The body's HTML with ids and the documented changes to the device CSS left out: no-stack rules
- * written `.u-row.no-stack` (a later row's rules overrode them), and the rules that hide content on a device.
- */
-function comparable(html: string): string {
-  return html
-    .replace(/<head[\s\S]*?<\/head>/i, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, (css) =>
-      css
-        .replace(/\.u-row\.no-stack/g, ".no-stack")
-        .replace(/@media \(min-width: 0px\) \{ \.hide-default__display-block[^}]*\}[^}]*\} \}/g, "")
-        .replace(/@media \(max-width: 480px\) \{ \.hide-mobile \{[^}]*\} \}/g, "")
-        .replace(/@media \(min-width: 481px\) \{ \.hide-desktop \{[^}]*\} \}/g, "")
-    )
-    .replace(/u_[a-z_]+_\d+/g, "ID")
-    .replace(/\s+/g, " ");
-}
-/** A design without its ids, counters and the phone settings the previous release didn't keep. */
-const designOf = (design: unknown) => JSON.stringify(design, (key, value) => (["_meta", "counters", "schemaVersion", "_override", "hideMobile", "hideDesktop"].includes(key) ? undefined : value));
-
 describe("each block with its props", () => {
-  it.each(Object.keys(BLOCKS))("%s renders as the previous release did, in every mode", (name) => {
+  // The HTML differs on purpose: a block keeps what a reader gets, and its design, string for string.
+  it.each(Object.keys(BLOCKS))("%s gives what the previous release gave, in every mode", (name) => {
     const different: string[] = [];
     for (let seed = 1; seed <= 60; seed++) {
       for (const root of ["Email", "Page", "Document"] as const) {
@@ -294,14 +275,15 @@ describe("each block with its props", () => {
           const Root = L[root];
           return <Root><L.Row><L.Column>{BLOCKS[name](L, random(seed * 7 + name.length))}</L.Column></L.Row></Root>;
         };
-        // Today's components' own HTML (the legacy renderer, which blocks the new engine keeps as they are use).
-        const now = { html: comparable(legacyRenderToHtml(build(current))), design: designOf(current.renderToJson(build(current))) };
-        const before = { html: comparable(previous.renderToHtml(build(previous))), design: designOf(previous.renderToJson(build(previous))) };
-        if (now.html !== before.html) different.push(`seed ${seed}, ${root}: HTML`);
-        if (now.design !== before.design) different.push(`seed ${seed}, ${root}: design`);
+        const output = (L: any) => ({
+          reader: JSON.stringify(reads(L.renderToHtml(build(L)))),
+          text: L.renderToPlainText(build(L)) as string,
+          design: JSON.stringify(L.renderToJson(build(L))),
+        });
+        const [now, before] = [output(current), output(previous)];
+        for (const part of ["reader", "text", "design"] as const) if (now[part] !== before[part]) different.push(`seed ${seed}, ${root}, ${part}: ${now[part]} was ${before[part]}`);
       }
     }
-    expect(different).toEqual([]);
+    expect(different.slice(0, 3), `${different.length} differ`).toEqual([]);
   });
 });
-

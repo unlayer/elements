@@ -6,7 +6,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React, { act, useId, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Column, Email, Html, Paragraph, Row, renderToHtml, renderToPlainText } from "../index";
+import { Column, Email, Html, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { reads } from "./lines";
 
 // Renders run inside act(), as React's testing setup expects.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,16 +20,17 @@ afterEach(() => {
   root = host = undefined;
 });
 
-/** Renders on the client and returns the text it shows each time `next` is called with new props. */
+/**
+ * Renders on the client and returns each block's text, in order, each time it's called with new props. Each block is
+ * read on its own: their boxes hold blocks apart on a screen, not whitespace between them, which the markup may not have.
+ */
 function mount<P extends object>(Template: (props: P) => React.ReactElement) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   return (props: P) => {
     act(() => root!.render(<Template {...props} />));
-    const shown = host!.cloneNode(true) as HTMLElement;
-    shown.querySelectorAll("style, title").forEach((node) => node.remove());
-    return (shown.textContent ?? "").replace(/\s+/g, " ").trim();
+    return Array.from(host!.querySelectorAll("p")).map((block) => block.textContent);
   };
 }
 
@@ -47,7 +49,7 @@ describe("components among the email's rows, on the client", () => {
     const show = mount(({ banner }: { banner: boolean }) => (
       <Email>{banner && <Banner />}<Row><Column><Paragraph>MAIN COPY</Paragraph></Column></Row><Footer /></Email>
     ));
-    expect([show({ banner: false }), show({ banner: true }), show({ banner: false })]).toEqual(["MAIN COPY FOOTER", "BANNER MAIN COPY FOOTER", "MAIN COPY FOOTER"]);
+    expect([show({ banner: false }), show({ banner: true }), show({ banner: false })]).toEqual([["MAIN COPY", "FOOTER"], ["BANNER", "MAIN COPY", "FOOTER"], ["MAIN COPY", "FOOTER"]]);
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });
@@ -58,8 +60,8 @@ describe("components among the email's rows, on the client", () => {
       return <Row><Column><Paragraph>{label}</Paragraph></Column></Row>;
     }
     const show = mount(({ items }: { items: string[] }) => <Email>{items.map((name) => <Item key={name} name={name} />)}</Email>);
-    expect(show({ items: ["apple", "banana"] })).toBe("APPLE BANANA");
-    expect(show({ items: ["banana", "apple"] })).toBe("BANANA APPLE");
+    expect(show({ items: ["apple", "banana"] })).toEqual(["APPLE", "BANANA"]);
+    expect(show({ items: ["banana", "apple"] })).toEqual(["BANANA", "APPLE"]);
   });
 });
 
@@ -93,8 +95,9 @@ describe("components among the email's rows, rendered once", () => {
     const email = <Email><AsRow /><Row><Column><InColumn /><Paragraph>after</Paragraph></Column></Row></Email>;
     expect(renderToPlainText(email)).toContain("row n=2");
     expect(renderToPlainText(email)).toContain("col n=2");
-    // The column's blocks keep their ids when React runs its render again.
-    const ids = [...renderToHtml(email).matchAll(/id="(u_[a-z_]+_\d+)"/g)].map((m) => m[1]);
-    expect(new Set(ids).size).toBe(ids.length);
+    // React runs those renders again: what they wrote the first time isn't written twice, and takes no id from a block after it.
+    expect(reads(renderToHtml(email)).words).toEqual(["row", "n=2", "col", "n=2", "after"]);
+    const ids = [...JSON.stringify(renderToJson(email)).matchAll(/"htmlID":"([^"]+)"/g)].map((m) => m[1]);
+    expect(ids).toEqual(["u_content_text_1", "u_column_1", "u_row_1", "u_content_text_2", "u_content_text_3", "u_column_2", "u_row_2", "u_body"]);
   });
 });

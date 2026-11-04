@@ -51,7 +51,7 @@ function project(react: string, reactDom: string, type: "module" | "commonjs", d
   fs.mkdirSync(elements, { recursive: true });
   fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
   fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
-  for (const dependency of ["exporters", "types"]) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer", dependency)), path.join(modules, "@unlayer", dependency), "dir");
+  fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer/types")), path.join(modules, "@unlayer/types"), "dir");
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type }));
   return dir;
 }
@@ -256,7 +256,7 @@ describe("a Node script that renders with the built package", () => {
           fs.mkdirSync(elements, { recursive: true });
           fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
           fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
-          for (const dependency of ["exporters", "types"]) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer", dependency)), path.join(modules, "@unlayer", dependency), "dir");
+          fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer/types")), path.join(modules, "@unlayer/types"), "dir");
           fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: format }));
           fs.writeFileSync(path.join(dir, "render.js"), script(format, noChannel, name === "React 19"));
           const run = spawnSync(process.execPath, ["render.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });

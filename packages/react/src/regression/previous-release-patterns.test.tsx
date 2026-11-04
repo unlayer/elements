@@ -1,20 +1,17 @@
 /**
  * The ways users write their own components, rendered with this build and
  * with the last published Elements (`@unlayer/react-elements-previous`).
- * Each pattern says what React shows for it. Where the previous release
- * showed that, this build must give the same HTML text, plain text and
- * design; where it didn't (`fixed`), this build must show it. Each pattern is
- * built twice, once with each release's components.
+ * Each pattern says what React shows for it: both releases must show that, and
+ * this build must give the previous release's links, images, plain text and
+ * design. Each pattern is built twice, once with each release's components.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { createContext, forwardRef, memo, useContext, useId, useMemo, useState } from "react";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
-import previousPackage from "@unlayer/react-elements-previous/package.json";
+import { reads } from "./lines";
 
 type Lib = typeof current;
-// The previous release had the bugs `fixed` patterns record until 0.2.0, the release that fixed them.
-const previousHasTheBugs = /^0\.1\./.test(previousPackage.version);
 const releases = { current, previous: previous as unknown as Lib };
 
 /** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
@@ -44,9 +41,7 @@ type Pattern = {
   build: (L: Lib) => React.ReactElement;
   /** What a reader sees in the HTML. */
   shows: string;
-  /** The previous release didn't show it (a bug this build fixes): only this build is checked. */
-  fixed?: true;
-  /** The design isn't compared: a component of the user's own isn't a block, or the design keeps text as HTML now. */
+  /** The design isn't compared: what's rendered isn't a design. */
   json?: false;
   /** How many different `useId()` values the HTML shows. */
   ids?: number;
@@ -63,9 +58,8 @@ const PATTERNS: Record<string, Pattern> = {
     ),
     // The element is left out (with a message); the rest renders.
     shows: "Before the rule After the rule",
-    json: false, // 0.1.22's renderToJson throws on markup in a Column: this build's design is checked in render-to-json.test
   },
-  // Markup written in a Row or Column is left out whole, as 0.1.22 left it out, also with a component or block in it.
+  // Markup written in a Row or Column is left out whole, also with a component or block in it.
   "markup in a Column with a component of the user's own in it (a name in a sentence), between blocks": {
     build: (L) => {
       const Name = () => <b>Ada</b>;
@@ -78,7 +72,6 @@ const PATTERNS: Record<string, Pattern> = {
       );
     },
     shows: "Before After",
-    json: false, // 0.1.22's renderToJson throws on markup in a Column
   },
   "a link written in a Column around a component's image, between blocks": {
     build: (L) => {
@@ -92,7 +85,6 @@ const PATTERNS: Record<string, Pattern> = {
       );
     },
     shows: "Before After",
-    json: false, // 0.1.22's renderToJson throws on markup in a Column
   },
   "markup in a Row with a component of the user's own in it, beside a Column": {
     build: (L) => {
@@ -125,7 +117,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><L.Paragraph>Before the signature</L.Paragraph><Signature name="Ada" /><L.Paragraph>After the signature</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Before the signature Signed by Ada After the signature",
-    json: false, // a component of the user's own isn't a design block, in either release
   },
   "context from a Provider around a Row, read by a component in a Column": {
     build: (L) => {
@@ -136,7 +127,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><Theme.Provider value="dark theme"><L.Row><L.Column><Themed /></L.Column></L.Row></Theme.Provider></L.Email>;
     },
     shows: "Theme: dark theme",
-    json: false,
   },
   "useId in components, and one element placed twice": {
     build: (L) => {
@@ -149,7 +139,6 @@ const PATTERNS: Record<string, Pattern> = {
     },
     shows: "Field ‹id› Field ‹id› Field ‹id›",
     ids: 3,
-    json: false,
   },
   "a component with hooks that returns Rows, among the email's children": {
     build: (L) => {
@@ -161,7 +150,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><Header title="Digest" /><L.Row><L.Column><L.Paragraph>Body copy</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "DIGEST Digest — weekly Body copy",
-    json: false, // the previous release's design left out the component's rows
   },
   "a component that returns a Fragment of blocks in a Column, and one that returns an array": {
     build: (L) => {
@@ -170,7 +158,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><Lines /><Items items={["Alpha", "Beta"]} /></L.Column></L.Row></L.Email>;
     },
     shows: "First line Second line Alpha Beta",
-    fixed: true,
   },
   "memo and forwardRef components with hooks": {
     build: (L) => {
@@ -185,7 +172,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><Memoed label="one" /><Forwarded label="two" /></L.Column></L.Row></L.Email>;
     },
     shows: "Memo one Forwarded two",
-    fixed: true,
   },
   "a template component with a hook around the email": {
     build: (L) => {
@@ -196,7 +182,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <Welcome name="Ada" />;
     },
     shows: "Welcome, Ada",
-    json: false, // the previous release's renderToJson couldn't unwrap a template with a hook
   },
   "a component that renders nothing, next to blocks": {
     build: (L) => {
@@ -204,7 +189,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><Nothing show={false} /><L.Paragraph>Always</L.Paragraph><Nothing show /></L.Column></L.Row></L.Email>;
     },
     shows: "Always Shown",
-    fixed: true,
   },
   "an async component among a Column's blocks": {
     build: (L) => {
@@ -212,7 +196,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph><Recommendations /><L.Paragraph>See you soon</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Thanks for your order See you soon",
-    json: false, // 0.1.22's design read the async component's promise as a block
   },
   "a component that throws, among a Row's columns": {
     build: (L) => {
@@ -220,7 +203,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph></L.Column></L.Row><L.Row><ItemColumns order={{}} /><L.Column><L.Paragraph>Total 0 dollars</L.Paragraph></L.Column></L.Row><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Thanks for your order Total 0 dollars Footer",
-    json: false,
   },
   "a Column shown under a condition, in a Row with a layout": {
     build: (L) => {
@@ -240,7 +222,6 @@ const PATTERNS: Record<string, Pattern> = {
   "a template whose root is in a Fragment": {
     build: (L) => <><L.Email><L.Row><L.Column><L.Paragraph>Inside a Fragment</L.Paragraph></L.Column></L.Row></L.Email></>,
     shows: "Inside a Fragment",
-    json: false, // the previous release's renderToJson threw for it; this one reads the root inside
   },
   "a memo component whose function has defaultProps, among the email's rows": {
     build: (L) => {
@@ -252,7 +233,6 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><MemoBanner /><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Banner: default title Footer",
-    json: false, // 0.1.22's design left out components among the rows
   },
   "headings, buttons and text with &, < and quotes": {
     build: (L) => (
@@ -266,8 +246,6 @@ const PATTERNS: Record<string, Pattern> = {
       </L.Email>
     ),
     shows: `Q&A: "fast" & 'easy' <3 Terms & conditions Tom & Jerry <b>not bold</b> Save & continue`,
-    fixed: true, // the previous release read a heading's text as HTML: "<3" was lost
-    json: false, // the design keeps Heading and Button text as HTML now (escaped), as the editor does
   },
 };
 
@@ -278,27 +256,28 @@ beforeAll(() => {
 });
 afterAll(() => vi.restoreAllMocks());
 
-describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, ids }) => {
+describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, json, ids }) => {
   const now = build(releases.current);
   const before = build(releases.previous);
 
   it("shows what React shows", () => {
     expect(visible(current.renderToHtml(now))).toBe(shows);
     if (ids) expect(new Set(current.renderToHtml(now).match(REACT_ID)).size).toBe(ids);
-    // The previous release showed it too, or (while it's a release before the fix) it's a fix: a pattern that
-    // changes either way is a decision to make.
-    if (!fixed || previousHasTheBugs) expect(visible(previous.renderToHtml(before)) === shows).toBe(!fixed);
+    expect(visible(previous.renderToHtml(before))).toBe(shows);
   });
 
-  if (!fixed) {
-    it("gives the previous release's plain text", () => {
-      // React's useId() values are opaque: where React places a component in its tree sets them.
-      const ids = (text: string) => text.replace(REACT_ID, "‹id›");
-      expect(ids(current.renderToPlainText(now))).toBe(ids(previous.renderToPlainText(before)));
-    });
-  }
+  it("gives the previous release's links and images", () => {
+    const [{ links, images }, was] = [reads(current.renderToHtml(now)), reads(previous.renderToHtml(before))];
+    expect({ links, images }).toEqual({ links: was.links, images: was.images });
+  });
 
-  if (!fixed && json !== false) {
+  it("gives the previous release's plain text", () => {
+    // React's useId() values are opaque: where React places a component in its tree sets them.
+    const ids = (text: string) => text.replace(REACT_ID, "‹id›");
+    expect(ids(current.renderToPlainText(now))).toBe(ids(previous.renderToPlainText(before)));
+  });
+
+  if (json !== false) {
     it("gives the previous release's design", () => {
       expect(JSON.stringify(current.renderToJson(now), null, 1)).toBe(JSON.stringify(previous.renderToJson(before), null, 1));
     });

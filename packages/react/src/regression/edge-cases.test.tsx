@@ -2,9 +2,9 @@
  * Edges where Elements meets React's own rules, rendered with this build and with the last published Elements
  * (`@unlayer/react-elements-previous`): markup React rejects, pieces rendered on their own, odd children, React's
  * hooks and wrappers, and Elements' renders called inside another render (an app's server render, a component
- * Elements renders, the browser). 0.2.0 renders templates with React, which is stricter than 0.1.22's walk of the
- * tree and keeps a render's state in its module: these are where that shows. Wherever the previous release
- * rendered, this build must too (no throw), and show every word it showed (it may show more: what React shows).
+ * Elements renders, the browser). Elements renders templates with React, which is strict, and keeps a render's
+ * state in its module: these are where that shows. Where the previous release renders, this build must too (no
+ * throw), and show the same words.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition, act } from "react";
@@ -38,17 +38,6 @@ const designWords = (design: unknown): string[] => {
   visit(design);
   return out;
 };
-
-/** Every word of `before` is in `now`, as many times (it may hold more). */
-function contains(now: string[], before: string[]): string[] {
-  const left = new Map<string, number>();
-  for (const w of now) left.set(w, (left.get(w) ?? 0) + 1);
-  return before.filter((w) => {
-    const n = left.get(w) ?? 0;
-    left.set(w, n - 1);
-    return n <= 0;
-  });
-}
 
 const CASES: Record<string, (L: Lib) => React.ReactElement> = {
   "markup React rejects among the rows (a string style)": (L) => <L.Email>{React.createElement("div", { style: "color:red" } as never, "Loose")}<L.Row><L.Column><L.Paragraph>Kept text</L.Paragraph></L.Column></L.Row></L.Email>,
@@ -143,6 +132,9 @@ const CASES: Record<string, (L: Lib) => React.ReactElement> = {
   },
 };
 
+/** Pieces `renderToJson` refuses in both releases: a design has a root, and rows that hold columns. */
+const NOT_A_DESIGN = new Set(["a Row on its own", "a Row on its own with a layout", "a Row on its own, a Column under a condition", "a Column on its own", "a block on its own", "a Row in a Fragment as the root", "a Row inside a Column"]);
+
 type Api = "html" | "plain" | "json";
 const API: Record<Api, (L: Lib, element: React.ReactElement) => string[]> = {
   html: (L, element) => words(L.renderToHtml(element)),
@@ -180,15 +172,16 @@ beforeAll(() => {
 });
 afterAll(() => vi.restoreAllMocks());
 
-describe.each(Object.entries(CASES))("%s", (_, build) => {
+describe.each(Object.entries(CASES))("%s", (name, build) => {
   for (const api of Object.keys(API) as Api[]) {
+    if (api === "json" && NOT_A_DESIGN.has(name)) continue;
     for (const [place, within] of Object.entries(PLACES)) {
-      it(`${api}, ${place}: renders where the previous release did, with every word it showed`, () => {
+      it(`${api}, ${place}: renders where the previous release did, with the words it showed`, () => {
         const before = attempt(() => within(() => API[api](releases.previous, build(releases.previous))));
-        if (before.error) return; // the previous release didn't render it: nothing to keep
+        expect(before.error).toBeUndefined();
         const now = attempt(() => within(() => API[api](releases.current, build(releases.current))));
         expect(now.error).toBeUndefined();
-        expect(contains(now.words!, before.words!)).toEqual([]);
+        expect(now.words).toEqual(before.words);
       });
     }
   }
