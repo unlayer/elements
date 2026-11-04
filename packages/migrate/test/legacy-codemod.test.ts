@@ -21,6 +21,14 @@ const syntaxErrors = (code: string, fileName: string) =>
   (ts.transpileModule(code, { fileName, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve, allowJs: true } }).diagnostics ?? []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 
 describe("migrateElements", () => {
+  it("keeps a root's language", async () => {
+    const { code, report } = await migrate('export const T = () => <Email lang="es"><Row><Column><Paragraph>Hola</Paragraph></Column></Row></Email>;');
+    expect(code).toContain('lang="es"');
+    expect(report.join("\n")).not.toContain("lang");
+    const page = await migrate('export const T = ({ language }) => <Page lang={language}><Row><Column><Paragraph>Hola</Paragraph></Column></Row></Page>;', "Page, Row, Column, Paragraph");
+    expect(page.code).toContain("lang={language}");
+  });
+
   it("takes a value in markup out of the call that escapes it, keeping what the call held together", async () => {
     const { code } = await migrate('export const T = ({ name }) => <Email><Row><Column><Paragraph html={`<b>${escapeHtml(name || "Guest") + ", welcome"}</b> ${htmlText(name)} ${escapeHtml(a ? b : c)}`} /></Column></Row></Email>;');
     expect(code).toContain('(name || "Guest") + ", welcome"');

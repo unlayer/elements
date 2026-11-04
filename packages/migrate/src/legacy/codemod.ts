@@ -559,6 +559,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return element(type, [
       `width={${width ? (isLiteral(width) && px(width.literal) !== undefined ? px(width.literal) : code(width)) : 500}}`,
       type === "Email" && attr("previewText", props.get("previewText")),
+      attr("lang", props.get("lang")),
       dir(props),
       styleAttr([
         ["backgroundColor", color(props, "backgroundColor")],
