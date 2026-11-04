@@ -56,8 +56,8 @@
   A table whose rows have more cells than its first row shares its columns evenly, with a warning.
 - New, as a preview of the next major version: `@unlayer/react-elements/primitives`, the new components, with
   `render()` and `validate()`. Today's API is also at `@unlayer/react-elements/legacy`.
-- New in `/primitives`: `Html`, markup written as it is (the builder's HTML block); a PDF and an image draw its
-  plain text.
+- New in `/primitives`: `Html`, markup written as it is (the builder's HTML block), given as `html` or as JSX in it,
+  in the text around it; a PDF and an image draw its plain text.
 - New, with `/primitives`: `@unlayer/react-elements/builder`, `toDesign()` and `fromDesign()`, a template to the
   Unlayer builder's design JSON and back. What a builder tool has no field for is kept in the design as a hidden
   property of that tool; what the builder can't arrange comes back with the same look, flatter. `fromDesign()`

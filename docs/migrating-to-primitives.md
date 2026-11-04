@@ -41,7 +41,14 @@ share, the codemod writes it out:
 | A `Row` | a `Section` (its background across the window), with a `Row` of `Column`s for several columns, each its share of the layout as a `width` |
 | A `Row`'s side padding | dropped: today's draw it outside the content, where it doesn't show |
 | A line along the bottom (or top) of every `Column` of a `Row` | the `Row`'s border, and each `Column`'s on phones, where they stack: today's stretch `Column`s to their `Row`'s height |
-| An `Image` 120px wide | the share of its column today's draw it at (`width: "24%", maxWidth: 124.8`): give it `width: 120` to draw it at 120px |
+| An `Image` 120px wide | the share of its column today's draw it at (`width: "20.69%", maxWidth: 124.14`): give it `width: 120` to draw it at 120px |
+| `html` with what a run of text can't hold (an image, a list, a table, a box in a line) | an `Html` block with that markup, in a `Column` with the text's styles |
+| Markup a value decides or a list writes (`${note ? `<em>${note}</em>` : ""}`) | the same choice or list, of `Span`s and `Link`s |
+| Lengths in rem, em, or following the window | px (rem and em at 16px; a width that follows the window at a phone's) |
+| `Html` | `Html` in a `Column` with its padding |
+| `Table`'s `headers` and `data`, or the `values` it can read | a `Table` of `TableRow`s and `TableCell`s, in its section styles |
+| `Document`'s `documentSize`, `documentOrientation`, `documentMargin`; a `PageBreak` | `size`, `orientation`, `margin`; a `PageBreak` between `Section`s |
+| `Button`'s `buttonColors` | the colors in `style` and `hover` |
 | `mobile={{ ... }}`, `hideOnMobile`, `hideOnDesktop` | `mobile={{ ... }}` with the new names, `hidden={{ mobile: true }}` |
 | `Social`'s `{ name, url }`, `Menu`'s `linkColor` and `textColor` | `{ name, href }`, `color` and `separatorColor` |
 
@@ -59,7 +66,8 @@ The codemod never drops anything quietly. It lists, with the line:
 - a horizontal `Menu` of links written out: it's written as a wrapping `Row` of its links and separators, with
   the spaces today's puts between them, so it draws as today's does (a `Menu` of links worked out at run
   time, or a vertical one, stays a `Menu`);
-- `Html`, `Table` and custom tools, which it doesn't rewrite yet: a comment where each was, for you to rewrite;
+- custom tools, which it doesn't rewrite yet: a comment where each was, for you to rewrite;
+- a Table's or a text's values from code, which are written as text where today's draw them as HTML, so markup in them would show;
 - today's functions it leaves imported (`renderToHtml`): render the new components with `render()`, which is
   async.
 
