@@ -5,12 +5,14 @@
  * than the design asks, the tree draws it as legacy does (quirks.ts).
  */
 import type React from "react";
-import type { Json } from "@unlayer-internal/elements-core";
-import { escapeText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { line, parseColor, type Diagnostic, type Json } from "@unlayer-internal/elements-core";
+import { EMAIL_PHONE_MARGIN } from "@unlayer-internal/elements-exporters";
+import { escapeKeepingTags, escapeText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "../utils/create-component";
-import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
-import { pageBodyColor, pageMargin, rowColorInEmail, rowPaddingInEmail } from "./quirks";
-import { border, color, px, serviceTag, sides, some, type Values } from "./values";
+import { collectDeviceStyles, cssValue, deviceStylesCss } from "../utils/device-overrides";
+import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
+import { documentBodyPicture, ownMarkupCss, pageBodyColor, pageMargin, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
+import { ALIGN, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
 
 /** A block of the design: its tool and values. */
 export interface DesignBlock {
@@ -58,11 +60,26 @@ export interface Place {
   source?: Values;
 }
 
+/** What a template holds beside its design, which legacy draws. */
+export interface OutsideTheDesign {
+  /** The markup before each row, and after the last. */
+  among: string[];
+  rows: Array<{
+    /** Its values as its exporter gets them, where they aren't the design's (no defaults). */
+    values?: Values;
+    /** Text straight in it, as HTML: what's before each of its columns, and after the last. */
+    text: string[];
+    /** Each of its columns' text, as HTML: what's before each of its blocks, and after the last. */
+    columns: string[][];
+  }>;
+}
+
 export interface LowerOptions {
   mode: Mode;
   config?: Partial<UnlayerConfig>;
   /** A block as a node of the tree, or null where it draws nothing in this output. */
   block(block: DesignBlock, place: Place): TreeNode | null;
+  outside?: OutsideTheDesign;
 }
 
 /**
@@ -75,54 +92,128 @@ export function hidden(values: Values): TreeNode["hidden"] {
   return desktop || mobile ? { ...(desktop ? { desktop } : {}), ...(mobile ? { mobile } : {}) } : undefined;
 }
 
-/** Thrown where the frame (the body, a row, a column) holds what the new engine can't draw as legacy does. */
+/** Thrown by a block whose whole template legacy draws in a way a row of the new engine can't: it keeps its legacy HTML. */
 export class Unlowerable extends Error {}
+
+/** What lowering a template's frame (its body, rows and columns) gathers beside the tree. */
+interface Frame {
+  mode: Mode;
+  /** The email's width. */
+  width: number;
+  /** Rules for what no style holds, under class names of their own. */
+  rules: string[];
+  /** Rules for its rows' and columns' settings for a device. */
+  device: Record<string, string[]>;
+  names: number;
+  notes: Diagnostic[];
+  /** Whether markup or text of the template's is in the tree (it takes what legacy's stylesheet gives it). */
+  loose: boolean;
+  /** Where its rows' content sits across the window. */
+  contentAlign?: "left" | "right" | "center";
+  /** An email's class for a content width that isn't in px. */
+  contentWidth?: string;
+  /** An email's class for a Section whose cells may run past its content's table. */
+  fixedTable?: string;
+}
+
+/** Said of the frame. A warning where it's drawn otherwise than asked; a note where legacy draws nothing of it either. */
+function say(frame: Frame, severity: Diagnostic["severity"], message: string, path: string): void {
+  frame.notes.push({ code: "compat/frame", severity, message, path });
+}
+
+const isEmpty = (value: unknown) => value === undefined || value === null || value === "" || value === false || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length);
 
 /**
  * The values of a row, a column or the body that the lowering reads, or that draw nothing in legacy's output (the
  * editor's flags, a value only a popup reads, a document's page size, which the PDF takes). Any other value that isn't
- * empty is one the frame can't draw as legacy does, whatever it is (a row's anchor, its columns' alignment): the
- * template renders as today.
+ * empty draws nothing in legacy's output either: it's noted.
  */
 const READ = {
-  row: new Set(["displayCondition", "backgroundColor", "columnsBackgroundColor", "backgroundImage", "padding", "noStackMobile", "cells", "_meta", "_override", "hideDesktop", "hideMobile", "selectable", "draggable", "duplicatable", "deletable", "hideable", "locked"]),
+  row: new Set(["displayCondition", "backgroundColor", "columnsBackgroundColor", "backgroundImage", "padding", "noStackMobile", "cells", "anchor", "alignItems", "_meta", "_override", "hideDesktop", "hideMobile", "selectable", "draggable", "duplicatable", "deletable", "hideable", "locked"]),
   column: new Set(["backgroundColor", "padding", "border", "borderRadius", "_meta", "_override", "hideDesktop", "hideMobile", "deletable", "locked"]),
-  body: new Set(["textDirection", "borderRadius", "contentAlign", "contentVerticalAlign", "contentWidth", "fontFamily", "textColor", "backgroundColor", "documentSize", "documentOrientation", "documentMargin", "preheaderText", "linkStyle", "backgroundImage", "_meta"]),
+  body: new Set(["textDirection", "borderRadius", "contentAlign", "contentVerticalAlign", "contentWidth", "fontFamily", "fontSize", "fontWeight", "lineHeight", "textColor", "backgroundColor", "documentSize", "documentOrientation", "documentMargin", "preheaderText", "linkStyle", "backgroundImage", "_meta"]),
 };
 
-function onlyRead(values: Values, what: keyof typeof READ): void {
+/** What of a frame's settings for a device legacy draws (the rest, with what it doesn't read in its values, is noted). */
+const DRAWN = { row: ["padding", "noStackMobile", "hideMobile", "hideDesktop"], column: ["padding", "border"], body: [] as string[] };
+
+function unread(values: Values, what: keyof typeof READ, frame: Frame, path: string): void {
   for (const [key, value] of Object.entries(values)) {
-    if (READ[what].has(key) || value === undefined || value === null || value === "" || value === false) continue;
-    if (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length) continue;
-    throw new Unlowerable(`a ${what}'s ${key} ${JSON.stringify(value)}`);
+    if (!READ[what].has(key) && !isEmpty(value)) say(frame, "info", `A ${what}'s ${key} ${JSON.stringify(value)} draws nothing`, `${path}.values.${key}`);
   }
-  // Settings for a tablet's width, which legacy applies there.
-  if (Object.keys(values._override?.tablet ?? {}).length) throw new Unlowerable(`a ${what}'s settings for tablets`);
+  // Tablets: legacy writes a class for a block hidden on one and no rule for it, and no rule at all for anything else.
+  if (Object.keys(values._override?.tablet ?? {}).length) say(frame, "info", `A ${what}'s settings for tablets draw nothing`, `${path}.values._override.tablet`);
+  for (const device of ["desktop", "mobile"]) {
+    for (const key of Object.keys(values._override?.[device] ?? {})) {
+      if (!DRAWN[what].includes(key)) say(frame, "info", `A ${what}'s ${key} for ${device === "mobile" ? "phones" : "desktop windows"} draws nothing`, `${path}.values._override.${device}.${key}`);
+    }
+  }
 }
 
-/** Today's link style of the body: links in the browser's blue, underlined. Another is drawn by legacy's head CSS. */
-const BODY_LINKS = { body: true, linkColor: "#0000ee", linkHoverColor: "#0000ee", linkUnderline: true, linkHoverUnderline: true };
+/** A value CSS holds where no style does; said where it can't be written. */
+function written(value: unknown, what: string, frame: Frame, path: string): string | undefined {
+  const text = cssValue(value);
+  if (text === undefined) say(frame, "warning", `${what} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, path);
+  return text;
+}
 
-/** Sides that must be read: a value that isn't one is what the frame can't draw. */
-function readSides(value: unknown, what: string) {
+/** A class of the frame's own, with these declarations. */
+function ruled(frame: Frame, declarations: string[]): string {
+  const name = `u-frame-${++frame.names}`;
+  if (declarations.length) frame.rules.push(`.${name} { ${declarations.join("; ")}; }`);
+  return name;
+}
+
+/** Sides the new engine takes; others (in em, in %) are written in `css` as legacy writes them, for the browser to draw or not. */
+function sidesOr(css: string[], value: unknown, what: string, frame: Frame, path: string) {
   const out = sides(value);
-  if (!out && value !== undefined && value !== null && value !== "") throw new Unlowerable(`${what} ${JSON.stringify(value)}`);
-  return out;
+  if (out || isEmpty(value)) return out;
+  const text = written(value, what, frame, path);
+  if (text) css.push(`padding: ${text}`);
+  return undefined;
+}
+
+/** A color the new engine takes; another (hsl(), a variable) is written in `css` as legacy writes it. */
+function colorOr(css: string[], property: string, value: unknown, what: string, frame: Frame, path: string): string | undefined {
+  const named = color(value);
+  if (named === undefined || parseColor(named).ok) return named;
+  const text = written(named, what, frame, path);
+  if (text) css.push(`${property}: ${text}`);
+  return undefined;
 }
 
 /**
- * A row's or column's settings for phones and for desktop windows, which legacy applies on either side of 480px. A
- * page's are the new engine's too; an email's phone settings start at its own width (its columns stack there, as
- * legacy's do), so none can be drawn as legacy draws them. A printed document has no phone settings in legacy.
+ * A column's lines the new engine takes; another (of a width in em, a style it doesn't read) is written in `css` as
+ * legacy writes it. A side of no width has none; a side with no color is transparent.
  */
-function phoneSettings(values: Values, what: string, mode: Mode): void {
-  const desktop = Object.keys(values._override?.desktop ?? {}).filter((key) => key !== "hideDesktop");
-  if (desktop.length) throw new Unlowerable(`${what}'s settings for desktop windows`);
-  // Not stacking on phones (the builder keeps it with phone settings) is the new email's own, at its width too.
-  const phone = Object.keys(values._override?.mobile ?? {}).filter((key) => key !== "noStackMobile");
-  if (mode === "email" && (phone.length || hidden(values))) throw new Unlowerable(`${what}'s settings for phones in an email, which legacy applies below 480px`);
-  // A page's: its padding (and where it's hidden), which the new components have too.
-  if (mode === "web" && phone.some((key) => key !== "padding" && key !== "hideMobile")) throw new Unlowerable(`${what}'s settings for phones`);
+function linesOr(css: string[], values: Values | undefined, frame: Frame, path: string): Record<string, Json> | undefined {
+  const out: Record<string, Json> = {};
+  for (const side of ["Top", "Right", "Bottom", "Left"]) {
+    const width = values?.[`border${side}Width`];
+    if (isEmpty(width) || !parseFloat(String(width))) continue;
+    const style = values?.[`border${side}Style`] || "solid";
+    const lineColor = values?.[`border${side}Color`] || "transparent";
+    const parsed = px(width);
+    if (parsed !== undefined && line().parse({ width: parsed, style, color: lineColor }).ok) out[side.toLowerCase()] = { width: parsed, style, color: lineColor };
+    else {
+      const text = written(`${width} ${style} ${lineColor}`, "A column's line", frame, path);
+      if (text) css.push(`border-${side.toLowerCase()}: ${text}`);
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * A class for a row's or column's settings for a device, whose rules legacy's own function writes (at legacy's 480px on
+ * either side, whatever the output): undefined where it has none that draw.
+ */
+function deviceClass(values: Values, collection: "rows" | "columns", frame: Frame): string | undefined {
+  const { desktop = {}, mobile = {} } = values._override ?? {};
+  const set = (key: string) => key in desktop || key in mobile;
+  if (!set("padding") && !set("border")) return undefined;
+  const name = ruled(frame, []);
+  collectDeviceStyles(values, collection, "", frame.mode, frame.device, name);
+  return name;
 }
 
 /** An id its author gave a row, column or block (legacy writes it; the ids it numbers itself aren't written). */
@@ -131,10 +222,17 @@ export function givenId(values: Values): string | undefined {
   return typeof id === "string" && id && !/^u_(row|column|body|content_[a-z0-9_]+)_?\d*$/.test(id) ? safeName(id) || undefined : undefined;
 }
 
-/** Class names its author gave a row or a column, which legacy writes and the new components have no place for. */
-function givenClasses(values: Values, own: string, what: string): void {
+/** A node with the id its author gave it, whatever it holds (`compat.anyId`): legacy writes any id. */
+export function withGivenId<T extends TreeNode>(node: T, id: string | undefined): T {
+  if (!id) return node;
+  return { ...node, id, ...(/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) ? {} : { compat: { ...node.compat, anyId: true } }) };
+}
+
+/** Class names its author gave a row or a column, which legacy writes (users' CSS scopes on them), and the frame's own. */
+function classNames(values: Values, own: string, ...more: Array<string | undefined>): string | undefined {
   const names = values._meta?.htmlClassNames;
-  if (typeof names === "string" && names.trim() && names.trim() !== own) throw new Unlowerable(`${what}'s own class names`);
+  const given = typeof names === "string" && names.trim() !== own ? safeName(names, true).trim() : undefined;
+  return [given, ...more].filter(Boolean).join(" ") || undefined;
 }
 
 /** What a block's box says: its id and class, its padding, where it's hidden. */
@@ -219,117 +317,209 @@ export function writeBlock(element: React.ReactElement<any>, id: string, frame: 
 
 export const defined = <T extends object>(object: T): T => Object.fromEntries(Object.entries(object).filter(([, v]) => v !== undefined)) as T;
 
-/** The sides of a line every column of a row has (legacy stretches columns to the row's height: one line across it). */
-type Lines = Partial<Record<"top" | "bottom", Json>>;
+/** Markup or text of the template's, as a node: in a printed document in the font's own line height, as legacy's. */
+function looseMarkup(html: string, frame: Frame, compat?: Record<string, Json>, opens = 0): TreeNode {
+  frame.loose = true;
+  const inDocument = `${opens < 0 ? "" : '<div style="line-height:normal">'}${html}${opens > 0 ? "" : "</div>"}`;
+  // It reads as a block of its own in the plain text, whatever it is (see render.ts).
+  return defined({ type: "Raw", props: { html: frame.mode === "document" ? inDocument : html }, compat, textAs: defined({ type: "Raw", props: { html: `<div>${html}</div><div></div>` }, compat }) });
+}
 
-function column(design: Values, width: string | undefined, rowLines: Lines, background: string | undefined, stacks: boolean, place: Omit<Place, "column" | "index">, index: number, options: LowerOptions): TreeNode {
+/** How many elements a piece of markup leaves open (a wrapper around rows, whose end is in another piece); less than 0 where it ends some. */
+function leftOpen(html: string): number {
+  let open = 0;
+  for (const [, end, name, self] of html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<(\/?)([a-zA-Z][\w:-]*)\b[^>]*?(\/?)>/g)) {
+    if (end) open--;
+    else if (!self && !/^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i.test(name)) open++;
+  }
+  return open;
+}
+
+function column(design: Values, width: string | undefined, rigid: boolean, asCell: boolean, place: Omit<Place, "column" | "index">, index: number, options: LowerOptions, frame: Frame, loose: string[], path: string): TreeNode {
   const values: Values = design.values ?? {};
-  onlyRead(values, "column");
-  phoneSettings(values, "a column", options.mode);
-  // Its padding on phones, 0 too (which takes off its desktop padding there).
-  const phonePadding = options.mode === "web" ? readSides(values._override?.mobile?.padding, "a column's phone padding") : undefined;
+  unread(values, "column", frame, path);
+  const css: string[] = [];
+  const background = colorOr(css, "background-color", values.backgroundColor, "A column's background", frame, path);
+  const padding = sidesOr(css, values.padding, "A column's padding", frame, path);
+  const lines = linesOr(css, values.border, frame, path);
   const radius = px(values.borderRadius);
-  if (radius === undefined && values.borderRadius !== undefined && values.borderRadius !== "") throw new Unlowerable(`a column's corner radius ${JSON.stringify(values.borderRadius)}`);
-  const own = border(values.border) as Record<string, Json> | undefined;
-  // A line its row draws is the row's on desktop; where the columns stack, each draws it again on phones.
-  const lines = own && Object.fromEntries(Object.entries(own).filter(([side]) => !(side in rowLines)));
-  const phoneLines = stacks && Object.keys(rowLines).length ? rowLines : undefined;
-  const mobile = defined({ padding: phonePadding, border: phoneLines as Json | undefined });
+  if (radius === undefined && !isEmpty(values.borderRadius)) {
+    const text = written(values.borderRadius, "A column's corner radius", frame, path);
+    if (text) css.push(`border-radius: ${text}`);
+  }
+  const flexes = options.mode !== "email";
+  // On a page, legacy's column is its share of the row inside its side lines (a row's that don't fit run past it).
+  const sidesOfLines = flexes ? ((lines?.left as { width?: number } | undefined)?.width ?? 0) + ((lines?.right as { width?: number } | undefined)?.width ?? 0) : 0;
+  if (sidesOfLines) css.push(`flex: 0 0 calc(${width ?? "100%"} + ${sidesOfLines}px) !important`);
+  // A column in a row holding more than its columns' shares: legacy's keeps its share, one past the layout its content.
+  else if (flexes && rigid) css.push(...(width ? ["flex-shrink: 0 !important"] : ["flex: 0 1 100% !important", "min-width: auto !important"]));
   const at: Place = { ...place, column: values, index };
-  givenClasses(values, "u_column", "a column");
-  return defined({
+  const own = css.length ? ruled(frame, css) : undefined;
+  // (On a phone too, where it's the row's whole width inside them.)
+  if (sidesOfLines && options.mode === "web") frame.rules.push(`@media (max-width: 480px) { .${own}.${own} { width: calc(100% + ${sidesOfLines}px) !important; max-width: none !important; align-self: flex-start !important; } }`);
+  const className = classNames(values, "u_column", own, deviceClass(values, "columns", frame));
+  const contents: DesignBlock[] = design.contents ?? [];
+  return withGivenId(defined({
     type: "Column",
-    id: givenId(values),
     designColumn: true as const,
     style: defined({
       width,
-      backgroundColor: background === undefined ? color(values.backgroundColor) : undefined,
-      padding: some(readSides(values.padding, "a column's padding")),
-      border: lines && Object.keys(lines).length ? lines : undefined,
+      backgroundColor: background,
+      padding: some(padding),
+      border: lines,
       borderRadius: radius || undefined,
     }) as Record<string, Json>,
-    mobile: Object.keys(mobile).length ? (mobile as Record<string, Json>) : undefined,
-    children: (design.contents ?? []).flatMap((block: DesignBlock) => {
+    compat: compatOf({ className, minWidth: asCell ? widthHeld(design) || undefined : undefined, phoneMinWidth: asCell ? widthHeld(design, true) || undefined : undefined }),
+    children: contents.flatMap((block, n): TreeNode[] => {
+      const text = loose[n] ? [looseMarkup(loose[n], frame)] : [];
       const node = options.block(block, at);
-      if (!node) return [];
+      if (!node) return text;
       // A Raw block is hidden by its own box's classes, as legacy hides it (see contentBox); a printed document hides nothing.
       const hide = node.type === "Raw" || options.mode === "document" ? undefined : hidden(block.values ?? {});
-      return [hide ? { ...node, hidden: { ...node.hidden, ...hide } } : node];
-    }),
-  });
+      return [...text, hide ? { ...node, hidden: { ...node.hidden, ...hide } } : node];
+    }).concat(loose[contents.length] ? [looseMarkup(loose[contents.length], frame)] : []),
+  }), givenId(values));
 }
 
-function row(design: Values, place: Omit<Place, "row" | "column" | "cells" | "index">, options: LowerOptions): TreeNode {
+/** Text straight in a row, beside its columns, as wide as its longest word (see `boxedCells` in an email). */
+function rowText(html: string | undefined, frame: Frame): TreeNode[] {
+  if (!html) return [];
+  const node = looseMarkup(html, frame);
+  return [frame.mode === "email" ? node : { ...node, compat: { className: ruled(frame, ["flex: 0 1 auto !important", "min-width: auto !important"]) } }];
+}
+
+/**
+ * The width a column's blocks of a fixed length take, with the block's and the column's padding and side lines: a
+ * divider's, a button's. Legacy's cell grows to it, and its row runs past the email; on a phone, a row's that stays side
+ * by side grows to its divider's alone (a button there gives way).
+ */
+function widthHeld(design: Values, onPhones = false): number {
+  const { padding, border: lines } = design.values ?? {};
+  const across = (value: unknown) => {
+    const out = sides(value);
+    return out ? out.left + out.right : 0;
+  };
+  const own = across(padding) + (px(lines?.borderLeftWidth) ?? 0) + (px(lines?.borderRightWidth) ?? 0);
+  return Math.max(
+    0,
+    ...(design.contents ?? []).map(({ type, values }: DesignBlock) => {
+      const length = type === "divider" && typeof values?.width !== "object" ? px(values?.width) : !onPhones && type === "button" && values?.size?.autoWidth === false ? px(values.size.width) : undefined;
+      return length === undefined ? 0 : length + across(values.containerPadding ?? "10px") + own;
+    })
+  );
+}
+
+/** What the writers read of a node (see `compat` in core's model), where it has any. */
+function compatOf(values: Record<string, Json | undefined>): Record<string, Json> | undefined {
+  const compat = defined(values) as Record<string, Json>;
+  return Object.keys(compat).length ? compat : undefined;
+}
+
+/** Whether a column draws a box that legacy has as tall as its row. */
+const drawsBox = (values: Values = {}) => !!color(values.backgroundColor) || ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat(String(values.border?.[`border${side}Width`])) > 0);
+
+/** A background picture as the email writers read it. */
+const emailPicture = ({ url, repeat, position, tile }: Picture): Json => defined({ url, repeat, position, tile }) as Json;
+
+/** The CSS names for a row's `alignItems` the new Row has. */
+const ROW_ALIGN: Record<string, string> = { center: "center", "flex-start": "start", start: "start", "flex-end": "end", end: "end", stretch: "stretch" };
+
+function row(design: Values, rowIndex: number, place: Omit<Place, "row" | "column" | "cells" | "index">, options: LowerOptions, frame: Frame): TreeNode {
   const values: Values = design.values ?? {};
-  onlyRead(values, "row");
-  if (values.backgroundImage?.url) throw new Unlowerable("a row's background image");
-  phoneSettings(values, "a row", options.mode);
-  givenClasses(values, "u_row", "a row");
-  const padding = readSides(values.padding, "a row's padding");
+  const path = `body.rows[${rowIndex}]`;
+  unread(values, "row", frame, path);
+  const email = options.mode === "email";
+  const outside = options.outside?.rows[rowIndex];
+  // Its own value, where it isn't the design's (the design's has the defaults' position and size, which legacy's row doesn't read).
+  const image = outside?.values ? outside.values.backgroundImage : values.backgroundImage;
+  const picture = pictureOf(image, options.mode);
+  const band: string[] = [];
+  const padding = sidesOr(band, values.padding, "A row's padding", frame, path);
+  const bandColor = colorOr(band, "background-color", values.backgroundColor, "A row's background", frame, path);
+  const inner: string[] = [];
+  const innerColor = colorOr(inner, "background-color", values.columnsBackgroundColor, "A row's columns' background", frame, path);
   const cells: number[] = design.cells ?? values.cells ?? [1];
   const total = cells.reduce((sum, cell) => sum + cell, 0) || 1;
   const columns: Values[] = design.columns ?? [];
-  // Columns that don't fit the row's layout: legacy says so and may render the body without its rows.
-  if (columns.length !== cells.length) throw new Unlowerable("a row whose columns don't fit its layout");
+  // Columns that don't fit the row's layout: each has its own share, and one past the layout has none (legacy's has none either).
+  if (columns.length && columns.length !== cells.length) say(frame, "warning", `A row of ${columns.length} column(s) in a layout of ${cells.length}: those past it have no share of the row`, `${path}.cells`);
+  const rowTexts = outside?.text ?? [];
+  const holdsText = rowTexts.some(Boolean);
   // Legacy shares are each column's whole box, its padding included: a percentage of the row.
-  const widths = cells.map((cell) => (cells.length > 1 ? `${Math.round((cell / total) * 1e6) / 1e4}%` : undefined));
+  const widths = cells.map((cell) => (cells.length > 1 || columns.length > 1 || holdsText ? `${Math.round((cell / total) * 1e6) / 1e4}%` : undefined));
   // A printed document never stacks a row's columns (it has no phones); a row the builder says not to stack doesn't.
   const stacks = options.mode !== "document" && !(values.noStackMobile || values._override?.mobile?.noStackMobile);
-  // Legacy stretches a row's columns to its height, so a line along the top or the bottom of each is one line across
-  // the row; the new email's columns end with their content. A line every column has is the row's.
-  const lines: Lines = {};
-  if (columns.length > 1) {
-    for (const side of ["top", "bottom"] as const) {
-      const each = columns.map((c) => (border(c.values?.border) as Record<string, Json> | undefined)?.[side]);
-      if (each.every((line) => line && JSON.stringify(line) === JSON.stringify(each[0]))) lines[side] = each[0]!;
-    }
-  }
-  // Columns side by side with backgrounds or lines of their own end with their content in the new email, where legacy's
-  // are as tall as the row: one background they all have is the row's; others can't be drawn as legacy draws them.
-  const backgrounds = columns.map((c) => color(c.values?.backgroundColor));
-  const shared = columns.length > 1 && backgrounds.every((b) => b && b === backgrounds[0]) && !color(values.columnsBackgroundColor) ? backgrounds[0] : undefined;
-  if (options.mode === "email" && columns.length > 1) {
-    for (const c of columns) {
-      const own = (border(c.values?.border) ?? {}) as Record<string, Json>;
-      const unshared = Object.keys(own).some((side) => !(side in lines));
-      if (unshared || (color(c.values?.backgroundColor) && !shared) || (px(c.values?.borderRadius) && (shared || color(c.values?.backgroundColor)))) {
-        throw new Unlowerable("columns side by side whose backgrounds or lines legacy draws as tall as their row");
-      }
-    }
-  }
+  // On a page, a row's columns take its alignment (legacy's on an email draws nothing).
+  const align = email || isEmpty(values.alignItems) ? undefined : ROW_ALIGN[String(values.alignItems)];
+  const ownAlign = !email && !isEmpty(values.alignItems) && !align ? written(values.alignItems, "A row's alignment", frame, path) : undefined;
+  // Table cells, as legacy's columns are, where it shows: side by side with backgrounds or lines of their own (as tall
+  // as the row), kept side by side on phones (their shares, whatever their content), or as wide as what's in them takes.
+  const pastItsShare = columns.some((c, index) => widthHeld(c) > (frame.width * (cells[index] ?? 0)) / total);
+  const asCells = email && (holdsText || (columns.length > 1 && (!stacks || pastItsShare || cells.includes(0) || columns.some((c) => drawsBox(c.values)))));
+  // On a page, what's more than a row's shares runs past it (legacy's columns keep their shares).
+  const rigid = holdsText || columns.length !== cells.length || columns.some((c) => parseFloat(c.values?.border?.borderLeftWidth) > 0 || parseFloat(c.values?.border?.borderRightWidth) > 0);
   const at = { ...place, row: values, cells };
-  const inner = defined({
+  const texts = outside?.columns ?? [];
+  const innerRow = defined({
     type: "Row",
     props: stacks ? undefined : { stackOnMobile: false },
-    style: defined({ backgroundColor: (options.mode === "email" ? rowColorInEmail(color(values.columnsBackgroundColor)) : color(values.columnsBackgroundColor)) ?? shared, border: Object.keys(lines).length ? (lines as Json) : undefined }) as Record<string, Json>,
-    mobile: stacks && Object.keys(lines).length ? { border: Object.fromEntries(Object.keys(lines).map((side) => [side, "none"])) } : undefined,
-    children: columns.map((c, index) => column(c, widths[index], lines, shared, stacks, at, index, options)),
+    style: defined({ backgroundColor: email ? rowColorInEmail(innerColor) : undefined, alignItems: align }) as Record<string, Json>,
+    compat: compatOf({
+      stretch: asCells || undefined,
+      background: email && picture && !image.fullWidth ? emailPicture(picture) : undefined,
+      className: ownAlign ? ruled(frame, [`align-items: ${ownAlign}`]) : undefined,
+    }),
+    children: columns.flatMap((c, index): TreeNode[] => [
+      ...rowText(rowTexts[index], frame),
+      column(c, widths[index], rigid, asCells, at, index, options, frame, texts[index] ?? [], `${path}.columns[${index}]`),
+    ]).concat(rowText(rowTexts[columns.length], frame)),
   });
-  const compat = values.displayCondition ? { displayCondition: values.displayCondition } : undefined;
-  if (options.mode === "email") {
-    // Sides unequal: legacy's content sits off center by half their difference (they're outside it), which a Section
-    // can't draw.
-    if (padding && padding.left !== padding.right) throw new Unlowerable("a row whose side padding differs from side to side");
-    return defined({
+  const hide = options.mode === "document" ? undefined : hidden(values);
+  const conditions = values.displayCondition ? { displayCondition: values.displayCondition } : {};
+  if (email) {
+    // Sides that differ: legacy's content sits off centre, the difference on the side with more. Sides it can't read are
+    // written as they are, outside the content as legacy's are. Neither on phones (legacy's phone CSS zeroes them).
+    const offset = padding && rowOffsetInEmail(padding);
+    if (offset?.left) band.push(`padding-left: ${offset.left}px`);
+    if (offset?.right) band.push(`padding-right: ${offset.right}px`);
+    const own = band.length ? ruled(frame, band) : undefined;
+    if (band.some((declaration) => declaration.startsWith("padding"))) frame.rules.push(`@media (max-width: ${frame.width + EMAIL_PHONE_MARGIN}px) { .${own} { padding-left: 0 !important; padding-right: 0 !important; } }`);
+    // Past the content width, the cells run out of their table to the right, as legacy's do, not moving it off centre.
+    const fixedTable = asCells || pastItsShare ? (frame.fixedTable ??= ruled(frame, [])) : undefined;
+    const className = classNames(values, "u_row", own, frame.contentWidth, fixedTable, deviceClass(values, "rows", frame));
+    return withGivenId(defined({
       type: "Section",
-      id: givenId(values),
-      style: defined({ backgroundColor: rowColorInEmail(color(values.backgroundColor)), padding: some(padding && rowPaddingInEmail(padding)) }) as Record<string, Json>,
-      compat,
-      children: [inner],
-    });
+      hidden: hide,
+      style: defined({ backgroundColor: rowColorInEmail(bandColor), padding: some(padding && rowPaddingInEmail(padding)) }) as Record<string, Json>,
+      compat: compatOf({ ...conditions, className, device: hide ? true : undefined, align: frame.contentAlign === "center" ? undefined : frame.contentAlign, background: picture && image.fullWidth ? emailPicture(picture) : undefined }),
+      children: [innerRow],
+    }), givenId(values));
   }
   // On a page, legacy's row is a band of the page's width with its padding, and its columns are kept to the content
   // width inside the padding, centered.
-  const phonePadding = options.mode === "web" ? readSides(values._override?.mobile?.padding, "a row's phone padding") : undefined;
-  return defined({
+  if (picture) (image.fullWidth ? band : inner).push(pictureCss(picture));
+  const contentWidth = px(place.body.contentWidth);
+  if (contentWidth === undefined && !isEmpty(place.body.contentWidth)) {
+    const text = written(place.body.contentWidth, "The content width", frame, path);
+    if (text) inner.push(`max-width: ${text}`);
+  }
+  const contentClass = inner.length ? ruled(frame, inner) : undefined;
+  return withGivenId(defined({
     type: "Column",
-    id: givenId(values),
-    style: defined({ backgroundColor: color(values.backgroundColor), padding: some(padding), alignItems: "center" }) as Record<string, Json>,
-    mobile: phonePadding ? { padding: phonePadding } : undefined,
-    hidden: options.mode === "web" ? hidden(values) : undefined,
-    compat,
-    children: [{ type: "Column", style: { width: "100%", maxWidth: px(place.body.contentWidth) ?? 500 }, children: [inner] }],
-  });
+    style: defined({ backgroundColor: bandColor, padding: some(padding), alignItems: frame.contentAlign === "left" ? "start" : frame.contentAlign === "right" ? "end" : "center" }) as Record<string, Json>,
+    hidden: hide,
+    compat: compatOf({ ...conditions, className: classNames(values, "u_row", band.length ? ruled(frame, band) : undefined, deviceClass(values, "rows", frame)) }),
+    children: [
+      defined({
+        type: "Column",
+        // Legacy's rows take a phone's whole width at 480px and below, whatever the content width.
+        mobile: options.mode === "web" && (contentWidth === undefined || contentWidth < 480) ? { maxWidth: "100%" } : undefined,
+        style: defined({ width: "100%", maxWidth: contentWidth ?? (contentClass ? undefined : 500), backgroundColor: innerColor }) as Record<string, Json>,
+        compat: compatOf({ className: contentClass }),
+        children: [innerRow],
+      }),
+    ],
+  }), givenId(values));
 }
 
 /**
@@ -341,40 +531,83 @@ export const PAGE_WIDTH = 100_000;
 /** The preview text's length legacy writes at most (the rest of its 150 is filler). */
 const PREVIEW_LENGTH = 150;
 
-/** The design's body, rows and blocks as the new engine's tree. */
-export function lowerDesign(design: { body: Values }, options: LowerOptions): { root: TreeNode } {
+/**
+ * The body's own size and weight of text, which legacy's page gives what doesn't set its own (a size in em or rem of
+ * the browser's 16px).
+ */
+function pageText(values: Values, frame: Frame): Record<string, Json> {
+  const size = /^(\d*\.?\d+)r?em$/.exec(String(values.fontSize ?? "").trim());
+  const text = defined({ fontSize: size ? Number(size[1]) * 16 : px(values.fontSize), lineHeight: lineHeight(values.lineHeight), fontWeight: fontWeight(values.fontWeight) }) as Record<string, Json>;
+  for (const key of ["fontSize", "lineHeight", "fontWeight"]) if (text[key] === undefined && !isEmpty(values[key])) say(frame, "warning", `The body's ${key} ${JSON.stringify(values[key])} isn't one the new engine reads, so it isn't drawn`, `body.values.${key}`);
+  return text;
+}
+
+/** The design's body, rows and blocks as the new engine's tree, and what it says of them. */
+export function lowerDesign(design: { body: Values }, options: LowerOptions): { root: TreeNode; diagnostics: Diagnostic[] } {
   const values: Values = design.body.values ?? {};
-  onlyRead(values, "body");
-  if (values.backgroundImage?.url) throw new Unlowerable("the body's background image");
-  // A content width that isn't in px (100%, 80%): legacy's rows take that share of the window.
-  if (values.contentWidth !== undefined && px(values.contentWidth) === undefined) throw new Unlowerable(`a content width of ${JSON.stringify(values.contentWidth)}`);
-  // A page narrower than a phone: legacy's rows take a phone's whole width at 480px and below.
-  if (options.mode === "web" && (px(values.contentWidth) ?? 500) < 480) throw new Unlowerable("a page narrower than a phone");
-  if (values.linkStyle && Object.entries(BODY_LINKS).some(([key, value]) => values.linkStyle[key] !== undefined && values.linkStyle[key] !== value)) throw new Unlowerable("the body's own link style");
-  if (values.fontFamily !== undefined && values.fontFamily !== "" && typeof values.fontFamily?.value !== "string") throw new Unlowerable(`the body's font ${JSON.stringify(values.fontFamily)}`);
-  if (values.contentAlign !== undefined && values.contentAlign !== "center") throw new Unlowerable(`content aligned ${values.contentAlign}`);
-  // An email service's tag, which legacy writes as it is for the service to fill in (the new engine escapes it).
-  if (typeof values.preheaderText === "string" && serviceTag(values.preheaderText)) throw new Unlowerable("an email service's tag in the preview text");
-  const place = { mode: options.mode, body: values, config: options.config ?? {} };
-  const rows = (design.body.rows ?? []).map((r: Values) => row(r, place, options));
   const email = options.mode === "email";
+  // An email's rows are at least a phone's 320px wide, as legacy's; a width that isn't in px has them at legacy's 500px at most.
+  const contentWidth = px(values.contentWidth);
+  const frame: Frame = { mode: options.mode, width: contentWidth === undefined ? 500 : Math.max(contentWidth, 320), rules: [], device: {}, names: 0, notes: [], loose: false };
+  unread(values, "body", frame, "body");
+  frame.contentAlign = values.contentAlign === "left" || values.contentAlign === "right" ? values.contentAlign : "center";
+  // A content width that isn't in px (80%, 30em): legacy's rows take as much of the window as that, up to 500px, in an email.
+  if (email && contentWidth === undefined && !isEmpty(values.contentWidth) && values.contentWidth !== "100%") {
+    const text = written(values.contentWidth, "The content width", frame, "body.values.contentWidth");
+    if (text) {
+      frame.contentWidth = ruled(frame, []);
+      frame.rules.push(`.${frame.contentWidth} > table { max-width: min(${frame.width}px, ${text}) !important; min-width: 320px !important; }`);
+    }
+  }
+  const body: string[] = [];
+  const picture = options.mode === "document" ? documentBodyPicture(values.backgroundImage) : email ? undefined : pictureOf(values.backgroundImage, options.mode);
+  if (picture) body.push(pictureCss(picture));
+  // A printed document's content has it too, inside the body's margin.
+  const content = picture && options.mode === "document" ? ruled(frame, [pictureCss(picture)]) : undefined;
+  // Legacy's email has none of the body's picture.
+  if (email && values.backgroundImage?.url) say(frame, "info", "The body's background picture draws nothing in an email: give a row one", "body.values.backgroundImage");
+  // An email's body takes any color as it's written; a page's only those its stylesheet does (see pageBodyColor).
+  const background = email ? colorOr(body, "background-color", values.backgroundColor, "The body's background", frame, "body.values.backgroundColor") : color(pageBodyColor(values.backgroundColor, "#ffffff"));
+  if (values.fontFamily !== undefined && values.fontFamily !== "" && typeof values.fontFamily?.value !== "string") say(frame, "warning", `The body's font ${JSON.stringify(values.fontFamily)} isn't one legacy reads ({ label, value }), so it's in the default font`, "body.values.fontFamily");
+  if (body.length) frame.rules.push(`body { ${body.join("; ")}; }`);
+  const place = { mode: options.mode, body: values, config: options.config ?? {} };
+  const among = options.outside?.among ?? [];
+  const wide = (html: string | undefined): TreeNode[] => {
+    if (!html?.trim()) return [];
+    const opens = leftOpen(html);
+    return [looseMarkup(html, frame, email ? { wide: opens > 0 ? "open" : opens < 0 ? "close" : true } : undefined, opens)];
+  };
+  const anchor = (r: Values): TreeNode[] => (r.values?.anchor ? [{ type: "Raw", props: { html: `<a name="${escapeText(String(r.values.anchor)).replace(/"/g, "&quot;")}"></a>`, text: "" }, ...(email ? { compat: { wide: true } } : {}) }] : []);
+  const rows = ((design.body.rows ?? []) as Values[]).flatMap((r, index) => [...wide(among[index]), ...anchor(r), row(r, index, place, options, frame)]);
+  rows.push(...wide(among[(design.body.rows ?? []).length]));
+  const textColor = email ? values.textColor : pageBodyColor(values.textColor, "#000000");
+  const preview = email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined;
+  if (frame.fixedTable) frame.rules.push(`.${frame.fixedTable} > table { table-layout: fixed; }`);
+  const css = [frame.mode === "document" || frame.loose ? ownMarkupCss(options.mode, values) : "", ...frame.rules, deviceStylesCss(frame.device, options.mode)].filter(Boolean).join("\n");
   const root = defined({
     type: email ? "Email" : "Page",
     props: defined({
-      width: email ? px(values.contentWidth) : PAGE_WIDTH,
+      width: email ? frame.width : PAGE_WIDTH,
       // Legacy's preview text: none where it's only white space, its first 150 characters where it's longer.
-      previewText: email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined,
+      previewText: preview,
       dir: textDirectionOf(options.config?.textDirection ?? values.textDirection),
     }) as Record<string, Json>,
     style: defined({
-      backgroundColor: email ? color(values.backgroundColor) : color(pageBodyColor(values.backgroundColor, "#ffffff")),
-      color: (email ? values.textColor : pageBodyColor(values.textColor, "#000000")) || undefined,
-      fontFamily: values.fontFamily?.value || undefined,
+      backgroundColor: background,
+      color: (typeof textColor === "string" && textColor && parseColor(textColor).ok ? textColor : undefined) || undefined,
+      // (An email's text with no font of the body's is in the browser's; a page's stylesheet has its own default.)
+      fontFamily: values.fontFamily?.value || (email ? "initial" : undefined),
       // A printed document's text is 15px (its stylesheet's), a page's and an email's the browser's 16px.
       fontSize: options.mode === "document" ? 15 : undefined,
+      ...(options.mode === "web" ? pageText(values, frame) : {}),
     }) as Record<string, Json>,
+    compat: compatOf({
+      css: css || undefined,
+      // An email service's <%name%> tag, which legacy writes as it is for the service to fill in.
+      previewHtml: preview?.includes("<%") ? escapeKeepingTags(preview) : undefined,
+    }),
     // A page keeps the browser's margin around its rows (legacy's page doesn't reset the body's).
-    children: email ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: rows }],
+    children: email ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: rows }] : rows }],
   });
-  return { root };
+  return { root, diagnostics: frame.notes };
 }
