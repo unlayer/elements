@@ -83,7 +83,7 @@ export const image: Lowering = (block, place): TreeNode => {
       // Legacy's phone rule: the width given there (or 100%), at most that width or the image's own.
       const merged = { ...src, ...(value as Values) };
       const max = merged.autoWidth === false ? length(merged.maxWidth) : undefined;
-      const limit = length(max ? css(max) : merged.width ?? "100%");
+      const limit = length(max ? css(max) : merged.width || "100%");
       if (!limit) {
         said("width on phones", merged.maxWidth ?? merged.width);
         continue;

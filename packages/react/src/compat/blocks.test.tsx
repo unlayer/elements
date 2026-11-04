@@ -349,6 +349,11 @@ describe("an image block", () => {
     expect(drawn(<Image src={asset} values={{ _override: { mobile: { altText: "other" } } } as never} />, Page).said).toEqual(["An image's altText on phones isn't read: it's drawn without it."]);
   });
 
+  it("is as wide as its place on phones where its file's width is said to be 0, as legacy's rule has it", () => {
+    const node = lowered(<Image src={{ url: "https://example.com/a.png", width: 0, height: 0 }} mobile={{ src: { autoWidth: true } } as never} />);
+    expect(inner(node).mobile).toEqual({ width: "100%", maxWidth: "100%" });
+  });
+
   it("reads as its alternate text in plain text, twice only where its own markup is an email's with a copy for Outlook", () => {
     const reads = (element: React.ReactElement, Root: Root) => ((lowered(element, Root)?.textAs?.children as TreeNode[] | undefined)?.[0]?.props?.html);
     expect(reads(<Image src={asset} altText="A" />, Email)).toBe('<img alt="A"><img alt="A">');
