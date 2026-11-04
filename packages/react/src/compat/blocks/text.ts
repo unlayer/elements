@@ -143,16 +143,16 @@ function written(type: "Paragraph" | "Heading", values: Values, html: string, le
   const font = fontOfValues(values.fontFamily);
   // (A paragraph's % is a multiple, which a run in another size draws at its own: legacy writes it so.)
   const height = type === "Paragraph" && PERCENT.test(String(values.lineHeight)) ? parseFloat(values.lineHeight) / 100 : values.lineHeight;
-  const styles = Object.entries({ "font-family": font, "font-size": values.fontSize, "font-weight": values.fontWeight, color: values.color, "letter-spacing": values.letterSpacing, "line-height": height, "text-align": values.textAlign, "word-wrap": "break-word" }).map(([property, value]) => declared(property, value)).filter(Boolean).join(" ");
+  const asGiven = Object.entries({ "font-family": font, "font-size": values.fontSize, "font-weight": values.fontWeight, color: values.color, "letter-spacing": values.letterSpacing, "line-height": height, "text-align": values.textAlign, "word-wrap": "break-word" });
+  for (const [property, value] of asGiven) if (said(value) && !declared(property, value)) unread(place, property, value);
+  const styles = asGiven.map(([property, value]) => declared(property, value)).filter(Boolean).join(" ");
   const tag = type === "Paragraph" ? "div" : `h${level}`;
   const inner = `<${tag} class="v-line-height v-font-size v-text-align" style="${`${type === "Paragraph" ? "" : "margin: 0px; "}${styles}`.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">${html}</${tag}>`;
   const outlook = type === "Heading" && place.mode === "email" ? [`<!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->`, `<!--[if mso]></td></tr></table><![endif]-->`] : ["", ""];
   const name = type.toLowerCase();
   const device: Record<string, string[]> = {};
-  // What its stylesheet can't hold is said, as of a drawn block (a text style for desktop is, with the block's text styles).
-  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "text", place.mode, device, undefined, (key, value, on) => {
-    if (on === "mobile" || key === "containerPadding") unread(place, `${key} on ${on === "mobile" ? "phones" : "desktop"}`, value);
-  });
+  // What its stylesheet can't hold is said, as of a drawn block.
+  collectDeviceStyles({ ...values, _meta: { htmlID: id } }, "text", place.mode, device, undefined, (key, value, on) => unread(place, `${key} on ${on === "mobile" ? "phones" : "desktop"}`, value));
   notRead(values, place);
   const rule = (selector: string, style: Record<string, Json> | null | undefined) => {
     const body = [declared("color", style?.color), declared("text-decoration", style?.textDecoration)].filter(Boolean).join(" ");
@@ -179,13 +179,16 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   // (A tag that isn't a heading's is text in the block's styles, to the browser and in plain text.)
   const type = given ? "Heading" : "Paragraph";
   const level = given ? Number(given) : undefined;
-  const style = textStyles(values, place, level);
+  // What can't be read of its text styles is said where they're read: a block written as it is has them as CSS (`written`).
+  const unreadStyles: Array<Parameters<Place["note"]>> = [];
+  const style = textStyles(values, { ...place, note: (...note) => unreadStyles.push(note) }, level);
   const html = textHtml(values, place);
   const { children, left } = parseRuns(place.keep(html), { weight: (style.fontWeight as number | undefined) ?? 400 });
   const ownSize = ownFontSize(children);
   // A paragraph's line height on phones is its runs' too, in legacy's CSS: a run in another font size has its own here.
   // The HTML as it is, or in its own values and its settings for each device as legacy's stylesheet applies them.
   if (left.length || (type === "Paragraph" && ownSize && phoneValues.lineHeight !== undefined) || paddingShare(values.containerPadding) || paddingShare(phoneValues.containerPadding)) return written(tool, block.values, html, level ?? 1, place);
+  for (const note of unreadStyles) place.note(...note);
   const phone = phoneStyles(phoneValues, block.values, place);
   let padding = paddingOf(values.containerPadding ?? "10px", place.mode);
   if (!padding) {

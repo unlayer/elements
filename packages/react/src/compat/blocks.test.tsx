@@ -139,6 +139,22 @@ describe("a text block", () => {
 
 describe("a text block whose HTML no run holds", () => {
   /** A block's markup, and the rules the document has for it: its own, and those on the root. */
+  it("says only what's true of its text styles: they're CSS here, which the browser reads as it can", () => {
+    const list = "<ul><li>A</li></ul>";
+    const weight = <Paragraph html={list} fontWeight={650} />;
+    expect(lowered(weight)?.type).toBe("Raw");
+    expect(String(lowered(weight)?.props?.html)).toContain("font-weight: 650");
+    expect(said(weight)).toBe("");
+    // A value the new engine doesn't read, written all the same.
+    const size = <Paragraph html={list} fontSize="clamp(10px, 2vw, 20px)" />;
+    expect(String(lowered(size)?.props?.html)).toContain("font-size: clamp(10px, 2vw, 20px)");
+    expect(said(size)).toBe("");
+    // One that could end its rule isn't written, and that's said.
+    const open = <Paragraph html={list} values={{ color: "red; }" } as never} />;
+    expect(String(lowered(open)?.props?.html)).not.toContain("red; }");
+    expect(said(open)).toContain('A text\'s color "red; }" can\'t be read');
+  });
+
   const inHead = (block: React.ReactElement, Root: Root = Email) => {
     const { html, css } = lowered(block, Root)!.props as { html: string; css?: string };
     return { html, css: [whole(block, Root).tree.root.compat?.css, css].filter(Boolean).join("\n") };
