@@ -3,6 +3,7 @@ import { heads } from "@unlayer/exporters";
 import {
   buttonHover,
   dividerLength,
+  documentBodyPicture,
   fontOfValues,
   imageBox,
   imagePadding,
@@ -10,7 +11,10 @@ import {
   ownMarkupCss,
   pageBodyColor,
   pageMargin,
+  pictureCss,
+  pictureOf,
   rowColorInEmail,
+  rowOffsetInEmail,
   rowPaddingInEmail,
   spaceBeforeTag,
   textTransformOfText,
@@ -19,6 +23,41 @@ import {
 describe("legacy's quirks, drawn as legacy draws them", () => {
   it("leaves a row's sides out in an email, where legacy writes them outside the content", () => {
     expect(rowPaddingInEmail({ top: 20, right: 40, bottom: 10, left: 40 })).toEqual({ top: 20, right: 0, bottom: 10, left: 0 });
+  });
+
+  it("sits a row off centre in an email by the difference of its sides, on the side with more", () => {
+    expect(rowOffsetInEmail({ top: 0, right: 10, bottom: 0, left: 40 })).toEqual({ left: 30 });
+    expect(rowOffsetInEmail({ top: 0, right: 40, bottom: 0, left: 10 })).toEqual({ right: 30 });
+    expect(rowOffsetInEmail({ top: 5, right: 10, bottom: 5, left: 10 })).toBeUndefined();
+  });
+
+  it("reads a background picture as legacy's exporters do", () => {
+    const url = "https://example.com/bg.png";
+    expect(pictureOf({ url: "" }, "web")).toBeUndefined();
+    expect(pictureOf({ url }, "web")).toEqual({ url, repeat: "no-repeat", position: undefined, size: undefined, tile: false });
+    // `true` isn't a repeat CSS reads: the browser's default, which repeats; Outlook tiles it.
+    expect(pictureOf({ url, repeat: true }, "web")).toMatchObject({ repeat: undefined, tile: true });
+    expect(pictureOf({ url, repeat: "repeat-x" }, "web")).toMatchObject({ repeat: "repeat-x", tile: true });
+    for (const [position, css] of [["top", "left top"], ["center", "center center"], ["right-bottom", "right bottom"], ["center-top", "center top"], ["nowhere", undefined]]) expect(pictureOf({ url, position }, "web")?.position).toBe(css);
+    expect(pictureOf({ url, position: "custom", customPosition: ["10%", null] }, "web")?.position).toBe("10% auto");
+    expect(pictureOf({ url, size: "cover" }, "web")?.size).toBe("cover");
+    expect(pictureOf({ url, size: "custom", customSize: ["100px", null] }, "web")?.size).toBe("100px auto");
+    // An email has no size.
+    expect(pictureOf({ url, size: "cover", position: "center" }, "email")).toMatchObject({ size: undefined, position: "center center" });
+    // What can't be written in CSS isn't.
+    expect(pictureOf({ url, repeat: "repeat;}", position: "custom", customPosition: ["1px;}"] }, "web")).toMatchObject({ repeat: undefined, position: undefined });
+  });
+
+  it("reads a printed document's body's picture by its flags alone", () => {
+    const url = "https://example.com/bg.png";
+    expect(documentBodyPicture({ url, repeat: "no-repeat", position: "center", size: "cover" })).toEqual({ url, repeat: "repeat", position: "left top", size: undefined, tile: true });
+    expect(documentBodyPicture({ url, center: true, cover: true })).toEqual({ url, repeat: "no-repeat", position: "center top", size: "cover", tile: false });
+    expect(documentBodyPicture({ url: "" })).toBeUndefined();
+  });
+
+  it("writes a picture's rule so what its URL holds can't end the string or the stylesheet", () => {
+    expect(pictureCss({ url: "data:image/png;base64,AA==", repeat: "repeat", position: "left top", size: "cover", tile: true })).toBe('background-image: url("data:image/png;base64,AA=="); background-repeat: repeat; background-position: left top; background-size: cover');
+    expect(pictureCss({ url: 'x"</style>\\', tile: false })).toBe('background-image: url("x%22%3C/style%3E%5C")');
   });
 
   it("keeps the browser's 8px margin around a page", () => {
