@@ -20,8 +20,12 @@
 - Fixed: a Row placed in a Column stays in its box and its blocks' phone settings apply; 0.2.1 lost those
   settings, and in an email ran it 20px past its box. A bare Column among an email's rows stacks to the window on
   a phone, where 0.2.1's was 500px wide and scrolled sideways.
-- Changed: a divider on a page or in a printed document is exactly its line and its padding. 0.2.1's block was
-  0.3 to 1.6px taller, by its font's metrics, which adds up down a page of dividers.
+- Changed: a page and a printed document are drawn as the editor's: no 8px margin around them, text at its 14px where
+  0.2.1's was 16px, every box's padding inside its width (so a Button of 300px is 300px, where 0.2.1's was 340px), and
+  paragraphs in your own markup with no margins. A printed document has its `documentMargin` on a screen, not in print.
+  In `renderToHtmlParts`, these stay inside the template's own markup, and leave the page around it as it is.
+- New: a font the editor knows by name (Montserrat, Lato, Open Sans, Source Sans Pro and others) is loaded from Google
+  Fonts, as the editor's export loads it, where 0.2.1's fell back to the next font in the stack.
 - Changed: a font weight that isn't a hundred (650) draws at the nearest hundred, with a warning: the new writers'
   weights are in hundreds.
 - Changed: an image whose phone width can't be read keeps its place, with a warning. 0.2.1 let it run past the

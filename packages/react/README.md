@@ -440,7 +440,11 @@ A Row, Column or block on its own, and Rows in a list, still get a root around t
 
 - **Rows with side padding:** an email no longer sits off centre and scrolls sideways in a window narrower than its content plus that padding.
 - **Long words:** a word too long for its column wraps inside it, where 0.2.1's page let it run out of the column.
-- **Dividers:** a divider's block on a page or in a printed document is exactly its line and its padding. 0.2.1's was 0.3 to 1.6px taller, by its font's metrics, which adds up down a page of dividers.
+- **Images:** an image is as wide as its place less its block's padding, as in the editor, and a large file fills its column on phones. 0.2.1's was up to 20px wider.
+- **Links:** a template's link color and underline apply to links that don't set their own. 0.2.1's were all the browser's blue.
+- **Pages and printed documents:** drawn as the editor's: no 8px margin, text at 14px where 0.2.1's was 16px, and every box's padding inside its width (a Button of 300px is 300px, where 0.2.1's was 340px). A printed document has its `documentMargin` on a screen. In `renderToHtmlParts`, this stays inside the template's own markup.
+- **Fonts:** a font the editor knows by name (Montserrat, Lato, Open Sans and others) is loaded from Google Fonts, as the editor's export loads it.
+- **Tables in your own markup:** in an email, a table in an `Html` block or a custom tool has its borders collapsed, as in the editor, so its `cellspacing` and default spacing go, unless it says `border-collapse: separate`.
 - **Font weights:** a weight that isn't a hundred (650) draws at the nearest hundred, with a warning. The new writers' weights are in hundreds.
 - **Phone widths:** an image whose phone width can't be read keeps its place, with a warning. 0.2.1 let it run past the window, which scrolled sideways.
 - **A Row in a Column:** it stays in its box and its blocks' phone settings apply. 0.2.1 lost those settings, and in an email ran it 20px past its box. A bare Column among an email's rows stacks to the window on a phone, where 0.2.1's was 500px wide and scrolled sideways.

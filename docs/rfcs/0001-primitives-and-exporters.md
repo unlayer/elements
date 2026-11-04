@@ -470,9 +470,10 @@ warning, as these functions return strings), never silent loss. Where legacy dra
 design asks, the tree draws it as legacy does (`compat/quirks.ts`, one function and one test each, for the major
 that drops them).
 
-An email follows the editor's export where the two differ, as that's what has a record in real inboxes (2026-11-04):
-an image's width and how it fills a column on phones, the body's link style, and the email's document. What's left of
-legacy's own drawing in `compat/quirks.ts` is mostly a page's and a printed document's.
+Today's components follow the editor's export where it and legacy differ, as that's what has a record in real inboxes
+(2026-11-04): an image's width and how it fills a column on phones, the body's link style, the fonts the editor knows
+by name, an email's document, and a page's and a printed document's margin, text size and boxes. What's left in
+`compat/quirks.ts` is legacy's where the editor draws the same, or where a template can't reach the editor's.
 
 `@unlayer/exporters` is gone in 0.3.0, not in the next major (2026-11-04): no block or template falls back to it.
 Each tool's default values are plain data in `packages/react/src/utils/tool-defaults.ts`. `@unlayer/types` stays,
