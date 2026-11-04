@@ -240,12 +240,13 @@ const KEPT = /\uFDD0(\d+)\uFDD1/g;
 export const holdsKept = (text: string): boolean => text.includes(OPEN);
 
 /**
- * A value of a template's without noncharacters, the marks' among them, through its lists and objects (its keys too), so no mark comes
- * from it. A React element is left: what it writes is taken through this when it's written.
+ * A value of a template's without noncharacters, the marks' among them, through its lists and objects (its keys too), so no
+ * mark comes from it. A React element is left: what it writes is taken through this when it's written.
  */
 export function withoutMarks<T>(value: T, seen = new Map<object, unknown>()): T {
   if (typeof value === "string") return value.replace(NONCHARACTERS, "") as T;
-  if (value === null || typeof value !== "object" || "$$typeof" in value) return value;
+  // (A React element's mark is a symbol: JSON can't write one, so a design's key of that name is only a key.)
+  if (value === null || typeof value !== "object" || typeof (value as { $$typeof?: unknown }).$$typeof === "symbol") return value;
   if (seen.has(value)) return seen.get(value) as T;
   if (Array.isArray(value)) {
     const list: unknown[] = [];
@@ -257,7 +258,8 @@ export function withoutMarks<T>(value: T, seen = new Map<object, unknown>()): T 
   if (proto !== Object.prototype && proto !== null) return value;
   const out: Record<string, unknown> = {};
   seen.set(value, out);
-  for (const [key, item] of Object.entries(value)) out[key.replace(NONCHARACTERS, "")] = withoutMarks(item, seen);
+  // (As a key of its own, whatever it's called: JSON's `__proto__` isn't this object's prototype.)
+  for (const [key, item] of Object.entries(value)) Object.defineProperty(out, key.replace(NONCHARACTERS, ""), { value: withoutMarks(item, seen), enumerable: true, writable: true, configurable: true });
   return out as T;
 }
 

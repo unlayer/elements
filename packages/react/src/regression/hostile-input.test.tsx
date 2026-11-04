@@ -12,6 +12,7 @@ import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
+import { withoutMarks } from "../compat/values";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html, Table, Video, Divider, registerTool } from "../index";
@@ -231,6 +232,7 @@ describe("what looks like a mark of a kept tag", () => {
     "a Social's icons": { body: (v) => inColumn(<Social icons={[{ name: `Twitter${v}`, url: `https://example.com/${v}` }]} />) },
     "a Video's thumbnail and link": { body: (v) => inColumn(<Video values={{ video: { thumbnail: `https://example.com/${v}.png`, url: `https://example.com/${v}` } } as never} />) },
     "a Table's cells": { body: (v) => inColumn(<Table values={{ table: { headers: [], footers: [], rows: [{ cells: [{ text: `Words ${v}` }, { textJson: textJson(v) }, { text: `<ul><li>${v}</li></ul>` }] }] } } as never} />) },
+    "a value holding a key named as a React element's mark": { body: (v) => inColumn(<Menu values={{ menu: { $$typeof: "not an element", items: [{ text: `Words ${v}`, href: "https://example.com" }] } } as never} />) },
     "a Divider's values": { body: (v) => inColumn(<Divider values={{ containerPadding: `1em${v}` } as never} />) },
     "an id and class names": { body: (v) => <Row values={{ _meta: { htmlID: `r${v}`, htmlClassNames: `r${v}` } } as never}><Column values={{ _meta: { htmlID: `c${v}`, htmlClassNames: `c${v}` } } as never}><Paragraph values={{ _meta: { htmlID: `p${v}` } } as never}>Hi</Paragraph></Column></Row> },
     "a value that isn't read": { body: (v) => <Row values={{ somethingNew: v, backgroundColor: `hsl(1, 2%, 3%)${v}` } as never}><Column values={{ padding: `1em${v}`, [`key${v}`]: v } as never}><Paragraph>Hi</Paragraph></Column></Row> },
@@ -279,6 +281,13 @@ describe("what looks like a mark of a kept tag", () => {
         expect(renderToPlainText(template).match(/x-pwn/g)).toHaveLength(1);
       }
     });
+  });
+
+  it("reads a design's `__proto__` as a key like any: it can't give what's read of it values it doesn't have", () => {
+    const read = withoutMarks(JSON.parse('{"__proto__":{"text":"Inherited\uFDD0"},"own":"Own\uFDD1"}'));
+    expect(Object.getPrototypeOf(read)).toBe(Object.prototype);
+    expect(read.text).toBeUndefined();
+    expect(Object.entries(read)).toEqual([["__proto__", { text: "Inherited" }], ["own", "Own"]]);
   });
 
   it("leaves another private-use character as it is: an icon font's are text", () => {
