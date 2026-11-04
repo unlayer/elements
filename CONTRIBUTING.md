@@ -29,6 +29,8 @@ pnpm test
 ```
 packages/
   react/       → Published package (@unlayer/react-elements)
+  core/        → Component definitions, validation, layout (bundled into react, not published)
+  exporters/   → The writers: email, page and print HTML, plain text (bundled into react, not published)
   shared/      → Internal shared logic (bundled into react, not published)
   demo/        → Demo application
 tests/
@@ -74,7 +76,7 @@ pnpm storybook:hub
 
 Most content components (Button, Heading, Paragraph, etc.) are created via `createItemComponent()` in `packages/react/src/utils/create-component.tsx`. This factory:
 
-- Maps flat "semantic" props to the nested structure expected by `@unlayer/exporters`
+- Maps flat "semantic" props to the nested values of the Unlayer builder's design JSON
 - Attaches a render function used by `renderToJson()`
 - Handles children-as-text shorthand
 
@@ -83,9 +85,9 @@ To add a new component, use the factory — don't create components from scratch
 ### Rendering Pipeline
 
 ```
-JSX props → mapSemanticProps() → nested values
-  → ReactDOMServer.renderToString() → innerHTML
-  → BodyExporter[mode]() → final HTML
+JSX props → mapSemanticProps() → nested values (the design renderToJson() returns)
+  → packages/react/src/compat lowers the design into the new engine's tree
+  → packages/exporters lays it out and writes the final HTML
 ```
 
 Three modes: `email` (table-based), `web` (div + flexbox), `document` (print).
@@ -94,10 +96,9 @@ Three modes: `email` (table-based), `web` (div + flexbox), `document` (print).
 
 | Package | Role |
 |---------|------|
-| `@unlayer/exporters` | Converts component values to HTML for each render mode |
 | `@unlayer/types` | TypeScript types for all component value shapes |
 
-These are pinned in `pnpm-workspace.yaml` via the catalog feature and updated automatically by the `update-deps` workflow.
+It's pinned in `pnpm-workspace.yaml` via the catalog feature and updated automatically by the `update-deps` workflow. The HTML is written in this repository (`packages/exporters`), and each tool's default values are in `packages/react/src/utils/tool-defaults.ts`.
 
 ## Pull Request Guidelines
 
@@ -107,7 +108,7 @@ These are pinned in `pnpm-workspace.yaml` via the catalog feature and updated au
 - The CI pipeline checks:
   - TypeScript compilation
   - Unit tests
-  - Bundle size budget (ESM must be < 60KB)
+  - Bundle size budgets (set in `.github/workflows/test.yml`)
   - Next.js integration test (Server Components)
 
 ### Versioning

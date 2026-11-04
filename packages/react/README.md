@@ -423,20 +423,37 @@ Number of `<Column>` children must match the layout.
 
 ## The rendering engine
 
-Since 0.3.0 these components render through Elements' own writers, open source in this repository, in place
-of the closed `@unlayer/exporters`. Your templates and the functions you call don't change. The HTML does;
-what a reader gets doesn't: the same words, links, images, text styles and layout, on desktop and on phones,
-and the same plain text. That was checked against 0.2.1 over 236 templates in Chromium.
+Since 0.3.0 these components render entirely through Elements' own writers, open source in this repository. `@unlayer/exporters` is no longer a dependency. Your templates and the functions you call don't change. Content, links, images and layout are preserved; the HTML may change; input that can't be drawn gets a diagnostic (a `[Unlayer]` console warning), never silent loss. A few small differences from 0.2.1 are listed below, each with its reason.
 
-- **Kept as before:** what the new writers can't draw the same way, or don't fully read, keeps its 0.2
-  output. An `Html` block and a custom tool always do. So do a table, a linked image, a few blocks in an email
-  (with phone-only or hiding settings, a menu or social block), text with markup the new writers don't read
-  exactly (comments, Liquid tags), and whole templates with a setting they don't read yet (a background image
-  or a row anchor, for example).
-- **Two fixes:** an email whose rows have side padding no longer sits off centre and scrolls sideways in a
-  window narrower than its content plus that padding; and a word too long for its column wraps inside it
-  instead of running out of it.
-- **Size:** the main entry grows from about 31KB to about 96KB gzipped, as it carries the new engine.
+This was checked against the published 0.2.1 in Chromium, on desktop and on phones. The new output is checked in Chromium and against a model of Outlook, not in real Outlook.
+
+**New errors.** `renderToHtml`, `renderToHtmlParts` and `renderToPlainText` throw, saying what to do, where 0.2.1 wrote something anyway:
+
+- a `<div>` as the root, or a component returning plain markup: put the markup in an `<Html>` block inside a root;
+- a root inside markup (`<div><Email>…</Email></div>`), or two roots: render each root on its own;
+- more than 20 wrappers around the root: pass the root, or fewer wrappers;
+- a root from a copy older than 0.3: a duplicate install, which `npm ls @unlayer/react-elements` shows.
+
+A Row, Column or block on its own, and Rows in a list, still get a root around them.
+
+**Drawn differently from 0.2.1.**
+
+- **Rows with side padding:** an email no longer sits off centre and scrolls sideways in a window narrower than its content plus that padding.
+- **Long words:** a word too long for its column wraps inside it, where 0.2.1's page let it run out of the column.
+- **Dividers:** a divider's block on a page or in a printed document is exactly its line and its padding. 0.2.1's was 0.3 to 1.6px taller, by its font's metrics, which adds up down a page of dividers.
+- **Font weights:** a weight that isn't a hundred (650) draws at the nearest hundred, with a warning. The new writers' weights are in hundreds.
+- **Phone widths:** an image whose phone width can't be read keeps its place, with a warning. 0.2.1 let it run past the window, which scrolled sideways.
+- **A Row in a Column:** it stays in its box and its blocks' phone settings apply. 0.2.1 lost those settings, and in an email ran it 20px past its box. A bare Column among an email's rows stacks to the window on a phone, where 0.2.1's was 500px wide and scrolled sideways.
+
+**Other changes you could notice.**
+
+- **Service tags in plain text:** plain text keeps an email service's tag, so the service still fills it in: `Hi <%= name %>, you have items`, where 0.2.1 wrote `Hi , you have items`. A heading's keeps a tag as written (`{% if orders > 1 %}THANKS{% endif %}`), where 0.2.1 uppercased it with the words.
+- **Service tags in links:** a Button or Menu link holding a service tag no longer leaks markup into an email's plain text.
+- **`onClick`:** a link's `onClick` isn't written, and a warning says so.
+- **`javascript:` links:** on an image or a Button, one becomes a link to nothing, with a warning.
+- **Image widths in email:** an image's `width` attribute is its column less its padding, the width it's drawn at (580 in a column of 600 with 10px of padding, where 0.2.1 wrote 600).
+- **Generated ids and classes:** the ones 0.2.1 wrote for its own markup (`#u_row_1`, `#u_content_button_1`, `.u-row`, `.v-color`, `.v-button`) aren't written, so CSS that selects them no longer matches. Text kept as your own markup still has `.v-line-height`, `.v-font-size` and `.v-text-align`. Ids and classes you set in a block's or row's `_meta`, and a custom tool's `u_content_custom_<slug>_<n>` id and class, are kept.
+- **Unusual input:** a Social icon with no name draws the rest of the block, with a warning, where 0.2.1's page lost the block. A table whose rows have more cells than its first row shares its columns evenly, with a warning.
 
 ## Rendering Modes
 
@@ -475,7 +492,7 @@ const html = renderToHtml(
 );
 ```
 
-The document shell matches the mode: `<Email>` gets the XHTML transitional doctype plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly XHTML shell. Options accept config overrides plus:
+The document shell matches the mode: `<Email>` gets Office's namespace plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly shell. All three start with `<!DOCTYPE html>`. Options accept config overrides plus:
 
 - `title` — document `<title>`
 - `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
@@ -505,7 +522,7 @@ const tree = (
   </Email>
 );
 
-renderToHtml(tree);  // renders via YOUR exporters — identical output to editor exports
+renderToHtml(tree);  // renders via YOUR exporters, in a box with the tool's id and class
 renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — opens in the Builder as the real tool
 ```
 

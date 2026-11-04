@@ -18,8 +18,8 @@ Elements gets a new engine with three parts, all open source and in this repo:
 - **A layout resolver.** A template is laid out once, before anything is written: every box gets a
   width in px and every text its styles. Each output's writer reads the same layout, so email (which
   needs px widths for Outlook) and the page agree.
-- **Writers Elements owns** (`packages/exporters`): email HTML, page HTML and plain text today; print
-  HTML, PDF and images later. They replace the closed `@unlayer/exporters`.
+- **Writers Elements owns** (`packages/exporters`): email, page and print HTML and plain text; PDF and
+  images in packages of their own. They replaced the closed `@unlayer/exporters`, gone since 0.3.0.
 
 JSX is the only way to write a template, for developers and agents alike:
 
@@ -93,9 +93,12 @@ The decisions behind the design, with the date each was taken.
     box in a column, a Grid) comes back as the builder holds it: the same look, flatter. See
     [Builder adapter](#builder-adapter), built 2026-11-03. An earlier version (2026-11-02) kept each item's
     node in `values._elements`; it was withdrawn before release.
-13. **Existing components move to the new engine** (2026-10). Their HTML may change; what a reader gets
-    (content, links, images, styles, layout on desktop and phones) may not. Done in 0.3.0, with two of
-    their layout bugs fixed instead of kept (2026-11-03; see [Moving the existing components](#moving-the-existing-components-and-the-major-version)).
+13. **Existing components move to the new engine** (2026-10, revised 2026-11-04). They render entirely
+    through it. Content, links, images and layout are preserved; the HTML may change; input that can't be
+    drawn gets a diagnostic, never silent loss. A few small differences from 0.2.1 are listed, each with its
+    reason. Done in 0.3.0, which drops `@unlayer/exporters`; an earlier version (2026-11-03) kept 0.2's
+    output for what the new writers couldn't draw the same way, and was withdrawn before release (see [Moving
+    the existing components](#moving-the-existing-components-and-the-major-version)).
 
 ## The API
 
@@ -120,7 +123,7 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes through today's components, so it bundles them beside the new engine (about 447KB unminified, with its own CI budget) |
+| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes through today's components, so it bundles them beside the new engine (with its own CI budget) |
 | `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
 
@@ -373,7 +376,7 @@ JSX ──collect──▶ tree ──check──▶ expand custom components �
 |---|---|---|---|
 | email | `Email` | classic Outlook (Word), Outlook on the web, Gmail, Apple Mail and other WebKit clients | tables (below) |
 | web | `Page` | browsers | one element per node, its styles inline, flexbox; semantic tags (`main`, `section`, `h1`–`h6`, `p`, `ul`/`ol`, `table`, `a`, `img`); a small stylesheet for phones and hover |
-| print (later) | `Document` | Chromium's print | as web, plus `@page` size and margins and page breaks; one section per `Document.Page` |
+| print | `Document` | Chromium's print | as web, plus `@page` size and margins and page breaks; one section per `Document.Page` |
 | pdf | `Document` | `@react-pdf/renderer`, behind an adapter | pages as plain data (boxes, text, images, links, drawings; `packages/pdf/src/model.ts`), drawn by react-pdf's adapter (`react-pdf.tsx`, the only file that imports it); each page cut where it ends, page numbers per page |
 | image | `Canvas` | Satori, then resvg, behind an adapter | the canvas as plain data (boxes, text, images, drawings; `packages/image/src/model.ts`), drawn by Satori's and resvg's adapter (`satori.ts`, the only file that imports them); fonts and images passed as data |
 
@@ -457,51 +460,57 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 ## Moving the existing components and the major version
 
 Today's components (`@unlayer/react-elements`'s main entry) keep their props and behavior, and since
-0.3.0 render through the new engine: `renderToHtml`, `renderToHtmlParts` and `renderToPlainText` take a
+0.3.0 render entirely through the new engine: `renderToHtml`, `renderToHtmlParts` and `renderToPlainText` take a
 template's design (what `renderToJson` returns, unchanged), lower it into the new engine's tree
-(`packages/react/src/compat`) and write it with the new writers. Each tool lowers into its new component:
-heading and text into `Heading` and `Paragraph`, button, image, divider, video, and on a page menu and
-social. Their markup changes; what a reader gets doesn't. Where legacy draws something other than its
-design asks, the tree draws it as legacy does (`compat/quirks.ts`, one function and one test each, for the
-major that drops them).
+(`packages/react/src/compat`) and write it with the new writers. A Row, Column or block rendered on its own goes
+the same way, in a root of its own. Each tool lowers into its new components: heading and text into `Heading` and
+`Paragraph`, and button, image, divider, table, video, menu, social and page break likewise. Content, links,
+images and layout are preserved; the HTML may change; input that can't be drawn gets a diagnostic (a console
+warning, as these functions return strings), never silent loss. Where legacy draws something other than its
+design asks, the tree draws it as legacy does (`compat/quirks.ts`, one function and one test each, for the major
+that drops them).
 
-What the new engine can't draw the same way yet keeps legacy's output, decided per block or per template:
+`@unlayer/exporters` is gone in 0.3.0, not in the next major (2026-11-04): no block or template falls back to it.
+Each tool's default values are plain data in `packages/react/src/utils/tool-defaults.ts`. `@unlayer/types` stays,
+as the published type definitions import it.
 
-- **A block** keeps the HTML its exporter writes (a `Raw` node): an `Html` block and a custom tool always;
-  a table, a linked image, and a button with a width on a page or in a printed document, for now; in an
-  email, a block with phone or hiding settings (legacy applies them below 480px, the new engine below its
-  width plus 20), a menu or a social block (their spacing is the font's), and an image shorter than a line
-  of text; text the run parser doesn't read exactly (it fails closed: a comment, an entity it doesn't know,
-  a Liquid tag or a merge tag the new engine would escape, a paragraph with margins of its own, a link
-  target or attribute it doesn't keep, a text direction other than the template's, a link hover style);
-  a divider on a page or in a printed document.
-- **A template** renders as today, through legacy, where its frame holds a value the lowering doesn't
-  read: only the body, row and column values it reads are let through (so, for example, a background image,
-  a row's anchor or vertical alignment, a content width that isn't px, a page narrower than a phone, a body
-  link style or tablet settings render as today), and where it can't be drawn the same way: an email row's
-  padding uneven on its sides, column backgrounds or borders legacy stretches to the row's height, markup
-  among the rows, a layout its columns don't match, a divider longer than its column, or a template made
-  with another copy of today's components.
+What isn't a template is an error that says what to do: a `<div>` as the root or a component returning plain
+markup, a root inside markup or two roots, more than 20 wrappers, and a root from a copy older than 0.3 (a
+duplicate install).
 
-Two of legacy's layout bugs are fixed instead (2026-11-03): an email whose rows have side padding no
-longer sits off centre and scrolls sideways in a window narrower than its content plus that padding, and a
-word too long for its column wraps inside it, on a page and in an email.
+A few small differences from 0.2.1 stay, each on purpose, and the
+[package's README](../../packages/react/README.md#the-rendering-engine) lists them with their reasons: two of
+legacy's layout bugs are fixed (an email whose rows have side padding no longer sits off centre and scrolls
+sideways in a window narrower than its content plus that padding, and a word too long for its column wraps inside
+it); a divider's block is its line's height, a weight like 650 draws at the nearest hundred, an unreadable phone
+width keeps an image in its place, and a Row in a Column stays in its box; plain text keeps an email service's
+tag; the markup's generated ids and classes are gone.
 
-It's checked by Storybook's comparison gate (`test:compare`: main's examples and every story of today's
-components, through both engines, at desktop and phone widths) and, before each release, against the
-published version over 236 templates (the demo app's, every story's, main's examples, generated ones, and
-the inputs a two-reviewer review probed it with),
-in Chromium at 375, 600 and 800px: the same words, styles, positions, images, links and paint, and the same
-plain text, every difference but the two fixes above.
+It was checked against the published 0.2.1 in Chromium at phone and desktop widths, over the demo app's templates,
+every story, main's examples, generated ones and the inputs reviews probed it with: the same words, styles,
+positions, images, links and paint, and the same plain text, but for those differences. There's no comparison gate
+in CI. What stays is the tests against the published 0.2.1 (`compat/differential.test.tsx`, `src/regression`),
+which compare what a reader gets through a development alias, and the Storybook visual baseline and reviewed HTML
+snapshots, which pin the drawing. None of this is real Outlook: the output is checked in Chromium and against the
+model of Outlook's layout. Markup added for today's components (VML for a row's background picture,
+columns as table cells, an image inside a line of text, a word-spaced Row) follows the email writer's patterns and
+is unverified in Outlook.
 
-Meanwhile, a block that has no new component yet is a `Raw` node: the markup today's exporter writes for it,
-the CSS it needs in the stylesheet (each rule once) and its plain text. Only the legacy entry makes one, for
-blocks such as custom tools that Elements can't know; it isn't a JSX component and `describeComponents()`
-leaves it out. Its authorable twin, `Html`, is what the builder adapter brings markup back as.
+A `Raw` node holds open content only: an `Html` block, what a custom tool's own exporter writes, a user's own markup
+in a Row or Column, and text the run parser can't hold (an image, a list, a paragraph's own style), written as its
+author wrote it in the box today's components put around a block (its `id` and class, which users' CSS scopes on),
+with the CSS it needs in the stylesheet and its plain text. Beside those, the lowering writes two small pieces of its
+own as `Raw`: a row's anchor and the 16:9 box around a page's video. Only the legacy entry makes one; it isn't a JSX
+component and `describeComponents()` leaves it out. Its authorable twin, `Html`, is what the builder adapter brings
+markup back as.
 
-The new major version then makes the new API the main import, keeps today's at `/legacy` (removed in
-the major after), ships the codemod and the migration guide, and drops `@unlayer/exporters` and
-`@unlayer/types`. `@unlayer/migrate`'s React Email converter moves to the new API.
+The lowering also sets `compat` keys on a node for what today's components draw that no style holds (a class name, a
+row's background picture, where an email's phone styles start; `packages/core/src/model.ts` lists them), and the
+writers read them. They're for this lowering, not an API.
+
+The new major version then makes the new API the main import, keeps today's at `/legacy` (removed in the major
+after), and ships the codemod and the migration guide. `@unlayer/migrate`'s React Email converter moves to the new
+API.
 
 ## Builder adapter
 
@@ -549,7 +558,7 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   codemod does for today's components. A value equal to what the node would take anyway (its defaults, the
   body's text) is left out. A value the reader doesn't read that draws something (a row's background image, an
   anchor, a display condition, the body's own link style, a phone value Elements has no place for) is said, as
-  compat fails closed on one; the editor's own flags and a popup's settings draw nothing. Values are read as
+  compat says of one; the editor's own flags and a popup's settings draw nothing. Values are read as
   compat reads today's designs (what legacy, and so the builder, draws), sharing its value parsers and its run
   parser (which, read for the builder, also takes what `toDesign()` writes in text, and a link's `rel` of
   `noopener` and `noreferrer` only, which its editor writes and Elements writes on a link opening a new
@@ -564,7 +573,7 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   gives it (the builder's export resets a paragraph's, `p { margin: 0 }`); text with what no run holds or with
   an email service's tag (`{% if %}`, `<%name%>`, kept as written for the service to fill in), and any builder
   `html` block, is an `Html` block. A design's markup (an `html` block's, a text's before it's read) goes
-  through the app's `toSafeHtml` where it gives one, as it does in today's exporters; without one it's kept as
+  through the app's `toSafeHtml` where it gives one, as it does in today's components; without one it's kept as
   it is. The root is the builder's display mode (`"email"` an `Email`, `"web"` a `Page`, `"document"` a
   `Document`); without one, a design with a header, a footer or a page break is a `Document`, any other an
   `Email`. Malformed JSON doesn't throw: own-key lookups only, a value that can't be read as text (an object
@@ -589,7 +598,7 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   template written in its test; designs saved by the real builder read as expected; malformed JSON reads into
   a template that validates; a design is at most about 1.1 times the builder's own. The Builder stories put
   what the builder draws of a design (today's components given its values) beside what `fromDesign()` gives
-  back, and the comparison gate checks they draw the same.
+  back, to look at.
 
 ## Status and order of work
 
@@ -608,12 +617,12 @@ Each step ends with its tests in CI.
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
 | 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done |
-| 12. Today's components render through the new engine (decision 13) | done |
+| 12. Today's components render entirely through the new engine, and `@unlayer/exporters` is removed (decision 13) | done |
 
 ## Open questions
 
 - **Does the Unlayer editor adopt these writers?** Until it does, a design exported from the builder and
-  the same design rendered by Elements have different markup (equal in what a reader gets).
+  the same design rendered by Elements have different markup (the same content, links, images and layout).
 - **Licence of the client-support data** behind `caniemail` entries.
 - **Fonts for PDF and image output:** which faces ship as defaults, and whether Elements fetches font
   files itself.
