@@ -241,9 +241,7 @@ describe("extractHeadFromTree: what a block of open HTML asks for", () => {
     expect(css).not.toContain("u_content_paragraph");
   });
 
-  // BUG: each block written as it is with phone rules of its own carries a copy of the whole head's CSS (compat/template.ts:
-  // `css: [css, node.props?.css]`; only identical strings are written once). It draws the same, but an email grows with it.
-  it.fails("is in the document once, however many blocks written as they are have rules of their own", () => {
+  it("is in the document once, however many blocks written as they are have rules of their own", () => {
     const html = renderToHtml(
       <Email>
         <Row>

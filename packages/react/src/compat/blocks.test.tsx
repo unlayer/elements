@@ -138,7 +138,11 @@ describe("a text block", () => {
 });
 
 describe("a text block whose HTML no run holds", () => {
-  const inHead = (block: React.ReactElement, Root: Root = Email) => lowered(block, Root)!.props as { html: string; css: string };
+  /** A block's markup, and the rules the document has for it: its own, and those on the root. */
+  const inHead = (block: React.ReactElement, Root: Root = Email) => {
+    const { html, css } = lowered(block, Root)!.props as { html: string; css?: string };
+    return { html, css: [whole(block, Root).tree.root.compat?.css, css].filter(Boolean).join("\n") };
+  };
 
   it.each([
     ["an image", 'Before <img src="https://example.com/i.png" alt="i"> after'],

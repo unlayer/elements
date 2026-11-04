@@ -198,12 +198,16 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig });
   // (A printed document's own markup CSS is on its root.)
   const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
+  let drawn = false;
   for (const [n, node] of raw) {
     const written = html.get(n) ?? "";
+    drawn ||= !!written;
     // In a printed document, legacy's text is in the font's own line height ("normal"), where a page's root has 1.5.
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
-    node.props = { html: markup, css: [css, node.props?.css].filter(Boolean).join("\n"), text: htmlToPlainText(written) };
+    node.props = { html: markup, ...(node.props?.css ? { css: node.props.css } : {}), text: htmlToPlainText(written) };
   }
+  // What they all need is in the document once, where one of them is drawn: on the root, before each one's own rules.
+  if (drawn && css) lowered.compat = { ...lowered.compat, css: [lowered.compat?.css, css].filter(Boolean).join("\n") };
   return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head, diagnostics, tags };
 }
 
