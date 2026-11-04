@@ -1,6 +1,6 @@
-# Make React and AI-generated email templates visually editable with renderToJson
+# Make React and AI-generated email templates visually editable with toDesign
 
-Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
+Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `toDesign()` from `@unlayer/react-elements/builder` creates design data from a template written with the components from `@unlayer/react-elements/primitives`; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML; `fromDesign()` reads the saved design back as a template.
 
 ## Generate Unlayer design JSON from React
 
@@ -14,22 +14,20 @@ This complete `src/export-design.tsx` can be run in a TypeScript project with `n
 
 ```tsx
 import { mkdir, writeFile } from "node:fs/promises";
-import { Email, Row, Column, Paragraph, renderToJson } from "@unlayer/react-elements";
+import { toDesign } from "@unlayer/react-elements/builder";
+import { Email, Paragraph } from "@unlayer/react-elements/primitives";
 
-const design = renderToJson(
-  <Email contentWidth="600px">
-    <Row>
-      <Column>
-        <Paragraph html="Welcome to your new workspace." />
-      </Column>
-    </Row>
+const { design, report } = toDesign(
+  <Email width={600}>
+    <Paragraph>Welcome to your new workspace.</Paragraph>
   </Email>
 );
+for (const line of report) console.warn(line);
 await mkdir("output", { recursive: true });
 await writeFile("output/design.json", JSON.stringify(design, null, 2));
 ```
 
-Expected: a serializable object with `body.rows`, `body.values`, `counters`, and `schemaVersion`, saved as `output/design.json`. It contains design structure, not HTML. For the full invoice used in the other guides, [render-email.ts](../../../examples/content-workflows/src/render-email.ts) writes `output/invoice.design.json`.
+Expected: `design` is a serializable object with `body.rows`, `body.values`, `counters`, and `schemaVersion`, saved as `output/design.json`. It contains design structure, not HTML. `report` lists what the editor can't hold as it is, one line each, and is empty here. For the full invoice used in the other guides, [render-email.ts](../../../examples/content-workflows/src/render-email.ts) writes `output/invoice.design.json`.
 
 ## Load and edit the invoice
 
@@ -100,13 +98,29 @@ Open <http://127.0.0.1:3001/editor.html>. This is the full [editor.html](../../.
 
 Expected: the editor loads the invoice after `editor:ready`; after `design:loaded`, the download button becomes enabled. Change a paragraph and export. The browser downloads `edited.design.json` and `edited.html`. Save the JSON in your application and pass it to `loadDesign()` next time to preserve edits. The sample downloads files instead of assuming an application backend. See [editor installation](https://docs.unlayer.com/builder/installation) and [loading/saving designs](https://docs.unlayer.com/builder/load-and-save-designs) for hosted integration setup.
 
+## Read an edited design back
+
+`fromDesign()` turns a saved design, edited in the editor or not, back into a template: an element to render, and its source.
+
+```tsx
+import { readFile } from "node:fs/promises";
+import { fromDesign } from "@unlayer/react-elements/builder";
+import { render } from "@unlayer/react-elements/primitives";
+
+const saved = JSON.parse(await readFile("edited.design.json", "utf8"));
+const { element, code, report } = fromDesign(saved, { displayMode: "email" });
+const { html, text } = await render(element);
+```
+
+`element` renders the edited design; `code` is the same template as JSX in the new components; `report` lists what the template can't hold. Pass the `displayMode` the design was made in: `email` gives an `Email`, `web` a `Page`, `document` a `Document`. A design's markup is kept as it is, so where designs can hold untrusted content, pass your sanitizer: `fromDesign(saved, { toSafeHtml })`.
+
 ## Constraints
 
-- `renderToJson()` is synchronous. It renders the template once with React, as `renderToHtml()` does, so hooks, Context, Fragments and your own layout components work, and the design keeps the Rows, Columns and blocks they render. Root wrappers are unwrapped, including `memo`, `forwardRef` and wrappers that use hooks; a class component as the root is not.
-- A component that is async, suspends or throws is left out with a console message, and the rest renders: fetch data before building the tree, as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). A component of your own that returns plain markup (a `<div>`) in a Column is kept as it is: in the HTML, and in the design as an HTML block (edited as HTML in the editor, not as text or images). Outside a Row, the design leaves it out with a console message naming it: put it in a Column, or use an `<Html>` block for raw HTML.
-- A hand-written content wrapper is not a registered Elements item. Custom items must use [the custom tool API](../README.md#custom-tools) and need matching tool registration in the hosted editor.
+- `toDesign()` is synchronous, and takes an `Email`, a `Page` or a `Document`; a `Canvas` has no design. It renders the template once with React, as `render()` does, so hooks, Context, Fragments and your own components work, at the root too.
+- A component that is async or suspends makes `toDesign()` throw, as it makes `render()` reject: fetch data before building the tree, as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). So does plain markup (a `<div>`, a `<b>`) among the components: use the components, or an `Html` block for raw HTML, which the editor edits as HTML.
+- The editor holds what its tools can. A style or prop a tool has no field for is a hidden property of that tool: kept in the design and drawn by Elements, with no control for it in the editor. What no tool shows (a `Layer`, an `Svg`, a `Table`, a box nested in a column, your own `component()`) goes as an HTML block of its rendered markup, which an editor user can move but not edit, and `report` says so.
 - Match the editor's `displayMode` to the design (`email` in this example). Preserve the generated schema version and counters rather than constructing guessed design JSON. Editor support for individual tools/features depends on its version and project configuration.
-- Exported JSON preserves design content and settings; it does not preserve React functions, business logic, hooks, or event handlers. There is no JSON-to-JSX or JSON-to-React renderer in this package. `renderToHtml()` takes a React element, not saved design JSON. Use the editor's `exportHtml()` for the edited design's HTML.
+- Exported JSON preserves design content and settings; it does not preserve React functions, business logic, hooks, or event handlers. What `fromDesign()` gives back is the design as it stands, with the sample values in it and none of the original's props, loops or conditions. What the editor can't arrange comes back with the same look, flatter: a `Section` around several `Row`s as a `Section` each, a box's padding on its blocks, a `Grid` as `Row`s of `Column`s.
 - After handing a design to an editor user, persist their latest JSON. Regenerating it from the original React source and reloading it would overwrite visual changes. Keep the template source and saved edited designs as separate application records.
 
-For agent-authored templates, start with the [task selection guide](./README.md) and validate generated code with the same runnable example checks. For delivery, pass the edited HTML to your [email provider](./email-providers.md) and generate/update the plain-text alternative to match those edits.
+For agent-authored templates, start with the [task selection guide](./README.md) and validate generated code with the same runnable example checks. For delivery, pass the edited HTML to your [email provider](./email-providers.md), with a plain-text alternative that matches those edits: `render(element)` on what `fromDesign()` returns gives both.

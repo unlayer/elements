@@ -1,13 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { renderToHtml } from "@unlayer/react-elements";
+import { render } from "@unlayer/react-elements/primitives";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 import "./render-email";
 
 await mkdir("output", { recursive: true });
-const webHtml = renderToHtml(invoiceTemplate(sampleInvoice, "web"));
-const documentHtml = renderToHtml(invoiceTemplate(sampleInvoice, "document"));
+const { html: webHtml } = await render(invoiceTemplate(sampleInvoice, "web"));
+const { html: documentHtml } = await render(invoiceTemplate(sampleInvoice, "document"));
 await writeFile("output/invoice.web.html", webHtml);
 await writeFile("output/invoice.document.html", documentHtml);
 await writeFile("output/invoice.pdf", await htmlToPdf(documentHtml));
-console.log("Wrote output/invoice.web.html, invoice.document.html and invoice.pdf");
+console.info("Wrote output/invoice.web.html, invoice.document.html and invoice.pdf");

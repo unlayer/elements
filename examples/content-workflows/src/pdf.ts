@@ -11,12 +11,8 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
       await document.fonts.ready;
       await Promise.all(Array.from(document.images, (image) => image.decode()));
     });
-    return await page.pdf({
-      format: "A4",
-      preferCSSPageSize: true,
-      printBackground: true,
-      margin: { top: "12mm", right: "12mm", bottom: "12mm", left: "12mm" },
-    });
+    // The Document's own `size` and `margin` lay out each page, so nothing here sets them.
+    return await page.pdf({ preferCSSPageSize: true, printBackground: true });
   } finally {
     await browser.close();
   }

@@ -22,7 +22,7 @@ Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is edi
 | File | What it is |
 |------|------------|
 | `welcome.design.json`, `order-receipt.design.json` | Unlayer designs, ready for `loadDesign()` |
-| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components |
+| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components: the new ones from `@unlayer/react-elements/primitives`, except where a template doesn't pass the check in them. It stays in today's components, and the run and `report.json` say why (here `welcome.tsx`, whose `Row` works out its columns at run time) |
 | `report.json` | Each template's check result, differences and web fonts; `editor.html` lists the templates and registers their fonts from it |
 
 ## Your own templates
@@ -52,7 +52,7 @@ To convert on a server instead, use the library: `(await convertReactEmail(Welco
 
 ## What to expect
 
-- Text the template shows from its props becomes merge tags (`{{name}}`, `{{orderId}}`) that your email service fills in. Pass `--no-merge-tags` to keep the sample values.
+- Text a template shows from a prop as given becomes a merge tag (`{{name}}`) that your email service fills in. A prop it changes, tests or gives a default keeps its sample value, and `report.json` lists it: both templates here give their props defaults (`name = "Ada"`), so their designs show the sample values. Pass `--no-merge-tags` to keep the sample values everywhere.
 - Spacing between sections becomes row and column padding. Where the layout needs a column that only holds space (around a card, beside an image), it holds an invisible divider, so the editor shows the design as it looks instead of "No content here" placeholders. You can select and delete it like any block.
 - What Elements can't express (column vertical centering, image corner radius, shadows) is listed in `report.json` with each template's differences.
 - Editing the design doesn't change the React source. Keep the migrated `.tsx` for code, and the edited design for the editor.

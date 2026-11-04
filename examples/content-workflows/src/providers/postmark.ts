@@ -2,7 +2,7 @@ import { ServerClient } from "postmark";
 import { deliveryMessage, requireEnv } from "../message";
 
 const client = new ServerClient(requireEnv("POSTMARK_SERVER_TOKEN"));
-const { from, to, subject, html, text } = deliveryMessage();
+const { from, to, subject, html, text } = await deliveryMessage();
 const result = await client.sendEmail({
   From: from,
   To: to,
@@ -11,4 +11,4 @@ const result = await client.sendEmail({
   TextBody: text,
   MessageStream: "outbound",
 });
-console.log("Postmark accepted:", result.MessageID);
+console.info("Postmark accepted:", result.MessageID);

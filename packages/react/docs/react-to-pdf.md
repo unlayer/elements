@@ -1,6 +1,9 @@
-# Generate a React invoice PDF with Playwright
+# Generate a React invoice PDF
 
-Use `@unlayer/react-elements` with Playwright for invoices, receipts, and reports that need a real PDF file. `renderToHtml(<Document>…</Document>)` produces print-ready HTML; `page.pdf()` in headless Chromium produces the PDF bytes. There is no `renderToPdf()` export in Elements.
+Use `@unlayer/react-elements` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@unlayer/react-elements/primitives`; then there are two ways to get the file:
+
+- **With Playwright:** `await render(<Document>…</Document>)` produces print-ready HTML, and `page.pdf()` in headless Chromium produces the PDF bytes. It needs Chromium wherever it runs. The rest of this guide and the checked-in example use this way.
+- **Without a browser:** `renderPdf(<Document>…</Document>)` from `@unlayer/elements-pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
 
 ## Install
 
@@ -33,12 +36,8 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
       await document.fonts.ready;
       await Promise.all(Array.from(document.images, (image) => image.decode()));
     });
-    return await page.pdf({
-      format: "A4",
-      preferCSSPageSize: true,
-      printBackground: true,
-      margin: { top: "12mm", right: "12mm", bottom: "12mm", left: "12mm" },
-    });
+    // The Document's own `size` and `margin` lay out each page, so nothing here sets them.
+    return await page.pdf({ preferCSSPageSize: true, printBackground: true });
   } finally {
     await browser.close();
   }
@@ -49,12 +48,12 @@ Save this as `src/render-pdf.ts` alongside `invoice.tsx` and `pdf.ts`:
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { renderToHtml } from "@unlayer/react-elements";
+import { render } from "@unlayer/react-elements/primitives";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 
 await mkdir("output", { recursive: true });
-const html = renderToHtml(invoiceTemplate(sampleInvoice, "document"));
+const { html } = await render(invoiceTemplate(sampleInvoice, "document"));
 await writeFile("output/invoice.pdf", await htmlToPdf(html));
 ```
 
@@ -69,10 +68,33 @@ pnpm --filter @unlayer/content-workflows-example render:all
 
 ## Print constraints
 
-`preferCSSPageSize` honors the document's CSS page size; `format` is the fallback. `printBackground` retains background colors. The sample uses 600px content on A4 with 12mm margins. Avoid conflicting CSS `@page` and PDF margin rules when adapting it. See [Playwright PDF options](https://playwright.dev/docs/api/class-page#page-pdf).
+`preferCSSPageSize` honors the paper the `Document` asks for: its print HTML sets the CSS page to its `size` and `orientation`, with no page margin, and draws each page as a box with its own `margin` (48px by default). So set both on the `Document`: a `margin` passed to `page.pdf()` changes nothing. `printBackground` retains background colors. See [Playwright PDF options](https://playwright.dev/docs/api/class-page#page-pdf).
 
-Use the [PageBreak component](../README.md#pagebreak) within the required Row/Column structure to request explicit breaks. Test long rows, tables, fonts, and multiple pages with representative data; fitting one sample invoice does not establish pagination for every document.
+Nothing flows from one page to the next: content taller than its page is cut off, and `render()` warns about it in `diagnostics` (`document/overflow`, an estimate). Use the [PageBreak component](../PRIMITIVES-REFERENCE.md#pagebreak) or `Document.Page` to start a new page, and `PageHeader`, `PageFooter` and `PageNumber` for what repeats on each one. Test tables, fonts, and multiple pages with representative data; fitting one sample invoice does not establish pagination for every document.
 
 This example uses system fonts and no remote images. If adding assets, use absolute accessible URLs or embedded data, wait for them, and fail on missing images rather than printing incomplete invoices. Only print trusted application-generated HTML; do not turn this helper into an arbitrary URL/HTML rendering endpoint without controlling network access. Playwright needs a Node.js host that can run a browser, so use a worker/container rather than an edge runtime.
 
-For repeated jobs, reuse a browser with isolated pages/contexts and close each after printing. For email and browser versions of the same content, see [one React template, three outputs](./one-template-email-web-pdf.md).
+For repeated jobs, reuse a browser with isolated pages/contexts and close each after printing.
+
+## Without a browser
+
+`@unlayer/elements-pdf` writes a `Document` as a PDF with react-pdf, so a Node.js server needs no Chromium:
+
+```bash
+npm install @unlayer/elements-pdf @unlayer/react-elements @react-pdf/renderer react
+```
+
+```ts
+import { mkdir, writeFile } from "node:fs/promises";
+import { renderPdf } from "@unlayer/elements-pdf";
+import { invoiceTemplate, sampleInvoice } from "./invoice";
+
+await mkdir("output", { recursive: true });
+const { pdf, diagnostics } = await renderPdf(invoiceTemplate(sampleInvoice, "document"));
+for (const { code, message } of diagnostics) console.warn(code, message);
+await writeFile("output/invoice.pdf", pdf);
+```
+
+It takes the same template. Nothing is fetched: pass font files in `fonts` and image files in `images`, as bytes. Text whose font has no file given, as in this invoice, is drawn in a standard PDF font, which covers Western European characters only. The [package's guide](../../pdf/README.md) lists its options, diagnostics and limits.
+
+For email and browser versions of the same content, see [one React template, three outputs](./one-template-email-web-pdf.md).

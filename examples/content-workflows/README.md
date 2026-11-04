@@ -1,6 +1,6 @@
 # React transactional email, web, PDF, and visual editing example
 
-One invoice template demonstrates `@unlayer/react-elements` rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
+One invoice template, written with the components from `@unlayer/react-elements/primitives`, demonstrates rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
 
 ## Install and run
 
@@ -25,6 +25,8 @@ The files are written to `examples/content-workflows/output/`:
 
 All contain invoice INV-1001 for Ada Lovelace, paid $49.00. The render commands create files locally and do not send email. System fonts and no remote images make this sample independent of asset downloads.
 
+`await render(element)` writes each HTML file and the plain text: the template's root (`Email`, `Page` or `Document`) says which output it is. `toDesign(element)` from `@unlayer/react-elements/builder` writes the design JSON. Printing the PDF needs Chromium; [`@unlayer/elements-pdf`](../../packages/pdf/README.md) writes one without a browser, as the [PDF guide](../../packages/react/docs/react-to-pdf.md#without-a-browser) shows.
+
 ```bash
 pnpm --filter @unlayer/content-workflows-example preview
 ```
@@ -37,9 +39,9 @@ The [provider guide](../../packages/react/docs/email-providers.md) lists install
 
 ## Files and validation
 
-- `src/invoice.tsx`: shared component tree and sample data.
-- `src/message.ts`: HTML and plain-text renderer plus environment handling.
-- `src/render-email.ts` / `src/render-all.ts`: output files.
+- `src/invoice.tsx`: shared template and sample data.
+- `src/message.ts`: the rendered HTML and plain text, plus environment handling.
+- `src/render-email.ts` / `src/render-all.ts`: output files, including the design JSON.
 - `src/pdf.ts`: Playwright PDF generation and browser cleanup.
 - `src/providers/`: Resend, SES, Postmark, SendGrid, and SMTP delivery.
 - `editor.html`: wait for editor readiness, load design, export edits.

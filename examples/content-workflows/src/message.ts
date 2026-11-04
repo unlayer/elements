@@ -1,12 +1,12 @@
-import { renderToHtml, renderToPlainText } from "@unlayer/react-elements";
+import { render } from "@unlayer/react-elements/primitives";
 import { invoiceTemplate, sampleInvoice, type InvoiceData } from "./invoice";
 
-export function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {
-  const email = invoiceTemplate(data, "email");
+export async function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {
+  const { html, text } = await render(invoiceTemplate(data, "email"));
   return {
     subject: `Receipt for invoice ${data.number}`,
-    html: renderToHtml(email, { title: `Invoice ${data.number}` }),
-    text: renderToPlainText(email),
+    html,
+    text,
   };
 }
 
@@ -16,9 +16,9 @@ export function requireEnv(name: string): string {
   return value;
 }
 
-export function deliveryMessage() {
+export async function deliveryMessage() {
   return {
-    ...renderInvoiceEmail(),
+    ...(await renderInvoiceEmail()),
     from: requireEnv("EMAIL_FROM"),
     to: requireEnv("EMAIL_TO"),
   };
