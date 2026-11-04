@@ -114,6 +114,66 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
+  describe("where an email's phone settings apply", () => {
+    /** What each query in the stylesheet holds. */
+    const queries = (html: string) => {
+      const sheet = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("");
+      const out: Record<string, string> = {};
+      // (Each query's rules have no query inside them: its closing brace is the second in a row.)
+      for (const [, width, rules] of sheet.matchAll(/@media \(max-width: (\d+)px\)\{(.*?\})\}/g)) out[width] = (out[width] ?? "") + rules;
+      return out;
+    };
+
+    it("are legacy's 480px for a block's phone values, while its row stacks at the email's width", () => {
+      const { 480: phone, 620: stacking } = queries(
+        renderToHtml(
+          <Email contentWidth="600px">
+            <Row cells={[1, 1]}>
+              <Column><Paragraph mobile={{ fontSize: "23px", containerPadding: "37px" }}>Words</Paragraph></Column>
+              <Column><Button href="https://example.com" mobile={{ fontSize: "19px" }}>Go</Button><Divider mobile={{ containerPadding: "31px" }} /><Table values={{ _override: { mobile: { containerPadding: "29px" } } } as never} /></Column>
+            </Row>
+          </Email>
+        )
+      );
+      expect(stacking).toContain(">div{width:100%!important;max-width:100%!important}");
+      for (const rule of ["font-size:23px", "padding:37px", "font-size:19px", "padding:31px", "padding:29px"]) {
+        expect(phone).toContain(rule);
+        expect(stacking).not.toContain(rule);
+      }
+    });
+
+    it("are 480px for what's hidden or shown on phones, whatever the tool", () => {
+      const { 480: phone, 620: stacking } = queries(renderToHtml(<Email contentWidth="600px"><Row><Column><Paragraph hideOnMobile>A</Paragraph><Button href="https://example.com" hideOnDesktop>B</Button></Column></Row></Email>));
+      expect(phone).toContain("display:none!important");
+      expect(phone).toContain("display:table-row!important");
+      expect(stacking ?? "").not.toContain("display:");
+    });
+
+    it("leave what belongs to a row's stacking at the email's width: an image's maximum, a line across its columns", () => {
+      const line = { borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: "#ff0000" };
+      const { 480: phone, 620: stacking } = queries(
+        renderToHtml(
+          <Email contentWidth="600px">
+            <Row cells={[1, 1]}>
+              <Column border={line as never}><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" values={{ _override: { mobile: { containerPadding: "37px" } } } as never} /></Column>
+              <Column border={line as never}><Paragraph>B</Paragraph></Column>
+            </Row>
+          </Email>
+        )
+      );
+      expect(stacking).toContain("max-width:300px!important");
+      expect(stacking).toContain("border-top:2px solid");
+      expect(phone).toContain("padding:37px");
+      expect(phone).not.toContain("max-width:300px");
+      expect(phone).not.toContain("border-top");
+    });
+
+    it("are a page's own, and nothing changes on one", () => {
+      const html = renderToHtml(<Page><Row><Column><Paragraph mobile={{ fontSize: "23px" }} hideOnMobile>A</Paragraph></Column></Row></Page>);
+      expect(queries(html)[480]).toContain("font-size:23px");
+    });
+  });
+
   describe("of buttons, dividers and tables", () => {
     /** Every way each can't be read or held, in each output: nothing of the closed exporters' runs for them. */
     const everything = (

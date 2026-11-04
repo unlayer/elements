@@ -154,7 +154,8 @@ export function drawnLink(value: unknown, keep: (text: string) => string, note: 
 /**
  * A block's values on a desktop window, and those legacy's stylesheet gives it on phones, of the keys it reads: one set
  * for desktop is the value above 480px, the block's own below it (unless it has one for phones). In a printed document
- * one set for desktop is the value at any width, but its padding: that rule's selector finds nothing there.
+ * one set for desktop is the value at any width, but its padding: that rule's selector finds nothing there. (An image's
+ * `src` set for desktop says only its size: its URL stays.)
  */
 export function deviceValues(values: Values, keys: string[], mode: "email" | "web" | "document"): { values: Values; phone: Values } {
   const { desktop = {}, mobile = {} } = values._override ?? {};
@@ -162,8 +163,8 @@ export function deviceValues(values: Values, keys: string[], mode: "email" | "we
   const phone: Values = {};
   for (const key of keys) {
     if (desktop[key] !== undefined && !(mode === "document" && key === "containerPadding")) {
-      out[key] = desktop[key];
-      if (mode !== "document" && values[key] !== undefined) phone[key] = values[key];
+      out[key] = key === "src" ? { ...values.src, ...desktop.src } : desktop[key];
+      if (mode !== "document" && values[key] !== undefined) phone[key] = key === "src" ? { autoWidth: undefined, ...values.src } : values[key];
     }
     if (mobile[key] !== undefined) phone[key] = mobile[key];
   }

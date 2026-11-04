@@ -24,8 +24,8 @@ import Email from "../components/Email";
 import Page from "../components/Page";
 import { BLOCKS, DRAWN } from "./blocks";
 import { ownMarkupCss } from "./quirks";
-import { keepServiceTags, serviceTag } from "./values";
-import { blockName, givenId, hidden, lowerDesign, Unlowerable, writeBlock, type BlockFrame, type DesignBlock, type Mode, type TreeNode } from "./lower";
+import { deviceValues, keepServiceTags, sides } from "./values";
+import { blockName, givenId, lowerDesign, Unlowerable, writeBlock, type BlockFrame, type DesignBlock, type Mode, type TreeNode } from "./lower";
 
 /** This copy's root components. */
 const OWN_ROOTS = new Set<unknown>([Body, Email, Page, Document]);
@@ -81,7 +81,8 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
           if (!diagnostics.some((d) => d.path === path && d.message === message)) diagnostics.push({ code: "compat/block", severity, message, path });
         };
         const drawn = DRAWN.has(block.type);
-        const lowered = !drawn && legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text) => keepServiceTags(text, tags) });
+        const shown = drawn ? withoutPhone(block, mode) : onDevices(withoutPhone(block, mode), mode);
+        const lowered = BLOCKS[block.type]?.(shown, { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text) => keepServiceTags(text, tags) });
         // The block's own HTML in its box, as its tool writes it (it says what its head needs).
         if (lowered?.type === "Raw") {
           raw.set(n, lowered);
@@ -90,8 +91,9 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
         }
         const id = lowered ? givenId(block.values ?? {}) : undefined;
         const node = lowered && id ? { ...lowered, id } : lowered;
-        if (node && drawn) return drawable(node, mode, note);
-        if (node === null || (node && valid(node, mode))) return node;
+        if (node && drawn) return ownPhone(drawable(node, mode, note), mode);
+        if (node === null) return node;
+        if (node && valid(node, mode)) return ownPhone(withPhonePadding(stackedCap(node), shown), mode);
         const kept: TreeNode = { type: "Raw", props: { html: "" } };
         raw.set(n, kept);
         return kept;
@@ -192,26 +194,38 @@ function removeAt(document: { root: TreeNode }, path: string): void {
 }
 
 /**
- * Whether a block keeps its legacy HTML whatever its tool: one holding an email service's <%name%> tag, one with
- * settings for desktop windows, which legacy applies above 480px, or in an email one with settings for phones or
- * hidden on either, which legacy applies on either side of 480px where the new email's phone styles start at its width
- * (its markup hides it as legacy does).
+ * A block in an email: its phone settings and hiding apply at legacy's phone width (render.ts's hideBelow), while its
+ * row's columns stack at the email's width. What belongs to that stacking is on the row and its columns, which aren't
+ * marked, or an Image's `compat.stackedMaxWidth`.
  */
-function legacyOnly(block: DesignBlock, mode: Mode): boolean {
-  // An email service's tag (in text, a link), which legacy writes as it is for the service to fill in.
-  if (strings(block.values).some(serviceTag)) return true;
-  const override = block.values?._override ?? {};
-  if (Object.keys(override.desktop ?? {}).some((key) => key !== "hideDesktop")) return true;
-  // Settings for a tablet's width, which legacy applies there.
-  if (Object.keys(override.tablet ?? {}).length) return true;
-  return mode === "email" && (Object.keys(override.mobile ?? {}).some((key) => key !== "hideMobile") || !!hidden(block.values ?? {}));
+const ownPhone = (node: TreeNode, mode: Mode): TreeNode => (mode === "email" && hasPhone(node) ? { ...node, compat: { ...node.compat, ownPhone: true } } : node);
+const hasPhone = (node: TreeNode): boolean => !!node.mobile || (node.children ?? []).some((child) => typeof child !== "string" && hasPhone(child));
+
+/** Each tool's keys legacy's stylesheet reads for a device: its padding and these. Tools in DRAWN read their own. */
+const DEVICE_KEYS: Record<string, string[]> = { image: ["src", "textAlign"], menu: ["padding", "fontSize"] };
+
+/** A tool not yet in DRAWN: the block as it's drawn on desktop, with the phone settings that come of that. */
+function onDevices(block: DesignBlock, mode: Mode): DesignBlock {
+  const override = block.values?._override;
+  if (!override) return block;
+  const { values, phone } = deviceValues(block.values, ["containerPadding", ...(DEVICE_KEYS[block.type] ?? [])], mode);
+  return { ...block, values: { ...values, _override: { ...override, mobile: { ...override.mobile, ...phone } } } };
 }
 
-/** Every string in a block's values, however deep. */
-function strings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (value && typeof value === "object") return Object.values(value).flatMap(strings);
-  return [];
+/** A tool not yet in DRAWN: its block's padding on phones, where it says none (its box is a Column). */
+function withPhonePadding(node: TreeNode, block: DesignBlock): TreeNode {
+  const padding = sides(block.values?._override?.mobile?.containerPadding);
+  return padding && node.type === "Column" && !node.mobile?.padding ? { ...node, mobile: { ...node.mobile, padding } } : node;
+}
+
+/** A tool not yet in DRAWN: an Image's maximum on phones that has no width beside it is the one for where its row stacks. */
+function stackedCap(node: TreeNode): TreeNode {
+  if (node.type === "Image" && node.mobile?.maxWidth !== undefined && node.mobile.width === undefined) {
+    const { maxWidth: stackedMaxWidth, ...mobile } = node.mobile;
+    const { mobile: _, ...rest } = node;
+    return { ...rest, ...(Object.keys(mobile).length ? { mobile } : {}), compat: { ...node.compat, stackedMaxWidth } };
+  }
+  return node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : stackedCap(child))) } : node;
 }
 
 /** A block in a printed document, without its phone settings: legacy's document has none. */

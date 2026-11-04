@@ -43,6 +43,9 @@ const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "
 /** CSS for a `<style>` element: a `</style` in it would end the element. */
 const styleText = (css: string) => css.replace(/<\/(style)/gi, "<\\/$1");
 
+/** Legacy hides what's hidden on phones at this width and below, whatever an email's width (its columns stack at that). */
+const PHONE_WIDTH = 480;
+
 /** The new engine's preview text, which isn't the email's text. */
 const PREVIEW = /^<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">[\s\S]*?<\/div>/;
 /** The new engine's page divider, a line legacy's isn't in plain text (legacy draws its divider with a border). */
@@ -62,7 +65,7 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   root.props = { ...root.props, ...(title !== undefined && title.trim() ? { title: title.trim() } : {}), ...(lang ? { lang: String(lang) } : {}) };
   let result: RenderResult;
   try {
-    result = renderTemplate(forWriting(lowered.tree));
+    result = renderTemplate(forWriting(lowered.tree), { hideBelow: PHONE_WIDTH });
   } catch (error) {
     // A value the new engine refuses (a color it doesn't read) renders as today.
     if (error instanceof ElementsError) return { unlowered: error.message };

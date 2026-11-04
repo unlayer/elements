@@ -245,15 +245,36 @@ describe("an image block", () => {
     for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
   });
 
-  it("caps an email image on phones at legacy's maximum where that's past its width on desktop (a stacked column is wider)", () => {
+  it("caps an email image at legacy's maximum where its row stacks, where that's past its width on desktop (a stacked column is wider)", () => {
     const image = (Root: Root) => {
       const result = withRenderScope(() => lowerTemplate(<Root><Row cells={[1, 1]}><Column><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" /></Column><Column><Paragraph>B</Paragraph></Column></Row></Root>, undefined, "renderToHtml")) as Lowered;
       const find = (node: TreeNode): TreeNode | undefined => (node.type === "Image" ? node : (node.children ?? []).map((c) => (typeof c === "string" ? undefined : find(c))).find(Boolean));
       return find(result.tree.root);
     };
     // A 500px email's half is 250px: legacy's image is at most that, drawn 230px wide in its padding on desktop.
-    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, mobile: { maxWidth: 250 } });
-    expect(image(Page)?.mobile).toBeUndefined();
+    expect(image(Email)).toMatchObject({ style: { width: "100%", maxWidth: 250 }, compat: { stackedMaxWidth: 250 } });
+    expect(image(Email)?.mobile).toBeUndefined();
+    expect(image(Page)?.compat).toBeUndefined();
+  });
+
+  it("takes settings for desktop windows, its URL staying, and its padding on phones", () => {
+    const image = (override: Record<string, unknown>, Root: Root = Email) => lowered(<Image src={{ url: "https://example.com/a.png", width: 300, height: 150 }} altText="A" values={{ _override: override } as never} />, Root);
+    const desktop = image({ desktop: { src: { autoWidth: false, maxWidth: "50%" }, containerPadding: "21px" } });
+    expect((desktop?.children as TreeNode[])[0]).toMatchObject({ props: { src: { src: "https://example.com/a.png" } }, style: { width: "50%" } });
+    expect(desktop?.style?.padding).toEqual({ top: 21, right: 21, bottom: 21, left: 21 });
+    expect(desktop?.mobile).toEqual({ padding: { top: 10, right: 10, bottom: 10, left: 10 } });
+  });
+});
+
+describe("a video or social block's settings for devices", () => {
+  const video = { video: { url: "https://www.youtube.com/watch?v=abc", videoId: "abc", type: "youtube", thumbnail: "https://example.com/t.png" } };
+
+  it("has its padding set for phones and for desktop windows", () => {
+    expect(lowered(<Video values={{ ...video, _override: { mobile: { containerPadding: "37px" } } } as never} />)?.mobile).toEqual({ padding: { top: 37, right: 37, bottom: 37, left: 37 } });
+    expect(lowered(<Video values={{ ...video, _override: { desktop: { containerPadding: "21px" } } } as never} />)).toMatchObject({ style: { padding: { top: 21, right: 21, bottom: 21, left: 21 } }, mobile: { padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
+    const icons = { icons: { iconType: "circle", icons: [{ name: "Facebook", url: "https://facebook.com/x" }] } };
+    expect(lowered(<Social values={{ ...icons, _override: { mobile: { containerPadding: "37px" } } } as never} />, Page)?.mobile).toEqual({ padding: { top: 37, right: 37, bottom: 37, left: 37 } });
+    expect(lowered(<Social values={{ ...icons, _override: { desktop: { containerPadding: "21px" } } } as never} />, Page)).toMatchObject({ style: { padding: { top: 21, right: 21, bottom: 21, left: 21 } }, mobile: { padding: { top: 10, right: 10, bottom: 10, left: 10 } } });
   });
 });
 
