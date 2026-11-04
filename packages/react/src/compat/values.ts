@@ -228,23 +228,26 @@ const SERVICE_TAG = /<%[\s\S]*?%>|\{%[\s\S]*?%\}|\{\{[^}]*[<>&"'][^}]*\}\}/g;
  * `\uFDD0<its place in the render's tags>\uFDD1`, which `restoreServiceTags` puts back once they're written. A mark in
  * what's written comes from `keepServiceTags` and nothing else. Its characters are noncharacters, which Unicode reserves
  * for a program's own use: no text loses one to them (an icon font's private-use characters stay), and no case or
- * normal form of a character is one. `withoutMarks` takes them out of all a template gives the lowering (template.ts),
- * and what decodes text on its way (runs.ts's entities, a Lexical textJson, the plain text's entities) won't write them.
+ * normal form of a character is one. `withoutMarks` turns them into U+FFFD in all a template gives the lowering
+ * (template.ts), and what decodes text on its way (runs.ts's entities, a Lexical textJson, the plain text's entities)
+ * won't write them. They're replaced, never deleted: deleting one could join what's around it into something a sanitizer
+ * had no reason to refuse (`java\uFDD0script:` is a relative address; without it, it isn't).
  */
 const OPEN = "\uFDD0";
 const CLOSE = "\uFDD1";
 const NONCHARACTERS = /[\uFDD0-\uFDEF]/g;
+const REPLACEMENT = "\uFFFD";
 const KEPT = /\uFDD0(\d+)\uFDD1/g;
 
 /** Whether text holds what's kept. */
 export const holdsKept = (text: string): boolean => text.includes(OPEN);
 
 /**
- * A value of a template's without noncharacters, the marks' among them, through its lists and objects (its keys too), so no
- * mark comes from it. A React element is left: what it writes is taken through this when it's written.
+ * A value of a template's with its noncharacters replaced, the marks' among them, through its lists and objects (its keys
+ * too), so no mark comes from it. A React element is left: what it writes is taken through this when it's written.
  */
 export function withoutMarks<T>(value: T, seen = new Map<object, unknown>()): T {
-  if (typeof value === "string") return value.replace(NONCHARACTERS, "") as T;
+  if (typeof value === "string") return value.replace(NONCHARACTERS, REPLACEMENT) as T;
   // (A React element's mark is a symbol: JSON can't write one, so a design's key of that name is only a key.)
   if (value === null || typeof value !== "object" || typeof (value as { $$typeof?: unknown }).$$typeof === "symbol") return value;
   if (seen.has(value)) return seen.get(value) as T;
@@ -259,7 +262,7 @@ export function withoutMarks<T>(value: T, seen = new Map<object, unknown>()): T 
   const out: Record<string, unknown> = {};
   seen.set(value, out);
   // (As a key of its own, whatever it's called: JSON's `__proto__` isn't this object's prototype.)
-  for (const [key, item] of Object.entries(value)) Object.defineProperty(out, key.replace(NONCHARACTERS, ""), { value: withoutMarks(item, seen), enumerable: true, writable: true, configurable: true });
+  for (const [key, item] of Object.entries(value)) Object.defineProperty(out, key.replace(NONCHARACTERS, REPLACEMENT), { value: withoutMarks(item, seen), enumerable: true, writable: true, configurable: true });
   return out as T;
 }
 

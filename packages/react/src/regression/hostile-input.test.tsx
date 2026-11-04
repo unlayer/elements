@@ -248,7 +248,7 @@ describe("what looks like a mark of a kept tag", () => {
     "the config": { body: () => inColumn(<><Social /><Video values={{ video: { thumbnail: "" } } as never} /><Table values={{ table: { headers: [], footers: [], rows: [{ cells: [{ text: "A" }] }] }, mergeTagGroup: "g", mergeTagRule: "r" } as never} /></>), options: (v) => ({ cdnBaseUrl: `https://cdn.example/${v}`, mergeTagState: { mergeTagGroup: "g", mergeTags: { g: { rules: { r: { before: `<!-- ${v} -->`, after: `<!-- ${v} -->` } } } } } }) },
   };
   const BOTH = "\uFDD00\uFDD1\uFDD01\uFDD1";
-  const WITHOUT = "01";
+  const WITHOUT = "\uFFFD0\uFFFD\uFFFD1\uFFFD";
   const quiet = () => [vi.spyOn(console, "warn").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {})];
 
   describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
@@ -287,7 +287,25 @@ describe("what looks like a mark of a kept tag", () => {
     const read = withoutMarks(JSON.parse('{"__proto__":{"text":"Inherited\uFDD0"},"own":"Own\uFDD1"}'));
     expect(Object.getPrototypeOf(read)).toBe(Object.prototype);
     expect(read.text).toBeUndefined();
-    expect(Object.entries(read)).toEqual([["__proto__", { text: "Inherited" }], ["own", "Own"]]);
+    expect(Object.entries(read)).toEqual([["__proto__", { text: "Inherited\uFFFD" }], ["own", "Own\uFFFD"]]);
+  });
+
+  it("replaces a noncharacter rather than deleting it, so it can't join what a sanitizer let through into a script address", () => {
+    const allowHttp = (html: string) => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      for (const a of Array.from(doc.querySelectorAll("a[href]"))) if (!/^https?:$/.test(new URL(a.getAttribute("href")!, "https://example.test/").protocol)) a.removeAttribute("href");
+      return doc.body.innerHTML;
+    };
+    const input = '<a href="java\uFDD0script:alert(1)">Click</a>';
+    expect(allowHttp('<a href="javascript:alert(1)">Click</a>')).not.toContain("href");
+    expect(allowHttp(input)).toContain("href");
+    for (const Root of [Email, Page, Document]) {
+      const html = renderToHtml(<Root><Row><Column><Html html={input} /></Column></Row></Root>, { toSafeHtml: allowHttp } as never);
+      const hrefs = Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("a[href]"), (a) => a.getAttribute("href"));
+      expect(hrefs.length).toBe(1);
+      expect(hrefs[0]).not.toMatch(/^javascript:/i);
+    }
+    expect(withoutMarks("java\uFDD0script:")).toBe("java\uFFFDscript:");
   });
 
   it("leaves another private-use character as it is: an icon font's are text", () => {
@@ -312,7 +330,7 @@ describe("what looks like a mark of a kept tag", () => {
   it("a Row's className holding the character that finds where its markup ends keeps its markup whole", () => {
     const html = renderToHtml(<Email><Row className={'a\uFDD2b" x-pwn="1'}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);
     expect(injected(html)).toEqual([]);
-    expect(html).toContain('<div class="ab&quot; x-pwn=&quot;1">');
+    expect(html).toContain('<div class="a\uFFFDb&quot; x-pwn=&quot;1">');
   });
 });
 

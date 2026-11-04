@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { decodeEntities, htmlToPlainText } from "./html-to-text";
 
 describe("decodeEntities", () => {
-  it("reads a number as its character, but a Unicode noncharacter as nothing: what reads text may use them for its own marks", () => {
+  it("reads a number as its character, but a Unicode noncharacter as U+FFFD: what reads text may use them for its own marks, and deleting one could join what's around it", () => {
     expect(decodeEntities("&#65;&#x42;")).toBe("AB");
-    expect(decodeEntities("a&#xFDD0;b&#64977;c&#xfdef;d")).toBe("abcd");
+    expect(decodeEntities("a&#xFDD0;b&#64977;c&#xfdef;d")).toBe("a\uFFFDb\uFFFDc\uFFFDd");
     // (A number past 16 bits wraps round to one, and an entity in an entity's reads twice.)
-    expect(decodeEntities("a&#x1FDD0;b&#130513;c&amp;#xFDD0;d")).toBe("abcd");
+    expect(decodeEntities("a&#x1FDD0;b&#130513;c&amp;#xFDD0;d")).toBe("a\uFFFDb\uFFFDc\uFFFDd");
     // One already there isn't this function's to take out.
     expect(decodeEntities("\uFDD00\uFDD1")).toBe("\uFDD00\uFDD1");
   });

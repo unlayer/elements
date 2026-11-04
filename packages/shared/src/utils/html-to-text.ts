@@ -93,7 +93,7 @@ const HTML_ENTITIES: Record<string, string> = {
 /** The character a number reads as. A Unicode noncharacter is no text: what reads text may use them for its own marks. */
 function numbered(code: number): string {
   const unit = code & 0xffff;
-  return unit >= 0xfdd0 && unit <= 0xfdef ? "" : String.fromCharCode(unit);
+  return unit >= 0xfdd0 && unit <= 0xfdef ? "\uFFFD" : String.fromCharCode(unit);
 }
 
 /**

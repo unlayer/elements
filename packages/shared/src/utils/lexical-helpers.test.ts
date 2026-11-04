@@ -14,8 +14,8 @@ const P_MARGIN_RESET =
 describe("generateHtmlFromTextJson", () => {
   it("writes no Unicode noncharacter a JSON escape holds: what reads text may use them for its own marks", () => {
     const text = (words: string) => `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","text":"${words}"}]}]}}`;
-    expect(generateHtmlFromTextJson(text("a\\uFDD00\\uFDD1b"))).toBe(generateHtmlFromTextJson(text("a0b")));
-    expect(generateHtmlFromTextJson('{"__html":"<b>a\\uFDD00\\uFDD1b</b>"}')).toBe("<b>a0b</b>");
+    expect(generateHtmlFromTextJson(text("a\\uFDD00\\uFDD1b"))).toBe(generateHtmlFromTextJson(text("a\\uFFFD0\\uFFFDb")));
+    expect(generateHtmlFromTextJson('{"__html":"<b>a\\uFDD00\\uFDD1b</b>"}')).toBe("<b>a\uFFFD0\uFFFDb</b>");
   });
 
   it("renders a plain paragraph with the inline margin reset", () => {
