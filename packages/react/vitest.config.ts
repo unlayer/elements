@@ -13,7 +13,7 @@ export default defineConfig({
         'scripts/**',
         // Storybook stories are exercised by the Storybook smoke/visual gates
         '**/*.stories.tsx',
-        // So are the frames the comparison gate reads (test:compare); and the fixtures: designs in the new components, and the codemod's output
+        // So are the frames two of them draw in; and the fixtures: designs in the new components, and the codemod's output
         'src/compat/SideBySide.tsx',
         'src/primitives/testing/examples.tsx',
         'src/primitives/testing/codemod-examples.tsx',

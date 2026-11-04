@@ -1,7 +1,6 @@
 /**
  * The codemod from today's components to the new ones (`--from elements`): what each of today's components becomes,
- * and what's reported where the new template may draw differently. main's examples, migrated and compared with main in
- * Chromium, are in legacy-examples.test.ts and the Storybook comparison gate.
+ * and what's reported where the new template may draw differently. The examples, migrated, are in legacy-examples.test.ts.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

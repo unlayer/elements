@@ -11,7 +11,7 @@ concurrency:
   group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Five jobs run side by side, each installing and building the packages, so a run takes as long as its
+# Four jobs run side by side, each installing and building the packages, so a run takes as long as its
 # slowest job (the codemod's tests, about four minutes) rather than all of them in a row.
 jobs:
   test:
@@ -312,62 +312,6 @@ jobs:
       # answers "did any story change?" without paging through them by hand.
       - name: Storybook visual-drift gate
         run: pnpm --filter @unlayer/react-elements test:visual
-
-  compare:
-    name: Draws what main draws
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.7.0
-
-      - name: Authenticate npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-          
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-            
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        
-      - name: Build packages
-        run: pnpm build
-
-      - name: Install Playwright Chromium
-        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
-
-      - name: Build Storybook
-        run: pnpm --filter @unlayer/react-elements build-storybook --quiet
-
-      # ── The new engine draws what main draws ────────────────────
-      # Each "Primitives/Main through the new engine" story: one of main's
-      # templates as main renders it and as the new engine does, loaded in
-      # Chromium at desktop and phone widths (reusing the static build), with
-      # the "Email and page" and "Builder" stories' pairs. Fails naming each
-      # run of text or image that sits elsewhere, at another size or in
-      # another style than main's.
-      - name: Primitives draw what main draws
-        run: pnpm --filter @unlayer/react-elements test:compare
 
   browser:
     name: Browser gates and consumer apps

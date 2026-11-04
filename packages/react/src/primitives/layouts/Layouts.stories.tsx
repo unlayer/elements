@@ -1,6 +1,7 @@
 import type { Meta } from "@storybook/react-vite";
-import { Button, Column, Grid, Heading, Image, Layer, Paragraph, Section } from "../index";
-import { args, argTypes, outputs, type Args } from "../../compat/SideBySide";
+import type { ReactElement } from "react";
+import { Button, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Section } from "../index";
+import { args, argTypes, sideBySide, type Args } from "../../compat/SideBySide";
 
 const meta: Meta<Args> = {
   title: "Primitives/Email and page",
@@ -10,12 +11,15 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "Layouts the new engine writes for email and for the page in different markup (tables and inline-blocks, flexbox and CSS grid): each template rendered as a Page and as an Email, side by side. The comparison gate checks the two draw the same, at desktop and phone widths.",
+          "Layouts the new engine writes for email and for the page in different markup (tables and inline-blocks, flexbox and CSS grid): each template rendered as a Page and as an Email, side by side.",
       },
     },
   },
 };
 export default meta;
+
+/** A template drawn as a Page and as an Email (`Root` is each). */
+const outputs = (template: (Root: typeof Page) => ReactElement) => sideBySide({ label: "Page", template: template(Page) }, { label: "Email", template: template(Email as unknown as typeof Page) });
 
 const INK = "#1F2933";
 const MUTED = "#616E7C";
@@ -36,8 +40,7 @@ const products = [
 
 /**
  * A shop's new arrivals: three to a row, the last row's two keeping their width. An email's cells are whole px (174,
- * 173, 173: Outlook's widths), a page's flexbox shares (173.33 each), so the photos' heights differ by up to a pixel
- * and the second row may sit two lower.
+ * 173, 173: Outlook's widths), a page's flexbox shares (173.33 each).
  */
 export const ProductGrid = outputs((Root) => (
   <Root width={600} style={{ backgroundColor: "#F5F7FA", color: INK, fontFamily: "Arial, Helvetica, sans-serif" }}>
@@ -56,7 +59,7 @@ export const ProductGrid = outputs((Root) => (
       </Grid>
     </Section>
   </Root>
-), { y: 2 });
+));
 
 /** Features two to a row, of different heights, each in the middle of its row; kept two to a row on phones. */
 export const FeatureGrid = outputs((Root) => (

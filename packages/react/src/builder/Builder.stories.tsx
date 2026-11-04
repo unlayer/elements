@@ -1,9 +1,10 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, compare, type Args } from "../compat/SideBySide";
+import { args, argTypes, sideBySide, type Args } from "../compat/SideBySide";
 import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../primitives/testing/codemod-examples";
 import { fromDesign, toDesign } from "./index";
-import { legacyOf, withoutHidden } from "./testing/legacy";
+import { HIDDEN } from "./manifest";
+import type { Design } from "./write";
 
 const meta: Meta<Args> = {
   title: "Primitives/Builder",
@@ -13,20 +14,42 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "Templates in the new components as the builder draws their design JSON after `toDesign()` (left: today's components given each item's values, written by today's exporters, as the builder's are), and as the new engine draws the template `fromDesign()` brings back from that JSON without its hidden properties (right), which the builder keeps but doesn't draw. The comparison gate checks the two draw the same: each field is read as the builder draws it.",
+          "Templates in the new components as they're written (left), and the template `fromDesign()` brings back from their design JSON after `toDesign()`, without its hidden properties, which the builder keeps but doesn't draw (right): each field read as the builder draws it.",
       },
     },
   },
 };
 export default meta;
 
-/** What the builder draws of a template's design, next to the template that comes back from its fields. */
-const builder = (template: ReactElement, allowance?: { x?: number; y?: number }) => {
-  const { design } = toDesign(template);
-  return compare({ main: legacyOf(design), next: fromDesign(withoutHidden(design)).element, allowance });
-};
+/** The design without its hidden properties: only what the builder draws. */
+function withoutHidden(design: Design): Design {
+  const copy = JSON.parse(JSON.stringify(design)) as Design;
+  const strip = (tool: string, values: Record<string, any>) => {
+    for (const { key, path } of HIDDEN[tool] ?? []) {
+      if (path.startsWith("hidden.")) delete values._override?.[path.slice(7)]?.[key];
+      else {
+        delete values[key];
+        delete values._override?.mobile?.[key];
+      }
+    }
+  };
+  strip("body", copy.body.values);
+  for (const rows of [copy.body.rows, copy.body.headers ?? [], copy.body.footers ?? []]) {
+    for (const row of rows) {
+      strip("row", row.values);
+      for (const column of row.columns) {
+        strip("column", column.values);
+        for (const content of column.contents) strip(content.type, content.values);
+      }
+    }
+  }
+  return copy;
+}
 
-// main's examples as the codemod migrated them: what the builder draws of them, and what it gives back.
+/** A template as it's written, next to the one that comes back from what the builder draws of its design. */
+const builder = (template: ReactElement) => sideBySide({ label: "As written", template }, { label: "Back from the builder", template: fromDesign(withoutHidden(toDesign(template).design)).element });
+
+// The examples as the codemod migrated them: what the builder gives back of them.
 export const StripeReceipt = builder(<stripe.StripeReceipt />);
 export const SpotifyWelcome = builder(<spotify.SpotifyPremiumWelcome />);
 export const AirbnbConfirmation = builder(<airbnb.AirbnbConfirmation />);

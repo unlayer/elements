@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as current from "../index";
 import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, registerTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import * as published from "@unlayer/react-elements-previous";
+import { UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { withRenderScope } from "../utils/render-scope";
 import * as compat from "./render";
 import { renderThroughNewEngine, type Rendered } from "./render";
@@ -14,9 +15,54 @@ const previous = published as unknown as Release;
 
 const stories = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"]);
 
-/** Every story's template (as the comparison stories render them), by name, made with the components now loaded. */
+/** What a story renders, called as Storybook calls it (its args, its meta's). */
+function storyElement(module: Record<string, any>, name: string): React.ReactElement {
+  const meta = module.default ?? {};
+  const story = module[name];
+  const args = { ...meta.args, ...story.args };
+  const render = story.render ?? meta.render;
+  return render ? render(args, { args, loaded: {}, argTypes: {}, globals: {}, parameters: {} }) : React.createElement(meta.component, args);
+}
+
+/** The blocks of today's components in a story's markup (a gallery's), in order. */
+function blocksIn(node: React.ReactNode): React.ReactElement[] {
+  return React.Children.toArray(node).flatMap((child) => {
+    if (!React.isValidElement(child)) return [];
+    if ((child.type as unknown as Record<symbol, unknown>)?.[UNLAYER_CONFIG_KEY]) return [child];
+    return typeof child.type === "string" ? blocksIn((child.props as { children?: React.ReactNode }).children) : [];
+  });
+}
+
+/**
+ * The template a story renders, as `root` where it's blocks without one (the story's own markup isn't a template's, and
+ * is left out); undefined where it renders blocks only for the other root.
+ */
+function storyTemplate(element: React.ReactElement, root: "email" | "web" | undefined, parts: Pick<Release, "Email" | "Page" | "Row" | "Column">): React.ReactElement | undefined {
+  const props = element.props as { tree?: React.ReactElement; children?: React.ReactNode };
+  const name = (element.type as { displayName?: string })?.displayName;
+  // A live preview of a template's parts.
+  if (name === undefined && React.isValidElement(props.tree)) return storyTemplate(props.tree, root, parts);
+  // A provider: its config stays around the template.
+  if (name === "UnlayerProvider") {
+    const template = storyTemplate(React.Children.only(props.children) as React.ReactElement, root, parts);
+    return template && React.cloneElement(element, undefined, template);
+  }
+  const isBlock = !!(element.type as unknown as Record<symbol, unknown>)?.[UNLAYER_CONFIG_KEY];
+  const blocks = isBlock ? [element] : typeof element.type === "string" ? blocksIn(props.children) : undefined;
+  if (!blocks) return root ? undefined : element;
+  if (!root) throw new Error("A story of blocks is rendered in an Email or a Page");
+  // Blocks that all say their mode (a story of an email's block) are put in that root only.
+  const modes = new Set(blocks.map((block) => (block.props as { mode?: string }).mode));
+  if (modes.size === 1 && !modes.has(undefined) && !modes.has(root)) return undefined;
+  const { Row, Column } = parts;
+  const Root = root === "email" ? parts.Email : parts.Page;
+  return <Root><Row><Column>{blocks.map((block, index) => React.cloneElement(block, { key: index }))}</Column></Row></Root>;
+}
+
+/** Every story's template, by name, made with the components now loaded. */
 async function templates(): Promise<Array<[string, React.ReactElement]>> {
-  const { storyElement, storyTemplate } = await import("./story");
+  // (Imported here: it's the published release's where publishedTemplates has it mocked.)
+  const parts = await import("../index");
   const out: Array<[string, React.ReactElement]> = [];
   for (const [file, load] of Object.entries(stories)) {
     const module = (await load()) as Record<string, any>;
@@ -31,7 +77,7 @@ async function templates(): Promise<Array<[string, React.ReactElement]>> {
       for (const root of [undefined, "email", "web"] as const) {
         let template: React.ReactElement | undefined;
         try {
-          template = storyTemplate(element, root);
+          template = storyTemplate(element, root, parts);
         } catch {
           continue;
         }

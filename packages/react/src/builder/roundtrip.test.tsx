@@ -73,29 +73,29 @@ describe("to the builder and back", () => {
     it(`draws ${name} as it went`, () => expectRoundTrip(template));
   }
 
-  const main: Record<string, React.ReactElement> = {
-    StripeReceipt: stripe.next,
-    SpotifyWelcome: spotify.next,
-    PhoneOverrides: phone.next,
-    AirbnbConfirmation: airbnb.next,
-    MercuryReceipt: mercury.next,
-    LumaEventInvite: luma.next,
-    WarbyOrderShipped: warby.next,
-    NotionWelcome: notion.next,
-    NikeDrop: nike.next,
-    MorningBrewDigest: brew.next,
-    ProductDigest: digest.next,
-    SocialMediaBar: social.bar.next,
-    SocialRounded: social.rounded.next,
-    SocialSquared: social.squared.next,
-    SocialEmailFooter: social.footer.next,
-    MenuLinks: menu.links.next,
-    MenuSeparatorColor: menu.separators.next,
-    VideoInEmail: video.email.next,
-    VideoOnPage: video.page.next,
+  const examples: Record<string, React.ReactElement> = {
+    StripeReceipt: stripe,
+    SpotifyWelcome: spotify,
+    PhoneOverrides: phone,
+    AirbnbConfirmation: airbnb,
+    MercuryReceipt: mercury,
+    LumaEventInvite: luma,
+    WarbyOrderShipped: warby,
+    NotionWelcome: notion,
+    NikeDrop: nike,
+    MorningBrewDigest: brew,
+    ProductDigest: digest,
+    SocialMediaBar: social.bar,
+    SocialRounded: social.rounded,
+    SocialSquared: social.squared,
+    SocialEmailFooter: social.footer,
+    MenuLinks: menu.links,
+    MenuSeparatorColor: menu.separators,
+    VideoInEmail: video.email,
+    VideoOnPage: video.page,
   };
-  for (const [name, template] of Object.entries(main)) {
-    it(`draws main's ${name} as it went`, () => expectRoundTrip(template));
+  for (const [name, template] of Object.entries(examples)) {
+    it(`draws the ${name} example as it went`, () => expectRoundTrip(template));
   }
 
   const codemod = [codemodStripe.StripeReceipt, codemodSpotify.SpotifyPremiumWelcome, codemodAirbnb.AirbnbConfirmation, codemodMercury.MercuryReceipt, codemodLuma.LumaEventInvite, codemodWarby.WarbyOrderShipped, codemodNotion.NotionWelcome, codemodNike.NikeDrop, codemodBrew.MorningBrewDigest, codemodDigest.ProductDigest];
