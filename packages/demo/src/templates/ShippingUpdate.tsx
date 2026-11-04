@@ -1,286 +1,193 @@
 import type { ReactElement } from "react";
 import {
-  Email,
-  Row,
-  Column,
-  Paragraph,
-  Heading,
   Button,
+  Column,
   Divider,
+  Email,
+  Heading,
   Image,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  Paragraph,
+  Row,
+  Section,
+  Span,
+} from "@unlayer/react-elements/primitives";
 
-const sansFont = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 
 export default function ShippingUpdate(): ReactElement {
   return (
     <Email
-      backgroundColor="#f3f4f6"
-      textColor="#111827"
-      contentAlign="center"
-      contentWidth="540px"
-      fontFamily={sansFont}
+      width={540}
       previewText="Great news! Your order has shipped and is on its way."
+      style={{ backgroundColor: "#f3f4f6", color: "#111827", fontFamily: sansFont }}
     >
       {/* Header */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#111827" padding="20px 40px">
-        <Column>
+      <Section style={{ backgroundColor: "#111827", padding: [20, 0, 20, 0] }}>
+        <Column style={{ padding: 10, alignItems: "start" }}>
           <Image
-            src={{ url: "https://placehold.co/100x24/ffffff/111827?text=PARCEL", width: 100, height: 24 }}
-            altText="Parcel"
-            textAlign="left"
+            src={{
+              src: "https://placehold.co/100x24/ffffff/111827?text=PARCEL",
+              width: 100,
+              height: 24,
+            }}
+            alt="Parcel"
+            style={{ width: 100 }}
           />
         </Column>
-      </Row>
+      </Section>
 
       {/* Status Banner */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#059669" padding="20px 40px">
-        <Column>
-          <Heading
-            text="📦 Your order has shipped!"
-            headingType="h2"
-            fontSize="18px"
-            fontWeight={700}
-            color="#ffffff"
-            textAlign="center"
-            lineHeight="1.3"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#059669", padding: [20, 0, 20, 0] }}>
+        <Heading
+          level={2}
+          style={{ padding: 10, fontSize: 18, fontWeight: 700, color: "#ffffff", textAlign: "center", lineHeight: 1.3 }}
+        >
+          📦 Your order has shipped!
+        </Heading>
+      </Section>
 
       {/* Tracking Info */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 40px 0px 40px">
-        <Column>
-          <Paragraph
-            html="Estimated delivery"
-            fontSize="12px"
-            color="#6b7280"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Heading
-            text="Thursday, March 6"
-            headingType="h1"
-            fontSize="24px"
-            fontWeight={700}
-            color="#111827"
-            textAlign="center"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="by end of day"
-            fontSize="13px"
-            color="#9ca3af"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [32, 0, 0, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#6b7280", textAlign: "center", lineHeight: 1.5 }}>
+          Estimated delivery
+        </Paragraph>
+        <Heading
+          style={{ padding: 10, fontSize: 24, fontWeight: 700, color: "#111827", textAlign: "center", lineHeight: 1.2 }}
+        >
+          Thursday, March 6
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
+          by end of day
+        </Paragraph>
+      </Section>
 
       {/* Progress Bar Visual */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Image
-            src={{ url: "https://placehold.co/460x8/059669/059669?text=+", width: 460, height: 8 }}
-            altText="Shipping progress"
-            textAlign="center"
+            src={{ src: "https://placehold.co/460x8/059669/059669?text=+", width: 460, height: 8 }}
+            alt="Shipping progress"
+            style={{ width: 440 }}
           />
         </Column>
-      </Row>
+      </Section>
 
       {/* Progress Labels */}
-      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px 28px 40px">
-        <Column>
-          <Paragraph
-            html="✓ Confirmed"
-            fontSize="11px"
-            color="#059669"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="✓ Shipped"
-            fontSize="11px"
-            color="#059669"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="Delivered"
-            fontSize="11px"
-            color="#9ca3af"
-            textAlign="right"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 28, 0] }}>
+        <Row>
+          <Column style={{ width: "33.33%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "left", lineHeight: 1.5 }}>
+              ✓ Confirmed
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "33.33%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "center", lineHeight: 1.5 }}>
+              ✓ Shipped
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "33.33%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#9ca3af", textAlign: "right", lineHeight: 1.5 }}>
+              Delivered
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* Track Button */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px 28px 40px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 28, 0] }}>
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
-            text="Track Package"
-            buttonColors={{ backgroundColor: "#111827", color: "#ffffff" }}
-            padding="14px 32px"
-            borderRadius="6px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
+            href="#"
+            style={{
+              backgroundColor: "#111827",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "14px 32px",
+              borderRadius: 6,
+            }}
+          >
+            Track Package
+          </Button>
         </Column>
-      </Row>
+      </Section>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e5e7eb"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Divider style={{ borderTop: "1px solid #e5e7eb", padding: 10 }} />
+      </Section>
 
       {/* Shipping Details */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px 0px 40px">
-        <Column>
-          <Paragraph
-            html="SHIPPING TO"
-            fontSize="10px"
-            color="#9ca3af"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="<b>Alex Johnson</b>"
-            fontSize="13px"
-            color="#111827"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html={"742 Evergreen Terrace\nSan Francisco, CA 94102"}
-            fontSize="13px"
-            color="#6b7280"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="TRACKING NUMBER"
-            fontSize="10px"
-            color="#9ca3af"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="<b>1Z999AA10123456784</b>"
-            fontSize="13px"
-            color="#111827"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="UPS Ground"
-            fontSize="13px"
-            color="#6b7280"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 0, 0] }}>
+        <Row>
+          <Column style={{ width: "50%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+              SHIPPING TO
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+              <Span style={{ fontWeight: 700 }}>Alex Johnson</Span>
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+              742 Evergreen Terrace San Francisco, CA 94102
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+              TRACKING NUMBER
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+              <Span style={{ fontWeight: 700 }}>1Z999AA10123456784</Span>
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+              UPS Ground
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* Order Item */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 0px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e5e7eb"
-            borderTopStyle="solid"
-          />
-          <Paragraph
-            html="ORDER #PRC-8847"
-            fontSize="10px"
-            color="#9ca3af"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 0, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e5e7eb", padding: 10 }} />
+        <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+          ORDER #PRC-8847
+        </Paragraph>
+      </Section>
 
-      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="0px 40px 32px 40px">
-        <Column>
-          <Image
-            src={{ url: "https://placehold.co/100x100/f3f4f6/6b7280?text=Item", width: 100, height: 100 }}
-            altText="Wireless Headphones"
-            textAlign="center"
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="<b>Wireless Headphones Pro</b>"
-            fontSize="14px"
-            color="#111827"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Midnight Black · Qty: 1"
-            fontSize="13px"
-            color="#6b7280"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 32, 0] }}>
+        <Row>
+          <Column style={{ width: "33.33%" }}>
+            <Column style={{ padding: 10, alignItems: "center" }}>
+              <Image
+                src={{
+                  src: "https://placehold.co/100x100/f3f4f6/6b7280?text=Item",
+                  width: 100,
+                  height: 100,
+                }}
+                alt="Wireless Headphones"
+                style={{ width: 100 }}
+              />
+            </Column>
+          </Column>
+          <Column style={{ width: "66.67%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+              <Span style={{ fontWeight: 700 }}>Wireless Headphones Pro</Span>
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+              Midnight Black · Qty: 1
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="24px 40px 40px 40px">
-        <Column>
-          <Paragraph
-            html="Questions about your order? Reply to this email or contact support."
-            fontSize="12px"
-            color="#9ca3af"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Parcel Co · Austin, TX"
-            fontSize="12px"
-            color="#9ca3af"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [24, 0, 40, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.6 }}>
+          Questions about your order? Reply to this email or contact support.
+        </Paragraph>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
+          Parcel Co · Austin, TX
+        </Paragraph>
+      </Section>
     </Email>
   );
 }

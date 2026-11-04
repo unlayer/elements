@@ -1,29 +1,28 @@
 import CodeBlock from "../components/CodeBlock";
 import { UnlayerLogoMark } from "../components/UnlayerLogo";
 
-const heroCode = `import { Email, Row, Column, Button, Heading } from "@unlayer/react-elements";
-import { renderToHtml } from "@unlayer/react-elements";
+const heroCode = `import { Button, Column, Email, Heading, render }
+  from "@unlayer/react-elements/primitives";
 
 function WelcomeEmail() {
   return (
-    <Email contentWidth="560px" backgroundColor="#f4f4f5">
-      <Row>
-        <Column>
-          <Heading text="Welcome to Acme!" headingType="h1" fontSize="26px" fontWeight={700} />
-          <Button
-            text="Get Started"
-            backgroundColor="#6366f1"
-            color="#ffffff"
-            borderRadius="8px"
-            padding="14px 28px"
-          />
-        </Column>
-      </Row>
+    <Email width={560} style={{ backgroundColor: "#f4f4f5" }}>
+      <Column style={{ padding: 32, gap: 16 }}>
+        <Heading style={{ fontSize: 26, fontWeight: 700 }}>
+          Welcome to Acme!
+        </Heading>
+        <Button
+          href="https://example.com/start"
+          style={{ backgroundColor: "#6366f1", borderRadius: 8 }}
+        >
+          Get Started
+        </Button>
+      </Column>
     </Email>
   );
 }
 
-const html = renderToHtml(<WelcomeEmail />);
+const { html } = await render(<WelcomeEmail />);
 // Ready to send via any ESP…`;
 
 const stats = [

@@ -15,21 +15,23 @@ const steps = [
     num: "2",
     title: "Build",
     desc: "Compose with JSX components",
-    code: `<Body mode="email">
+    code: `<Email>
   <Row>
     <Column>
       <Heading>Hello</Heading>
-      <Button>Click</Button>
+      <Button href="/start">
+        Click
+      </Button>
     </Column>
   </Row>
-</Body>`,
+</Email>`,
     lang: "tsx",
   },
   {
     num: "3",
     title: "Render",
     desc: "Get HTML, send anywhere",
-    code: `const html = renderToHtml(
+    code: `const { html } = await render(
   <MyEmail />
 );
 // Send with any ESP`,

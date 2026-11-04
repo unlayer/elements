@@ -8,34 +8,34 @@ export interface ComponentMeta {
 export const componentsMeta: ComponentMeta[] = [
   // Layout
   {
-    name: "Body",
-    description: "Root container with mode, fonts, and background",
-    code: `<Body mode="email" contentWidth="560px" backgroundColor="#f4f4f5">
-  <Row layout={ColumnLayouts.OneColumn} padding="24px 40px">
-    <Column>
-      <Heading text="Hello" fontSize="24px" fontWeight={700} />
-      <Paragraph text="Welcome aboard." fontSize="15px" color="#555" />
-      <Button text="Get Started" backgroundColor="#4f46e5" color="#fff" />
-    </Column>
-  </Row>
-</Body>`,
+    name: "Email",
+    description: "Root of an email, with its width, fonts, and background. Page and Document are the other roots",
+    code: `<Email width={560} style={{ backgroundColor: "#f4f4f5" }}>
+  <Column style={{ padding: [24, 40], gap: 16 }}>
+    <Heading style={{ fontSize: 24, fontWeight: 700 }}>Hello</Heading>
+    <Paragraph style={{ fontSize: 15, color: "#555555" }}>Welcome aboard.</Paragraph>
+    <Button href="/start" style={{ backgroundColor: "#4f46e5", color: "#ffffff" }}>
+      Get Started
+    </Button>
+  </Column>
+</Email>`,
     group: "Layout",
   },
   {
     name: "Row",
-    description: "Horizontal row with column layout presets",
-    code: `<Row layout={ColumnLayouts.TwoEqual} padding="16px">
-  <Column>Left</Column>
-  <Column>Right</Column>
+    description: "Columns side by side, stacked on phones",
+    code: `<Row style={{ padding: 16, gap: 16 }}>
+  <Column><Text>Left</Text></Column>
+  <Column><Text>Right</Text></Column>
 </Row>`,
     group: "Layout",
   },
   {
     name: "Column",
-    description: "Vertical container within a Row",
-    code: `<Column>
-  <Heading text="Title" fontSize="20px" />
-  <Paragraph text="Column content" fontSize="14px" />
+    description: "Stacks its children, with its own spacing and box",
+    code: `<Column style={{ gap: 8 }}>
+  <Heading style={{ fontSize: 20 }}>Title</Heading>
+  <Paragraph style={{ fontSize: 14 }}>Column content</Paragraph>
 </Column>`,
     group: "Layout",
   },
@@ -43,40 +43,32 @@ export const componentsMeta: ComponentMeta[] = [
   // Content
   {
     name: "Paragraph",
-    description: "Plain text with typography props",
-    code: `<Paragraph
-  text="Hello world"
-  fontSize="15px"
-  color="#333"
-  lineHeight="1.6"
-/>`,
+    description: "Plain text with typography styles",
+    code: `<Paragraph style={{ fontSize: 15, color: "#333333", lineHeight: 1.6 }}>
+  Hello world
+</Paragraph>`,
     group: "Content",
   },
   {
     name: "Paragraph",
-    description: "Rich text via html prop (supports bold, italic, links)",
-    code: `<Paragraph
-  html="Thanks for joining <b>Acme</b>. <a href='#'>View dashboard</a>"
-  fontSize="15px"
-  color="#555"
-/>`,
+    description: "Rich text with Span and Link (bold, italic, links)",
+    code: `<Paragraph style={{ fontSize: 15, color: "#555555" }}>
+  Thanks for joining <Span style={{ fontWeight: 700 }}>Acme</Span>.{" "}
+  <Link href="/dashboard">View dashboard</Link>
+</Paragraph>`,
     group: "Content",
   },
   {
     name: "Heading",
-    description: "Semantic heading (h1-h6) with typography",
-    code: `<Heading
-  text="Welcome"
-  headingType="h1"
-  fontSize="28px"
-  fontWeight={700}
-  color="#18181b"
-/>`,
+    description: "Semantic heading (level 1-6) with typography",
+    code: `<Heading level={1} style={{ fontSize: 28, fontWeight: 700, color: "#18181b" }}>
+  Welcome
+</Heading>`,
     group: "Content",
   },
   {
     name: "Html",
-    description: "Raw HTML injection for custom content",
+    description: "Markup written as it is, for what no component says",
     code: `<Html html="<div class='custom'>Custom HTML</div>" />`,
     group: "Content",
   },
@@ -84,16 +76,20 @@ export const componentsMeta: ComponentMeta[] = [
   // Interactive
   {
     name: "Button",
-    description: "CTA button with colors, radius, and link",
+    description: "A link drawn as a button, with colors and radius",
     code: `<Button
-  text="Get Started"
-  backgroundColor="#6366f1"
-  color="#ffffff"
-  borderRadius="8px"
-  padding="14px 28px"
-  fontSize="14px"
-  fontWeight={600}
-/>`,
+  href="/start"
+  style={{
+    backgroundColor: "#6366f1",
+    color: "#ffffff",
+    borderRadius: 8,
+    padding: "14px 28px",
+    fontSize: 14,
+    fontWeight: 600,
+  }}
+>
+  Get Started
+</Button>`,
     group: "Interactive",
   },
   {
@@ -101,8 +97,8 @@ export const componentsMeta: ComponentMeta[] = [
     description: "Horizontal navigation menu with links",
     code: `<Menu
   items={[
-    { text: "Home", href: { url: "/" } },
-    { text: "About", href: { url: "/about" } },
+    { text: "Home", href: "/" },
+    { text: "About", href: "/about" },
   ]}
 />`,
     group: "Interactive",
@@ -113,18 +109,18 @@ export const componentsMeta: ComponentMeta[] = [
     name: "Image",
     description: "Responsive image with alt text and sizing",
     code: `<Image
-  src={{ url: "https://example.com/hero.jpg", width: 600, height: 400 }}
-  altText="Hero image"
-  textAlign="center"
+  src={{ src: "https://example.com/hero.jpg", width: 600, height: 400 }}
+  alt="Hero image"
+  style={{ alignSelf: "center" }}
 />`,
     group: "Media",
   },
   {
     name: "Video",
-    description: "Video thumbnail with play button overlay",
+    description: "A YouTube or Vimeo video: its player on a page, its linked thumbnail in an email",
     code: `<Video
-  src={{ url: "https://youtube.com/watch?v=..." }}
-  altImage={{ url: "thumb.jpg", width: 600, height: 340 }}
+  src="https://www.youtube.com/watch?v=aqz-KE-bpKQ"
+  thumbnail={{ src: "https://example.com/thumb.jpg", width: 600, height: 340 }}
 />`,
     group: "Media",
   },
@@ -132,23 +128,26 @@ export const componentsMeta: ComponentMeta[] = [
   // Data
   {
     name: "Table",
-    description: "Data table with headers and row styling",
-    code: `<Table
-  headers={["Item", "Qty", "Price"]}
-  data={[
-    ["Widget", "2", "$19.00"],
-    ["Gadget", "1", "$49.00"],
-  ]}
-/>`,
+    description: "Data table with a header row and row styling",
+    code: `<Table style={{ cellPadding: 8, rowBorder: "1px solid #e4e4e7" }}>
+  <TableRow header>
+    <TableCell>Item</TableCell>
+    <TableCell>Price</TableCell>
+  </TableRow>
+  <TableRow>
+    <TableCell>Widget</TableCell>
+    <TableCell>$19.00</TableCell>
+  </TableRow>
+</Table>`,
     group: "Data",
   },
   {
     name: "Social",
-    description: "Social media icon links (GitHub, Twitter, etc.)",
+    description: "Social media icon links (Instagram, LinkedIn, etc.)",
     code: `<Social
   icons={[
-    { name: "github", href: { url: "https://github.com" } },
-    { name: "twitter", href: { url: "https://twitter.com" } },
+    { name: "Instagram", href: "https://instagram.com" },
+    { name: "LinkedIn", href: "https://linkedin.com" },
   ]}
 />`,
     group: "Data",
@@ -156,11 +155,7 @@ export const componentsMeta: ComponentMeta[] = [
   {
     name: "Divider",
     description: "Horizontal rule with border customization",
-    code: `<Divider
-  borderTopWidth="1px"
-  borderTopColor="#e5e5e5"
-  borderTopStyle="solid"
-/>`,
+    code: `<Divider style={{ borderTop: "1px solid #e5e5e5" }} />`,
     group: "Data",
   },
 ];

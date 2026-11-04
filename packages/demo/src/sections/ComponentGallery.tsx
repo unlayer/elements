@@ -82,7 +82,7 @@ export default function ComponentGallery() {
       <div className="relative">
         <SectionHeader
           badge="Components"
-          title="14 components, infinite possibilities"
+          title="14+ components, infinite possibilities"
           description="Everything you need to build emails, landing pages, and documents. Each component renders clean, semantic output across all modes."
         />
 

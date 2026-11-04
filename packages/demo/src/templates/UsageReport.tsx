@@ -1,315 +1,261 @@
 import type { ReactElement } from "react";
 import {
-  Email,
-  Row,
-  Column,
-  Paragraph,
-  Heading,
   Button,
+  Column,
   Divider,
+  Email,
+  Heading,
   Image,
+  Link,
+  Paragraph,
+  Row,
+  Section,
+  Span,
   Table,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  TableCell,
+  TableRow,
+} from "@unlayer/react-elements/primitives";
 
-const sansFont = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+
+const tableHeaders = ["Endpoint", "Calls", "Avg (ms)", "Errors"];
+const tableRows = [
+  ["/api/v2/users", "482,100", "32", "0.01%"],
+  ["/api/v2/orders", "358,200", "45", "0.03%"],
+  ["/api/v2/products", "241,800", "38", "0.00%"],
+  ["/api/v2/search", "118,900", "89", "0.12%"],
+];
+const tableCell = { width: "25%", border: "1px solid #cccccc", verticalAlign: "middle" } as const;
 
 export default function UsageReport(): ReactElement {
   return (
     <Email
-      backgroundColor="#f8fafc"
-      textColor="#0f172a"
-      contentAlign="center"
-      contentWidth="560px"
-      fontFamily={sansFont}
+      width={560}
       previewText="Your February usage report: 1.2M API calls, 99.97% uptime."
+      style={{ backgroundColor: "#f8fafc", color: "#0f172a", fontFamily: sansFont }}
     >
       {/* Header */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px">
-        <Column>
-          <Image
-            src={{ url: "https://placehold.co/100x24/6366f1/ffffff?text=PULSE", width: 100, height: 24 }}
-            altText="Pulse"
-            textAlign="left"
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="February 2026"
-            fontSize="13px"
-            color="#64748b"
-            textAlign="right"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 24, 0] }}>
+        <Row>
+          <Column style={{ width: "50%" }}>
+            <Column style={{ padding: 10, alignItems: "start" }}>
+              <Image
+                src={{
+                  src: "https://placehold.co/100x24/6366f1/ffffff?text=PULSE",
+                  width: 100,
+                  height: 24,
+                }}
+                alt="Pulse"
+                style={{ width: 100 }}
+              />
+            </Column>
+          </Column>
+          <Column style={{ width: "50%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "right", lineHeight: 1.5 }}>
+              February 2026
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* Title */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 0px 40px">
-        <Column>
-          <Heading
-            text="Monthly Usage Report"
-            headingType="h1"
-            fontSize="24px"
-            fontWeight={700}
-            color="#0f172a"
-            textAlign="left"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html={"Here\u2019s your summary for <b>Acme Corp</b> \u2014 Pro Plan."}
-            fontSize="14px"
-            color="#64748b"
-            textAlign="left"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 0, 0] }}>
+        <Heading
+          style={{ padding: 10, fontSize: 24, fontWeight: 700, color: "#0f172a", textAlign: "left", lineHeight: 1.2 }}
+        >
+          Monthly Usage Report
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 14, color: "#64748b", textAlign: "left", lineHeight: 1.6 }}>
+          {"Here’s your summary for "}
+          <Span style={{ fontWeight: 700 }}>Acme Corp</Span>
+          {" — Pro Plan."}
+        </Paragraph>
+      </Section>
 
       {/* Key Metrics */}
-      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px 8px 40px">
-        <Column>
-          <Heading
-            text="1.2M"
-            headingType="h2"
-            fontSize="28px"
-            fontWeight={700}
-            color="#0f172a"
-            textAlign="center"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="API Calls"
-            fontSize="12px"
-            color="#94a3b8"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="↑ 18% vs Jan"
-            fontSize="11px"
-            color="#22c55e"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Heading
-            text="99.97%"
-            headingType="h2"
-            fontSize="28px"
-            fontWeight={700}
-            color="#0f172a"
-            textAlign="center"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Uptime"
-            fontSize="12px"
-            color="#94a3b8"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="SLA: 99.9%"
-            fontSize="11px"
-            color="#22c55e"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Heading
-            text="48ms"
-            headingType="h2"
-            fontSize="28px"
-            fontWeight={700}
-            color="#0f172a"
-            textAlign="center"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Avg Latency"
-            fontSize="12px"
-            color="#94a3b8"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="↓ 12ms vs Jan"
-            fontSize="11px"
-            color="#22c55e"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 8, 0] }}>
+        <Row>
+          <Column style={{ width: "33.33%" }}>
+            <Heading
+              level={2}
+              style={{
+                padding: 10,
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#0f172a",
+                textAlign: "center",
+                lineHeight: 1.2,
+              }}
+            >
+              1.2M
+            </Heading>
+            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+              API Calls
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+              ↑ 18% vs Jan
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "33.33%" }}>
+            <Heading
+              level={2}
+              style={{
+                padding: 10,
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#0f172a",
+                textAlign: "center",
+                lineHeight: 1.2,
+              }}
+            >
+              99.97%
+            </Heading>
+            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+              Uptime
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+              SLA: 99.9%
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "33.33%" }}>
+            <Heading
+              level={2}
+              style={{
+                padding: 10,
+                fontSize: 28,
+                fontWeight: 700,
+                color: "#0f172a",
+                textAlign: "center",
+                lineHeight: 1.2,
+              }}
+            >
+              48ms
+            </Heading>
+            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+              Avg Latency
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+              ↓ 12ms vs Jan
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* Usage Breakdown */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="16px 40px 0px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e2e8f0"
-            borderTopStyle="solid"
-          />
-          <Heading
-            text="USAGE BY ENDPOINT"
-            headingType="h4"
-            fontSize="11px"
-            fontWeight={700}
-            color="#94a3b8"
-            textAlign="left"
-            lineHeight="1"
-            letterSpacing="1px"
-            fontFamily={sansFont}
-          />
-          <Table
-            headers={["Endpoint", "Calls", "Avg (ms)", "Errors"]}
-            data={[
-              ["/api/v2/users", "482,100", "32", "0.01%"],
-              ["/api/v2/orders", "358,200", "45", "0.03%"],
-              ["/api/v2/products", "241,800", "38", "0.00%"],
-              ["/api/v2/search", "118,900", "89", "0.12%"],
-            ]}
-          />
+      <Section style={{ backgroundColor: "#ffffff", padding: [16, 0, 0, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e2e8f0", padding: 10 }} />
+        <Heading
+          level={4}
+          style={{
+            padding: 10,
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#94a3b8",
+            textAlign: "left",
+            lineHeight: 1,
+            letterSpacing: "1px",
+          }}
+        >
+          USAGE BY ENDPOINT
+        </Heading>
+        <Column style={{ padding: 10 }}>
+          <Table style={{ fontSize: 14, lineHeight: 1.4, cellPadding: 10, borderCollapse: "collapse" }}>
+            <TableRow header style={{ backgroundColor: "#dddddd" }}>
+              {tableHeaders.map((text) => (
+                <TableCell key={text} style={tableCell}>
+                  {text}
+                </TableCell>
+              ))}
+            </TableRow>
+            {tableRows.map((row) => (
+              <TableRow key={row[0]}>
+                {row.map((text, i) => (
+                  <TableCell key={i} style={tableCell}>
+                    {text}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </Table>
         </Column>
-      </Row>
+      </Section>
 
       {/* Billing Summary */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px 0px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e2e8f0"
-            borderTopStyle="solid"
-          />
-          <Heading
-            text="BILLING SUMMARY"
-            headingType="h4"
-            fontSize="11px"
-            fontWeight={700}
-            color="#94a3b8"
-            textAlign="left"
-            lineHeight="1"
-            letterSpacing="1px"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Divider style={{ borderTop: "1px solid #e2e8f0", padding: 10 }} />
+        <Heading
+          level={4}
+          style={{
+            padding: 10,
+            fontSize: 11,
+            fontWeight: 700,
+            color: "#94a3b8",
+            textAlign: "left",
+            lineHeight: 1,
+            letterSpacing: "1px",
+          }}
+        >
+          BILLING SUMMARY
+        </Heading>
+      </Section>
 
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0px 40px">
-        <Column>
-          <Paragraph
-            html="Pro Plan (base)"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="left"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="API overage (200K calls)"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="left"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="<b>Total due Mar 1</b>"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="left"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Paragraph
-            html="$299.00"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="right"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="$40.00"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="right"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="<b>$339.00</b>"
-            fontSize="14px"
-            color="#0f172a"
-            textAlign="right"
-            lineHeight="2"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Row>
+          <Column style={{ width: "50%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+              Pro Plan (base)
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+              API overage (200K calls)
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+              <Span style={{ fontWeight: 700 }}>Total due Mar 1</Span>
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%" }}>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+              $299.00
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+              $40.00
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+              <Span style={{ fontWeight: 700 }}>$339.00</Span>
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 36px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e2e8f0"
-            borderTopStyle="solid"
-          />
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 36, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e2e8f0", padding: 10 }} />
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
-            text="View Full Dashboard"
-            buttonColors={{ backgroundColor: "#6366f1", color: "#ffffff" }}
-            padding="12px 28px"
-            borderRadius="6px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html='Need to upgrade? <a href="#">Compare plans</a>'
-            fontSize="13px"
-            color="#64748b"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
+            href="#"
+            style={{
+              backgroundColor: "#6366f1",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "12px 28px",
+              borderRadius: 6,
+            }}
+          >
+            View Full Dashboard
+          </Button>
         </Column>
-      </Row>
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.5 }}>
+          {"Need to upgrade? "}
+          <Link href="#">Compare plans</Link>
+        </Paragraph>
+      </Section>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
-        <Column>
-          <Paragraph
-            html="Pulse API · This report is generated automatically on the 1st of each month."
-            fontSize="12px"
-            color="#94a3b8"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [20, 0, 40, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
+          Pulse API · This report is generated automatically on the 1st of each month.
+        </Paragraph>
+      </Section>
     </Email>
   );
 }

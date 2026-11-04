@@ -1,32 +1,29 @@
 export const reactSample = `import {
-  Email, Row, Column, Paragraph, Heading, Button, ColumnLayouts
-} from "@unlayer/react-elements";
+  Email, Column, Paragraph, Heading, Button
+} from "@unlayer/react-elements/primitives";
 
 export default function WelcomeEmail() {
   return (
-    <Email contentWidth="560px" backgroundColor="#f4f4f5">
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff">
-        <Column>
-          <Heading
-            text="Welcome to Acme"
-            headingType="h1"
-            fontSize="26px"
-            fontWeight={700}
-          />
-          <Paragraph
-            text="Thanks for signing up! We're thrilled to have you on board."
-            fontSize="15px"
-            color="#3f3f46"
-          />
-          <Button
-            text="Go to Dashboard"
-            backgroundColor="#6366f1"
-            color="#ffffff"
-            borderRadius="8px"
-            padding="14px 28px"
-          />
-        </Column>
-      </Row>
+    <Email width={560} style={{ backgroundColor: "#f4f4f5" }}>
+      <Column style={{ backgroundColor: "#ffffff", padding: 32, gap: 16 }}>
+        <Heading level={1} style={{ fontSize: 26, fontWeight: 700 }}>
+          Welcome to Acme
+        </Heading>
+        <Paragraph style={{ fontSize: 15, color: "#3f3f46" }}>
+          Thanks for signing up! We're thrilled to have you on board.
+        </Paragraph>
+        <Button
+          href="https://example.com/dashboard"
+          style={{
+            backgroundColor: "#6366f1",
+            color: "#ffffff",
+            borderRadius: 8,
+            padding: "14px 28px",
+          }}
+        >
+          Go to Dashboard
+        </Button>
+      </Column>
     </Email>
   );
 }`;

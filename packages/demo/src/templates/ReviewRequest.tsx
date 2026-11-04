@@ -1,231 +1,149 @@
 import type { ReactElement } from "react";
 import {
-  Email,
-  Row,
-  Column,
-  Paragraph,
-  Heading,
   Button,
+  Column,
   Divider,
+  Email,
+  Heading,
   Image,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  Paragraph,
+  Section,
+} from "@unlayer/react-elements/primitives";
 
-const sansFont = {
-  label: "Cereal",
-  value: "'Circular', 'Helvetica Neue', Helvetica, Arial, sans-serif",
-};
+const sansFont = "'Circular', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 export default function ReviewRequest(): ReactElement {
   return (
     <Email
-      backgroundColor="#ffffff"
-      textColor="#222222"
-      contentAlign="center"
-      contentWidth="560px"
-      fontFamily={sansFont}
+      width={560}
       previewText="How was your stay at Sunset Villa? Leave a review for Maria."
+      style={{ backgroundColor: "#ffffff", color: "#222222", fontFamily: sansFont }}
     >
       {/* Logo */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 48px 24px 48px">
-        <Column>
-          <Heading
-            text="staybnb"
-            headingType="h4"
-            fontSize="18px"
-            fontWeight={700}
-            color="#FF385C"
-            textAlign="left"
-            lineHeight="1"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [32, 0, 24, 0] }}>
+        <Heading
+          level={4}
+          style={{ padding: 10, fontSize: 18, fontWeight: 700, color: "#FF385C", textAlign: "left", lineHeight: 1 }}
+        >
+          staybnb
+        </Heading>
+      </Section>
 
       {/* Hero image — real Unsplash photo */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Image
-            src={{ url: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=464&h=260&fit=crop&auto=format&q=80", width: 464, height: 260 }}
-            altText="Sunset Villa, Malibu"
-            textAlign="center"
+            src={{
+              src: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=464&h=260&fit=crop&auto=format&q=80",
+              width: 464,
+              height: 260,
+            }}
+            alt="Sunset Villa, Malibu"
+            style={{ width: 444 }}
           />
         </Column>
-      </Row>
+      </Section>
 
       {/* Trip details strip */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Paragraph
-            html="Feb 24 – 28 · Malibu, California · 4 nights"
-            fontSize="13px"
-            color="#717171"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.5 }}>
+          Feb 24 – 28 · Malibu, California · 4 nights
+        </Paragraph>
+      </Section>
 
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="8px 48px 0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#ebebeb"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [8, 0, 0, 0] }}>
+        <Divider style={{ borderTop: "1px solid #ebebeb", padding: 10 }} />
+      </Section>
 
       {/* Main prompt */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 48px 0px 48px">
-        <Column>
-          <Heading
-            text="How was your stay?"
-            headingType="h1"
-            fontSize="26px"
-            fontWeight={700}
-            color="#222222"
-            textAlign="left"
-            lineHeight="1.25"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Your review matters! Share your honest experience to help future travelers and support your host."
-            fontSize="16px"
-            color="#484848"
-            textAlign="left"
-            lineHeight="1.65"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 0, 0] }}>
+        <Heading
+          style={{ padding: 10, fontSize: 26, fontWeight: 700, color: "#222222", textAlign: "left", lineHeight: 1.25 }}
+        >
+          How was your stay?
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 16, color: "#484848", textAlign: "left", lineHeight: 1.65 }}>
+          Your review matters! Share your honest experience to help future travelers and support
+          your host.
+        </Paragraph>
+      </Section>
 
       {/* Host card */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Column style={{ padding: 10, alignItems: "start" }}>
           <Image
-            src={{ url: "https://placehold.co/56x56/ff385c/ffffff?text=M", width: 56, height: 56 }}
-            altText="Maria"
-            textAlign="left"
-          />
-          <Heading
-            text="Hosted by Maria"
-            headingType="h3"
-            fontSize="14px"
-            fontWeight={700}
-            color="#222222"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Superhost · 4.96 ★ · 214 reviews"
-            fontSize="13px"
-            color="#717171"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
+            src={{ src: "https://placehold.co/56x56/ff385c/ffffff?text=M", width: 56, height: 56 }}
+            alt="Maria"
+            style={{ width: 56 }}
           />
         </Column>
-      </Row>
+        <Heading
+          level={3}
+          style={{ padding: 10, fontSize: 14, fontWeight: 700, color: "#222222", textAlign: "left", lineHeight: 1.4 }}
+        >
+          Hosted by Maria
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "left", lineHeight: 1.4 }}>
+          Superhost · 4.96 ★ · 214 reviews
+        </Paragraph>
+      </Section>
 
       {/* Star rating prompt */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#ebebeb"
-            borderTopStyle="solid"
-          />
-          <Paragraph
-            html="Overall experience"
-            fontSize="13px"
-            color="#717171"
-            textAlign="center"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Heading
-            text="★ ★ ★ ★ ★"
-            headingType="h2"
-            fontSize="32px"
-            fontWeight={400}
-            color="#FF385C"
-            textAlign="center"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#ebebeb"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Divider style={{ borderTop: "1px solid #ebebeb", padding: 10 }} />
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.4 }}>
+          Overall experience
+        </Paragraph>
+        <Heading
+          level={2}
+          style={{ padding: 10, fontSize: 32, fontWeight: 400, color: "#FF385C", textAlign: "center", lineHeight: 1.2 }}
+        >
+          ★ ★ ★ ★ ★
+        </Heading>
+        <Divider style={{ borderTop: "1px solid #ebebeb", padding: 10 }} />
+      </Section>
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px 40px 48px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 40, 0] }}>
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
-            text="Write a Review"
-            buttonColors={{ backgroundColor: "#FF385C", color: "#ffffff" }}
-            padding="16px 32px"
-            borderRadius="8px"
-            fontSize="16px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
+            href="#"
+            style={{
+              backgroundColor: "#FF385C",
+              color: "#ffffff",
+              fontSize: 16,
+              fontWeight: 600,
+              padding: "16px 32px",
+              borderRadius: 8,
+            }}
+          >
+            Write a Review
+          </Button>
         </Column>
-      </Row>
+      </Section>
 
       {/* Deadline notice */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px 36px 48px">
-        <Column>
-          <Paragraph
-            html="Reviews must be submitted within 14 days of checkout. Your review will be visible on Maria's listing once she also completes her review of you."
-            fontSize="14px"
-            color="#717171"
-            textAlign="left"
-            lineHeight="1.65"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 36, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 14, color: "#717171", textAlign: "left", lineHeight: 1.65 }}>
+          Reviews must be submitted within 14 days of checkout. Your review will be visible on
+          Maria's listing once she also completes her review of you.
+        </Paragraph>
+      </Section>
 
       {/* Footer divider */}
-      <Row layout={ColumnLayouts.OneColumn} padding="0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#dddddd"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section>
+        <Divider style={{ borderTop: "1px solid #dddddd", padding: 10 }} />
+      </Section>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 48px 32px 48px">
-        <Column>
-          <Paragraph
-            html="Sent by StayBnB, Inc. · 888 Brannan St, San Francisco, CA 94103"
-            fontSize="12px"
-            color="#999999"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="This is a notification about your recent trip."
-            fontSize="12px"
-            color="#999999"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [20, 0, 32, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
+          Sent by StayBnB, Inc. · 888 Brannan St, San Francisco, CA 94103
+        </Paragraph>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
+          This is a notification about your recent trip.
+        </Paragraph>
+      </Section>
     </Email>
   );
 }

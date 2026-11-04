@@ -4,13 +4,13 @@ const features = [
   {
     title: "Three Render Modes",
     description:
-      "The same component tree renders to email-safe tables, responsive web divs, or print-optimized documents. Switch modes with a single prop.",
+      "The same content renders to email-safe tables, responsive web divs, or print-optimized documents. The root you put it in picks the output.",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
       </svg>
     ),
-    tag: "web | email | document",
+    tag: "Email | Page | Document",
   },
   {
     title: "Plain Text Generation",
@@ -21,12 +21,12 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
       </svg>
     ),
-    tag: "renderToPlainText()",
+    tag: "render().text",
   },
   {
-    title: "Semantic Props API",
+    title: "Typed Styles",
     description:
-      "No more inline style objects or raw HTML attributes. Configure components with clear, typed props like fontSize, padding, and borderRadius.",
+      "No raw HTML attributes. Every component takes a typed style object, with values like fontSize, padding, and borderRadius, and a mistake gets a clear error.",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
@@ -35,15 +35,15 @@ const features = [
     tag: "TypeScript-first",
   },
   {
-    title: "Built-in Column Layouts",
+    title: "Simple Column Layouts",
     description:
-      "Pre-configured layout presets — one column, two equal, sidebar left/right, three columns, and more. No manual width math.",
+      "A Row puts its Columns side by side, each at its width or in an equal share, and stacks them on phones. No manual width math.",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" />
       </svg>
     ),
-    tag: "ColumnLayouts.*",
+    tag: "<Row> + <Column>",
   },
   {
     title: "Battle-Tested Renderers",

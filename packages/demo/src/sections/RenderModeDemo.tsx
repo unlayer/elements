@@ -1,201 +1,128 @@
-import { useState, useMemo } from "react";
+import { useState, type ReactElement } from "react";
 import {
-  renderToHtmlParts,
-  Email,
-  Page,
-  Document,
-  Row,
-  Column,
-  Heading,
-  Paragraph,
   Button,
+  Column,
   Divider,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  Document,
+  Email,
+  Heading,
+  Page,
+  Paragraph,
+  Row,
+  Section,
+} from "@unlayer/react-elements/primitives";
+import { useRender } from "../hooks/useRender";
 import SectionHeader from "../components/SectionHeader";
 import DeviceFrame from "../components/DeviceFrame";
 
 type Mode = "web" | "email" | "document";
 
-const sansFont = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 
-/** Compact notification template to showcase structural differences between modes */
-function ModePreviewTemplate({ mode }: { mode: Mode }) {
-  const Wrapper = mode === "email" ? Email : mode === "document" ? Document : Page;
+const rule = <Divider style={{ borderTop: "1px solid #e4e4e7", padding: 10 }} />;
+
+function Stat({ label, value, note, noteColor }: { label: string; value: string; note: string; noteColor: string }) {
   return (
-    <Wrapper
-      backgroundColor={mode === "document" ? "#ffffff" : "#f4f4f5"}
-      textColor="#18181b"
-      contentAlign="center"
-      contentWidth="500px"
-      fontFamily={sansFont}
-    >
-      {/* Header */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px">
-        <Column>
-          <Heading
-            text="ACME"
-            headingType="h4"
-            fontSize="13px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1"
-            letterSpacing="2px"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
-
-      {/* Accent bar */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#18181b" padding="0px">
-        <Column>
-          <Divider
-            borderTopWidth="3px"
-            borderTopColor="#18181b"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
-
-      {/* Hero */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="36px 40px 0px 40px">
-        <Column>
-          <Heading
-            text="Your monthly report is ready"
-            headingType="h1"
-            fontSize="22px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.25"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Hi Alex, here's a summary of your workspace activity for February 2026."
-            fontSize="14px"
-            color="#71717a"
-            textAlign="left"
-            lineHeight="1.65"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
-
-      {/* Stats — two columns */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e4e4e7"
-            borderTopStyle="solid"
-          />
-          <Heading
-            text="DEPLOYMENTS"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#a1a1aa"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Heading
-            text="142"
-            headingType="h2"
-            fontSize="28px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="+18% from January"
-            fontSize="12px"
-            color="#22c55e"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e4e4e7"
-            borderTopStyle="solid"
-          />
-          <Heading
-            text="UPTIME"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#a1a1aa"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Heading
-            text="99.98%"
-            headingType="h2"
-            fontSize="28px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.2"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="0 incidents this month"
-            fontSize="12px"
-            color="#71717a"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
-
-      {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="8px 40px 36px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e4e4e7"
-            borderTopStyle="solid"
-          />
-          <Button
-            text="View Full Report"
-            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
-            padding="12px 24px"
-            borderRadius="8px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
-
-      {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="16px 40px 24px 40px">
-        <Column>
-          <Paragraph
-            html="Acme Inc · San Francisco, CA"
-            fontSize="11px"
-            color="#a1a1aa"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
-    </Wrapper>
+    <Column style={{ width: "50%" }}>
+      {rule}
+      <Heading level={4} style={{ padding: 10, fontSize: 10, fontWeight: 700, color: "#a1a1aa", lineHeight: 1.4 }}>
+        {label}
+      </Heading>
+      <Heading level={2} style={{ padding: 10, fontSize: 28, fontWeight: 700, color: "#18181b", lineHeight: 1.2 }}>
+        {value}
+      </Heading>
+      <Paragraph style={{ padding: 10, fontSize: 12, color: noteColor, lineHeight: 1.4 }}>{note}</Paragraph>
+    </Column>
   );
 }
+
+/** Compact notification content, the same in every root, to showcase structural differences between modes */
+function ModePreviewContent() {
+  return (
+    <>
+      {/* Header */}
+      <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 28, 0] }}>
+        <Heading
+          level={4}
+          style={{ padding: 10, fontSize: 13, fontWeight: 700, color: "#18181b", lineHeight: 1, letterSpacing: "2px" }}
+        >
+          ACME
+        </Heading>
+      </Section>
+
+      {/* Accent bar */}
+      <Section style={{ backgroundColor: "#18181b" }}>
+        <Divider style={{ borderTop: "3px solid #18181b", padding: 10 }} />
+      </Section>
+
+      {/* Hero */}
+      <Section style={{ backgroundColor: "#ffffff", padding: [36, 0, 0, 0] }}>
+        <Heading style={{ padding: 10, fontSize: 22, fontWeight: 700, color: "#18181b", lineHeight: 1.25 }}>
+          Your monthly report is ready
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", lineHeight: 1.65 }}>
+          Hi Alex, here's a summary of your workspace activity for February 2026.
+        </Paragraph>
+      </Section>
+
+      {/* Stats — two columns */}
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Row>
+          <Stat label="DEPLOYMENTS" value="142" note="+18% from January" noteColor="#22c55e" />
+          <Stat label="UPTIME" value="99.98%" note="0 incidents this month" noteColor="#71717a" />
+        </Row>
+      </Section>
+
+      {/* CTA */}
+      <Section style={{ backgroundColor: "#ffffff", padding: [8, 0, 36, 0] }}>
+        {rule}
+        <Column style={{ padding: 10, alignItems: "center" }}>
+          <Button
+            href="#"
+            style={{
+              backgroundColor: "#18181b",
+              color: "#ffffff",
+              padding: "12px 24px",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            View Full Report
+          </Button>
+        </Column>
+      </Section>
+
+      {/* Footer */}
+      <Section style={{ padding: [16, 0, 24, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 11, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+          Acme Inc · San Francisco, CA
+        </Paragraph>
+      </Section>
+    </>
+  );
+}
+
+const screenStyle = { backgroundColor: "#f4f4f5", color: "#18181b", fontFamily: sansFont };
+
+/** The same content in each output's root: the root is what picks the output. */
+const previews: Record<Mode, ReactElement> = {
+  web: (
+    <Page width={500} style={screenStyle}>
+      <ModePreviewContent />
+    </Page>
+  ),
+  email: (
+    <Email width={500} style={screenStyle}>
+      <ModePreviewContent />
+    </Email>
+  ),
+  document: (
+    <Document size="A5" margin={30} style={{ ...screenStyle, backgroundColor: "#ffffff" }}>
+      <ModePreviewContent />
+    </Document>
+  ),
+};
 
 const modes: { id: Mode; label: string; description: string; icon: string; tag: string }[] = [
   {
@@ -224,14 +151,7 @@ const modes: { id: Mode; label: string; description: string; icon: string; tag: 
 export default function RenderModeDemo() {
   const [activeMode, setActiveMode] = useState<Mode>("email");
 
-  const html = useMemo(() => {
-    try {
-      const { head, body } = renderToHtmlParts(<ModePreviewTemplate mode={activeMode} />, { mode: activeMode });
-      return body;
-    } catch (e) {
-      return `<!-- Render error: ${e instanceof Error ? e.message : String(e)} -->`;
-    }
-  }, [activeMode]);
+  const { html } = useRender(previews[activeMode]);
 
   return (
     <section id="render-modes" className="py-28 px-4 md:px-8 relative overflow-hidden">
@@ -243,7 +163,7 @@ export default function RenderModeDemo() {
         <SectionHeader
           badge="Render Modes"
           title="One template, three outputs"
-          description="The same component tree renders differently depending on the target. Switch modes to see the HTML structure change."
+          description="The same content renders differently in each root. Switch modes to see the HTML structure change."
         />
 
         <div className="max-w-5xl mx-auto">

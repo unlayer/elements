@@ -1,57 +1,63 @@
-import { useMemo } from "react";
-import { renderToHtmlParts } from "@unlayer/react-elements";
+import type { ReactElement } from "react";
+import { useRender } from "../hooks/useRender";
 import { newsletterTemplate, type NewsletterOutput } from "../templates/NewsletterDigest";
 import SectionHeader from "../components/SectionHeader";
 import DeviceFrame from "../components/DeviceFrame";
 import CodeBlock from "../components/CodeBlock";
 
-const snippet = `// One tree, two outputs — only the wrapper changes.
-function newsletterTemplate(output: "email" | "web") {
-  const Wrapper = output === "web" ? Page : Email;
-  return (
-    <Wrapper backgroundColor="#f9f9f4" contentWidth="560px">
-      {/* ...masthead, featured article, article list, footer... */}
-    </Wrapper>
-  );
-}
+const snippet = `// One content, two outputs — only the root changes.
+const Newsletter = () => (
+  <>
+    {/* ...masthead, featured article, article list, footer... */}
+  </>
+);
 
-// Send this:
-const email = renderToHtml(newsletterTemplate("email")); // tables, Outlook-safe
-// Publish this at /archive/issue-47:
-const page = renderToHtml(newsletterTemplate("web"));    // div + flexbox`;
+const style = { backgroundColor: "#f9f9f4" };
 
-const outputs: { id: NewsletterOutput; wrapper: string; label: string; blurb: string }[] = [
+// Send this (tables, Outlook-safe):
+const email = await render(
+  <Email width={560} style={style}><Newsletter /></Email>
+);
+// Publish this at /archive/issue-47 (div + flexbox):
+const page = await render(
+  <Page width={560} style={style}><Newsletter /></Page>
+);`;
+
+const outputs: { id: NewsletterOutput; root: string; label: string; blurb: string; template: ReactElement }[] = [
   {
     id: "email",
-    wrapper: "Email",
+    root: "Email",
     label: "In the inbox",
     blurb: "Nested tables with inlined styles — what Outlook and Gmail need.",
+    template: newsletterTemplate("email"),
   },
   {
     id: "web",
-    wrapper: "Page",
+    root: "Page",
     label: "In the browser",
     blurb: "Semantic divs and flexbox — the archive page you link from “View in browser”.",
+    template: newsletterTemplate("web"),
   },
 ];
 
-export default function NewsletterArchiveDemo() {
-  const rendered = useMemo(
-    () =>
-      outputs.map((output) => {
-        try {
-          const { head, body } = renderToHtmlParts(newsletterTemplate(output.id), {
-            mode: output.id,
-          });
-          return { ...output, head, body };
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          return { ...output, head: "", body: `<!-- Render error: ${message} -->` };
-        }
-      }),
-    []
-  );
+function OutputPreview({ output }: { output: (typeof outputs)[number] }) {
+  const { html } = useRender(output.template);
 
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-baseline gap-3 px-1">
+        <code className="text-sm font-mono font-semibold text-accent">
+          {`<${output.root}>`}
+        </code>
+        <span className="text-sm font-medium text-text-primary">{output.label}</span>
+      </div>
+      <p className="text-xs text-text-tertiary px-1 leading-relaxed">{output.blurb}</p>
+      <DeviceFrame html={html} device="desktop" />
+    </div>
+  );
+}
+
+export default function NewsletterArchiveDemo() {
   return (
     <section id="newsletter-archive" className="py-28 px-4 md:px-8 relative overflow-hidden">
       {/* Background */}
@@ -62,22 +68,13 @@ export default function NewsletterArchiveDemo() {
         <SectionHeader
           badge="Email → Web"
           title="Send the email, publish the archive"
-          description="The Weekly Brief newsletter rendered twice from the exact same component tree. The rows, columns, and copy are identical — only the wrapper differs."
+          description="The Weekly Brief newsletter rendered twice from the same content component. The rows, columns, and copy are identical — only the root differs."
         />
 
         <div className="max-w-[1400px] mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {rendered.map((output) => (
-              <div key={output.id} className="flex flex-col gap-3">
-                <div className="flex items-baseline gap-3 px-1">
-                  <code className="text-sm font-mono font-semibold text-accent">
-                    {`<${output.wrapper}>`}
-                  </code>
-                  <span className="text-sm font-medium text-text-primary">{output.label}</span>
-                </div>
-                <p className="text-xs text-text-tertiary px-1 leading-relaxed">{output.blurb}</p>
-                <DeviceFrame html={output.body} device="desktop" headContent={output.head} />
-              </div>
+            {outputs.map((output) => (
+              <OutputPreview key={output.id} output={output} />
             ))}
           </div>
 

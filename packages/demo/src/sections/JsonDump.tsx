@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { renderToJson } from "@unlayer/react-elements";
+import { toDesign } from "@unlayer/react-elements/builder";
 import { templates } from "../templates";
 
 declare global {
@@ -18,11 +18,12 @@ export default function JsonDump() {
 
   const template = templates.find((t) => t.id === selected)!;
   let design: any = null;
+  let report: string[] = [];
   let json: string;
   let error: string | null = null;
 
   try {
-    design = renderToJson(template.component());
+    ({ design, report } = toDesign(template.component()));
     json = JSON.stringify(design, null, 2);
   } catch (e: any) {
     json = "";
@@ -70,7 +71,7 @@ export default function JsonDump() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto font-sans">
-      <h1 className="text-2xl font-bold mb-2 text-white">renderToJson Output</h1>
+      <h1 className="text-2xl font-bold mb-2 text-white">toDesign Output</h1>
       <p className="text-zinc-400 mb-6">
         Select a template, then load it into the embedded editor or copy the JSON.
       </p>
@@ -112,6 +113,14 @@ export default function JsonDump() {
           </span>
         )}
       </div>
+
+      {report.length > 0 && (
+        <ul className="mb-4 text-xs text-amber-400 list-disc pl-4">
+          {report.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
 
       <div className="grid grid-cols-2 gap-4" style={{ height: "70vh" }}>
         {/* Editor */}

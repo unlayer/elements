@@ -1,303 +1,226 @@
 import type { ReactElement } from "react";
 import {
-  Email,
-  Row,
-  Column,
-  Paragraph,
-  Heading,
   Button,
+  Column,
   Divider,
+  Email,
+  Heading,
   Image,
+  Paragraph,
+  Row,
+  Section,
   Table,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  TableCell,
+  TableRow,
+} from "@unlayer/react-elements/primitives";
 
-const sansFont = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+
+const tableHeaders = ["Item", "Qty", "Price"];
+const tableRows = [
+  ["Wireless Headphones Pro", "1", "$249.00"],
+  ["USB-C Charging Cable (2m)", "2", "$38.00"],
+  ["Leather Carrying Case", "1", "$59.00"],
+];
+const tableCell = { width: "33.33%", border: "1px solid #cccccc", verticalAlign: "middle" } as const;
 
 export default function OrderConfirmation(): ReactElement {
   return (
     <Email
-      backgroundColor="#f5f5f7"
-      textColor="#1d1d1f"
-      contentAlign="center"
-      contentWidth="560px"
-      fontFamily={sansFont}
+      width={560}
       previewText="Your order #A1029384 has been confirmed. Estimated delivery: Mar 8-10."
+      style={{ backgroundColor: "#f5f5f7", color: "#1d1d1f", fontFamily: sansFont }}
     >
       {/* Header with logo */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="36px 48px 36px 48px">
-        <Column>
+      <Section style={{ backgroundColor: "#ffffff", padding: [36, 0, 36, 0] }}>
+        <Column style={{ padding: 10, alignItems: "start" }}>
           <Image
-            src={{ url: "https://placehold.co/120x28/1d1d1f/ffffff?text=STORE", width: 120, height: 28 }}
-            altText="Store"
-            textAlign="left"
+            src={{
+              src: "https://placehold.co/120x28/1d1d1f/ffffff?text=STORE",
+              width: 120,
+              height: 28,
+            }}
+            alt="Store"
+            style={{ width: 120 }}
           />
         </Column>
-      </Row>
+      </Section>
 
       {/* Green accent bar */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#22c55e" padding="0px">
-        <Column>
-          <Divider
-            borderTopWidth="3px"
-            borderTopColor="#22c55e"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#22c55e" }}>
+        <Divider style={{ borderTop: "3px solid #22c55e", padding: 10 }} />
+      </Section>
 
       {/* Confirmation message */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="36px 48px 0px 48px">
-        <Column>
-          <Heading
-            text="Your order is confirmed."
-            headingType="h1"
-            fontSize="24px"
-            fontWeight={600}
-            color="#1d1d1f"
-            textAlign="left"
-            lineHeight="1.3"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Hi Alex, thanks for your purchase. We'll send you a shipping confirmation once your order is on its way."
-            fontSize="15px"
-            color="#6e6e73"
-            textAlign="left"
-            lineHeight="1.65"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [36, 0, 0, 0] }}>
+        <Heading
+          style={{ padding: 10, fontSize: 24, fontWeight: 600, color: "#1d1d1f", textAlign: "left", lineHeight: 1.3 }}
+        >
+          Your order is confirmed.
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 15, color: "#6e6e73", textAlign: "left", lineHeight: 1.65 }}>
+          Hi Alex, thanks for your purchase. We'll send you a shipping confirmation once your order
+          is on its way.
+        </Paragraph>
+      </Section>
 
       {/* Delivery estimate — highlight box */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Heading
-            text="ESTIMATED DELIVERY"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#86868b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Heading
-            text="March 8 – 10, 2026"
-            headingType="h2"
-            fontSize="20px"
-            fontWeight={600}
-            color="#1d1d1f"
-            textAlign="left"
-            lineHeight="1.3"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Heading
+          level={4}
+          style={{ padding: 10, fontSize: 10, fontWeight: 700, color: "#86868b", textAlign: "left", lineHeight: 1.4 }}
+        >
+          ESTIMATED DELIVERY
+        </Heading>
+        <Heading
+          level={2}
+          style={{ padding: 10, fontSize: 20, fontWeight: 600, color: "#1d1d1f", textAlign: "left", lineHeight: 1.3 }}
+        >
+          March 8 – 10, 2026
+        </Heading>
+      </Section>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="8px 48px 0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e5e5e7"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [8, 0, 0, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e5e5e7", padding: 10 }} />
+      </Section>
 
       {/* Order summary heading */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 48px 0px 48px">
-        <Column>
-          <Heading
-            text="ORDER SUMMARY"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#86868b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 0, 0] }}>
+        <Heading
+          level={4}
+          style={{ padding: 10, fontSize: 10, fontWeight: 700, color: "#86868b", textAlign: "left", lineHeight: 1.4 }}
+        >
+          ORDER SUMMARY
+        </Heading>
+      </Section>
 
       {/* Table */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Table
-            headers={["Item", "Qty", "Price"]}
-            data={[
-              ["Wireless Headphones Pro", "1", "$249.00"],
-              ["USB-C Charging Cable (2m)", "2", "$38.00"],
-              ["Leather Carrying Case", "1", "$59.00"],
-            ]}
-          />
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Column style={{ padding: 10 }}>
+          <Table style={{ fontSize: 14, lineHeight: 1.4, cellPadding: 10, borderCollapse: "collapse" }}>
+            <TableRow header style={{ backgroundColor: "#dddddd" }}>
+              {tableHeaders.map((text) => (
+                <TableCell key={text} style={tableCell}>
+                  {text}
+                </TableCell>
+              ))}
+            </TableRow>
+            {tableRows.map((row) => (
+              <TableRow key={row[0]}>
+                {row.map((text, i) => (
+                  <TableCell key={i} style={tableCell}>
+                    {text}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </Table>
         </Column>
-      </Row>
+      </Section>
 
       {/* Total */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#1d1d1f"
-            borderTopStyle="solid"
-          />
-          <Heading
-            text="$346.00"
-            headingType="h2"
-            fontSize="24px"
-            fontWeight={700}
-            color="#1d1d1f"
-            textAlign="right"
-            lineHeight="1.3"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Includes $27.68 tax · Free shipping"
-            fontSize="12px"
-            color="#86868b"
-            textAlign="right"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Divider style={{ borderTop: "1px solid #1d1d1f", padding: 10 }} />
+        <Heading
+          level={2}
+          style={{ padding: 10, fontSize: 24, fontWeight: 700, color: "#1d1d1f", textAlign: "right", lineHeight: 1.3 }}
+        >
+          $346.00
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "right", lineHeight: 1.4 }}>
+          Includes $27.68 tax · Free shipping
+        </Paragraph>
+      </Section>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e5e5e7"
-            borderTopStyle="solid"
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff" }}>
+        <Divider style={{ borderTop: "1px solid #e5e5e7", padding: 10 }} />
+      </Section>
 
       {/* Shipping & Order details — two columns */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 48px 0px 48px">
-        <Column>
-          <Heading
-            text="SHIPPING TO"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#86868b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Alex Johnson"
-            fontSize="14px"
-            color="#1d1d1f"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="123 Main Street"
-            fontSize="14px"
-            color="#6e6e73"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="San Francisco, CA 94103"
-            fontSize="14px"
-            color="#6e6e73"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-        <Column>
-          <Heading
-            text="ORDER DETAILS"
-            headingType="h4"
-            fontSize="10px"
-            fontWeight={700}
-            color="#86868b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Order #A1029384"
-            fontSize="14px"
-            color="#1d1d1f"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Placed on March 3, 2026"
-            fontSize="14px"
-            color="#6e6e73"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Visa ending in 4242"
-            fontSize="14px"
-            color="#6e6e73"
-            textAlign="left"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 0, 0] }}>
+        <Row>
+          <Column style={{ width: "50%" }}>
+            <Heading
+              level={4}
+              style={{
+                padding: 10,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#86868b",
+                textAlign: "left",
+                lineHeight: 1.4,
+              }}
+            >
+              SHIPPING TO
+            </Heading>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
+              Alex Johnson
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+              123 Main Street
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+              San Francisco, CA 94103
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%" }}>
+            <Heading
+              level={4}
+              style={{
+                padding: 10,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#86868b",
+                textAlign: "left",
+                lineHeight: 1.4,
+              }}
+            >
+              ORDER DETAILS
+            </Heading>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
+              Order #A1029384
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+              Placed on March 3, 2026
+            </Paragraph>
+            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+              Visa ending in 4242
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="8px 48px 40px 48px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e5e5e7"
-            borderTopStyle="solid"
-          />
+      <Section style={{ backgroundColor: "#ffffff", padding: [8, 0, 40, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e5e5e7", padding: 10 }} />
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
-            text="Track Your Order"
-            buttonColors={{ backgroundColor: "#0071e3", color: "#ffffff" }}
-            padding="14px 32px"
-            borderRadius="8px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
+            href="#"
+            style={{
+              backgroundColor: "#0071e3",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "14px 32px",
+              borderRadius: 8,
+            }}
+          >
+            Track Your Order
+          </Button>
         </Column>
-      </Row>
+      </Section>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 48px 32px 48px">
-        <Column>
-          <Paragraph
-            html="Questions? Contact us at support@store.com"
-            fontSize="12px"
-            color="#86868b"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="Store Inc · 1 Infinite Loop, Cupertino, CA"
-            fontSize="12px"
-            color="#86868b"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [20, 0, 32, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
+          Questions? Contact us at support@store.com
+        </Paragraph>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
+          Store Inc · 1 Infinite Loop, Cupertino, CA
+        </Paragraph>
+      </Section>
     </Email>
   );
 }

@@ -1,121 +1,89 @@
 import type { ReactElement } from "react";
 import {
-  Email,
-  Row,
-  Column,
-  Paragraph,
-  Heading,
   Button,
+  Column,
   Divider,
-  ColumnLayouts,
-} from "@unlayer/react-elements";
+  Email,
+  Heading,
+  Paragraph,
+  Section,
+  Span,
+} from "@unlayer/react-elements/primitives";
 
-const sansFont = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 
 export default function PasswordReset(): ReactElement {
   return (
     <Email
-      backgroundColor="#f4f4f5"
-      textColor="#18181b"
-      contentAlign="center"
-      contentWidth="480px"
-      fontFamily={sansFont}
+      width={480}
       previewText="Reset your Vault password. This link expires in 60 minutes."
+      style={{ backgroundColor: "#f4f4f5", color: "#18181b", fontFamily: sansFont }}
     >
       {/* Logo */}
-      <Row layout={ColumnLayouts.OneColumn} padding="40px 40px 24px 40px">
-        <Column>
-          <Heading
-            text="vault"
-            headingType="h4"
-            fontSize="16px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="center"
-            lineHeight="1"
-            letterSpacing="1px"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [40, 0, 24, 0] }}>
+        <Heading
+          level={4}
+          style={{
+            padding: 10,
+            fontSize: 16,
+            fontWeight: 700,
+            color: "#18181b",
+            textAlign: "center",
+            lineHeight: 1,
+            letterSpacing: "1px",
+          }}
+        >
+          vault
+        </Heading>
+      </Section>
 
       {/* Card */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="40px 40px 0px 40px">
-        <Column>
-          <Heading
-            text="Reset your password"
-            headingType="h1"
-            fontSize="22px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="center"
-            lineHeight="1.3"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="We received a request to reset the password for the account associated with <b>user@example.com</b>. Click the button below to choose a new password."
-            fontSize="14px"
-            color="#71717a"
-            textAlign="center"
-            lineHeight="1.7"
-            fontFamily={sansFont}
-          />
+      <Section style={{ backgroundColor: "#ffffff", padding: [40, 0, 0, 0] }}>
+        <Heading
+          style={{ padding: 10, fontSize: 22, fontWeight: 700, color: "#18181b", textAlign: "center", lineHeight: 1.3 }}
+        >
+          Reset your password
+        </Heading>
+        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.7 }}>
+          {"We received a request to reset the password for the account associated with "}
+          <Span style={{ fontWeight: 700 }}>user@example.com</Span>. Click the button below to
+          choose a new password.
+        </Paragraph>
+        <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
-            text="Reset Password"
-            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
-            padding="14px 32px"
-            borderRadius="8px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="center"
-            fontFamily={sansFont}
-          />
-          <Paragraph
-            html="This link expires in 60 minutes."
-            fontSize="12px"
-            color="#a1a1aa"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
+            href="#"
+            style={{
+              backgroundColor: "#18181b",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "14px 32px",
+              borderRadius: 8,
+            }}
+          >
+            Reset Password
+          </Button>
         </Column>
-      </Row>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+          This link expires in 60 minutes.
+        </Paragraph>
+      </Section>
 
       {/* Safety note */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 40px 40px">
-        <Column>
-          <Divider
-            borderTopWidth="1px"
-            borderTopColor="#e4e4e7"
-            borderTopStyle="solid"
-          />
-          <Paragraph
-            html="If you didn't request this, you can safely ignore this email. Your password won't change unless you click the button above."
-            fontSize="13px"
-            color="#a1a1aa"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 40, 0] }}>
+        <Divider style={{ borderTop: "1px solid #e4e4e7", padding: 10 }} />
+        <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+          If you didn't request this, you can safely ignore this email. Your password won't change
+          unless you click the button above.
+        </Paragraph>
+      </Section>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
-        <Column>
-          <Paragraph
-            html="Vault Inc · San Francisco, CA"
-            fontSize="12px"
-            color="#a1a1aa"
-            textAlign="center"
-            lineHeight="1.5"
-            fontFamily={sansFont}
-          />
-        </Column>
-      </Row>
+      <Section style={{ padding: [20, 0, 40, 0] }}>
+        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+          Vault Inc · San Francisco, CA
+        </Paragraph>
+      </Section>
     </Email>
   );
 }

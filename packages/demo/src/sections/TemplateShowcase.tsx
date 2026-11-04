@@ -35,7 +35,7 @@ export default function TemplateShowcase() {
   const [selectedId, setSelectedId] = useState(templates[0].id);
   const [activeTab, setActiveTab] = useState<ViewTab>("preview");
   const [device, setDevice] = useState<Device>("desktop");
-  const { head, html, plainText, sourceCode } = useRenderTemplate(selectedId);
+  const { html, plainText, sourceCode } = useRenderTemplate(selectedId);
 
   const selected = templates.find((t) => t.id === selectedId)!;
 
@@ -184,7 +184,7 @@ export default function TemplateShowcase() {
                 {/* Content area */}
                 <div className="flex-1 p-5 overflow-auto bg-surface-0/20">
                   {activeTab === "preview" && (
-                    <DeviceFrame html={html} device={device} headContent={head} />
+                    <DeviceFrame html={html} device={device} />
                   )}
 
                   {activeTab === "code" && (
