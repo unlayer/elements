@@ -7,7 +7,7 @@ import { h, NotOutlook } from "../jsx";
 import { px } from "../shared/css";
 import type { Component } from "./context";
 import { Stack } from "./layout";
-import { bgcolor, compatPicture, Table } from "./markup";
+import { bgcolor, compatPicture, OutlookWidth, Table } from "./markup";
 import { hiding } from "./styles";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
@@ -31,18 +31,20 @@ export const Section: Component = ({ node, style, mobile, parent: root, render }
         style={{ paddingTop: padding.top || undefined, paddingBottom: padding.bottom || undefined, backgroundColor: style.backgroundColor, ...picture?.style, border: style.border }}
       >
         {picture?.open}
-        {padding.left || padding.right ? (
-          // The side padding on a cell around the content.
-          <Table width="100%" style={{ maxWidth: width }}>
-            <tr>
-              <td style={{ padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` }}>
-                <Stack node={node} render={render} />
-              </td>
-            </tr>
-          </Table>
-        ) : (
-          <Stack node={node} render={render} style={{ maxWidth: width }} />
-        )}
+        <OutlookWidth width={width}>
+          {padding.left || padding.right ? (
+            // The side padding on a cell around the content.
+            <Table width="100%" style={{ maxWidth: width }}>
+              <tr>
+                <td style={{ padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` }}>
+                  <Stack node={node} render={render} />
+                </td>
+              </tr>
+            </Table>
+          ) : (
+            <Stack node={node} render={render} style={{ maxWidth: width }} />
+          )}
+        </OutlookWidth>
         {picture?.close}
       </td>
     </tr>

@@ -2,7 +2,7 @@
 import { h, raw } from "../jsx";
 import type { Component } from "./context";
 import { phoneWidth, TEXT_ALIGN } from "./layout";
-import { Table } from "./markup";
+import { ownBorders, Table } from "./markup";
 
 export const Divider: Component = ({ node, style, mobile, fill }) => {
   // In a Row its column is already its width: the line fills it.
@@ -12,7 +12,7 @@ export const Divider: Component = ({ node, style, mobile, fill }) => {
   const align = TEXT_ALIGN[node.text.textAlign];
 
   const line = (
-    <Table id={padded ? undefined : node.id} aria-label={node.compat?.ariaLabel as string | undefined} width={percent ? length : "100%"} phone={phoneWidth(mobile.width)} style={{ maxWidth: percent ? undefined : length }}>
+    <Table id={padded ? undefined : node.id} aria-label={node.compat?.ariaLabel as string | undefined} width={percent ? length : "100%"} phone={phoneWidth(mobile.width)} style={{ maxWidth: percent ? undefined : length, borderCollapse: ownBorders(style) }}>
       <tr>
         <td style={{ borderTop: style.borderTop, fontSize: 0, lineHeight: 0, msoLineHeightRule: "exactly" }}>{raw("&nbsp;")}</td>
       </tr>

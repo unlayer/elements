@@ -21,7 +21,7 @@ export const Table: Component = ({ node, style, fill, render }) => {
   const [body, footer] = foot < 0 ? [rest, []] : [rest.slice(0, foot), rest.slice(foot)];
   return (
     <Box node={node} fill={fill}>
-      <table cellpadding={TABLE.cellpadding} cellspacing={TABLE.cellspacing} border={TABLE.border} width="100%" style={{ tableLayout: "fixed", borderCollapse: style.borderCollapse }}>
+      <table cellpadding={TABLE.cellpadding} cellspacing={TABLE.cellspacing} border={TABLE.border} width="100%" style={{ tableLayout: "fixed", borderCollapse: style.borderCollapse ?? "separate" }}>
         <colgroup>
           {columns.map((width) => (
             <col width={width} style={{ width: share(width, total) }} />

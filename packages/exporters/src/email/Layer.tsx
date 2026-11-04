@@ -9,7 +9,7 @@ import { assetParts, type Asset } from "@unlayer-internal/elements-core";
 import { h, NotOutlook, raw } from "../jsx";
 import type { Component } from "./context";
 import { boxWidth, layerShape, phoneWidth, VALIGN } from "./layout";
-import { bgcolor, pictureCell, Table } from "./markup";
+import { bgcolor, ownBorders, pictureCell, Table } from "./markup";
 import { hiding } from "./styles";
 
 const ALIGN: Record<string, string | undefined> = { start: "left", center: "center", end: "right", stretch: undefined };
@@ -27,7 +27,7 @@ export const Layer: Component = ({ node, style, mobile, fill, render }) => {
   const phoneless = !!base.hidden?.mobile;
   const picture = pictureCell(src, { width, height, color: background, alt, repeat: "no-repeat", position: "center", size: "cover" });
   return (
-    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={box.width} style={{ maxWidth: box.maxWidth }}>
+    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={box.width} style={{ maxWidth: box.maxWidth, borderCollapse: ownBorders(style, mobile) }}>
       <tr>
         <td
           background={picture.background}

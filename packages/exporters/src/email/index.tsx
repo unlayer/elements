@@ -170,13 +170,14 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   const preview = typeof root.props.previewText === "string" && root.props.previewText ? root.props.previewText : undefined;
 
   const resets =
-    "table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}img{-ms-interpolation-mode:bicubic}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}";
+    "table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse}img{-ms-interpolation-mode:bicubic}a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important}";
   const phoneQuery = `@media (max-width: ${width + EMAIL_PHONE_MARGIN}px)`;
   const stylesheet = resets + sheet.css(phoneQuery, `@media (min-width: ${width + EMAIL_PHONE_MARGIN + 1}px)`, options.hideBelow ? `@media (max-width: ${options.hideBelow}px)` : phoneQuery);
   const head = [
     '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="x-apple-disable-message-reformatting">',
+    '<!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->',
     '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">',
     '<meta name="color-scheme" content="light">',
     '<meta name="supported-color-schemes" content="light">',
@@ -199,14 +200,16 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   const body =
     preheader +
     `<div${attrs({ role: "article", "aria-roledescription": "email", "aria-label": title, lang, dir })}${styleAttr([["background-color", background], ["overflow-wrap", "break-word"], ["word-break", "break-word"]])}>${email}</div>`;
-  const bodyStyle = css([
+  const bodyDeclarations: Array<[string, string | undefined]> = [
     ["margin", "0"],
     ["padding", "0"],
+    ["-webkit-text-size-adjust", "100%"],
     ["background-color", background],
-  ]);
+  ];
+  const bodyStyle = css(bodyDeclarations);
   const html =
-    `<!DOCTYPE html><html${attrs({ lang, dir, xmlns: "http://www.w3.org/1999/xhtml", "xmlns:o": "urn:schemas-microsoft-com:office:office" })}>` +
-    `<head>${head}</head><body${styleAttr([["margin", "0"], ["padding", "0"], ["background-color", background]])}>${body}</body></html>`;
+    `<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html${attrs({ lang, dir, xmlns: "http://www.w3.org/1999/xhtml", "xmlns:v": "urn:schemas-microsoft-com:vml", "xmlns:o": "urn:schemas-microsoft-com:office:office" })}>` +
+    `<head>${head}</head><body${styleAttr(bodyDeclarations)}>${body}</body></html>`;
 
   const bytes = utf8Bytes(html);
   if (bytes > GMAIL_CLIP_BYTES) {

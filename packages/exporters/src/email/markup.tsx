@@ -1,6 +1,6 @@
 /** Email markup: layout tables, and colors as Word reads them. */
 import type { Json } from "@unlayer-internal/elements-core";
-import { close, h, open, Outlook, type Child, type Html, type Style, type StyleValue } from "../jsx";
+import { close, Fragment, h, open, Outlook, type Child, type Html, type Style, type StyleValue } from "../jsx";
 
 /** What every layout table has: no role for screen readers, no spacing, no border. */
 export const TABLE = { role: "presentation", cellpadding: "0", cellspacing: "0", border: "0" };
@@ -13,6 +13,31 @@ export function Table({ children, style, ...attributes }: TableProps) {
     <table id={attributes.id} {...TABLE} {...attributes} style={style}>
       {children}
     </table>
+  );
+}
+
+/**
+ * What a table is whose cell has a border or corners of its own: its borders apart, as the stylesheet's
+ * `border-collapse` (the editor's, against gaps between cells in Word) would square off its corners and move its border.
+ */
+export const ownBorders = (...styles: Array<Record<string, unknown> | undefined>) => (styles.some((style) => style?.border !== undefined || style?.borderTop !== undefined || style?.borderRadius !== undefined) ? "separate" : undefined);
+
+/** The content's width for classic Outlook, in a table of that width around it, as the editor's email has it. */
+export function OutlookWidth({ width, children }: { width: number; children?: Child }) {
+  return (
+    <>
+      <Outlook>
+        {open(<table {...TABLE} width={width} align="center" />)}
+        {open(<tr />)}
+        {open(<td />)}
+      </Outlook>
+      {children}
+      <Outlook>
+        {close("td")}
+        {close("tr")}
+        {close("table")}
+      </Outlook>
+    </>
   );
 }
 

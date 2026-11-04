@@ -17,7 +17,7 @@
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
 import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, toNumber, valignOf } from "./layout";
-import { bgcolor, compatPicture, Table, TABLE } from "./markup";
+import { bgcolor, compatPicture, ownBorders, Table, TABLE } from "./markup";
 import { gapCell, spacer } from "./spacers";
 import { hiding } from "./styles";
 import { fontFamily } from "../shared/css";
@@ -34,7 +34,7 @@ export const Row: Component = (props) => {
   const stretched = !!node.compat?.stretch;
   const picture = compatPicture(node.compat, node.width ?? 600);
   return (
-    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
+    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth, borderCollapse: ownBorders(style, mobile) }}>
       <tr>
         <td
           // On phones the children take the whole width, one under another (inline-blocks of 100%: each on a line of its own).
@@ -79,7 +79,7 @@ function boxedCells(props: Props, stacks: boolean): Html {
   const valign = valignOf(props);
   const stack = stacks ? rule("phone", "&{display:block!important;width:100%!important;min-width:0!important}", "layout") : undefined;
   return (
-    <Table width="100%">
+    <Table width="100%" style={{ borderCollapse: ownBorders(...node.children.filter(isNode).map((child) => child.style)) }}>
       <tr>
         {node.children
           .filter(isNode)

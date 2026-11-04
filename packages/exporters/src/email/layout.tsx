@@ -8,7 +8,7 @@ import { assetParts, toPx, type Asset, type Json, type ResolvedNode } from "@unl
 import { h, NotOutlook, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
 import { isNode, shown, type Props } from "./context";
-import { bgcolor, Table } from "./markup";
+import { bgcolor, ownBorders, Table } from "./markup";
 import { hiding } from "./styles";
 import { gapsAfter, type GapAt } from "../shared/gaps";
 
@@ -87,7 +87,7 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
   const width = boxWidth(node, fill);
   const height = style.height !== undefined ? toNumber(style.height) : undefined;
   return (
-    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
+    <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth, borderCollapse: ownBorders(style, mobile) }}>
       <tr>
         <td
           class={node.compat?.className as string | undefined}

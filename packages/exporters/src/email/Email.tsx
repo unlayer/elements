@@ -8,7 +8,7 @@ import { Fragment, h, importedCss } from "../jsx";
 import { gapsBefore, gapShown, runHidden } from "../shared/gaps";
 import { isNode, shown, type Component } from "./context";
 import { Stack } from "./layout";
-import { bgcolor, Table } from "./markup";
+import { bgcolor, OutlookWidth, ownBorders, Table } from "./markup";
 import { spacerRow } from "./spacers";
 
 export const Email: Component = ({ node: root, style, mobile, render }) => {
@@ -30,14 +30,16 @@ export const Email: Component = ({ node: root, style, mobile, render }) => {
   const gaps = gapsBefore(parts.map((part) => ({ hidden: Array.isArray(part) ? runHidden(part) : part.hidden })));
 
   return (
-    <Table width="100%" bgcolor={bgcolor(style.backgroundColor)} style={{ backgroundColor: style.backgroundColor }}>
+    <Table width="100%" bgcolor={bgcolor(style.backgroundColor)} style={{ backgroundColor: style.backgroundColor, borderCollapse: ownBorders(...parts.flatMap((part) => (Array.isArray(part) ? [] : [part.style, part.mobile]))) }}>
       {parts.map((part, index) => (
         <>
           {spacerRow(gapShown(gaps[index], gap, phoneGap), gap, phoneGap)}
           {Array.isArray(part) ? (
             <tr>
               <td align="center">
-                <Stack node={{ ...root, children: part }} render={render} style={{ maxWidth: width }} />
+                <OutlookWidth width={width}>
+                  <Stack node={{ ...root, children: part }} render={render} style={{ maxWidth: width }} />
+                </OutlookWidth>
               </td>
             </tr>
           ) : (

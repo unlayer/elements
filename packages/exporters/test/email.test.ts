@@ -4,6 +4,10 @@ import { renderTemplate } from "../src";
 const email = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Email", props: { width: 600 }, children, ...extra } });
 const render = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
 
+/** Classic Outlook's table of the content's width, around each run of content. */
+const OUTLOOK_WIDTH = (width = 600) => `<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${width}" align="center"><tr><td><![endif]-->`;
+const OUTLOOK_WIDTH_END = "<!--[if mso]></td></tr></table><![endif]-->";
+
 /** What's inside Outlook's conditional comments, and the HTML everyone else reads. */
 const outlookOnly = (html: string) => [...html.matchAll(/<!--\[if mso\]>([\s\S]*?)<!\[endif\]-->/g)].map((m) => m[1]).join("");
 const notOutlook = (html: string) => html.replace(/<!--\[if mso\]>[\s\S]*?<!\[endif\]-->/g, "");
@@ -13,11 +17,13 @@ describe("email HTML", () => {
     const { html, head, body, bodyStyle } = render(
       email([{ type: "Text", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", previewText: "Your <order>" }, style: { backgroundColor: "#eeeeee" } })
     );
-    expect(html.startsWith('<!DOCTYPE html><html lang="ar" dir="rtl" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office"><head>')).toBe(true);
+    expect(html.startsWith('<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html lang="ar" dir="rtl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head>')).toBe(true);
     expect(head).toContain("<o:PixelsPerInch>96</o:PixelsPerInch>");
     expect(head).toContain('<meta name="x-apple-disable-message-reformatting">');
+    expect(head).toContain('<!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->');
+    expect(head).toContain("table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse}");
     expect(head).toContain("<title>A &amp; B</title>");
-    expect(bodyStyle).toBe("margin:0;padding:0;background-color:#eee");
+    expect(bodyStyle).toBe("margin:0;padding:0;-webkit-text-size-adjust:100%;background-color:#eee");
     expect(body.startsWith('<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">Your &lt;order&gt;&#847;')).toBe(true);
     expect(body).toContain('<div role="article" aria-roledescription="email" aria-label="A &amp; B" lang="ar" dir="rtl" style="background-color:#eee;overflow-wrap:break-word;word-break:break-word">');
     expect(body).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#eeeeee" style="background-color:#eee">');
@@ -34,16 +40,17 @@ describe("email HTML", () => {
       )
     );
     expect(body).toContain(
-      '<td align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px">' +
+      `<td align="center">${OUTLOOK_WIDTH()}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px">` +
         '<tr><td style="padding-bottom:16px"><h2 style="margin:0;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:24px;font-weight:700;line-height:30px;mso-line-height-rule:exactly;text-align:left">Welcome</h2></td></tr>' +
-        '<tr><td><p style="margin:0;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:21px;mso-line-height-rule:exactly;text-align:left">Hello</p></td></tr></table></td>'
+        '<tr><td><p style="margin:0;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:21px;mso-line-height-rule:exactly;text-align:left">Hello</p></td></tr></table>' +
+        `${OUTLOOK_WIDTH_END}</td>`
     );
   });
 
   it("puts a box (padding, background, border, a width) on a table around its content, as Word has none on divs and paragraphs", () => {
     const { body, diagnostics } = render(email([{ type: "Paragraph", style: { padding: [8, 12], backgroundColor: "#ffeecc", maxWidth: 300, borderRadius: 6 }, children: ["Boxed"] }]));
     expect(body).toContain(
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:300px"><tr><td bgcolor="#ffeecc" style="padding:8px 12px;background-color:#fec;border-radius:6px"><p style="margin:0;'
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:300px;border-collapse:separate"><tr><td bgcolor="#ffeecc" style="padding:8px 12px;background-color:#fec;border-radius:6px"><p style="margin:0;'
     );
     expect(diagnostics.map((d) => d.code)).toEqual(["email/outlook-degraded"]);
   });
@@ -65,10 +72,11 @@ describe("email HTML", () => {
     );
     // 600 less two 20px gaps: 240 for 40%, then 80 for the image, 240 left for the flex child.
     expect(outlookOnly(body)).toBe(
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="240" valign="middle" style="width:240px">' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td>' +
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="240" valign="middle" style="width:240px">' +
         '</td><td width="20" style="width:20px"></td><td width="240" valign="middle" style="width:240px">' +
         '</td><td width="20" style="width:20px"></td><td width="80" valign="middle" style="width:80px">' +
-        "</td></tr></table>"
+        "</td></tr></table></td></tr></table>"
     );
     const others = notOutlook(body);
     expect(others.match(/<div style="display:inline-block;vertical-align:middle;width:100%;max-width:(\d+)px;font-size:16px">/g)).toHaveLength(3);
@@ -92,7 +100,7 @@ describe("email HTML", () => {
     expect(head).toContain(`.${first}{width:50%!important;padding-right:5px!important;box-sizing:border-box!important}`);
     expect(head).toContain(`.${second}{width:50%!important;padding-left:5px!important;box-sizing:border-box!important}`);
     expect(head).toContain(`.${gap}{display:none!important}`);
-    expect(body).not.toContain("[if mso]");
+    expect(outlookOnly(body)).toBe('<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center"><tr><td></td></tr></table>');
   });
 
   it("writes a button as a table: its colors on the cell, its padding on the link and as Outlook's cell padding", () => {
@@ -103,14 +111,14 @@ describe("email HTML", () => {
       ])
     );
     expect(body).toMatch(
-      /<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#0879a1" class="(e[0-9a-z]{5})" style="background-color:#0879a1;border-radius:4px;mso-padding-alt:10px 20px"><a href="https:\/\/example.com" class="(e[0-9a-z]{5})" style="display:inline-block;padding:10px 20px;color:#fff;font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:16.8px;mso-line-height-rule:exactly;text-align:center;text-decoration:none;border-radius:4px">Go<\/a><\/td><\/tr><\/table>/
+      /<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td align="center" bgcolor="#0879a1" class="(e[0-9a-z]{5})" style="background-color:#0879a1;border-radius:4px;mso-padding-alt:10px 20px"><a href="https:\/\/example.com" class="(e[0-9a-z]{5})" style="display:inline-block;padding:10px 20px;color:#fff;font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:16.8px;mso-line-height-rule:exactly;text-align:center;text-decoration:none;border-radius:4px">Go<\/a><\/td><\/tr><\/table>/
     );
     // Hover changes the background where it's set (the cell) and the text's color where it's set (the link).
     const [, cell, link] = /<td align="center" bgcolor="#0879a1" class="(e[0-9a-z]{5})"[^>]*><a href="https:\/\/example.com" class="(e[0-9a-z]{5})"/.exec(body)!;
     expect(head).toContain(`.${cell}:hover{background-color:#000!important}`);
     expect(head).toContain(`.${link}:hover{color:#fff!important}`);
     // A button with a width fills it: a 200px table (Word's width), its link a block.
-    expect(body).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:200px"><tr><td align="center"');
+    expect(body).toContain('<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:200px;border-collapse:separate"><tr><td align="center"');
     expect(body).toContain('style="display:block;padding:10px 20px;');
     expect(body).not.toContain("v:roundrect");
   });
@@ -137,7 +145,7 @@ describe("email HTML", () => {
 
   it("centers content with its own size by the stack's align, else its text alignment", () => {
     const at = (style: Record<string, unknown>) =>
-      render(email([{ type: "Column", style, children: [{ type: "Button", props: { href: "#" }, children: ["Go"] }] }])).body.match(/<tr><td( align="[a-z]+")?><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor/)?.[1];
+      render(email([{ type: "Column", style, children: [{ type: "Button", props: { href: "#" }, children: ["Go"] }] }])).body.match(/<tr><td( align="[a-z]+")?><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td align="center" bgcolor/)?.[1];
     expect(at({})).toBeUndefined();
     expect(at({ textAlign: "center" })).toBe(' align="center"');
     expect(at({ alignItems: "end", textAlign: "center" })).toBe(' align="right"');
@@ -148,7 +156,7 @@ describe("email HTML", () => {
       email([{ type: "Section", style: { backgroundColor: "#111111", padding: [24, 16] }, children: [{ type: "Text", children: ["a"] }] }, { type: "Text", children: ["b"] }], { style: { gap: 10 } })
     );
     expect(body).toContain(
-      '<tr><td align="center" bgcolor="#111111" style="padding-top:24px;padding-bottom:24px;background-color:#111"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px"><tr><td style="padding:0 16px 0 16px">'
+      `<tr><td align="center" bgcolor="#111111" style="padding-top:24px;padding-bottom:24px;background-color:#111">${OUTLOOK_WIDTH()}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px"><tr><td style="padding:0 16px 0 16px">`
     );
     expect(body).toContain('</td></tr><tr><td style="font-size:0;line-height:10px;mso-line-height-rule:exactly">&nbsp;</td></tr><tr><td align="center">');
   });
@@ -156,7 +164,7 @@ describe("email HTML", () => {
   it("writes a divider as a bordered table Word can't make taller", () => {
     const { body } = render(email([{ type: "Divider", style: { width: "50%" } }], { style: { textAlign: "center" } }));
     expect(body).toContain(
-      '<td align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="50%"><tr><td style="border-top:1px solid #bbb;font-size:0;line-height:0;mso-line-height-rule:exactly">&nbsp;</td></tr></table></td>'
+      '<td align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="50%" style="border-collapse:separate"><tr><td style="border-top:1px solid #bbb;font-size:0;line-height:0;mso-line-height-rule:exactly">&nbsp;</td></tr></table></td>'
     );
   });
 
@@ -548,7 +556,7 @@ describe("email HTML", () => {
         },
       ])
     );
-    expect(body).toContain('<table cellpadding="0" cellspacing="0" border="0" width="100%" style="table-layout:fixed"><colgroup><col width="360" style="width:60%"><col width="240" style="width:40%"></colgroup><thead><tr>');
+    expect(body).toContain('<table cellpadding="0" cellspacing="0" border="0" width="100%" style="table-layout:fixed;border-collapse:separate"><colgroup><col width="360" style="width:60%"><col width="240" style="width:40%"></colgroup><thead><tr>');
     expect(body).toContain('<th scope="col" width="360" valign="top" style="color:#000;font-family:Arial, Helvetica, sans-serif;font-size:16px;font-weight:700;');
     expect(body).toContain("width:60%;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #eee\">Item</th>");
     expect(body).toContain('</thead><tbody><tr bgcolor="#fafafa" style="background-color:#fafafa"><td width="360" valign="top" style="color:#000;');
