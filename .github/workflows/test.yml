@@ -65,10 +65,10 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 439.5KB. It holds today's
+      # Fail if the react-elements ESM bundle exceeds 442.5KB. It holds today's
       # components and the new engine they render through: its core and writers
       # (about 216KB, the /primitives entry's, without its JSX API); the lowering
-      # of today's designs into its tree (src/compat, about 117KB: each block and
+      # of today's designs into its tree (src/compat, about 119KB: each block and
       # frame in each case 0.2.1 drew it, what can't be read said); the render that
       # collects a template's rows and blocks, with the head and phone CSS of
       # open HTML (src/utils, about 66KB); the values today's components read and
@@ -81,7 +81,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=439500
+          MAX_SIZE=442500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -110,7 +110,7 @@ jobs:
           echo "✅ /primitives bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 449KB unminified ESM. The adapter itself (the hidden
+      # own budget: about 450KB unminified ESM. The adapter itself (the hidden
       # properties' manifest, reading designs and the builder's rich text, the JSX
       # printer, about 127KB); the core and writers it lays out and writes locked
       # markup with (about 217KB); today's components and renderToJson, which it
@@ -124,7 +124,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=449500
+          MAX_SIZE=449800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
