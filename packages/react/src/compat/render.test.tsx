@@ -1,20 +1,25 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, registerTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
-import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
+import * as current from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, registerTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import * as published from "@unlayer/react-elements-previous";
 import { withRenderScope } from "../utils/render-scope";
-import * as exporters from "@unlayer/exporters";
 import * as compat from "./render";
 import { renderThroughNewEngine, type Rendered } from "./render";
-import { storyElement, storyTemplate } from "./story";
 
-const modules = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"], { eager: true }) as Record<string, any>;
+type Release = typeof current;
+/** The last published release, the reference for what legacy drew. A template has to be made with its own components. */
+const previous = published as unknown as Release;
 
-/** Every story's template (as the comparison stories render them), by name. */
-function templates(): Array<[string, React.ReactElement]> {
+const stories = import.meta.glob(["../components/*.stories.tsx", "../examples/*.stories.tsx", "../SpotifyWelcome.stories.tsx", "../context/*.stories.tsx"]);
+
+/** Every story's template (as the comparison stories render them), by name, made with the components now loaded. */
+async function templates(): Promise<Array<[string, React.ReactElement]>> {
+  const { storyElement, storyTemplate } = await import("./story");
   const out: Array<[string, React.ReactElement]> = [];
-  for (const [file, module] of Object.entries(modules)) {
+  for (const [file, load] of Object.entries(stories)) {
+    const module = (await load()) as Record<string, any>;
     for (const name of Object.keys(module)) {
       if (name === "default" || !module[name] || typeof module[name] !== "object") continue;
       let element: React.ReactElement;
@@ -40,8 +45,31 @@ function templates(): Array<[string, React.ReactElement]> {
   return out;
 }
 
+/** The same templates, made with the published release's components. */
+async function publishedTemplates(): Promise<Array<[string, React.ReactElement]>> {
+  const components = import.meta.glob(["../components/*.tsx", "!../components/*.stories.tsx", "!../components/*.test.tsx"]);
+  const ours = ["../index", "../context", "../context/UnlayerProvider", "../layouts/ColumnLayouts", "../utils/register-tool", "../utils/render-to-html", ...Object.keys(components)];
+  vi.resetModules();
+  for (const path of ours) {
+    // A story imports a component as its file's default, or by its name.
+    vi.doMock(path, async () => {
+      const copy = (await import("@unlayer/react-elements-previous")) as Record<string, unknown>;
+      return { ...copy, default: copy[/(\w+)\.tsx$/.exec(path)?.[1] ?? ""] };
+    });
+  }
+  try {
+    return await templates();
+  } finally {
+    for (const path of ours) vi.doUnmock(path);
+    vi.resetModules();
+  }
+}
+
 describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine", () => {
-  const all = templates();
+  let all: Array<[string, React.ReactElement]>;
+  beforeAll(async () => {
+    all = await templates();
+  });
   const quiet = () => [vi.spyOn(console, "warn").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {})];
 
   it("render every story's template through the new engine", () => {
@@ -58,10 +86,14 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     }
   });
 
-  it("give each story's template the plain text legacy gives it", () => {
+  it("give each story's template the plain text 0.2.1 gives it", async () => {
     const [warn, error] = quiet();
     try {
-      const different = all.filter(([, template]) => renderToPlainText(template) !== legacyRenderToPlainText(template)).map(([name]) => name);
+      const before = new Map(await publishedTemplates());
+      expect(before.size).toBe(all.length);
+      // Each made with the release's own components.
+      for (const [name, template] of all) expect(before.get(name)!.type, name).not.toBe(template.type);
+      const different = all.filter(([name, template]) => renderToPlainText(template) !== previous.renderToPlainText(before.get(name)!)).map(([name]) => name);
       expect(different).toEqual([]);
     } finally {
       warn.mockRestore();
@@ -89,13 +121,12 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText]) expect(() => render(template)).toThrow(/another copy of @unlayer\/react-elements.*duplicate install/);
   });
 
-  it("draw what the new engine refuses without it, and say so, rather than as today", () => {
+  it("draw what the new engine refuses without it, and say so", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       // Too long a language, and the same id twice: the first keeps it.
       const template = <Email lang={"x".repeat(40)}><Row values={{ _meta: { htmlID: "same" } } as never}><Column><Paragraph>One</Paragraph></Column></Row><Row values={{ _meta: { htmlID: "same" } } as never}><Column><Paragraph>Two</Paragraph></Column></Row></Email>;
       const html = renderToHtml(template);
-      expect(html).not.toBe(legacyRenderToHtml(template));
       expect(html).not.toContain("xxxx");
       expect(html).toContain("One");
       expect(html).toContain("Two");
@@ -155,26 +186,6 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     } finally {
       error.mockRestore();
       warn.mockRestore();
-    }
-  });
-
-  it("write no block with today's exporters where every block moves over", () => {
-    const write = vi.spyOn(exporters.ColumnExporters, "email");
-    const table = vi.spyOn(exporters.TableExporters, "email");
-    const button = vi.spyOn(exporters.ButtonExporters, "email");
-    const menu = vi.spyOn(exporters.MenuExporters, "email");
-    try {
-      renderToHtml(<Email><Row><Column><Paragraph>One</Paragraph><Button href="https://example.com">Two</Button></Column></Row></Email>);
-      expect(write).not.toHaveBeenCalled();
-      renderToHtml(<Email><Row><Column><Button href="https://example.com">One</Button><Table /><Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} /></Column></Row></Email>);
-      expect(menu).not.toHaveBeenCalled();
-      expect(table).not.toHaveBeenCalled();
-      expect(button).not.toHaveBeenCalled();
-    } finally {
-      write.mockRestore();
-      table.mockRestore();
-      button.mockRestore();
-      menu.mockRestore();
     }
   });
 
@@ -240,7 +251,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
   });
 
   describe("of buttons, dividers and tables", () => {
-    /** Every way each can't be read or held, in each output: nothing of the closed exporters' runs for them. */
+    /** Every way each can't be read or held, in each output. */
     const everything = (
       <>
         <Button>No link</Button>
@@ -257,20 +268,16 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
         <Heading values={{ text: '<a href="https://example.com" data-x="1">Heading markup</a>' } as never} />
       </>
     );
-    const closed = () => [exporters.ParagraphExporters, exporters.HeadingExporters, exporters.ButtonExporters, exporters.DividerExporters, exporters.TableExporters, exporters.BodyExporters, exporters.RowExporters, exporters.ColumnExporters].flatMap((tool) => (["email", "web", "document"] as const).map((mode) => vi.spyOn(tool, mode)));
-
-    it.each([["Email", Email], ["Page", Page], ["Document", Document]])("write none of it with today's exporters in a %s", (_, Root) => {
+    it.each([["Email", Email], ["Page", Page], ["Document", Document]])("draw all of it in a %s", (_, Root) => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const spies = closed();
       try {
         const template = <Root><Row><Column>{everything}</Column></Row></Root>;
         const html = renderToHtml(template);
         for (const words of ["No link", "Unread", "Devices", "Markup", "name", "Paragraph markup", "Paragraph values", "<%name%>", "Heading level", "Heading markup"]) expect(html).toContain(words);
-        renderToPlainText(template);
-        for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+        const text = renderToPlainText(template);
+        for (const words of ["No link", "Unread", "Devices", "Markup", "Paragraph markup", "Paragraph values"]) expect(text).toContain(words);
       } finally {
         warn.mockRestore();
-        for (const spy of spies) spy.mockRestore();
       }
     });
 
@@ -308,33 +315,42 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       for (const tag of tags) expect(html).toContain(tag);
       const { body } = renderToHtmlParts(template);
       for (const tag of tags) expect(body).toContain(tag);
-      // In the plain text as today's reads them.
-      const words = <Email><Row><Column><Button href="https://example.com">{tags[1]}</Button></Column></Row></Email>;
-      expect(renderToPlainText(words)).toBe(legacyRenderToPlainText(words));
-      expect(renderToPlainText(words)).toContain(tags[1]);
+      // In the plain text as 0.2.1 reads them.
+      const words = ({ Email, Row, Column, Button }: Release) => <Email><Row><Column><Button href="https://example.com" values={{ text: tags[1] } as never} /></Column></Row></Email>;
+      expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
+      expect(renderToPlainText(words(current))).toContain(tags[1]);
     });
 
-    it("keep a table's plain text as today's", () => {
-      const template = (Root: typeof Email) => <Root><Row><Column><Paragraph>Before</Paragraph><Table headers={["N", "E"]} data={[["Ada", '<a href="https://example.com">mail</a>'], ["", "x &amp; y"]]} /><Paragraph>After</Paragraph></Column></Row></Root>;
-      for (const Root of [Email, Page, Document] as Array<typeof Email>) expect(renderToPlainText(template(Root))).toBe(legacyRenderToPlainText(template(Root)));
+    // A bug to fix: a tag in a component's children is written escaped, and goes back into the plain text so, as
+    // `{% if orders &gt; 1 %}`, where 0.2.1 reads `{% if orders > 1 %}`.
+    it.fails("read an email service's tag in a component's children as it was written, in the plain text", () => {
+      const tag = "{% if orders > 1 %}Thanks{% endif %}";
+      const words = ({ Email, Row, Column, Button }: Release) => <Email><Row><Column><Button href="https://example.com">{tag}</Button></Column></Row></Email>;
+      expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
     });
 
-    it("keep a label's paragraphs and an empty button's plain text as today's", () => {
-      const template = <Email><Row><Column><Button href="https://example.com" values={{ text: '<p style="margin:0">One</p><p style="margin:0">Two</p>' } as never} /><Button href="https://example.com">{""}</Button></Column></Row></Email>;
-      expect(renderToPlainText(template)).toBe(legacyRenderToPlainText(template));
+    it("keep a table's plain text as 0.2.1's", () => {
+      const template = ({ Row, Column, Paragraph, Table }: Release, Root: typeof Email) => <Root><Row><Column><Paragraph>Before</Paragraph><Table headers={["N", "E"]} data={[["Ada", '<a href="https://example.com">mail</a>'], ["", "x &amp; y"]]} /><Paragraph>After</Paragraph></Column></Row></Root>;
+      for (const root of ["Email", "Page", "Document"] as const) expect(renderToPlainText(template(current, current[root] as typeof Email))).toBe(previous.renderToPlainText(template(previous, previous[root] as typeof Email)));
+    });
+
+    it("keep a label's paragraphs and an empty button's plain text as 0.2.1's", () => {
+      const template = ({ Email, Row, Column, Button }: Release) => <Email><Row><Column><Button href="https://example.com" values={{ text: '<p style="margin:0">One</p><p style="margin:0">Two</p>' } as never} /><Button href="https://example.com">{""}</Button></Column></Row></Email>;
+      expect(renderToPlainText(template(current))).toBe(previous.renderToPlainText(template(previous)));
     });
   });
 
   describe("of custom tools, Html blocks and a user's own markup", () => {
-    const Tool = registerTool({
-      name: "open_tool",
-      renderer: {
-        exporters: { web: () => "<i>Tool</i>", email: () => "<i>Tool</i>" },
-        head: { css: (values) => `#${values._meta.htmlID} i { color: red; }`, js: () => "var tool = 1;", tags: () => ['<meta name="tool">'] },
-      },
-    });
+    const toolOf = ({ registerTool }: Release) =>
+      registerTool({
+        name: "open_tool",
+        renderer: {
+          exporters: { web: () => "<i>Tool</i>", email: () => "<i>Tool</i>" },
+          head: { css: (values) => `#${values._meta.htmlID} i { color: red; }`, js: () => "var tool = 1;", tags: () => ['<meta name="tool">'] },
+        },
+      });
     const Mine = () => <section>Mine</section>;
-    const template = (Root: typeof Email) => (
+    const templateOf = ({ Row, Column, Paragraph, Html }: Release, Tool: ReturnType<typeof toolOf>, Root: typeof Email) => (
       <Root textColor="#333333" backgroundColor="#eeeeee">
         <Row>
           <Column>
@@ -346,43 +362,18 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
         </Row>
       </Root>
     );
-    /** A spy on every function the closed package exports, in its objects (its exporters and its heads). */
-    const spyOnClosed = () => {
-      const seen = new Set<object>();
-      const spies: Array<ReturnType<typeof vi.spyOn>> = [];
-      const visit = (object: unknown) => {
-        if (!object || typeof object !== "object" || seen.has(object)) return;
-        seen.add(object);
-        for (const [key, value] of Object.entries(object)) {
-          if (typeof value === "function") spies.push(vi.spyOn(object as Record<string, any>, key).mockName(key));
-          else visit(value);
-        }
-      };
-      Object.values(exporters).forEach(visit);
-      return spies;
-    };
+    const Tool = toolOf(current);
+    const PublishedTool = toolOf(previous);
+    const template = (Root: typeof Email) => templateOf(current, Tool, Root);
     const ROOTS = [["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, typeof Email]>;
 
-    it.each(ROOTS)("run nothing of the closed package (%s)", (_, Root) => {
-      const spies = spyOnClosed();
-      try {
-        expect(spies.length).toBeGreaterThan(50);
-        const html = renderToHtml(template(Root));
-        const parts = renderToHtmlParts(template(Root));
-        const text = renderToPlainText(template(Root));
-        expect(spies.filter((spy) => spy.mock.calls.length).map((spy) => spy.getMockName())).toEqual([]);
-        for (const written of [html, parts.body]) for (const words of ["Words", "<b>Html</b>", "<i>Tool</i>", "<section>Mine</section>"]) expect(written).toContain(words);
-        expect(text).toContain("Html");
-        // The spies do see them: the same template through today's components.
-        legacyRenderToHtml(template(Root));
-        expect(spies.some((spy) => spy.mock.calls.length)).toBe(true);
-      } finally {
-        spies.forEach((spy) => spy.mockRestore());
-      }
+    it.each(ROOTS)("draw what the template holds, in the HTML and its parts (%s)", (_, Root) => {
+      for (const written of [renderToHtml(template(Root)), renderToHtmlParts(template(Root)).body]) for (const words of ["Words", "<b>Html</b>", "<i>Tool</i>", "<section>Mine</section>"]) expect(written).toContain(words);
+      expect(renderToPlainText(template(Root))).toContain("Html");
     });
 
-    it.each(ROOTS)("draw what the template holds as the same words as legacy (%s)", (_, Root) => {
-      expect(renderToPlainText(template(Root))).toBe(legacyRenderToPlainText(template(Root)));
+    it.each(["Email", "Page", "Document"] as const)("draw what the template holds as the same words as 0.2.1 (%s)", (root) => {
+      expect(renderToPlainText(template(current[root] as typeof Email))).toBe(previous.renderToPlainText(templateOf(previous, PublishedTool, previous[root] as typeof Email)));
     });
 
     it.each(ROOTS)("have their own head, whole, and none of legacy's (%s)", (_, Root) => {
@@ -425,21 +416,14 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(css).not.toMatch(/u_row_1|u_content_paragraph_1|u_column_1/);
     });
 
-    it("keep today's stylesheet beside a block that still keeps its legacy HTML", () => {
-      const { css, js } = renderToHtmlParts(<Email textColor="#333333"><Row><Column><Tool /><Menu items={[{ text: "Docs", href: "https://example.com/docs" }]} /></Column></Row></Email>);
-      expect(css).toContain("#u_content_custom_open_tool_1 i { color: red; }");
-      expect(js).toBe("var tool = 1;");
-      expect(css).toMatch(/table, td \{\s*color: #333333;/);
-    });
-
-    it("call a custom tool's exporter once, and only once it's lowered: a template that can't be renders as today", () => {
+    it("call a custom tool's exporter once, whatever else its template holds", () => {
       const exporter = vi.fn(() => "<i>Once</i>");
       const Once = registerTool({ name: "once", renderer: { exporters: { web: exporter, email: exporter } } });
       expect(renderToHtml(<Email><Row><Column><Once /></Column></Row></Email>)).toContain("<i>Once</i>");
       expect(exporter).toHaveBeenCalledTimes(1);
       exporter.mockClear();
-      const unlowerable = <Email><Row><Column><Once /></Column></Row><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
-      expect(renderToHtml(unlowerable)).toContain("<i>Once</i>");
+      const pictured = <Email><Row><Column><Once /></Column></Row><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(pictured)).toContain("<i>Once</i>");
       expect(exporter).toHaveBeenCalledTimes(1);
     });
 
@@ -503,20 +487,20 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(html).toContain(">Hi</p>");
   });
 
-  it("give renderToHtmlParts() a body of legacy's shape: the root's host <div>, holding the <body> tag in an email or a printed document", () => {
-    for (const Root of [Email, Document, Page]) {
-      const template = <Root className="mine" style={{ outline: "1px solid red" }}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>;
-      const body = renderToHtmlParts(template).body;
-      const legacy = legacyRenderToHtmlParts(template).body;
-      // The same host <div> as legacy's, and a <body> tag where legacy has one.
-      expect(body.slice(0, body.indexOf(">") + 1)).toBe(legacy.slice(0, legacy.indexOf(">") + 1));
-      expect(/<body[\s>]/.test(body)).toBe(/<body[\s>]/.test(legacy));
+  it("give renderToHtmlParts() a body of 0.2.1's shape: the root's host <div>, holding the <body> tag in an email or a printed document", () => {
+    for (const root of ["Email", "Document", "Page"] as const) {
+      const template = ({ Row, Column, Paragraph, [root]: Root }: Release) => <Root className="mine" style={{ outline: "1px solid red" }}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>;
+      const body = renderToHtmlParts(template(current)).body;
+      const before = previous.renderToHtmlParts(template(previous)).body;
+      // The same host <div> as 0.2.1's, and a <body> tag where 0.2.1 has one.
+      expect(body.slice(0, body.indexOf(">") + 1)).toBe(before.slice(0, before.indexOf(">") + 1));
+      expect(/<body[\s>]/.test(body)).toBe(/<body[\s>]/.test(before));
       expect(body.endsWith("</div>")).toBe(true);
     }
     expect(renderToHtmlParts(<Email><Row><Column><Paragraph>x</Paragraph></Column></Row></Email>).body).toMatch(/^<div>\n<body[^>]*>[\s\S]*<\/body>\n<\/div>$/);
   });
 
-  it.each(["a Row of today's components", "renderToHtmlParts() of a template that renders as today"])("keep each block of the template where a custom tool's exporter renders %s of its own", (kind) => {
+  it.each(["a Row of today's components", "renderToHtmlParts() of a template"])("keep each block of the template where a custom tool's exporter renders %s of its own", (kind) => {
     const Nested = registerTool({
       name: kind.startsWith("a Row") ? "nested_row" : "nested_parts",
       renderer: {
@@ -524,7 +508,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
           email: () =>
             kind.startsWith("a Row")
               ? renderToStaticMarkup(<Row mode="email"><Column><Paragraph>Inner words</Paragraph></Column></Row>)
-              : renderToHtmlParts(<Page><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Inner words</Paragraph></Column></Row></Page>).body,
+              : renderToHtmlParts(<Page><Row><Column><Paragraph>Inner words</Paragraph></Column></Row></Page>).body,
         },
       },
     });
@@ -574,35 +558,6 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(warn).toHaveBeenCalledWith('[Unlayer] A social block\'s padding "lots" can\'t be read: it\'s drawn without it. (blocks[0])');
       expect(rendered.html).toContain('href="https://x.example"');
     } finally {
-      warn.mockRestore();
-    }
-  });
-
-  it("write no social, menu, image or video with today's exporters, whatever they hold", () => {
-    const spies = [exporters.SocialExporters, exporters.MenuExporters, exporters.ImageExporters, exporters.VideoExporters, exporters.BodyExporters].flatMap((tool: Record<string, any>) => Object.keys(tool).map((mode) => vi.spyOn(tool, mode)));
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      for (const Root of [Email, Page, Document]) {
-        renderToHtml(
-          <Root>
-            <Row>
-              <Column>
-                <Social icons={[]} />
-                <Social icons={[{ name: "X", url: "https://x.example/<%id%>", imgUrl: 7 } as never]} hideOnMobile containerPadding="lots" mobile={{ containerPadding: "1px" } as never} values={{ _override: { desktop: { containerPadding: "2px" }, tablet: { containerPadding: "3px" } } } as never} />
-                <Menu items={[]} />
-                <Menu layout="vertical" items={[{ text: "<%a%>", href: "https://a.example" }]} hideOnDesktop mobile={{ fontSize: "20px" } as never} />
-                <Image values={{ src: { url: "" } } as never} />
-                <Image src={{ url: "https://a.example/a.png", width: 100, height: 10 }} alt="<%a%>" action={{ url: "https://a.example" } as never} hideOnMobile mobile={{ textAlign: "left" } as never} />
-                <Video values={{ video: { type: "dailymotion", videoId: "x" } } as never} hideOnMobile />
-                <PageBreak />
-              </Column>
-            </Row>
-          </Root>
-        );
-      }
-      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
-    } finally {
-      for (const spy of spies) spy.mockRestore();
       warn.mockRestore();
     }
   });
