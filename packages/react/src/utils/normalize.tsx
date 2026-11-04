@@ -480,6 +480,26 @@ export function childrenHtml(children: React.ReactNode, place: (child: React.Rea
   return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
 }
 
+/**
+ * What a root's children hold among its rows, as HTML: the markup before each row, and after the last, with a block or
+ * a Column there rendered by Elements (`place` giving it the root's settings).
+ */
+export function amongRows(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string[] {
+  const c = collect(children);
+  const out = [""];
+  const visit = (nodes: Node[]) => {
+    for (const node of nodes) {
+      if (node.kind === "raw") out[out.length - 1] += node.html;
+      else if (node.kind === "boundary") visit(node.children);
+      else if (node.kind === "failed") leftOut(c, node);
+      else if (node.kind === "row") out.push("");
+      else out[out.length - 1] += within(null, () => renderToString(place(element(c, node))));
+    }
+  };
+  visit(c.nodes);
+  return out.map((html) => withoutMarkers(html, c.collection.nonce));
+}
+
 /** A block's finished HTML, of a root with these `children`, without what `childrenHtml` takes out of the rest. */
 export const blockWithoutMarkers = (children: React.ReactNode, html: string): string => withoutMarkers(html, collect(children).collection.nonce);
 

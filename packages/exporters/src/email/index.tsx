@@ -191,7 +191,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   // clients from adding the email's first words after it. `data-skip-in-text` marks it as the preview for tools that
   // read the HTML (React Email's and today's components mark theirs so; plain text made from the HTML leaves it out).
   const preheader = preview
-    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">${escapeText(preview)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">${typeof root.compat?.previewHtml === "string" ? root.compat.previewHtml : escapeText(preview)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
     : "";
   // Gmail drops <html>'s attributes and <body>: the language, direction and background are kept on the email too. A word
   // too long for its line (a long link) breaks onto the next rather than widening the email past a phone's screen: in a

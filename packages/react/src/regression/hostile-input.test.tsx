@@ -135,7 +135,7 @@ describe("phone settings, written into the head's CSS", () => {
       const html = renderToHtml(<Email>{element(htmlID)}</Email>);
       expect(html).toContain(`id="${htmlID}"`);
       const css = (html.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []).join("");
-      const selector = css.match(/(#[^{}]+?) \{ (?:font-size: 12px|padding: 4px) !important/)?.[1];
+      const selector = css.match(/([#.][^{}]+?) \{ (?:font-size: 12px|padding: 4px) !important/)?.[1];
       expect(selector).toBeDefined();
       const doc = new DOMParser().parseFromString(html, "text/html");
       const found = doc.querySelector(selector!);

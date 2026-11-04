@@ -157,7 +157,7 @@ export function renderToHtml(
 
 /**
  * renderToHtml(), renderToHtmlParts() and renderToPlainText() as today's components render them, without the new
- * engine: what a template the new engine can't draw renders as, and what the new engine's output is compared with.
+ * engine: what a root that isn't one of today's renders as, and what the new engine's output is compared with.
  */
 export function legacyRenderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   return withRenderScope(() => htmlDocument(element, options));
@@ -182,13 +182,12 @@ function legacyBodyHtml(element: React.ReactElement, config: Partial<UnlayerConf
 
 /**
  * A template rendered through the new engine (RFC 0001 step 7): its HTML is the new engine's, what a reader gets is
- * today's. Undefined where it renders as today: a root that isn't one of today's (a block on its own), a frame the new
- * engine can't draw as legacy does, or a template that fails to render, which today's render then reports as it does.
+ * today's. Undefined where it renders as today: a root that isn't one of today's (a block on its own), or a template
+ * that fails to render, which today's render then reports as it does.
  */
 function throughNewEngine(element: React.ReactElement, options: RenderToHtmlOptions | undefined, name: string): Rendered | undefined {
   try {
-    const rendered = renderThroughNewEngine(element, options, name);
-    return rendered && rendered.unlowered === undefined ? rendered : undefined;
+    return renderThroughNewEngine(element, options, name);
   } catch {
     return undefined;
   }

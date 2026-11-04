@@ -5,6 +5,7 @@
  */
 
 import { cssValueSafe } from "@unlayer-internal/shared-elements";
+import { cssValue } from "../utils/device-overrides";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
 
@@ -14,6 +15,16 @@ type Sides = { top: number; right: number; bottom: number; left: number };
  */
 export function rowPaddingInEmail(padding: Sides): Sides {
   return { top: padding.top, right: 0, bottom: padding.bottom, left: 0 };
+}
+
+/**
+ * What's left of a Row's side padding in an email where its sides differ: legacy's content sits off centre by half their
+ * difference (it's centred between them), which the difference alone on the side that has more draws, without taking
+ * more of a narrow window than legacy's content leaves. None on phones (legacy's phone CSS zeroes them).
+ */
+export function rowOffsetInEmail(padding: Sides): Partial<Pick<Sides, "left" | "right">> | undefined {
+  if (padding.left === padding.right) return undefined;
+  return padding.left > padding.right ? { left: padding.left - padding.right } : { right: padding.right - padding.left };
 }
 
 /**
@@ -143,4 +154,68 @@ export function ownMarkupCss(mode: "email" | "web" | "document", body: { textCol
   if (mode !== "document") return "";
   const font = body.fontFamily?.value || "Arial, Helvetica, sans-serif";
   return `body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n.content { width: 100%; font-family: ${cssValueSafe(font) ? font : "inherit"}; font-size: 15px; color: ${text}; background-color: ${pageBodyColor(body.backgroundColor, "#ffffff")}; -webkit-print-color-adjust: exact; }`;
+}
+
+/** A background picture as CSS writes it. */
+export interface Picture {
+  url: string;
+  repeat?: string;
+  position?: string;
+  size?: string;
+  /** What classic Outlook's VML reads: tiled, else one frame. */
+  tile: boolean;
+}
+
+/** The corners and sides legacy names a picture's position by, as CSS. */
+const PICTURE_POSITIONS: Record<string, string> = {
+  top: "left top",
+  left: "left top",
+  "top-left": "left top",
+  "left-top": "left top",
+  "top-center": "center top",
+  "center-top": "center top",
+  right: "right top",
+  "top-right": "right top",
+  "right-top": "right top",
+  center: "center center",
+  "center-center": "center center",
+  "center-left": "left center",
+  "left-center": "left center",
+  "center-right": "right center",
+  "right-center": "right center",
+  bottom: "left bottom",
+  "bottom-left": "left bottom",
+  "left-bottom": "left bottom",
+  "bottom-center": "center bottom",
+  "center-bottom": "center bottom",
+  "bottom-right": "right bottom",
+  "right-bottom": "right bottom",
+};
+
+/**
+ * A row's or the body's background picture, as legacy reads it: `repeat` as CSS (`false` none, `true` isn't one: the
+ * browser's default, which repeats), a `position` by its name or `customPosition` (none it knows: the browser's), a
+ * `size` of contain, cover or `customSize`. An email has no size (its exporter writes none, as classic Outlook has none).
+ */
+export function pictureOf(value: unknown, mode: "email" | "web" | "document"): Picture | undefined {
+  const picture = (value ?? {}) as { url?: unknown; repeat?: unknown; position?: unknown; customPosition?: unknown; size?: unknown; customSize?: unknown };
+  if (typeof picture.url !== "string" || !picture.url.trim()) return undefined;
+  const pair = (list: unknown) => (Array.isArray(list) ? cssValue(list.map((part) => part ?? "auto").join(" ")) : undefined);
+  const repeat = picture.repeat === true ? undefined : typeof picture.repeat === "string" && picture.repeat ? cssValue(picture.repeat) : "no-repeat";
+  const position = picture.position === "custom" ? pair(picture.customPosition) : PICTURE_POSITIONS[String(picture.position)];
+  const size = mode === "email" ? undefined : picture.size === "contain" || picture.size === "cover" ? picture.size : picture.size === "custom" ? pair(picture.customSize) : undefined;
+  return { url: picture.url, repeat, position, size, tile: picture.repeat === true || (typeof picture.repeat === "string" && picture.repeat.includes("repeat") && picture.repeat !== "no-repeat") };
+}
+
+/** A printed document's body's picture, as its stylesheet reads it: its older settings (`repeat`, `center`, `cover` as flags) alone. */
+export function documentBodyPicture(value: unknown): Picture | undefined {
+  const picture = (value ?? {}) as { url?: unknown; repeat?: unknown; center?: unknown; cover?: unknown };
+  if (typeof picture.url !== "string" || !picture.url.trim()) return undefined;
+  return { url: picture.url, repeat: picture.repeat ? "repeat" : "no-repeat", position: picture.center ? "center top" : "left top", size: picture.cover ? "cover" : undefined, tile: !!picture.repeat };
+}
+
+/** A picture's rule for a stylesheet: the URL in a string CSS can't be ended by. */
+export function pictureCss(picture: Picture): string {
+  const url = picture.url.replace(/[\\"\n\r<>]/g, (c) => encodeURIComponent(c));
+  return [`background-image: url("${url}")`, picture.repeat && `background-repeat: ${picture.repeat}`, picture.position && `background-position: ${picture.position}`, picture.size && `background-size: ${picture.size}`].filter(Boolean).join("; ");
 }

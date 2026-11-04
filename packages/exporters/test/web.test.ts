@@ -474,6 +474,13 @@ describe("web HTML", () => {
 
   it("places an Image on phones", () => {
     const { head } = web(page([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, mobile: { alignSelf: "end" } }]));
-    expect(head).toContain("align-self:end!important");
+    expect(head).toContain("align-self:flex-end!important");
+  });
+
+  it("writes what today's components draw that no style holds: a node's class names, and a root's rules", () => {
+    const { head, body } = web(page([{ type: "Column", compat: { className: "mine" }, mobile: { maxWidth: "100%" }, children: [{ type: "Raw", compat: { className: "theirs" }, props: { html: "Hi" } }] }], { compat: { css: ".mine{color:red}" } }));
+    expect(head).toContain(".mine{color:red}");
+    expect(body).toMatch(/<div class="mine \w+"/);
+    expect(body).toContain('<div class="theirs"');
   });
 });

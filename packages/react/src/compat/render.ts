@@ -2,11 +2,11 @@
  * renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine (RFC 0001 step 7, decision 13):
  * a template of today's components lowered into the new engine's tree (template.ts) and written by its writers. The
  * HTML is the new engine's; what a reader gets is legacy's. Undefined where the template renders as today: a root
- * that isn't one of today's (a block on its own), or a frame the new engine can't draw as legacy does.
+ * that isn't one of today's (a block on its own).
  */
 import React from "react";
 import { renderToStaticMarkup } from "../utils/server-renderer";
-import { ElementsError } from "@unlayer-internal/elements-core";
+import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core";
 import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import type { TreeNode } from "./lower";
@@ -55,25 +55,19 @@ const DIVIDER = /<hr\b[^>]*style="[^"]*border:0;border-top:[^"]*"[^>]*>/g;
  * A template rendered through the new engine; undefined where it renders as today. `name` is the API's, for messages.
  * Called inside a render's scope.
  */
-export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string): (Rendered & { unlowered?: undefined }) | { unlowered: string } | undefined {
+export function renderThroughNewEngine(element: React.ReactElement, options: RenderOptions | undefined, name: string): Rendered | undefined {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   const lowered = lowerTemplate(element, config, name);
-  if (!lowered || "unlowered" in lowered) return lowered;
+  if (!lowered) return undefined;
   const rootProps = (lowered.root.props ?? {}) as { lang?: string; fonts?: Array<{ url: string }> };
   const lang = optionLang ?? rootProps.lang;
   const { root } = lowered.tree;
   root.props = { ...root.props, ...(title !== undefined && title.trim() ? { title: title.trim() } : {}), ...(lang ? { lang: String(lang) } : {}) };
-  let result: RenderResult;
-  try {
-    result = renderTemplate(forWriting(lowered.tree), { hideBelow: PHONE_WIDTH });
-  } catch (error) {
-    // A value the new engine refuses (a color it doesn't read) renders as today.
-    if (error instanceof ElementsError) return { unlowered: error.message };
-    throw error;
-  }
+  const refused: Diagnostic[] = [];
+  const result = writeWhatItTakes(lowered.tree, refused);
+  const diagnostics = [...lowered.diagnostics, ...refused];
+  warnOnce(diagnostics);
 
-  // What's drawn otherwise than a template asks, as today's components say what they can't render.
-  for (const { severity, message } of lowered.diagnostics) if (severity === "warning") console.warn(`[Elements] ${message}`);
   const restore = (markup: string) => (lowered.tags.length ? restoreServiceTags(markup, lowered.tags) : markup);
 
   // The root's fonts, then the option's, each URL once: stylesheets legacy links (an email's out of Outlook's view).
@@ -120,11 +114,51 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     get text() {
       return text();
     },
-    diagnostics: [...lowered.diagnostics, ...result.diagnostics],
+    diagnostics: [...diagnostics, ...result.diagnostics],
   };
 }
 
 type Tree = { root: TreeNode };
+
+/**
+ * The tree written, without what the new engine refuses (each value it says, at its place in the tree, taken out of it,
+ * and said): what's left is drawn. Only a template it refuses for another reason fails.
+ */
+function writeWhatItTakes(tree: Tree, refused: Diagnostic[]): RenderResult {
+  for (;;) {
+    try {
+      return renderTemplate(forWriting(tree), { hideBelow: PHONE_WIDTH });
+    } catch (error) {
+      if (!(error instanceof ElementsError)) throw error;
+      const out = error.diagnostics.filter((d) => d.severity === "error" && takeOut(tree, d.path));
+      if (!out.length) throw error;
+      refused.push(...out.map((d) => ({ code: "compat/refused", severity: "warning" as const, message: `${d.message}: it isn't drawn`, path: d.path })));
+    }
+  }
+}
+
+/** Takes a value out of the tree, by its path (`root.children[1].style.padding`); false where it isn't one. */
+function takeOut(tree: Tree, path: string): boolean {
+  const keys = path.match(/[^.[\]]+/g) ?? [];
+  const last = keys.pop();
+  let at: any = tree;
+  for (const key of keys) at = at?.[key];
+  if (last === undefined || at === null || typeof at !== "object" || Array.isArray(at) || !(last in at)) return false;
+  delete at[last];
+  return true;
+}
+
+/** What's drawn otherwise than a template asks, each message once per process: a template renders many times. */
+const warned = new Set<string>();
+
+function warnOnce(diagnostics: Diagnostic[]): void {
+  for (const { severity, message, path } of diagnostics) {
+    // (At most so many: a message can hold a template's own values, and a server runs for a long time.)
+    if (severity !== "warning" || warned.has(message) || warned.size >= 1000) continue;
+    warned.add(message);
+    console.warn(`[Unlayer] ${message} (${path})`);
+  }
+}
 
 /** The tree the new engine writes: what's only for the plain text left out. */
 function forWriting(tree: Tree): Tree {

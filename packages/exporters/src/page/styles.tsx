@@ -27,7 +27,7 @@ function declarationsOf(values: Record<string, Json>): Declarations {
 
 /** The classes of the stylesheet's rules for the node (phone styles, hiding, hover, stacking), if any. */
 export function classesFor(node: ResolvedNode): string | undefined {
-  const classes: string[] = [];
+  const classes: string[] = typeof node.compat?.className === "string" ? [node.compat.className] : [];
   if (node.mobile) {
     // A Divider's length is its line's.
     const { width, ...rest } = node.mobile;

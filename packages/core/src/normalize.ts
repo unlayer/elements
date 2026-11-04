@@ -153,7 +153,8 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
   // Only what the author writes: an id is theirs (an anchor, a reference), never generated.
   let id: string | undefined;
   if (input.id !== undefined) {
-    if (typeof input.id !== "string" || !ID.test(input.id)) {
+    // (Today's components keep any id their authors give, as they always wrote them.)
+    if (typeof input.id !== "string" || !(ID.test(input.id) || (isObject(input.compat) && input.compat.anyId === true))) {
       d.error("id/invalid", `An id starts with a letter and holds letters, digits, "_" and "-", not ${JSON.stringify(input.id)}`, `${path}.id`);
     } else if (context.idPrefix === null) {
       d.add("id/dropped", "info", `The id "${input.id}" is left out: inside a custom component, ids are kept only when the component is given one (a block used many times can't own an id)`, `${path}.id`);

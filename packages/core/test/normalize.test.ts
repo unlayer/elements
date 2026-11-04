@@ -52,6 +52,15 @@ describe("checkDocument", () => {
     ]);
   });
 
+  it("takes any id where a node of today's components says so (compat.anyId), as they always wrote them", () => {
+    const { document, diagnostics } = checkDocument(doc({ type: "Email", children: [{ type: "Divider", id: "a.b:c", compat: { anyId: true } }, { type: "Divider", id: "a.b:c", compat: { anyId: true } }, { type: "Divider", id: "a.b:c", compat: { anyId: false } }] }));
+    expect(document!.root.children!.map((c) => (typeof c === "string" ? c : c.id))).toEqual(["a.b:c", undefined, undefined]);
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ["id/duplicate", "root.children[1].id"],
+      ["id/invalid", "root.children[2].id"],
+    ]);
+  });
+
   it("checks the root", () => {
     expect(codes(doc({ type: "Row" }))).toEqual(["root/invalid"]);
     expect(codes({})).toEqual(["document/root"]);

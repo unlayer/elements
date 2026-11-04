@@ -21,7 +21,7 @@ const contentOptions: Record<string, string[]> = {
  * bracket open, which swallows the rules after it (`calc(12px + 4px`): a
  * phone setting may come from data, and it's written into the head as is.
  */
-function css(value: unknown): string | undefined {
+export function cssValue(value: unknown): string | undefined {
   const text = String(value).trim();
   return text && !/[!\\"'\n\r]/.test(text) && cssValueSafe(text) ? text : undefined;
 }
@@ -40,12 +40,17 @@ function size(value: unknown): string | undefined {
   if (String(value).endsWith("%")) return `${rounded}%`;
 }
 
-export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles): void {
+/**
+ * `own`: a row's or column's settings by a class on the element that draws them, not by legacy's id and the classes of
+ * its markup. An email's row has no sides on its element (legacy's are only classic Outlook's). A column's lines on a
+ * page or in a printed document are on the element with its id, which legacy's selector doesn't reach: they draw nothing.
+ */
+export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles, own?: string): void {
   // The id the block's HTML has, escaped.
   const given = safeName(values._meta?.htmlID);
-  if (!given) return;
-  const id = cssIdent(given);
-  const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? ["padding", "border"] : ["padding"];
+  if (!given && !own) return;
+  const id = cssIdent(given ?? "");
+  const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? (own && mode !== "email" ? ["padding"] : ["padding", "border"]) : ["padding"];
   for (const device of mode === "document" ? ["desktop"] : ["desktop", "mobile"]) {
     const overrides = values._override?.[device];
     if (!overrides) continue;
@@ -54,22 +59,23 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
       const value = overrides[option];
       const property = option.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
       const prefix = collection === "rows" ? "row-" : collection === "columns" ? "col-" : "";
-      const selector = (attribute: string) => `#${id} .v-${prefix}${property === attribute ? property : `${property}-${attribute}`}`;
+      const selector = (attribute: string) => (own ? `.${own}` : `#${id} .v-${prefix}${property === attribute ? property : `${property}-${attribute}`}`);
       const push = (rule: string) => (styles[device] ||= []).push(rule);
       if (option === "padding" || option === "containerPadding") {
-        if (!(value || value === 0) || css(value) === undefined) continue;
+        if (!(value || value === 0) || cssValue(value) === undefined) continue;
         const direct = collection === "rows" || (mode === "web" && collection === "contents" && option === "containerPadding");
         const target = direct ? selector("padding").replace(`#${id} `, `#${id}`) : selector("padding");
-        push(`${target} { padding: ${css(value)} !important; }`);
-        if (mode === "email" && collection === "rows") {
+        const vertical = mode === "email" && collection === "rows";
+        if (!own || !vertical) push(`${target} { padding: ${cssValue(value)} !important; }`);
+        if (vertical) {
           const parts = String(value).trim().split(/\s+/);
           // A length the editor doesn't write (`2em`, a bare `0`) is written as it is.
-          const [top, bottom] = [parts[0], parts[2] || parts[0]].map((part) => size(part) ?? css(part));
-          if (top !== undefined && bottom !== undefined) push(`${target}--vertical { padding-top: ${top} !important; padding-bottom: ${bottom} !important; }`);
+          const [top, bottom] = [parts[0], parts[2] || parts[0]].map((part) => size(part) ?? cssValue(part));
+          if (top !== undefined && bottom !== undefined) push(`${own ? target : `${target}--vertical`} { padding-top: ${top} !important; padding-bottom: ${bottom} !important; }`);
         }
       } else if (option === "border") {
         // As the editor's borderToStyle: transparent unless a side has a width.
-        if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = css(value[`border${d}Width`] || "0px") ?? "0px"; return `border-${d.toLowerCase()}: ${w} ${css(value[`border${d}Style`] || "solid") ?? "solid"} ${(parseInt(w) > 0 && css(value[`border${d}Color`])) || "transparent"} !important;`; }).join("")} }`);
+        if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = cssValue(value[`border${d}Width`] || "0px") ?? "0px"; return `border-${d.toLowerCase()}: ${w} ${cssValue(value[`border${d}Style`] || "solid") ?? "solid"} ${(parseInt(w) > 0 && cssValue(value[`border${d}Color`])) || "transparent"} !important;`; }).join("")} }`);
       } else if (option === "src") {
         if (!value) continue;
         const merged = { ...values.src, ...value };
@@ -82,7 +88,7 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
         push(`${selector("max-width")} { max-width: 100% !important; }`);
       } else {
         if (!(value || (option === "lineHeight" && `${value}` === "0"))) continue;
-        const rendered = css(option === "fontSize" && typeof value === "number" ? `${value}px` : value);
+        const rendered = cssValue(option === "fontSize" && typeof value === "number" ? `${value}px` : value);
         if (rendered === undefined) continue;
         push(`${selector(property)} { ${property}: ${rendered} !important; }`);
       }

@@ -40,28 +40,17 @@ function templates(): Array<[string, React.ReactElement]> {
   return out;
 }
 
-/** What the new engine can't draw as legacy does in these stories, which render as today (their reasons). */
-const AS_TODAY: Record<string, string> = {
-  "components/Body.stories.tsx Magazine": "a row's background image",
-  // Its links' own color and hover color, which legacy's head CSS draws for every link.
-  "examples/MorningBrewDigest.stories.tsx Default": "the body's own link style",
-};
-
 describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through the new engine", () => {
   const all = templates();
   const quiet = () => [vi.spyOn(console, "warn").mockImplementation(() => {}), vi.spyOn(console, "error").mockImplementation(() => {})];
 
-  it("render every story's template through the new engine, but those it says it can't draw", () => {
+  it("render every story's template through the new engine", () => {
     const [warn, error] = quiet();
     try {
-      const unlowered: Record<string, string> = {};
       for (const [name, template] of all) {
         const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"));
-        expect(rendered, name).toBeDefined();
-        if (rendered?.unlowered !== undefined) unlowered[name] = rendered.unlowered;
+        expect(rendered?.html, name).toMatch(/^<!DOCTYPE html>/);
       }
-      expect(Object.keys(unlowered).sort()).toEqual(Object.keys(AS_TODAY).sort());
-      for (const [name, why] of Object.entries(AS_TODAY)) expect(unlowered[name]).toContain(why);
       expect(all.length).toBeGreaterThan(150);
     } finally {
       warn.mockRestore();
@@ -87,10 +76,73 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(renderToHtml(template)).toBe(legacyRenderToHtml(template));
   });
 
-  it("render a template the new engine can't draw as today", () => {
-    const template = <Email><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
-    expect(renderToHtml(template)).toBe(legacyRenderToHtml(template));
-    expect(renderToHtmlParts(template)).toEqual(legacyRenderToHtmlParts(template));
+  it("draw what the new engine refuses without it, and say so, rather than as today", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // Too long a language, and the same id twice: the first keeps it.
+      const template = <Email lang={"x".repeat(40)}><Row values={{ _meta: { htmlID: "same" } } as never}><Column><Paragraph>One</Paragraph></Column></Row><Row values={{ _meta: { htmlID: "same" } } as never}><Column><Paragraph>Two</Paragraph></Column></Row></Email>;
+      const html = renderToHtml(template);
+      expect(html).not.toBe(legacyRenderToHtml(template));
+      expect(html).not.toContain("xxxx");
+      expect(html).toContain("One");
+      expect(html).toContain("Two");
+      expect(html.match(/id="same"/g)).toHaveLength(1);
+      const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"));
+      expect(rendered?.diagnostics.filter((d) => d.code === "compat/refused").map((d) => d.path).sort()).toEqual(["root.children[1].id", "root.props.lang"]);
+      expect(renderToHtmlParts(template).body).toContain("Two");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("say once what a frame draws otherwise than asked, and only that", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // Unique to this test: a kind of warning is said once per process.
+      const template = <Page values={{ fontSize: "120%" } as never}><Row values={{ somethingNew: 1 } as never}><Column><Paragraph>A</Paragraph></Column></Row></Page>;
+      renderToHtml(template);
+      renderToHtml(template);
+      const said = warn.mock.calls.map((call) => String(call[0]));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain("The body's fontSize");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("give every printed document what makes backgrounds print, whatever its blocks", () => {
+    const html = renderToHtml(<Document backgroundColor="#eeeeee"><Row><Column><Paragraph>Words only</Paragraph></Column></Row></Document>);
+    expect(html).toContain("print-color-adjust: exact");
+    expect(html).toContain("-webkit-print-color-adjust: exact");
+    // A page doesn't print that way, and an email's blocks have their own text color.
+    expect(renderToHtml(<Page><Row><Column><Paragraph>A</Paragraph></Column></Row></Page>)).not.toContain("print-color-adjust");
+    expect(renderToHtml(<Email><Row><Column><Paragraph>A</Paragraph></Column></Row></Email>)).not.toContain("table, td {");
+  });
+
+  it("give a template's own text in an email the template's text color, as legacy's stylesheet does", () => {
+    expect(renderToHtml(<Email textColor="#336699"><Row><Column>Loose<Paragraph>A</Paragraph></Column></Row></Email>)).toContain("table, td { color: #336699; }");
+  });
+
+  it("read a template's own markup and text as lines of their own in the plain text", () => {
+    for (const Root of [Email, Page, Document]) {
+      const text = renderToPlainText(<Root>{"Before"}<Row>Beside<Column>Inside<Paragraph>Block</Paragraph></Column></Row></Root>);
+      expect(text.split(/\n+/)).toEqual(["Before", "Beside", "Inside", "Block"]);
+    }
+  });
+
+  it("render without its rows a template whose Row doesn't fit its layout, and say so", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const template = <Email><Row layout={{ cells: [1, 1], expectedColumns: 2 } as never}><Column><Paragraph>One</Paragraph></Column></Row></Email>;
+      const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml"));
+      expect(rendered?.html).not.toContain("One");
+      expect(rendered?.diagnostics.map((d) => d.code)).toContain("compat/layout");
+      expect(error.mock.calls.join()).toContain("Body: Failed to render children");
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
   });
 
   it("write no block with today's exporters where every block moves over", () => {
@@ -211,10 +263,10 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     it("say what they can't read: in the render's diagnostics, and a warning", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {
-        const rendered = withRenderScope(() => renderThroughNewEngine(<Email><Row><Column><Button href="https://example.com" fontSize="large">Go</Button><Button>None</Button></Column></Row></Email>, undefined, "renderToHtml")) as Rendered;
+        const rendered = withRenderScope(() => renderThroughNewEngine(<Email><Row><Column><Button href="https://example.com" fontSize="enormous">Go</Button><Button>None</Button></Column></Row></Email>, undefined, "renderToHtml")) as Rendered;
         expect(rendered.diagnostics.filter((d) => d.code === "compat/block").map((d) => d.severity)).toEqual(["warning", "info"]);
         expect(warn).toHaveBeenCalledTimes(1);
-        expect(warn.mock.calls[0][0]).toContain('font size "large"');
+        expect(warn.mock.calls[0][0]).toContain('font size "enormous"');
       } finally {
         warn.mockRestore();
       }
@@ -505,7 +557,7 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       const template = <Page><Row><Column><Social containerPadding="lots" icons={[{ name: "X", url: "https://x.example" }]} /></Column></Row></Page>;
       const rendered = withRenderScope(() => renderThroughNewEngine(template, undefined, "renderToHtml")) as Rendered;
       expect(rendered.diagnostics.map((d) => d.message)).toContain('A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
-      expect(warn).toHaveBeenCalledWith('[Elements] A social block\'s padding "lots" can\'t be read: it\'s drawn without it.');
+      expect(warn).toHaveBeenCalledWith('[Unlayer] A social block\'s padding "lots" can\'t be read: it\'s drawn without it. (blocks[0])');
       expect(rendered.html).toContain('href="https://x.example"');
     } finally {
       warn.mockRestore();

@@ -65,6 +65,7 @@ function hasBox(node: ResolvedNode, fill: boolean): boolean {
   const mobile = node.mobile ?? {};
   const width = boxWidth(node, fill);
   return (
+    typeof node.compat?.className === "string" ||
     ["padding", "border", "borderRadius", "backgroundColor", "height"].some((key) => style[key] !== undefined) ||
     ["padding", "border", "backgroundColor", "width", "maxWidth"].some((key) => mobile[key] !== undefined) ||
     width.width !== "100%" ||
@@ -88,6 +89,7 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
       <tr>
         <td
+          class={node.compat?.className as string | undefined}
           phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
           bgcolor={bgcolor(style.backgroundColor)}
           height={height}

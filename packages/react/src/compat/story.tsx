@@ -130,7 +130,6 @@ export const shadowOf = (template: () => ReactElement, allowance?: Allowance, fi
       if (!next) throw new Error("Only a template with a root (Email, Page, Document, Body) renders through the new engine");
       const main = withFixes(legacyRenderToHtml(template()), fixes);
       const accepted = fixes.map((fix) => `Main drawn with a fix accepted over it: ${fix.why}`);
-      if (next.unlowered !== undefined) return { main, next: main, notes: [`Rendered as today: the new engine can't draw ${next.unlowered} as legacy does`, ...accepted] };
       return { main, next: next.html, notes: [...next.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`), ...accepted] };
     },
   ],
