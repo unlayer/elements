@@ -12,6 +12,12 @@ const P_MARGIN_RESET =
   "margin: 0px; margin-block-start: 0px; margin-block-end: 0px;";
 
 describe("generateHtmlFromTextJson", () => {
+  it("writes no Unicode noncharacter a JSON escape holds: what reads text may use them for its own marks", () => {
+    const text = (words: string) => `{"root":{"type":"root","children":[{"type":"paragraph","children":[{"type":"text","text":"${words}"}]}]}}`;
+    expect(generateHtmlFromTextJson(text("a\\uFDD00\\uFDD1b"))).toBe(generateHtmlFromTextJson(text("a0b")));
+    expect(generateHtmlFromTextJson('{"__html":"<b>a\\uFDD00\\uFDD1b</b>"}')).toBe("<b>a0b</b>");
+  });
+
   it("renders a plain paragraph with the inline margin reset", () => {
     const html = generateHtmlFromTextJson(textToTextJson("Hello world"));
     expect(html).toBe(`<p style="${P_MARGIN_RESET}">Hello world</p>`);

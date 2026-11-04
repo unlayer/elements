@@ -24,7 +24,7 @@ import Column from "../components/Column";
 import Row from "../components/Row";
 import { BLOCKS } from "./blocks";
 import { ownMarkupCss } from "./quirks";
-import { keepServiceTags } from "./values";
+import { keepHtmlTags, keepServiceTags, withoutMarks } from "./values";
 import { blockName, givenId, lowerDesign, withGivenId, writeBlock, type BlockFrame, type DesignBlock, type Mode, type OutsideTheDesign, type TreeNode } from "./lower";
 
 /** Whether a type is a root component the new engine reads (see ROOT): this copy's, or the same package's in another build. */
@@ -129,13 +129,19 @@ function frameNames(mode: Mode, design: unknown): string | undefined {
  */
 export function lowerTemplate(element: React.ReactElement, config: Partial<UnlayerConfig> | undefined, name: string, inReact: InReact = {}): Lowered {
   const { root, given, wide } = templateRoot(element, name, config, inReact);
-  const merged = resolveConfig(root, config);
-  const mode = resolveDisplayMode(root, merged) as Mode;
+  const resolved = resolveConfig(root, config);
+  const mode = resolveDisplayMode(root, resolved) as Mode;
   const collected = drawnRoot(root);
-  const design = collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> };
+  // What the template gives the lowering, all of it, without what could be taken for a mark (values.ts). What's written
+  // once it's lowered (each block's own HTML, the head) is taken through this below.
+  const { collectedDesign: design, sources, config: merged } = withoutMarks({
+    collectedDesign: collectedDesign(collected, STRAYS) as unknown as { body: Record<string, any> },
+    sources: blockSources(collected),
+    config: resolved.toSafeHtml ? { ...resolved, toSafeHtml: (html: string, options?: unknown) => withoutMarks(resolved.toSafeHtml!(html, options)) } : resolved,
+  });
   const names = inReact.embedded ? frameNames(mode, design) : undefined;
   const shape = { embedded: inReact.embedded, wide, names };
-  const { blocks: sources, body, rows, notDrawn } = blockSources(collected);
+  const { blocks, body, rows, notDrawn } = sources;
   // A Row whose Columns don't fit its layout: today's Body says so and renders without its rows (a mailer that never
   // expected renderToHtml to throw would fail).
   const unfit = layoutThatDoesNotFit(collected);
@@ -146,7 +152,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   }
   // Today's Body gives what's among its rows these (a block or a Column there is rendered as it renders it).
   const place = (child: React.ReactElement) => React.cloneElement(child as React.ReactElement<any>, { _config: { ...merged, mode }, bodyValues: body });
-  const outside: OutsideTheDesign = { among: amongRows((root.props as { children?: React.ReactNode }).children, place), rows };
+  const outside: OutsideTheDesign = { among: withoutMarks(amongRows((root.props as { children?: React.ReactNode }).children, place)), rows };
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
   const html = new Map<number, string>();
@@ -174,7 +180,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
         raw.set(n, kept);
         return kept;
       }
-      const lowered = lower(withoutPhone(block, mode), { ...place, id: sources[n]?.id, source: sources[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern) });
+      const lowered = lower(withoutPhone(block, mode), { ...place, id: blocks[n]?.id, source: blocks[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern), keepHtml: (html) => keepHtmlTags(html, tags) });
       if (lowered === null) return null;
       // The block's own HTML in its box, as its tool writes it (it says what its head needs).
       if (lowered.type === "Raw") {
@@ -193,22 +199,22 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const { children } = root.props as { children?: React.ReactNode };
   for (const n of raw.keys()) {
     if (html.has(n)) continue;
-    const source = sources[n];
+    const source = blocks[n];
     const written = writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode });
     html.set(n, blockWithoutMarkers(children, written?.html ?? ""));
     // A Row or Column in a Column reads as it does on its own.
-    if (written?.text !== undefined) raw.get(n)!.textAs = { type: "Raw", props: { html: written.text } };
+    if (written?.text !== undefined) raw.get(n)!.textAs = { type: "Raw", props: { html: withoutMarks(written.text) } };
   }
-  const head = extractHeadFromTree(root, {
+  const head = withoutMarks(extractHeadFromTree(root, {
     displayMode: mode,
     headConfig: merged.headConfig,
     dropped: (id, key, value, on) => diagnostics.push({ code: "compat/block", severity: "warning", message: `A block's ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, path: id }),
-  });
+  }));
   // (A printed document's own markup CSS is on its root.)
   const css = mode === "document" ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
   let drawn = false;
   for (const [n, node] of raw) {
-    const written = html.get(n) ?? "";
+    const written = withoutMarks(html.get(n) ?? "");
     drawn ||= !!written;
     // In a printed document, legacy's text is in the font's own line height ("normal"), where a page's root has 1.5.
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
@@ -304,8 +310,11 @@ function ownMarkupProps(element: React.ReactElement<any>): string | undefined {
 function aroundRow(row: React.ReactElement<any>): [string, string] | undefined {
   const { className, style } = row.props;
   if (!className && !style) return undefined;
-  const MARK = "\uE002";
-  return renderToStaticMarkup(React.createElement("div", { className, style, dangerouslySetInnerHTML: { __html: MARK } })).split(MARK) as [string, string];
+  const MARK = "\uFDD2";
+  const written = renderToStaticMarkup(React.createElement("div", { className, style, dangerouslySetInnerHTML: { __html: MARK } }));
+  // (Its last: a className can hold the character too.)
+  const at = written.lastIndexOf(MARK);
+  return [written.slice(0, at), written.slice(at + MARK.length)];
 }
 
 /** A block of the template, as a Column gives it to its exporter. */

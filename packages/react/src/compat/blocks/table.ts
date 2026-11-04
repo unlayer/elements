@@ -65,7 +65,7 @@ function linkStyle(values: Values, place: Place): { style: Record<string, Json>;
 /** A cell's HTML: its Lexical textJson's, or its own; a cell that says nothing is a line of its height. */
 function cellHtml(cell: Values, place: Place): string {
   const html = spaceBeforeTag(typeof cell.textJson === "string" ? generateHtmlFromTextJson(cell.textJson) : String(cell.text ?? ""));
-  return html.trim() ? place.keep(html) : "​";
+  return html.trim() ? place.keepHtml(html) : "​";
 }
 
 /** A cell's HTML as runs; markup no run holds is written as it is. */
@@ -155,7 +155,7 @@ export function table(block: DesignBlock, place: Place): TreeNode {
   const rule = values.mergeTagGroup && values.mergeTagRule ? state?.mergeTags?.[state.mergeTagGroup]?.rules?.[state.mergeTagRule] : undefined;
   const ruleText = (html: unknown): TreeNode[] => {
     if (!rule?.before || !rule?.after) return [];
-    const kept = place.keep(String(html));
+    const kept = place.keepHtml(String(html));
     written.push(kept);
     return [{ type: "Raw", props: { html: `${kept}\n` } }];
   };

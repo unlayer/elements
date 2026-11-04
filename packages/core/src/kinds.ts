@@ -662,10 +662,16 @@ export function lineHeight(): Kind<LineHeightInput, LineHeight> {
 
 // ─── URLs: images and links ─────────────────────────────────────────────────
 
-/** A URL scheme that runs code or reads local files, after the characters browsers ignore in one. */
+/**
+ * An email service's tag in a URL, as it's written or as today's components keep it from the writers (a mark:
+ * packages/react/src/compat/values.ts). Its service fills it in later, perhaps with nothing.
+ */
+const SERVICE_TAG = /<%[\s\S]*?%>|\{%[\s\S]*?%\}|\{\{[\s\S]*?\}\}|\uFDD0\d+\uFDD1/g;
+
+/** A URL scheme that runs code or reads local files, after the characters browsers ignore in one, and without what a service fills in. */
 function unsafeUrl(url: string, allowedData?: RegExp): boolean {
   // eslint-disable-next-line no-control-regex
-  const compact = url.replace(/[\u0000- \u007f-\u009f]/g, "").toLowerCase();
+  const compact = url.replace(SERVICE_TAG, "").replace(/[\u0000- \u007f-\u009f]/g, "").toLowerCase();
   if (compact.startsWith("data:")) return !allowedData || !allowedData.test(compact);
   return /^(javascript|vbscript|file):/.test(compact);
 }

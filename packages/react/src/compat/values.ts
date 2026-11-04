@@ -177,7 +177,7 @@ export function drawnImageUrl(value: unknown, keep: (text: string) => string, sa
     return undefined;
   }
   if (typeof value === "number") say(`${value} isn't a URL: it's written as it is.`);
-  const url = keep(inAttribute(String(value)));
+  const url = keep(String(value));
   if (asset().parse(url).ok) return url;
   say(`${JSON.stringify(value)} isn't one Elements writes.`);
   return undefined;
@@ -213,13 +213,60 @@ export function serviceTag(text: string): boolean {
 }
 
 const SERVICE_TAG = /<%[\s\S]*?%>|\{%[\s\S]*?%\}|\{\{[^}]*[<>&"'][^}]*\}\}/g;
-const KEPT_TAG = /\uE000(\d+)\uE001/g;
 
-/** Text with each email service's tag in it (or what `pattern` finds) a mark of its place in `tags`, which the writers leave as it is. */
-export const keepServiceTags = (text: string, tags: string[], pattern: RegExp = SERVICE_TAG): string => text.replace(pattern, (tag) => `\uE000${tags.push(tag) - 1}\uE001`);
+/**
+ * How what's kept gets past the writers, which escape all they're given: as a mark in the tree's strings,
+ * `\uFDD0<its place in the render's tags>\uFDD1`, which `restoreServiceTags` puts back once they're written. A mark in
+ * what's written comes from `keepServiceTags` and nothing else. Its characters are noncharacters, which Unicode reserves
+ * for a program's own use: no text loses one to them (an icon font's private-use characters stay), and no case or
+ * normal form of a character is one. `withoutMarks` takes them out of all a template gives the lowering (template.ts),
+ * and what decodes text on its way (runs.ts's entities, a Lexical textJson, the plain text's entities) won't write them.
+ */
+const OPEN = "\uFDD0";
+const CLOSE = "\uFDD1";
+const NONCHARACTERS = /[\uFDD0-\uFDEF]/g;
+const KEPT = /\uFDD0(\d+)\uFDD1/g;
 
-/** Text for an attribute: a double quote in an email service's tag would end it, so it's encoded, as legacy encodes it. */
-export const inAttribute = (text: string): string => text.replace(SERVICE_TAG, (tag) => tag.replace(/"/g, "&quot;"));
+/** Whether text holds what's kept. */
+export const holdsKept = (text: string): boolean => text.includes(OPEN);
+
+/**
+ * A value of a template's without noncharacters, the marks' among them, through its lists and objects (its keys too), so no mark comes
+ * from it. A React element is left: what it writes is taken through this when it's written.
+ */
+export function withoutMarks<T>(value: T, seen = new Map<object, unknown>()): T {
+  if (typeof value === "string") return value.replace(NONCHARACTERS, "") as T;
+  if (value === null || typeof value !== "object" || "$$typeof" in value) return value;
+  if (seen.has(value)) return seen.get(value) as T;
+  if (Array.isArray(value)) {
+    const list: unknown[] = [];
+    seen.set(value, list);
+    for (const item of value) list.push(withoutMarks(item, seen));
+    return list as T;
+  }
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  const out: Record<string, unknown> = {};
+  seen.set(value, out);
+  for (const [key, item] of Object.entries(value)) out[key.replace(NONCHARACTERS, "")] = withoutMarks(item, seen);
+  return out as T;
+}
+
+const mark = (tags: string[], tag: string) => `${OPEN}${tags.push(tag) - 1}${CLOSE}`;
+
+/** What can start an element or a comment, written in HTML as it is: `<` before a letter, `/`, `!` or `?` (before another character it's text: `{% if a < 1 %}`, `<%name%>`). */
+const FORMS_MARKUP = /<[a-zA-Z/!?]/;
+
+/**
+ * A value that's text, not HTML (an item's words, an attribute's), with each email service's tag in it (or what `pattern`
+ * finds) a mark of its place in `tags`, which the writers leave as it is. It can't add markup, whatever it holds: a tag
+ * whose content could is left to be escaped as text is, and a double quote, which would end an attribute, is encoded, as
+ * legacy encodes it. (What's beside a tag is escaped, and a tag's end is its own, so nothing it's put back beside adds to it.)
+ */
+export const keepServiceTags = (text: string, tags: string[], pattern: RegExp = SERVICE_TAG): string => text.replace(pattern, (tag) => (FORMS_MARKUP.test(tag) ? tag : mark(tags, tag.replace(/"/g, "&quot;"))));
+
+/** A value that's HTML, as legacy writes it (a text block's, a button's label, a table's cell), with every email service's tag in it marked as it's written. */
+export const keepHtmlTags = (html: string, tags: string[]): string => html.replace(SERVICE_TAG, (tag) => mark(tags, tag));
 
 /** The marks in written markup as the tags they were, for the service to fill in. */
-export const restoreServiceTags = (text: string, tags: string[]): string => text.replace(KEPT_TAG, (mark, index) => tags[Number(index)] ?? mark);
+export const restoreServiceTags = (text: string, tags: string[]): string => text.replace(KEPT, (_, index) => tags[Number(index)] ?? "");

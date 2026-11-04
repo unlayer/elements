@@ -10,7 +10,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
 import type { TreeNode } from "../lower";
 import { fontOfValues } from "../quirks";
-import { ALIGN, deviceValues, drawnLink, fontWeight, inAttribute, letterSpacing, nearestWeight, px, sides, some, type Values } from "../values";
+import { ALIGN, deviceValues, drawnLink, fontWeight, letterSpacing, nearestWeight, px, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 /** A word space at 16px in Arial, where a page holds an email's markup (a page's Row has no words to space). */
@@ -49,7 +49,7 @@ export const menu: Lowering = (block, place): TreeNode => {
   const box: Record<string, Json> = { ...(some(padding) ? { padding: padding! } : {}), ...text };
   const mobile = Object.keys(phoneText).length ? { mobile: phoneText } : {};
   // An email's markup has an item's text as HTML: its tags and entity references as written. A page's has it as text.
-  const shown = (words: string) => (asEmail ? place.keep(place.keep(inAttribute(words)), ENTITY) : words);
+  const shown = (words: string) => (asEmail ? place.keep(place.keep(words), ENTITY) : words);
   if (values.menu?.items !== undefined && !Array.isArray(values.menu.items)) said("items", values.menu.items);
   const listed: unknown[] = Array.isArray(values.menu?.items) ? values.menu.items : [];
   const items = listed
@@ -58,7 +58,8 @@ export const menu: Lowering = (block, place): TreeNode => {
       return !!item && typeof item === "object";
     })
     .map((item) => {
-      const own = item.link ? drawnLink(item.link, place.keep, place.note) : undefined;
+      // (An email's markup has a tag in its link as written; a page's has it escaped.)
+      const own = item.link ? drawnLink(item.link, asEmail ? place.keep : (text) => text, place.note) : undefined;
       const url = (own?.href as { href?: string } | undefined)?.href;
       // No URL: on a page's markup a link to nothing, in an email's none, in the text's color.
       const linked = url || !asEmail;

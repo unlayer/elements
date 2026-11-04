@@ -8,6 +8,7 @@
  */
 import type { Json } from "@unlayer-internal/elements-core";
 import type { TreeNode } from "./lower";
+import { holdsKept } from "./values";
 
 export type Run = TreeNode | string;
 
@@ -40,14 +41,15 @@ const NO_SEMICOLON = (
 
 /**
  * Text with its entities decoded. One it doesn't read as the browser does is said in `left`: an unknown name, a name
- * without its semicolon, or a number the browser reads otherwise (none, a surrogate, past Unicode, or 128 to 159, which
- * it reads as Windows-1252).
+ * without its semicolon, a number the browser reads otherwise (none, a surrogate, past Unicode, or 128 to 159, which
+ * it reads as Windows-1252), or a noncharacter.
  */
 function decode(text: string, left: string[]): string {
   const out = text.replace(ENTITY, (match, name: string) => {
     if (name[0] === "#") {
       const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
-      if (code > 0 && code <= 0x10ffff && !(code >= 0x80 && code <= 0x9f) && !(code >= 0xd800 && code <= 0xdfff)) return String.fromCodePoint(code);
+      // (Nor a noncharacter, which is no text: see values.ts's marks.)
+      if (code > 0 && code <= 0x10ffff && !(code >= 0x80 && code <= 0x9f) && !(code >= 0xd800 && code <= 0xdfff) && !(code >= 0xfdd0 && code <= 0xfdef)) return String.fromCodePoint(code);
     } else if (Object.prototype.hasOwnProperty.call(ENTITIES, name)) return ENTITIES[name];
     left.push(`the entity ${match}`);
     return match;
@@ -80,7 +82,7 @@ function runStyle(css: string | undefined, left: string[], fonts = false): Recor
     const value = rest.join(":").trim();
     if (!name || !value) continue;
     // An email service's tag as a value: it's only known once it's filled in.
-    if (value.includes("\uE000")) {
+    if (holdsKept(value)) {
       left.push(`${name} from an email service's tag`);
       continue;
     }

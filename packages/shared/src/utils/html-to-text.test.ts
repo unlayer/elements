@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { htmlToPlainText } from "./html-to-text";
+import { decodeEntities, htmlToPlainText } from "./html-to-text";
+
+describe("decodeEntities", () => {
+  it("reads a number as its character, but a Unicode noncharacter as nothing: what reads text may use them for its own marks", () => {
+    expect(decodeEntities("&#65;&#x42;")).toBe("AB");
+    expect(decodeEntities("a&#xFDD0;b&#64977;c&#xfdef;d")).toBe("abcd");
+    // (A number past 16 bits wraps round to one, and an entity in an entity's reads twice.)
+    expect(decodeEntities("a&#x1FDD0;b&#130513;c&amp;#xFDD0;d")).toBe("abcd");
+    // One already there isn't this function's to take out.
+    expect(decodeEntities("\uFDD00\uFDD1")).toBe("\uFDD00\uFDD1");
+  });
+});
 
 describe("htmlToPlainText", () => {
   it("returns empty string for empty input", () => {

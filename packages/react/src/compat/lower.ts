@@ -62,12 +62,14 @@ export interface Place {
   id?: string;
   /** Says what's drawn otherwise than the block asks: a diagnostic of the render. */
   note(message: string, severity?: "warning" | "info"): void;
-  /** Text with its email service's tags (or what `pattern` finds) kept out of the writers' escaping (render.ts puts them back). */
+  /** Text (not HTML) with its email service's tags (or what `pattern` finds) kept out of the writers' escaping, where they can't add markup (values.ts); render.ts puts them back. */
   keep(text: string, pattern?: RegExp): string;
+  /** HTML with its email service's tags kept as they're written, what they hold being HTML as what's around them is. */
+  keepHtml(html: string): string;
 }
 
 /** Where a block is, as the design says it. */
-export type FramePlace = Omit<Place, "source" | "id" | "note" | "keep">;
+export type FramePlace = Omit<Place, "source" | "id" | "note" | "keep" | "keepHtml">;
 
 /** What a template holds beside its design, which legacy draws. */
 export interface OutsideTheDesign {

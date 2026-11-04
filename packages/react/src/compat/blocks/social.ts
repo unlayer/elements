@@ -7,7 +7,7 @@
  * a page's placeholder, or in an email's markup nothing. It always draws: what can't be read is said.
  */
 import type { TreeNode } from "../lower";
-import { ALIGN, DEFAULT_CDN, deviceValues, drawnImageUrl, encodedUrl, inAttribute, px, sides, some, type Values } from "../values";
+import { ALIGN, DEFAULT_CDN, deviceValues, drawnImageUrl, encodedUrl, px, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";
 
 export const social: Lowering = (block, place): TreeNode => {
@@ -49,18 +49,20 @@ export const social: Lowering = (block, place): TreeNode => {
     return !!icon && typeof icon === "object";
   });
   const custom: unknown[] = Array.isArray(values.icons?.editor?.data?.customIcons) ? values.icons.editor.data.customIcons : [];
+  // An email's markup has a tag in an icon's URL as written; a page's has it escaped, and neither one in its name.
+  const inUrl = asEmail ? place.keep : (text: string) => text;
   const nodes = icons.map((icon, index): TreeNode => {
     const name = typeof icon.name === "string" ? icon.name : "";
     if (!name) said("icon's name", icon.name);
     const own = custom.find((other) => (other as Values | null)?.name === icon.name) as Values | undefined;
     const givenImage = own ? own.icons?.[type] : icon.imgUrl;
     const named = `${cdn}/social/icons/${type}/${name.toLowerCase()}.png`;
-    const url = givenImage ? drawnImageUrl(givenImage, place.keep, (message) => place.note(`A social icon's ${message}`)) : undefined;
-    const alt = place.keep(inAttribute(`${name} icon`));
-    const title = name ? place.keep(inAttribute(name)) : undefined;
+    const url = givenImage ? drawnImageUrl(givenImage, inUrl, (message) => place.note(`A social icon's ${message}`)) : undefined;
+    const alt = `${name} icon`;
+    const title = name || undefined;
     const image: TreeNode = {
       type: "Image",
-      props: { src: size ? { src: url ?? place.keep(inAttribute(named)), width: size, height: size } : url ?? place.keep(inAttribute(named)), alt, ...(asEmail && title ? { title } : {}) },
+      props: { src: size ? { src: url ?? named, width: size, height: size } : url ?? named, alt, ...(asEmail && title ? { title } : {}) },
       style: asEmail ? { width: size! } : { width: size!, height: size! },
     };
     const given = icon.url;
@@ -72,7 +74,7 @@ export const social: Lowering = (block, place): TreeNode => {
         ? image
         : {
             type: "Link",
-            props: { href: { href: place.keep(encodedUrl(href)), target: "_blank" }, ...(asEmail ? (title ? { title } : {}) : { "aria-label": alt }) },
+            props: { href: { href: inUrl(encodedUrl(href)), target: "_blank" }, ...(asEmail ? (title ? { title } : {}) : { "aria-label": alt }) },
             children: [image],
           };
     const gap = index === icons.length - 1 ? 0 : spacing!;

@@ -183,7 +183,7 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
   const unreadStyles: Array<Parameters<Place["note"]>> = [];
   const style = textStyles(values, { ...place, note: (...note) => unreadStyles.push(note) }, level);
   const html = textHtml(values, place);
-  const { children, left } = parseRuns(place.keep(html), { weight: (style.fontWeight as number | undefined) ?? 400 });
+  const { children, left } = parseRuns(place.keepHtml(html), { weight: (style.fontWeight as number | undefined) ?? 400 });
   const ownSize = ownFontSize(children);
   // A paragraph's line height on phones is its runs' too, in legacy's CSS: a run in another font size has its own here.
   // The HTML as it is, or in its own values and its settings for each device as legacy's stylesheet applies them.

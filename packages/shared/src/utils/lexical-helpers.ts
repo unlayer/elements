@@ -251,11 +251,10 @@ export function generateHtmlFromTextJson(textJson: string): string {
   try {
     const parsed = JSON.parse(textJson);
 
-    // Raw HTML passthrough (produced by htmlToTextJson)
-    if (parsed.__html) return parsed.__html;
-
-    // Walk the Lexical JSON tree and produce HTML
-    return nodeToHtml(parsed.root);
+    // Raw HTML passthrough (produced by htmlToTextJson); else walk the Lexical JSON tree and produce HTML. A JSON escape
+    // can write a Unicode noncharacter, which is no text: what reads text may use them for its own marks.
+    const html = parsed.__html || nodeToHtml(parsed.root);
+    return typeof html === "string" ? html.replace(/[\uFDD0-\uFDEF]/g, "") : html;
   } catch {
     return "";
   }

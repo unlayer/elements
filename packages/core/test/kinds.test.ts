@@ -127,6 +127,16 @@ describe("fonts", () => {
 });
 
 describe("links and images", () => {
+  it("reads a URL without an email service's tags, which its service may fill in with nothing", () => {
+    for (const url of ["<%a%>javascript:alert(1)", "java<%a%>script:alert(1)", "{{a}}javascript:alert(1)", "{% if a %}javascript:alert(1)", "{{ a }}data:text/html,x", "\uFDD00\uFDD1javascript:alert(1)"]) {
+      rejects(link(), url);
+      rejects(asset(), url);
+    }
+    expect(value(link(), "{{base}}/path")).toBe("{{base}}/path");
+    expect(value(link(), "<%unsubscribe%>")).toBe("<%unsubscribe%>");
+    expect(value(asset(), "{{cdn}}/a.png")).toBe("{{cdn}}/a.png");
+  });
+
   it("keeps safe URLs and merge tags", () => {
     expect(value(link(), "https://example.com")).toBe("https://example.com");
     expect(value(link(), "mailto:hi@example.com")).toBe("mailto:hi@example.com");

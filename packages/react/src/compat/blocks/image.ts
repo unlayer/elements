@@ -9,7 +9,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { contentSlotWidth } from "../../utils/image-sizing";
 import type { TreeNode } from "../lower";
 import { imageBox, imagePadding, outlookCopy } from "../quirks";
-import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, inAttribute, moreRoom, sides, some, webLink, type Sides, type Values } from "../values";
+import { ALIGN, attribute, columnsStack, deviceValues, drawnImageUrl, drawnLink, moreRoom, sides, some, webLink, type Sides, type Values } from "../values";
 import type { Lowering } from "./index";
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -51,7 +51,8 @@ export const image: Lowering = (block, place): TreeNode => {
     align = asEmail && values.textAlign === "middle" ? "center" : "start";
   }
   const box = { ...(some(padding) ? { padding: padding! } : {}), alignItems: align };
-  const url = src.url ? drawnImageUrl(src.url, place.keep, (message) => place.note(`An image's URL ${message}`)) : undefined;
+  // Legacy keeps no email service's tag in an image's URL or alternate text: all of it is escaped.
+  const url = src.url ? drawnImageUrl(src.url, (text) => text, (message) => place.note(`An image's URL ${message}`)) : undefined;
   if (!url) {
     // Legacy's block has its padding, and nothing in it.
     if (!src.url) place.note("An image with no URL draws nothing.", "info");
@@ -93,7 +94,7 @@ export const image: Lowering = (block, place): TreeNode => {
     } else if (key === "src") said("width on phones", value);
   }
   for (const key of Object.keys(block.values._override?.mobile ?? {})) if (!["hideMobile", "containerPadding", "src", "textAlign"].includes(key)) place.note(`An image's ${key} on phones isn't read: it's drawn without it.`, "info");
-  const alt = typeof values.altText === "string" ? place.keep(inAttribute(values.altText)) : "";
+  const alt = typeof values.altText === "string" ? values.altText : "";
   const asset: Record<string, Json> = { src: url };
   for (const side of ["width", "height"] as const) if (typeof src[side] === "number" && src[side] > 0) asset[side] = src[side];
   // In an email, legacy's maximum is the image's own on phones too, where a stacked column is wider than on desktop: the

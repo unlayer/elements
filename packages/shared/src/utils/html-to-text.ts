@@ -90,6 +90,12 @@ const HTML_ENTITIES: Record<string, string> = {
   "&uuml;": "ü",
 };
 
+/** The character a number reads as. A Unicode noncharacter is no text: what reads text may use them for its own marks. */
+function numbered(code: number): string {
+  const unit = code & 0xffff;
+  return unit >= 0xfdd0 && unit <= 0xfdef ? "" : String.fromCharCode(unit);
+}
+
 /**
  * Decode HTML entities (named and numeric).
  */
@@ -98,12 +104,8 @@ export function decodeEntities(text: string): string {
   let result = text.replace(/&\w+;/g, (match) => HTML_ENTITIES[match] ?? match);
 
   // Numeric entities: &#123; and &#x1A;
-  result = result.replace(/&#(\d+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 10))
-  );
-  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
-  );
+  result = result.replace(/&#(\d+);/g, (_, code) => numbered(parseInt(code, 10)));
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => numbered(parseInt(code, 16)));
 
   return result;
 }

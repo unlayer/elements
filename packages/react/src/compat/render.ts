@@ -12,7 +12,7 @@ import { ErrorFallback, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
 import { forWriting, lowerTemplate, takeOut, type InReact } from "./template";
-import { attribute, restoreServiceTags } from "./values";
+import { attribute, restoreServiceTags, withoutMarks } from "./values";
 
 export interface Rendered {
   /** The whole document. */
@@ -66,16 +66,16 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const rootProps = (lowered.root.props ?? {}) as { lang?: string; fonts?: Array<{ url: string }> };
   const lang = optionLang ?? rootProps.lang;
   const { root } = lowered.tree;
-  root.props = { ...root.props, ...(title !== undefined && title.trim() ? { title: title.trim() } : {}), ...(lang ? { lang: String(lang) } : {}) };
+  root.props = withoutMarks({ ...root.props, ...(title !== undefined && title.trim() ? { title: title.trim() } : {}), ...(lang ? { lang: String(lang) } : {}) });
   const refused: Diagnostic[] = [];
   const result = writeWhatItTakes(lowered.tree, refused);
-  const diagnostics = [...lowered.diagnostics, ...refused];
+  const restore = (markup: string) => (lowered.tags.length ? restoreServiceTags(markup, lowered.tags) : markup);
+  // (What they say of a value reads as the template wrote it.)
+  const diagnostics = [...lowered.diagnostics, ...refused].map((diagnostic) => ({ ...diagnostic, message: restore(diagnostic.message) }));
   warnOnce(diagnostics);
 
-  const restore = (markup: string) => (lowered.tags.length ? restoreServiceTags(markup, lowered.tags) : markup);
-
   // The root's fonts, then the option's, each URL once: stylesheets legacy links (an email's out of Outlook's view).
-  const fonts = [...(rootProps.fonts ?? []), ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
+  const fonts = withoutMarks([...(rootProps.fonts ?? []), ...optionFonts]).filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
   const links = fonts.map((font) => `<link href="${attribute(font.url)}" rel="stylesheet" type="text/css">`).join("");
   // What today's head functions add for blocks that keep their legacy HTML (a custom tool's script and tags).
   const js = lowered.head?.js ?? "";
@@ -93,10 +93,12 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">',
     () => ""
   );
-  const { className, style } = (lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties };
+  const { className, style } = withoutMarks((lowered.root.props ?? {}) as { className?: string; style?: React.CSSProperties });
   const hosted = (markup: string) => renderToStaticMarkup(React.createElement("div", { dangerouslySetInnerHTML: { __html: markup }, className, style }));
-  const withHost = lowered.bare && (className || style) ? shell.replace(result.body, () => hosted(result.body)) : shell;
-  const html = restore(extra.length ? withHost.replace("</head>", () => `${extra.join("\n")}</head>`) : withHost);
+  // (The marks go back in what the writers wrote, the tree's: what's written around it holds none.)
+  const written = restore(shell);
+  const withHost = lowered.bare && (className || style) ? written.replace(restore(result.body), () => hosted(restore(result.body))) : written;
+  const html = extra.length ? withHost.replace("</head>", () => `${extra.join("\n")}</head>`) : withHost;
 
   // The parts: the stylesheet with the body's own style (an app's page embedding them takes the template's margin and
   // background, as legacy's head gave them), the script and the tags; the body.

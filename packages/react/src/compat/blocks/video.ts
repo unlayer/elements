@@ -41,8 +41,8 @@ export const video: Lowering = (block, place): TreeNode => {
     const slot = contentSlotWidth({ bodyValues: place.body, rowValues: place.row, rowCells: place.cells, columnIndex: place.index, columnValues: place.column, containerPadding: values.containerPadding ?? "10px" });
     const stacks = place.mode === "email" && columnsStack(place);
     const image: TreeNode = { type: "Image", props: { src: given ?? place.keep(placeholder), alt: "Video", title: "Video" }, style: { width: "100%", maxWidth: max }, compat: { ariaLabel: "video thumbnail", ...(stacks && max > slot + 0.5 ? { stackedMaxWidth: max } : {}) }, ...(place.mode === "email" && moreRoom(phonePadding, padding) ? { mobile: { maxWidth: max } } : {}) };
-    const link = values.href ?? (typeof video.url === "string" && video.url ? { url: video.url, target: "" } : undefined);
-    const href = link ? drawnLink(link, place.keep, place.note) : undefined;
+    // (Its video's own URL is written as it is, a tag in it whole; a link given it is written as any block's.)
+    const href = values.href ? drawnLink(values.href, place.keep, place.note) : typeof video.url === "string" && video.url ? { href: { href: place.keep(video.url) } } : undefined;
     const linked = href && (href.href as { href: string }).href ? { type: "Link", props: href as Record<string, Json>, children: [image] } : image;
     return { type: "Column", style: { ...style, alignItems: "center" }, ...mobile, children: [linked] };
   }
