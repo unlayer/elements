@@ -8,6 +8,8 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import {
+  renderToHtml,
+  renderToHtmlParts,
   renderToPlainText,
   renderToJson,
   Email,
@@ -25,9 +27,19 @@ import {
   Html,
   ColumnLayouts,
 } from "./index";
-// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
-// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
-import { legacyRenderToHtml as renderToHtml, legacyRenderToHtmlParts as renderToHtmlParts } from "./utils/render-to-html";
+
+/** What a reader gets from the markup: its words, links and images, in order. */
+function drawn(html: string) {
+  const page = new DOMParser().parseFromString(html, "text/html");
+  const all = <E extends Element>(selector: string) => Array.from(page.querySelectorAll<E>(selector));
+  return {
+    page,
+    words: page.body.textContent!.replace(/\s+/g, " "),
+    links: all("a").map((a) => a.getAttribute("href")),
+    images: all("img").map((img) => [img.getAttribute("src"), img.getAttribute("alt")]),
+    all,
+  };
+}
 
 // -- The golden template: a realistic marketing email --
 
@@ -156,63 +168,93 @@ const GoldenPage = (
 describe("Golden Template: Marketing Email", () => {
   it("renderToHtml produces valid HTML with all content", () => {
     const html = renderToHtml(GoldenEmail);
+    const { words, links, images, all } = drawn(html);
 
     // Structure
-    expect(html).toContain('table');
-    expect(html).toContain('role="presentation"');
+    expect(all('table[role="presentation"]').length).toBeGreaterThan(0);
 
-    // Text content from every component type
-    expect(html).toContain("Spring Sale");
-    expect(html).toContain("Shop Now");
-    expect(html).toContain("Fresh styles");
-    expect(html).toContain("Classic Tee");
-    expect(html).toContain("Slim Jeans");
-    expect(html).toContain("SPRING30");
-    expect(html).toContain("Acme Co");
-    expect(html).toContain("Unsubscribe");
+    // Text content from every component type, in the order of the template
+    const order = [
+      "Shop",
+      "About",
+      "Contact",
+      "Spring Sale — 30% Off",
+      "Fresh styles for the new season.",
+      "Shop Now",
+      "Classic Tee — $29.99",
+      "Slim Jeans — $49.99",
+      "Use code SPRING30 at checkout",
+      "Acme Co, 123 Main St",
+      "Unsubscribe.",
+    ];
+    const places = order.map((text) => words.indexOf(text));
+    expect(places).not.toContain(-1);
+    expect(places).toEqual([...places].sort((a, b) => a - b));
 
-    // Menu items
-    expect(html).toContain("Shop");
-    expect(html).toContain("About");
-    expect(html).toContain("Contact");
+    // Images, each with its alternate text
+    expect(images).toEqual(
+      expect.arrayContaining([
+        ["https://example.com/logo.png", "Acme Co"],
+        ["https://example.com/hero.jpg", "Spring Collection"],
+        ["https://example.com/product-a.jpg", "Product A"],
+        ["https://example.com/product-b.jpg", "Product B"],
+      ])
+    );
 
-    // Image sources
-    expect(html).toContain("https://example.com/logo.png");
-    expect(html).toContain("https://example.com/hero.jpg");
-    expect(html).toContain("https://example.com/product-a.jpg");
+    // Menu items and social links
+    expect(links).toEqual(
+      expect.arrayContaining([
+        "/shop",
+        "/about",
+        "/contact",
+        "https://facebook.com/acme",
+        "https://x.com/acme",
+        "https://instagram.com/acme",
+      ])
+    );
 
-    // Button colors
-    expect(html).toContain("#e63946");
+    // Colors: the template's background, the rows' and each Button's, on cells for Outlook
+    expect(all('[bgcolor="#f4f4f5"]').length).toBeGreaterThan(0);
+    const link = (href: string) => all(`a[href="${href}"]`)[0]!;
+    expect(link("/contact").closest('[bgcolor="#1a1a2e"]')).not.toBeNull();
+    expect(link("https://x.com/acme").closest('[bgcolor="#1a1a2e"]')).not.toBeNull();
+    expect(all('td[bgcolor="#e63946"] a')[0]?.textContent).toBe("Shop Now");
+    expect(all("a").filter((a) => a.textContent === "Buy").map((a) => a.closest("td")!.getAttribute("bgcolor"))).toEqual(["#1a1a2e", "#1a1a2e"]);
 
-    // Social links
-    expect(html).toContain("facebook.com/acme");
-    expect(html).toContain("x.com/acme");
-    expect(html).toContain("instagram.com/acme");
+    // The inbox's preview line is there, hidden
+    const preview = all<HTMLElement>('[data-skip-in-text="true"]');
+    expect(preview[0]?.textContent).toContain("Spring sale — 30% off everything");
+    expect(preview[0]?.style.display).toBe("none");
 
-    // Email-specific: MSO conditionals
-    expect(html).toContain("[if mso]");
+    // Email-specific: MSO conditionals, at the template's content width
+    expect(html).toMatch(/\[if mso\].*<td width="600" valign="top"/);
+    expect(html).toContain("max-width:600px");
 
     // No React artifacts
     expect(html).not.toContain("data-reactroot");
   });
 
+  it("draws the product row's two columns side by side, each half of the content width", () => {
+    const { all } = drawn(renderToHtml(GoldenEmail));
+    const column = (word: string) => all<HTMLElement>("p").find((p) => p.textContent!.includes(word))!.closest<HTMLElement>('div[style*="inline-block"]')!;
+    expect(column("Classic Tee").style.maxWidth).toBe("300px");
+    expect(column("Slim Jeans").style.maxWidth).toBe("300px");
+    expect(column("Classic Tee")).not.toBe(column("Slim Jeans"));
+    expect(column("Classic Tee").querySelector("img")?.getAttribute("alt")).toBe("Product A");
+    expect(column("Slim Jeans").querySelector("img")?.getAttribute("alt")).toBe("Product B");
+  });
+
   it("renderToHtmlParts produces head CSS and body HTML", () => {
     const { head, body } = renderToHtmlParts(GoldenEmail);
 
-    // Head has styles
-    expect(head).toContain("<style>");
-    expect(head).toContain("</style>");
+    // Head has styles, and none of the content
+    expect(head).toMatch(/^<style>[\s\S]*@media[\s\S]*<\/style>$/);
+    expect(head).not.toContain("Spring Sale");
 
-    // Body has content
+    // Body has content, and none of the styles
     expect(body).toContain("Spring Sale");
     expect(body).toContain("Shop Now");
-
-    // Can assemble a full document
-    const doc = `<!DOCTYPE html><html><head><meta charset="utf-8">${head}</head><body>${body}</body></html>`;
-    expect(doc).toContain("<!DOCTYPE html>");
-    expect(doc).toContain("<head>");
-    expect(doc).toContain("<body>");
-    expect(doc).toContain("</html>");
+    expect(body).not.toContain("<style>");
   });
 
   it("renderToPlainText extracts readable text", () => {
@@ -248,7 +290,7 @@ describe("Golden Template: Marketing Email", () => {
 
     // Counters track component usage
     expect(json.counters.u_row).toBe(9);
-    expect(json.counters.u_column).toBeGreaterThanOrEqual(10); // 9 single + 2 in grid = 11
+    expect(json.counters.u_column).toBe(10); // 8 single + 2 in grid
 
     // Content types are correct
     const heroCol = json.body.rows[2].columns[0];
@@ -256,27 +298,29 @@ describe("Golden Template: Marketing Email", () => {
     expect(contentTypes).toEqual(["image", "heading", "text", "button"]);
   });
 
-  it("snapshot locks the full email HTML", () => {
-    const html = renderToHtml(GoldenEmail);
-    expect(html).toMatchSnapshot();
-  });
 });
 
 describe("Golden Template: Web Page (3-column)", () => {
   it("renderToHtml produces flexbox layout with 3 columns", () => {
     const html = renderToHtml(GoldenPage);
+    const { all, page } = drawn(html);
 
-    expect(html).toContain("Feature One");
-    expect(html).toContain("Feature Two");
-    expect(html).toContain("Feature Three");
-    expect(html).toContain("flex");
+    // 3 columns, each a third of the content width, with its heading and words
+    const columns = all<HTMLElement>("h1").map((heading) => heading.parentElement!);
+    expect(columns.map((column) => column.style.flex)).toEqual(["0 1 33.3333%", "0 1 33.3333%", "0 1 33.3333%"]);
+    expect(columns.map((column) => column.textContent)).toEqual([
+      "Feature OneBlazing fast performance.",
+      "Feature TwoEnterprise-grade security.",
+      "Feature Three24/7 customer support.",
+    ]);
+    expect(html).toContain("max-width:960px");
 
-    // 3 columns
-    expect(html).toContain("u-col-33");
+    // The page's own background, on its <body>
+    expect(page.body.style.backgroundColor).toBe("rgb(255, 255, 255)");
 
     // No email artifacts
     expect(html).not.toContain("[if mso]");
-    expect(html).not.toContain("v:roundrect");
+    expect(all('table[role="presentation"]')).toHaveLength(0);
   });
 
   it("renderToJson produces correct 3-column structure", () => {
@@ -295,10 +339,6 @@ describe("Golden Template: Web Page (3-column)", () => {
     }
   });
 
-  it("snapshot locks the full page HTML", () => {
-    const html = renderToHtml(GoldenPage);
-    expect(html).toMatchSnapshot();
-  });
 });
 
 describe("Golden Template: Print Document", () => {
@@ -317,14 +357,12 @@ describe("Golden Template: Print Document", () => {
 
   it("renderToHtml produces a print-ready document with all content", () => {
     const html = renderToHtml(GoldenDocument, { title: "Q3 Report" });
-    expect(html).toContain("Quarterly Report");
-    expect(html).toContain("Revenue grew 14%");
-    expect(html).toContain("<title>Q3 Report</title>");
-  });
-
-  it("snapshot locks the full document HTML", () => {
-    const html = renderToHtml(GoldenDocument);
-    const htmlWithoutCssComments = html.replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(htmlWithoutCssComments).toMatchSnapshot();
+    const { all, page } = drawn(html);
+    expect(page.title).toBe("Q3 Report");
+    expect(all("h1")[0]?.textContent).toBe("Quarterly Report");
+    expect(all("p").map((p) => p.textContent)).toEqual(["Revenue grew 14% quarter over quarter.", "Operating costs remained flat."]);
+    expect(all("hr")).toHaveLength(1);
+    // Backgrounds print, or a PDF loses them
+    expect(html).toContain("print-color-adjust: exact");
   });
 });

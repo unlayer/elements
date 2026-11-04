@@ -69,7 +69,11 @@ export function GarbageForms() {
 describe("dx-contract", () => {
   it("natural forms render to real HTML without the error fallback", () => {
     const out = renderToHtml(<NaturalForms />);
-    expect(out.length).toBeGreaterThan(0);
     expect(out).not.toMatch(/failed to render/i);
+    expect(out).toMatch(/<img[^>]*src="https:\/\/x\/a\.png"/);
+    expect(out).toMatch(/<h6[^>]*>Hi<\/h6>|<h5[^>]*>Hi<\/h5>/);
+    expect(out).toContain("Plain");
+    expect(out).toMatch(/Rich <[^>]*font-weight:700[^>]*>bold</);
+    expect(out).toMatch(/<a [^>]*href="https:\/\/x"[^>]*>Go<\/a>/);
   });
 });

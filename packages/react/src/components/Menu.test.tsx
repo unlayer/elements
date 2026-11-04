@@ -18,8 +18,11 @@ describe("Menu Component", () => {
         }}
       />
     );
-    expect(container.textContent).toContain("Home");
-    expect(container.textContent).toContain("About");
+    const links = Array.from(container.querySelectorAll("a"));
+    expect(links.map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Home", "/"],
+      ["About", "/about"],
+    ]);
   });
 
   it("renders item text content", () => {
@@ -52,7 +55,7 @@ describe("Menu Component", () => {
     const link = Array.from(container.querySelectorAll("a")).find(
       a => a.textContent?.includes("External")
     );
-    expect(link).not.toBeNull();
+    expect(link?.getAttribute("target")).toBe("_self");
   });
 
   it("has correct displayName", () => {

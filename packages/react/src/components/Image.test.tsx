@@ -8,9 +8,7 @@ import Row from "./Row";
 import { Column } from "./Column";
 import { ColumnLayouts, type ColumnLayout } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
-// Today's components' own HTML: the legacy renderer, which renders a template the new engine can't draw and the blocks
-// it keeps as they are. renderToHtml() renders through the new engine (src/compat, checked by test:compare).
-import { legacyRenderToHtml as renderToHtml } from "../utils/render-to-html";
+import { renderToHtml } from "../utils/render-to-html";
 
 describe("Image Component", () => {
   it("renders an img element", () => {
@@ -72,8 +70,7 @@ describe("Image Component", () => {
   });
 
   // Regression: action shapes (string / storage / render) must all wrap the
-  // image in a working <a>. Previously the storage shape silently produced
-  // no anchor at all because the exporter read `e.url` on `{ name, values }`.
+  // image in a working <a>. The storage shape silently produced no anchor once.
   describe("action wraps the image in an anchor (regression)", () => {
     const URL = "https://example.com";
     const SRC = "https://example.com/photo.jpg";
@@ -207,13 +204,14 @@ describe("Image Component", () => {
   });
 
   // Regression: an image must size against the real available width
-  // (contentWidth × column fraction), not a fixed fallback. The Column threads
-  // its body/column context to the exporter so this matches the editor.
-  describe("sizes against contentWidth × column width (threaded to the exporter)", () => {
+  // (contentWidth × column fraction, less the block's 10px padding on each side),
+  // not a fixed fallback, so this matches the editor.
+  describe("sizes against contentWidth × column width", () => {
     const big = { url: "https://x/p.jpg", width: 1200, height: 600 };
+    // Its width attribute (Outlook's) and its max-width (everyone else's) must agree.
     const imgWidth = (html: string) => {
-      const m = html.match(/<img[^>]*\bwidth="(\d+)"/);
-      return m ? Number(m[1]) : null;
+      const m = html.match(/<img[^>]*\bwidth="(\d+)"[^>]*max-width:(\d+)px/);
+      return m && m[1] === m[2] ? Number(m[1]) : null;
     };
     const renderImg = (contentWidth: string, layout: ColumnLayout, cols: number) => {
       const columns = Array.from({ length: cols }, (_, i) => (
@@ -229,15 +227,15 @@ describe("Image Component", () => {
     };
 
     it("a full-width image fills the content width (not the 500 fallback)", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(600);
+      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(580);
     });
 
     it("an image in a 3-column row sizes to its column (~1/3), staying responsive", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(200);
+      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(180);
     });
 
     it("respects a wider contentWidth", () => {
-      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(900);
+      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(880);
     });
   });
 });
