@@ -149,7 +149,7 @@ export const airbnb = (() => {
         <Section style={{ backgroundColor: "#FFFFFF", padding: [28, 0, 32, 0] }}>
           <Column style={{ padding: 10, alignItems: "center" }}>
             <Button
-              href="https://airbnb.com/trips"
+              href={{ href: "https://airbnb.com/trips", target: "_blank" }}
               style={{
                 width: "100%",
                 backgroundColor: RAUSCH,
@@ -299,7 +299,7 @@ export const luma = (() => {
         <Section style={{ backgroundColor: CARD, padding: [22, 0, 6, 0] }}>
           <Column style={{ padding: 10, alignItems: "start" }}>
             <Button
-              href="https://lu.ma/neon-nights/rsvp"
+              href={{ href: "https://lu.ma/neon-nights/rsvp", target: "_blank" }}
               style={{
                 backgroundColor: ACCENT,
                 color: "#FFFFFF",
@@ -611,7 +611,7 @@ export const mercury = (() => {
         <Section style={{ backgroundColor: CARD, padding: [32, 0, 0, 0] }}>
           <Column style={{ padding: 10, alignItems: "start" }}>
             <Button
-              href="https://meridian.example.com/tx/INV-2705"
+              href={{ href: "https://meridian.example.com/tx/INV-2705", target: "_blank" }}
               style={{
                 backgroundColor: INK,
                 color: "#FFFFFF",
@@ -1025,7 +1025,7 @@ export const nike = (() => {
         <Section style={{ backgroundColor: BLACK, padding: [20, 0, 36, 0] }}>
           <Column style={{ padding: 10, alignItems: "center" }}>
             <Button
-              href="https://nike.com/launch"
+              href={{ href: "https://nike.com/launch", target: "_blank" }}
               style={{
                 backgroundColor: WHITE,
                 color: BLACK,
@@ -1226,7 +1226,7 @@ export const notion = (() => {
         <Section style={{ backgroundColor: "#FFFFFF", padding: [8, 0, 48, 0] }}>
           <Column style={{ padding: 10, alignItems: "start" }}>
             <Button
-              href="https://example.com/get-started"
+              href={{ href: "https://example.com/get-started", target: "_blank" }}
               style={{
                 backgroundColor: ACCENT,
                 color: "#FFFFFF",
@@ -1642,7 +1642,7 @@ export const stripe = (() => {
         <Section style={{ backgroundColor: "#FFFFFF", padding: [36, 0, 0, 0] }}>
           <Column style={{ padding: 10, alignItems: "start" }}>
             <Button
-              href="https://acme.com/invoices/2705.pdf"
+              href={{ href: "https://acme.com/invoices/2705.pdf", target: "_blank" }}
               style={{
                 backgroundColor: INDIGO,
                 color: "#FFFFFF",
@@ -1906,7 +1906,10 @@ export const warby = (() => {
         <Section style={{ backgroundColor: CARD, padding: [28, 0, 4, 0] }}>
           <Column style={{ padding: 10, alignItems: "center" }}>
             <Button
-              href="https://tools.usps.com/go/TrackConfirmAction?tLabels=94001234567890123456"
+              href={{
+                href: "https://tools.usps.com/go/TrackConfirmAction?tLabels=94001234567890123456",
+                target: "_blank",
+              }}
               style={{
                 width: "100%",
                 backgroundColor: NAVY,
@@ -2092,7 +2095,7 @@ export const spotify = (() => {
         <Section style={{ backgroundColor: BG, padding: [22, 0, 36, 0] }}>
           <Column style={{ padding: 10, alignItems: "start" }}>
             <Button
-              href="https://open.spotify.com"
+              href={{ href: "https://open.spotify.com", target: "_blank" }}
               style={{
                 backgroundColor: GREEN,
                 color: "#000000",

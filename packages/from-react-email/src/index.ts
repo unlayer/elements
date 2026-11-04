@@ -5,6 +5,7 @@
 import React from "react";
 import { render } from "@react-email/components";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
+import { render as renderNewComponents } from "@unlayer/react-elements/primitives";
 import {
   checkFails,
   compareText,
@@ -338,6 +339,43 @@ export async function verifyConversion(
   }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
+}
+
+/**
+ * Check a template written with the new components (/primitives) against the original, as `verifyConversion` checks one
+ * written with today's: rendered with the same props, and with each boolean prop flipped. The design JSON is today's
+ * components' to give, so it isn't part of this check.
+ */
+export async function verifyNewComponents(
+  Original: Template,
+  Converted: MigratedTemplate,
+  options: { props?: Record<string, unknown> } = {},
+): Promise<TextCheck & Pick<Verification, "originalHtml" | "convertedHtml" | "designWarnings" | "variants">> {
+  const props = options.props ?? Original.PreviewProps ?? {};
+  const originalHtml = await render(React.createElement(Original, fresh(props)));
+  const root = callTemplate(Converted, props);
+  if (!React.isValidElement(root)) throw new Error("the template renders nothing with these props: give it PreviewProps it renders with");
+  const convertedHtml = (await renderNewComponents(root as never)).html;
+  const variants: Verification["variants"] = [];
+  for (const [name, value] of Object.entries(props)) {
+    if (typeof value !== "boolean") continue;
+    const flipped = { ...props, [name]: !value };
+    const change = `${name}: ${!value}`;
+    let original: string;
+    try {
+      original = await render(React.createElement(Original, fresh(flipped)));
+    } catch {
+      continue; // the original doesn't render this way either: nothing to compare
+    }
+    try {
+      const migrated = callTemplate(Converted, flipped);
+      const check = compareText(original, rendersNothing(migrated) ? "" : (await renderNewComponents(migrated as never)).html);
+      if (checkFails(check)) variants.push(variant(change, check));
+    } catch (error) {
+      variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
+    }
+  }
+  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings: [], variants };
 }
 
 /** Elements' warning for a `<link>` among the email's rows. */

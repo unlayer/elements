@@ -7,8 +7,11 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import Module, { createRequire } from "node:module";
 import * as lib from "@unlayer/from-react-email";
-import { main, withContentHash, type Io } from "../src/cli";
+import { main as run, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
+
+/** These tests check the conversion and its checks, on today's components (cli.test.ts has the new components). */
+const main: typeof run = (argv, io, library) => run(!argv.length || argv[0] === "compare" || argv.includes("--to") ? argv : ["--to", "components", ...argv], io, library);
 
 const dirs: string[] = [];
 afterEach(() => {

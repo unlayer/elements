@@ -402,6 +402,29 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     if (!isLiteral(value) || value.code !== undefined || typeof value.literal !== "string" || !/^\s*-?[\d.]+(px)?\s*$/.test(value.literal)) return value;
     return lit(px(value.literal));
   };
+  /** A link as today's Button writes it: in a new window, unless it says otherwise. */
+  const opensNewWindow = (href: Value, target: Value | undefined): Value => {
+    if (target && !(isLiteral(target) && (target.literal === "_blank" || target.literal === "_self"))) return { code: `{ href: ${code(href)}, target: ${code(target)}${typescript ? ' as "_blank" | "_self"' : ""} }` };
+    const opens = target ? (target as { literal: string }).literal : "_blank";
+    return isLiteral(href) && href.code === undefined ? lit({ href: href.literal, target: opens }) : { code: `{ href: ${code(href)}, target: ${JSON.stringify(opens)} }` };
+  };
+  /**
+   * A corner radius as the new components take it: px, or [topLeft, topRight, bottomRight, bottomLeft]. CSS's shorthand
+   * and rem or em (at 16px) are written out; what's left can't be read, which is reported.
+   */
+  const radiusOf = (value: Value | undefined, at: ts.Node): Value | undefined => {
+    if (!isLiteral(value) || value.code !== undefined || typeof value.literal !== "string") return n(value);
+    const corners = value.literal.trim().split(/\s+/).map((corner) => {
+      const match = /^(\d*\.?\d+)(px|rem|em)?$/.exec(corner);
+      return match ? Number(match[1]) * (match[2] === "rem" || match[2] === "em" ? 16 : 1) : undefined;
+    });
+    if (corners.length > 4 || corners.some((corner) => corner === undefined)) {
+      report.push(`${where(at)}: its borderRadius ${JSON.stringify(value.literal)} can't be read: it's left out`);
+      return undefined;
+    }
+    const [topLeft, topRight = topLeft, bottomRight = topLeft, bottomLeft = topRight] = corners as number[];
+    return topLeft === topRight && topLeft === bottomRight && topLeft === bottomLeft ? lit(topLeft) : lit([topLeft, topRight, bottomRight, bottomLeft]);
+  };
   /** Today's `mobile` prop, setting by setting (none where it can't be read, which is reported). */
   const phones = new Map<Props, { at: ts.Node; settings: Props }>();
   const phone = (props: Props, at: ts.Node): Props => {
@@ -522,6 +545,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   function row(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, body: number | undefined) {
     const layout = props.get("layout");
     if (layout && !isLiteral(layout)) report.push(`${where(node)}: this Row's layout can't be read (${layout.code}): its Columns are written one under another (give it as ColumnLayouts.TwoEqual or the like)`);
+    const computed = props.get("cells");
+    if (computed && !isLiteral(computed)) report.push(`${where(node)}: this Row's cells can't be read (${computed.code}): its Columns are written one under another (give them as numbers)`);
     const cells: number[] = (isLiteral(layout) && (layout.literal as { cells?: number[] })?.cells) || (isLiteral(props.get("cells")) && (props.get("cells") as { literal: number[] }).literal) || [1];
     const pad = props.get("padding");
     const p = isLiteral(pad) ? sides(pad.literal) : undefined;
@@ -603,7 +628,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["padding", p && p.every((side) => side === 0) ? undefined : pad],
         ["backgroundColor", color(props, "backgroundColor") ?? background],
         ["border", borders.length ? { code: object(borders)!.slice(1, -1) } : undefined],
-        ["borderRadius", n(props.get("borderRadius"))],
+        ["borderRadius", radiusOf(props.get("borderRadius"), node)],
       ]),
       columnPhone(props, node, phoneLines),
     ];
@@ -683,7 +708,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
     if (!isLiteral(value) || typeof value.literal === "number") return value;
     const text = String(value.literal).trim();
-    if (/^\d*\.?\d+(px|%)$/.test(text)) return value;
+    if (text === "normal" || /^\d*\.?\d+(px|%)$/.test(text)) return value;
     // A string of digits, or em (of the font size): the multiple it is.
     const multiple = /^(\d*\.?\d+)(em)?$/.exec(text);
     if (multiple && Number(multiple[1]) > 0) return lit(Number(multiple[1]));
@@ -716,7 +741,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const radius = props.get("borderRadius");
     const m = phone(props, node);
     const block = element("Button", [
-      attr("href", href ?? lit("#")),
+      // Today's opens in a new window, where the new one's stays in the same.
+      attr("href", opensNewWindow(href ?? lit("#"), props.get("target"))),
       styleAttr([
         ["width", isLiteral(props.get("width")) && (props.get("width") as { literal: unknown }).literal !== "auto" ? props.get("width") : undefined],
         ["backgroundColor", color(props, "backgroundColor")],
@@ -727,7 +753,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         ["lineHeight", lineHeightOf(props.get("lineHeight"), node)],
         ["letterSpacing", letterSpacing(props, fontSize, node)],
         ["padding", n(props.get("padding"))],
-        ["borderRadius", n(radius)],
+        ["borderRadius", radiusOf(radius, node)],
       ]),
       mobileAttr([["width", isLiteral(m.get("autoWidth")) && (m.get("autoWidth") as { literal: unknown }).literal === true ? undefined : n(m.get("width"))], ["fontSize", n(m.get("fontSize"))], ["lineHeight", lineHeightOf(m.get("lineHeight"), node)], ["padding", n(m.get("padding"))]]),
     ], textChildren(node, props, node, "Button"));

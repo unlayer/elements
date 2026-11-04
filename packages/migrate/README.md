@@ -1,6 +1,6 @@
 # @unlayer/migrate
 
-Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
+Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements' new components, with their styles in `style={{ }}`, that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
 
 ```bash
 npx @unlayer/migrate emails           # converts and checks your templates, and writes nothing
@@ -9,7 +9,7 @@ npx @unlayer/migrate emails --write   # then replaces them (committed in git fir
 
 Run it from your project folder, with Node.js 20.6 or later (an older one stops with exit code `1`, saying so). Each template is:
 
-1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`, also through an `index.ts` that re-exports them) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
+1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Section`/`Row`/`Column`, `Button` → `Button`, …). Tailwind classes become styles. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`, also through an `index.ts` that re-exports them) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
 2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared in two parts. The goal is an editable Unlayer template with the same content, not pixel parity: every template is written, with what differs listed.
    - **Content**, which must be the same: every word (including numeric separators, signs, currency symbols and percentages), link, image and image `alt` text the original renders, in the same order, with no new words; the same words, links and images on a phone (375px) and on wider screens a rule targets (Tailwind's `md:`, `lg:`); every block reaching the visual editor; content the original shows or hides by its props (`isGift && "hidden"`, `display: hide ? "none" : "block"`), which the migration can't keep; and words CSS adds or hides that the check doesn't read (`::before` content, an ellipsis, a line clamp, a clipping `overflow`). Anything the converter can't map is kept as HTML, so content that differs is a converter bug: the template is still written, flagged `✗`, and the run exits with `2`. Please report it.
    - **Look**, which is listed under "looks different", to fix in the editor: each word's text style at a desktop width (700px), meaning size, bold, italics, letter case, underline, color, the background behind it and a link's target; where each line of text sits across the page (a column stacked into one, a block moved to the other side); CSS the check doesn't model that can change how words show (`white-space`, letter spacing, a transform or filter, a text shadow, a list's markers, a box moved with `position`, right-to-left text, …), unless both sides have the same; phone styles the original applies up to another width than Elements' 480px (`max-width: 600px`, Tailwind's `max-sm:`), where the migration shows the other version between the two; layouts it doesn't place (a grid, columns of text, a box taken out of the flow, flex items that wrap or, in a column, aren't stretched), where their words sit depending on sizes it doesn't read; and what it can't read on one side (a selector, condition or value it doesn't evaluate), naming the rule. CSS that can't change the words (borders, rounded corners, outer shadows, heights, Outlook-only properties, rendering hints) isn't compared.
@@ -39,7 +39,8 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
 | `--force` | With `--strict`, write templates the check fails anyway. |
 | `--overwrite` | Replace files already at a destination that the run didn't produce: a template an earlier run wrote in an `--out` folder, as it wrote it, or files git can restore. A design JSON (which may have been made or edited in the editor) only when git can restore it or it's the same design the run writes: otherwise that template fails and neither file is written. With `--strict`, it never writes a template that failed the check. |
 | `--allow-dirty` | Replace files git can't restore (uncommitted changes, not committed, or not in a repository): templates with `--write`, other files with `--overwrite`. |
-| `--from react-email` | The source format (the only one today). |
+| `--to <target>` | What's written: `primitives` (the default), the new components with their styles in `style={{ }}`, from `@unlayer/react-elements/primitives`; or `components`, today's components with their styles as props. |
+| `--from react-email` | The source format: `react-email` (the default), or `elements` (below). |
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
 
@@ -74,10 +75,19 @@ The migrated templates import `@unlayer/react-elements`: until it's installed, t
 Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), and where `--out` writes them, so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` before writing anything, with the install command to run.
 
 ```tsx
+import { render } from "@unlayer/react-elements/primitives";
+import Welcome from "./emails/welcome";
+
+const { html, text } = await render(<Welcome name="Alex" />); // send with any provider
+```
+
+A template that doesn't pass the check in the new components stays in today's, and the report says why. For the visual editor, `--design` writes the design JSON next to each template. With `--to components`, templates are written in today's components, with their styles as props:
+
+```tsx
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
-const html = renderToHtml(<Welcome name="Alex" />); // send with any provider
+const html = renderToHtml(<Welcome name="Alex" />);
 const design = renderToJson(<Welcome name="Alex" />); // open in the visual editor
 ```
 

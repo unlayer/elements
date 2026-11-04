@@ -24,7 +24,7 @@ export interface LegacyHelpers {
 }
 
 export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, helpers: LegacyHelpers): Promise<number> {
-  for (const option of ["out", "design", "no-merge-tags", "strict", "force", "overwrite"]) {
+  for (const option of ["out", "design", "no-merge-tags", "strict", "force", "overwrite", "to"]) {
     if (args.option(option) !== undefined || args.flag(option)) {
       io.stderr(`--${option} isn't for --from elements: it prints a template, or replaces templates with --write.\n`);
       return 1;

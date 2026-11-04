@@ -23,6 +23,7 @@ const RUN_STYLES: Record<string, string> = {
   "font-family": "fontFamily",
   "letter-spacing": "letterSpacing",
   "text-decoration": "textDecoration",
+  "text-decoration-line": "textDecoration",
   "text-transform": "textTransform",
 };
 
@@ -101,14 +102,15 @@ export function plain(value: string): string {
 /** Text, or JSX source (an element, a line break). */
 type Part = { text: string } | { jsx: string };
 /** An element open in the markup, and what's in it so far; `open` and `close` are its JSX (none for one left out). */
-type Frame = { tag: string; open: string; close: string; parts: Part[] };
+type Frame = { tag: string; open: string; close: string; parts: Part[]; block?: boolean };
 
 /**
  * The markup as children's JSX source, the components they use, and what's left out of it (each a phrase that follows
  * "its html's"). `holes` are the expressions of a template literal the markup came from, each where its hole() is;
  * `name` is the name a component is written as (another where the template has one of its own by that name).
  */
-export function inlineHtml(html: string, holes: string[] = [], name = (component: string) => component): { jsx: string; used: Set<string>; dropped: string[] } {
+export function inlineHtml(html: string, given: string[] = [], name = (component: string) => component): { jsx: string; used: Set<string>; dropped: string[] } {
+  const holes = [...given];
   const used = new Set<string>();
   const dropped = new Set<string>();
   const text = (value: string) => value.split(HOLES).map((part, index) => (index % 2 ? `{${holes[Number(part)]}}` : plain(part))).join("");
@@ -211,13 +213,22 @@ export function inlineHtml(html: string, holes: string[] = [], name = (component
       // A closing tag closes what's open since its element (as a browser does); one that closes nothing draws nothing.
       if (!stack.some((frame) => frame.tag === tag)) continue;
       while (top().tag !== tag) close();
+      const wasBlock = top().block;
       close();
-      if (BLOCKS.has(tag)) block(tag);
+      if (BLOCKS.has(tag) || wasBlock) block(tag);
       continue;
     }
     const attrs = attributes(match[3]);
+    // An attribute from code, as today's markup writes it (`<a${htmlAttribute("href", url)}>`), is the attribute it is.
+    for (const [, index] of match[3].replace(/"[^"]*"|'[^']*'/g, "").matchAll(HOLES)) {
+      const fromCode = /^\s*\w*htmlAttribute\w*\(\s*["'`]([\w-]+)["'`]\s*,\s*([\s\S]+?)\s*\)\s*$/i.exec(holes[Number(index)]);
+      if (!fromCode) continue;
+      holes.push(fromCode[2]);
+      attrs[fromCode[1].toLowerCase()] = hole(holes.length - 1);
+    }
+    const onItsOwnLine = !BLOCKS.has(tag) && /(^|;)\s*display\s*:\s*block\b/i.test(attrs.style ?? "");
     const style = runStyle(attrs.style, expression);
-    for (const declaration of style.dropped) dropped.add(`style ${source(declaration)} (on <${tag}>) is left out: a run of text doesn't take it`);
+    for (const declaration of style.dropped) if (!(onItsOwnLine && /^display\s*:/i.test(declaration))) dropped.add(`style ${source(declaration)} (on <${tag}>) is left out: a run of text doesn't take it`);
     const styled = (base: string[]) => {
       const all = [...base, ...style.entries];
       return all.length ? ` style={{ ${all.join(", ")} }}` : "";
@@ -230,7 +241,7 @@ export function inlineHtml(html: string, holes: string[] = [], name = (component
     else if (tag === "a") dropped.add("<a> without an href is left out, its text kept");
     else if (!BLOCKS.has(tag)) dropped.add(`<${tag}> is left out, its text kept`);
     else if (look(tag)) dropped.add(look(tag)!);
-    if (BLOCKS.has(tag)) {
+    if (BLOCKS.has(tag) || onItsOwnLine) {
       block(tag);
       breakLines();
     }
@@ -247,7 +258,7 @@ export function inlineHtml(html: string, holes: string[] = [], name = (component
     }
     if (component) used.add(component);
     // An element written closed (`<span />`) holds nothing.
-    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: component ? `</${name(component)}>` : "", parts: [] });
+    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: component ? `</${name(component)}>` : "", parts: [], block: onItsOwnLine });
   }
   pushText(markup.slice(at));
   // What isn't closed ends with the markup, as a browser draws it.

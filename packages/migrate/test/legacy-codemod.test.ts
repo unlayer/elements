@@ -21,6 +21,28 @@ const syntaxErrors = (code: string, fileName: string) =>
   (ts.transpileModule(code, { fileName, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.Preserve, allowJs: true } }).diagnostics ?? []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
 
 describe("migrateElements", () => {
+  it("writes a radius as the new components take it, keeps links from code, and a Button's new window", async () => {
+    const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, Button } from "@unlayer/react-elements";
+export const T = ({ url }: { url: string }) => (
+  <Email><Row><Column borderRadius="8px 8px 0px 0px">
+    <Paragraph html={\`<a\${htmlAttribute("href", url)} style="color:#00f;text-decoration-line:underline" target="_blank">Link</a>\`} />
+    <Button href="https://example.com" borderRadius="0.375rem" lineHeight="normal">Go</Button>
+    <Button href={url} target="_self">Stay</Button>
+  </Column></Row></Email>
+);`);
+    expect(code).toMatch(/borderRadius: \[8, 8, 0, 0\]/);
+    expect(code).toMatch(/borderRadius: 6\b/);
+    expect(code).toContain('lineHeight: "normal"');
+    expect(code).toMatch(/<Link\s+href=\{\{ href: url, target: "_blank" \}\}/);
+    expect(code).toContain('textDecoration: "underline"');
+    expect(code).toMatch(/href=\{\{\s*href: "https:\/\/example\.com",\s*target: "_blank",?\s*\}\}/);
+    expect(code).toMatch(/href=\{\{ href: url, target: "_self" \}\}/);
+    expect(report.join("\n")).not.toContain("without an href");
+    const computed = await migrateElements(`import { Email, Row, Column } from "@unlayer/react-elements";
+export const T = ({ cells }: { cells: number[] }) => <Email><Row cells={cells}><Column /></Row></Email>;`);
+    expect(computed.report.join("\n")).toContain("Columns are written one under another");
+  });
+
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
     const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, renderToHtml } from "@unlayer/react-elements";
 export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);`);
@@ -156,7 +178,7 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
       <Menu items={[{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }]} linkColor="#123456" textColor="#999999" separator="|" />
     </Column></Row></Email>;`);
     const flat = squash(code);
-    expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref="https://example.com"style={{backgroundColor:"#000000"}}>Go</Button>');
+    expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref={{href:"https://example.com",target:"_blank"}}style={{backgroundColor:"#000000"}}>Go</Button>');
     expect(flat).toContain('icons={[{name:"Facebook",href:"https://facebook.com/x"}]}size={24}');
     expect(flat).toContain('<Linkhref="https://example.com/docs"style={{color:"#123456",textDecoration:"none"}}>Docs</Link>');
     expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Text>');
@@ -407,7 +429,10 @@ describe("inlineHtml", () => {
   });
 
   it("keeps what a run of text takes of a style and names the rest; draws markup that isn't closed as a browser does", () => {
-    expect(inlineHtml('<span style="display:block;color:#123456">x</span>')).toEqual({ jsx: '<Span style={{ color: "#123456" }}>x</Span>', used: new Set(["Span"]), dropped: ["style display: block (on <span>) is left out: a run of text doesn't take it"] });
+    // A run shown as a block starts a line of its own, as a browser draws it.
+    expect(inlineHtml('<span style="display:block;color:#123456">x</span>')).toEqual({ jsx: '<Span style={{ color: "#123456" }}>x</Span>', used: new Set(["Span"]), dropped: [] });
+    expect(inlineHtml('A<a href="https://example.com" style="display:block">B</a>C').jsx).toBe('A<LineBreak /><Link href="https://example.com">B</Link><LineBreak />C');
+    expect(inlineHtml('<span style="margin:4px;color:#123456">x</span>').dropped).toEqual(["style margin: 4px (on <span>) is left out: a run of text doesn't take it"]);
     expect(inlineHtml("<b>x")).toEqual({ jsx: "<Span style={{ fontWeight: 700 }}>x</Span>", used: new Set(["Span"]), dropped: [] });
     expect(inlineHtml("a</i> <!-- note --><b>b</b>")).toEqual({ jsx: '{"a "}<Span style={{ fontWeight: 700 }}>b</Span>', used: new Set(["Span"]), dropped: [] });
   });

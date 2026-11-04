@@ -4,7 +4,10 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import * as lib from "@unlayer/from-react-email";
-import { main, type Io } from "../src/cli";
+import { main as run, type Io } from "../src/cli";
+
+/** These tests check the conversion and its checks, on today's components; "the new components" below has the default. */
+const main: typeof run = (argv, io, library) => run(!argv.length || argv[0] === "compare" || argv.includes("--to") ? argv : ["--to", "components", ...argv], io, library);
 
 const WELCOME = `import { Body, Button, Container, Head, Html, Preview, Section, Tailwind, Text } from "@react-email/components";
 import { formatName } from "../lib/format";
@@ -80,6 +83,85 @@ function io(cwd: string): Io & { out: string; err: string } {
   const sink = { cwd, out: "", err: "", stdout: (t: string) => void (sink.out += t), stderr: (t: string) => void (sink.err += t) };
   return sink;
 }
+
+describe("the new components", () => {
+  const template = `import { Html, Body, Text, Button } from "@react-email/components";
+export default function Welcome({ name }: { name?: string }) { return <Html><Body><Text style={{ color: "#333333", fontSize: "16px" }}>Hello {name}</Text><Button href="https://example.com" style={{ backgroundColor: "#111111", color: "#ffffff" }}>Start</Button></Body></Html>; }
+Welcome.PreviewProps = { name: "Alex" };`;
+  const setup = () => project({ "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }), "emails/welcome.tsx": template });
+  const written = (dir: string) => fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
+
+  it("are what a template is written in, with its styles in style={{ }}, in one step, and compare checks them", async () => {
+    const dir = setup();
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain("style={{");
+    expect(written(dir)).not.toMatch(/from "@unlayer\/react-elements";/);
+    // Its Button still opens in a new window, and the helpers today's markup needed are gone where nothing uses them.
+    expect(written(dir)).toMatch(/href=\{\{ href: "https:\/\/example\.com", target: "_blank" \}\}|target: "_blank"/);
+    expect(written(dir)).not.toContain("function htmlAttribute");
+    const compare = io(dir);
+    expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+    expect(compare.out).toContain("same words, links and images");
+    expect(compare.out).not.toContain("the editor gets every block");
+  });
+
+  it("take a template wrapped in memo, and compare checks it", async () => {
+    const dir = project({
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
+      "emails/welcome.tsx": `import { memo } from "react";
+import { Html, Body, Text } from "@react-email/components";
+function Welcome({ name }: { name?: string }) { return <Html><Body><Text>Hello {name}</Text></Body></Html>; }
+Welcome.PreviewProps = { name: "Alex" };
+export default memo(Welcome);`,
+    });
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    const compare = io(dir);
+    expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+  });
+
+  it("still give the design JSON, which comes from today's components", async () => {
+    const dir = setup();
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated", "--design"], out, lib), out.out + out.err).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).body.rows.length).toBeGreaterThan(0);
+  });
+
+  it("leave a template in today's components with --to components", async () => {
+    const dir = setup();
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated", "--to", "components"], out, lib), out.out + out.err).toBe(0);
+    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
+    const unknown = io(dir);
+    expect(await run(["emails", "--to", "other"], unknown, lib)).toBe(1);
+    expect(unknown.err).toContain('Unknown --to "other"');
+  });
+
+  it("leave columns they couldn't keep side by side in today's components, and say why", async () => {
+    const dir = project({
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
+      "emails/welcome.tsx": `import { Html, Body, Row, Column, Text } from "@react-email/components";
+const items = ["a", "b"];
+export default function Welcome() { return <Html><Body><Row>{items.map((item) => <Column key={item} style={{ width: "50%" }}><Text>{item}</Text></Column>)}</Row></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    if (/from "@unlayer\/react-elements";/.test(written(dir))) expect(out.out).toContain("kept in today's components");
+  });
+
+  it("leave a template that doesn't pass in them in today's components, and say why", async () => {
+    const dir = setup();
+    const out = io(dir);
+    const failing = { ...lib, verifyNewComponents: async () => { throw new Error("it can't be drawn"); } } as typeof lib;
+    expect(await run(["emails", "--out", "migrated"], out, failing), out.out + out.err).toBe(0);
+    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
+    expect(out.out).toContain("kept in today's components");
+    expect(out.out).toContain("it can't be drawn");
+  });
+});
 
 describe("unlayer-migrate", () => {
   it("loads JSX helpers outside the input folder with the project's automatic JSX runtime", async () => {

@@ -51,6 +51,10 @@ and the visual editor must get every block. Nothing is written unless you ask:
   --no-merge-tags  Keep the sample values in the design JSON instead.
   --report <file>  Write the migration report: JSON for a .json file,
                    Markdown for any other.
+  --to <target>    What to write: primitives (the default), the new
+                   components with their styles in style={{ }}, from
+                   @unlayer/react-elements/primitives; or components, today's
+                   components with their styles as props.
   --strict         Fail (and don't write) a template with any difference:
                    in its content, in how it looks, or one the migration
                    lists (a style it couldn't keep). Without it, every
@@ -142,6 +146,8 @@ export interface FileResult {
    * sit, CSS the check doesn't verify): it's written anyway, to fix in the editor (with --strict, it fails).
    */
   looks?: string[];
+  /** Why it was written in today's components and not the new ones. */
+  stayed?: string;
   /** Text the migrated template shows in another style (size, bold, italics, letter case, underline, color, background, a link's target). */
   styles?: StyleChange[];
   /**
@@ -187,6 +193,8 @@ interface Options {
   overwrite: boolean;
   /** With --write, replace templates git can't restore. */
   allowDirty: boolean;
+  /** What's written: the new components, or today's. */
+  to: "primitives" | "components";
 }
 
 type Library = typeof import("@unlayer/from-react-email");
@@ -244,7 +252,12 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     strict: args.flag("strict"),
     overwrite: args.flag("overwrite"),
     allowDirty: args.flag("allow-dirty"),
+    to: (args.option("to") ?? "primitives") as Options["to"],
   };
+  if (options.to !== "primitives" && options.to !== "components") {
+    io.stderr(`Unknown --to "${options.to}". Supported: primitives, components.\n${SEE_HELP}\n`);
+    return 1;
+  }
   if (options.write && options.out !== undefined) {
     io.stderr("Use --write or --out, not both.\n");
     return 1;
@@ -468,7 +481,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
     if (users.length) {
       io.stdout(
-        `\nStill using a migrated template: render it with renderToHtml() from @unlayer/react-elements, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
+        `\nStill using a migrated template: render it with ${options.to === "primitives" ? "await render() from @unlayer/react-elements/primitives (its html)" : "renderToHtml() from @unlayer/react-elements"}, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
           `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
       );
     }
@@ -972,17 +985,23 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       removeProbe();
     }
 
+    // What's written: the template in the new components, checked against the original in its own right. One that doesn't
+    // pass stays in today's components, which it has just passed in, and the report says why.
+    const moved = options.to === "primitives" ? await inNewComponents({ code, source, file, target, Original, props, lib, io, release }) : undefined;
+    const written = moved?.code ?? code;
+    const checked: typeof verification = moved?.check ? { ...verification, ...moved.check } : verification;
+
     const report = converted.report;
     // Content the migration lost or added (or the editor wouldn't get) fails it: that's a converter bug, as anything it
     // can't map is kept as HTML. How it looks only differs: written and listed, to fix in the editor (not with --strict).
     const lostShown = report.lostShown ?? [];
-    const failsContent = contentProblems({ ...verification, lostShown }).length || verification.designWarnings.length || verification.variants.some((v) => v.error || contentProblems(v).length);
+    const failsContent = contentProblems({ ...checked, lostShown }).length || checked.designWarnings.length || checked.variants.some((v) => v.error || contentProblems(v).length);
     const lostLooks = (report.lostStyles ?? []).filter((style) => !lostShown.includes(style));
     const looks = [
-      ...lookProblems(verification),
-      ...phoneWidths(verification.originalHtml),
+      ...lookProblems(checked),
+      ...phoneWidths(checked.originalHtml),
       ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
-      ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
+      ...checked.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
     // What the migration lists as different (a style it couldn't keep): with --strict, any difference fails.
     const differences = group(report.notes);
@@ -990,6 +1009,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       file: name,
       status: failsContent || (options.strict && (looks.length || differences.length)) ? "check-failed" : "migrated",
       ...(looks.length ? { looks } : {}),
+      ...(moved?.note ? { stayed: moved.note } : {}),
       // As the design gets it: a block written both ways counts by the branch the preview props render.
       editable: verification.editable,
       kept: report.fallbacks,
@@ -997,20 +1017,21 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       changes: group([
         ...(report.info ?? []),
         ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
+        ...(moved?.report ?? []).map((detail) => ({ reason: "in the new components", detail })),
         ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it, or an image shows it)", detail: path })),
       ]),
-      missingText: verification.missing,
-      addedText: verification.added,
-      missingAttributes: verification.missingAttributes,
-      addedAttributes: verification.addedAttributes,
+      missingText: checked.missing,
+      addedText: checked.added,
+      missingAttributes: checked.missingAttributes,
+      addedAttributes: checked.addedAttributes,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
       ...(lostShown.length ? { lostShown } : {}),
-      ...(verification.styles.length ? { styles: verification.styles } : {}),
-      ...(verification.unverified.length ? { unverified: verification.unverified } : {}),
-      ...(lib.phoneDiffers(verification.phone) ? { phone: verification.phone } : {}),
-      ...(verification.layout.length ? { layout: verification.layout } : {}),
-      styleCoverage: verification.styleCoverage,
-      variants: verification.variants,
+      ...(checked.styles.length ? { styles: checked.styles } : {}),
+      ...(checked.unverified.length ? { unverified: checked.unverified } : {}),
+      ...(lib.phoneDiffers(checked.phone) ? { phone: checked.phone } : {}),
+      ...(checked.layout.length ? { layout: checked.layout } : {}),
+      styleCoverage: checked.styleCoverage,
+      variants: checked.variants,
       designWarnings: verification.designWarnings,
       ...(options.design && verification.editorFonts.length ? { fonts: verification.editorFonts } : {}),
     };
@@ -1020,12 +1041,78 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     // With --strict, only one with no difference (or any, with --force).
     if (writing && (result.status === "migrated" || !options.strict || options.force)) {
       // With the hash of what's written: a later --overwrite keeps the file once it's edited.
-      writes.push({ path: target, text: withContentHash(code), kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
+      writes.push({ path: target, text: withContentHash(written), kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
-    return { ...result, writes, code };
+    return { ...result, writes, code: written };
   } finally {
     for (const unregister of release.reverse()) unregister();
+  }
+}
+
+/** The module without the helpers the conversion wrote for today's components' markup, where nothing uses them now. */
+async function withoutUnusedHelpers(code: string): Promise<string> {
+  const { default: ts } = await import("typescript");
+  for (;;) {
+    const file = ts.createSourceFile("template.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const unused = file.statements.find((statement) => {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !/^(escapeHtml|htmlText|htmlAttribute|tailwindStyle|holdsElements|plainText)\d*$/.test(statement.name.text)) return false;
+      return (code.match(new RegExp(`\\b${statement.name.text}\\b`, "g")) ?? []).length === 1;
+    });
+    if (!unused) return code;
+    code = code.slice(0, unused.getFullStart()) + code.slice(unused.getEnd());
+  }
+}
+
+/**
+ * A template just converted to today's components, in the new ones (what `--from elements` does), loaded from where it
+ * will be written and checked against the original. Undefined `code`: it stays as it is, and `note` says why.
+ */
+async function inNewComponents({ code, source, file, target, Original, props, lib, io, release }: {
+  code: string;
+  source: string;
+  file: string;
+  target: string;
+  Original: any;
+  props: Record<string, unknown>;
+  lib: Library;
+  io: Io;
+  release: Array<() => void>;
+}): Promise<{ code?: string; check?: Awaited<ReturnType<Library["verifyNewComponents"]>>; report?: string[]; note?: string }> {
+  const keptBecause = (why: string) => ({ note: `kept in today's components: ${why}` });
+  const { migrateElements } = await import("./legacy/codemod");
+  let moved: Awaited<ReturnType<typeof migrateElements>>;
+  try {
+    moved = await migrateElements(code, { typescript: !/\.(js|jsx|mjs|cjs)$/.test(target) });
+  } catch (error) {
+    return keptBecause(message(error));
+  }
+  // Columns it can't lay out as they are would move: today's components keep them where they are.
+  const moves = moved.report.find((line) => /Columns are written one under another/.test(line));
+  if (moves) return keptBecause(moves);
+  const written = lineEndings(await withoutUnusedHelpers(moved.code), source);
+  const extension = extname(file);
+  const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
+  let firstCreated: string | undefined;
+  const removeProbe = () => {
+    rmSync(probe, { force: true });
+    cleanProbeDirectories(dirname(probe), firstCreated);
+  };
+  const releaseProbe = removedOnExit(removeProbe);
+  try {
+    firstCreated = await mkdir(dirname(probe), { recursive: true });
+    await writeExclusive(probe, written);
+    const template = templateComponent(defaultExport(await importFile(probe, io, release, file)));
+    if (!template?.exported) return keptBecause("the migrated file has no default export");
+    const check = writtenWords(await lib.verifyNewComponents(Original, template.exported, { props }));
+    const lost = contentProblems(check);
+    if (lost.length) return keptBecause(lost.join("; "));
+    return { code: written, check, report: moved.report };
+  } catch (error) {
+    return keptBecause(message(error).replace(/\s*\n\s*/g, "; "));
+  } finally {
+    releaseProbe();
+    removeProbe();
   }
 }
 
@@ -1079,9 +1166,11 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const Original: any = original.component;
     const Migrated: any = migrated.exported;
     const props: Record<string, unknown> = original.props;
-    let check: Awaited<ReturnType<Library["verifyConversion"]>>;
+    // A template in the new components has no design to check here: today's components give that.
+    const inNew = /@unlayer\/react-elements\/primitives/.test(await readFile(migratedPath, "utf8"));
+    let check: Awaited<ReturnType<Library["verifyNewComponents"]>>;
     try {
-      check = writtenWords(await lib.verifyConversion(Original, Migrated, { props }));
+      check = writtenWords(inNew ? await lib.verifyNewComponents(Original, Migrated, { props }) : await lib.verifyConversion(Original, Migrated, { props }));
     } catch (error) {
       const original = await originalFailure(Original, props, io.cwd);
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
@@ -1098,7 +1187,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const strict = args.flag("strict");
     if (!found.length && !(strict && looks.length)) {
       const flipped = Object.values(props).filter((v) => typeof v === "boolean").length;
-      io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
+      io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}${inNew ? "" : "; the editor gets every block"}.\n`);
       if (looks.length) io.stdout(`  It looks different:\n${looks.map((p) => `  - ${p}`).join("\n")}\n`);
       return 0;
     }
@@ -1203,7 +1292,7 @@ function line(result: FileResult): string {
       const differences = result.differences?.length ? `${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference (${kinds(result.differences)})` : "";
       const written = result.output ? ` → ${result.output}` : "";
       // How it looks that differs: written anyway, listed to fix in the editor.
-      const looks = result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : "";
+      const looks = `${result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : ""}${result.stayed ? `\n    ${result.stayed}` : ""}`;
       if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences ? `, ${differences}` : ""}${written}${looks}`;
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
