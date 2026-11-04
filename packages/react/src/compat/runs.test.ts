@@ -12,6 +12,24 @@ describe("parseRuns()", () => {
     expect(parseRuns("<div>A</div><div><br></div>")).toEqual({ children: ["A", BR, BR], left: [] });
   });
 
+  it("reads `<` as the browser does: before anything but a name or its `/` it's text, no tag of a name with space before it", () => {
+    for (const html of ["a < b > c", "1 < 2 and 3 > 2", "< i >x", "< span >x", "x< br >y", '< a href="https://example.com" >y', "a <", "a <3 b", "x > y", "<%name%> < b"]) expect(parseRuns(html), html).toEqual({ children: [html], left: [] });
+    // (A stray end tag, as any, draws nothing.)
+    expect(parseRuns("< i >x</i>")).toEqual({ children: ["< i >x"], left: [] });
+    expect(parseRuns("a<b >c</b >")).toEqual({ children: ["a", { type: "Span", style: { fontWeight: 700 }, children: ["c"] }], left: [] });
+  });
+
+  it("fails closed on what the browser reads as no text of its own: `</ b>`, a comment to it, and a tag that never ends", () => {
+    expect(parseRuns("a </ b> c").left).toEqual(["a comment or a processing instruction"]);
+    expect(parseRuns("a </> c").left).toEqual(["a comment or a processing instruction"]);
+    expect(parseRuns("a <b c").left).toEqual(["a tag that never ends"]);
+    expect(parseRuns("x<br>a </b").left).toEqual(["a tag that never ends"]);
+  });
+
+  it("fails closed on a noncharacter's entity, which is no text (and could be taken for what's kept)", () => {
+    for (const html of ["a&#xFDD0;b", "a&#64977;b", "a&#xfdef;b"]) expect(parseRuns(html).left).toEqual([`the entity ${html.slice(1, -1)}`]);
+  });
+
   it("reads bold as the browser draws it, bolder than the text around it; italics, underlines, strikes and spans", () => {
     expect(parseRuns("a <b>b</b>").children).toEqual(["a ", { type: "Span", style: { fontWeight: 700 }, children: ["b"] }]);
     expect(parseRuns("<strong>b</strong>", { weight: 700 }).children).toEqual([{ type: "Span", style: { fontWeight: 900 }, children: ["b"] }]);

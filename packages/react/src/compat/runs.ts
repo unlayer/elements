@@ -12,7 +12,8 @@ import { holdsKept } from "./values";
 
 export type Run = TreeNode | string;
 
-const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*?)\/?\s*>/g;
+/** A tag as the browser reads one: `<` straight before its name or its `/`. (Before anything else `<` is text: `a < b`.) */
+const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*?)\/?\s*>/g;
 const ATTRIBUTE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 /**
  * The named entities read (as HTML names them: case matters), each the character the browser draws. Another is said in
@@ -134,9 +135,9 @@ type Frame = { tag: string; node: TreeNode | null; children: Run[]; weight: numb
  */
 export function parseRuns(html: string, { weight = 400, links = true, builder = false }: { weight?: number; links?: boolean; builder?: boolean } = {}): { children: Run[]; left: string[] } {
   const left: string[] = [];
-  // A comment, a processing instruction or a declaration (`<!-- -->`, `<?php ?>`, `<![CDATA[`): the browser doesn't show
-  // it, or shows it otherwise; it's not read.
-  if (/<[!?]/.test(html)) left.push("a comment or a processing instruction");
+  // A comment, a processing instruction or a declaration (`<!-- -->`, `<?php ?>`, `<![CDATA[`, and to the browser `</ b>`
+  // too): the browser doesn't show it, or shows it otherwise; it's not read.
+  if (/<[!?]|<\/(?![a-zA-Z])/.test(html)) left.push("a comment or a processing instruction");
   const lines: Run[][] = [];
   let current: Frame = { tag: "", node: null, children: [], weight };
   const stack: Frame[] = [current];
@@ -158,6 +159,8 @@ export function parseRuns(html: string, { weight = 400, links = true, builder = 
   const text = (raw: string, beforeParagraph: boolean) => {
     // White space between paragraphs: the browser may draw it as a line of its own (in a run of text), or not.
     if (raw && !raw.trim() && (afterParagraph || beforeParagraph)) left.push("white space between paragraphs");
+    // A tag that never ends (`a <b c`): the browser takes what's left for it.
+    if (/<\/?[a-zA-Z]/.test(raw)) left.push("a tag that never ends");
     // White space as written: the browser shows it as it shows legacy's, and its plain text keeps its line breaks.
     const value = decode(raw, left);
     if (value) top().children.push(value);
