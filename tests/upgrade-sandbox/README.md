@@ -10,7 +10,8 @@ same templates with both and compares what Chromium draws.
 - **The templates** (`corpus/`) are today's components only: the demo app's templates, every component and
   example story, 40 templates generated at random from fixed seeds (`corpus/generator.mjs`), and the inputs of
   the review of the switch to the new engine (`corpus/review.mjs`), each in an email, a page and a printed
-  document: 236 templates, 312 template/mode pairs.
+  document: 236 templates, 312 template/mode pairs. Each run writes them to `corpus/` from the checkout
+  (`corpus/sync.mjs`), so they aren't kept in the repository.
 
 For each template, both sides must give the same `renderToJson()` design and the same `renderToPlainText()`
 text. `renderToHtml()` is rendered in each mode the template is meant for; its bytes are reported but not
@@ -49,9 +50,9 @@ four ways (a word gone, a link changed, a text color, a button's color), runs th
 passes only if the report names exactly those. `npm test` checks the comparison itself without a browser: what
 it calls a difference, and what `expected.json` may excuse.
 
-`node corpus/sync.mjs` (`npm run sync`) refreshes `corpus/` from the repository's stories and demo templates.
-A template importing something 0.2.1 doesn't export can't be rendered by both, so it's skipped and listed in
-`corpus/skipped.json`.
+`node corpus/sync.mjs` (`npm run sync`) writes the corpus without running the comparison. A template importing
+something 0.2.1 doesn't export can't be rendered by both, so it's skipped, listed in `corpus/skipped.json` and in
+the report.
 
 ## Reading report.md
 

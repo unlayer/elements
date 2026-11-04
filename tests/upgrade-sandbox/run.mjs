@@ -29,11 +29,11 @@
 //     "expected": { "<template>": { "<mode>": { "<width>": "<name>" } } } }
 // A width whose differences are all of the kinds its reason accepts is reported as "expected (why)" and still listed
 // in report.md; any other difference there is a difference. A declaration that matches nothing is flagged stale.
-// The corpus is in corpus/ (refresh it from the repository with `node corpus/sync.mjs`).
+// The corpus is written to corpus/ from the checkout on each run (corpus/sync.mjs); it isn't kept in the repository.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { SANDBOX, REPO, oldPackage, newPackage, bundle } from "./harness/packages.mjs";
 import { openBrowser } from "./harness/browser.mjs";
@@ -77,6 +77,13 @@ const phase = async (name, fn) => {
 const log = (s) => console.log(s);
 
 try {
+  // The corpus is written from the checkout's stories and demo templates (and the seeded and review templates) on
+  // each run, not kept in the repository.
+  await phase("write the corpus", () => {
+    const sync = spawnSync(process.execPath, ["corpus/sync.mjs", "--worktree", options.worktree], { cwd: SANDBOX, encoding: "utf8" });
+    if (sync.status !== 0) throw new Error(`corpus/sync.mjs failed:\n${sync.stderr || sync.stdout}`);
+    log(`  ${sync.stdout.trim().split("\n")[0]}`);
+  });
   const { OLD, NEW } = await phase("prepare packages", async () => {
     const OLD = oldPackage();
     const NEW = newPackage({ worktree: options.worktree, pack: options.pack, dir: options.newDir, log });

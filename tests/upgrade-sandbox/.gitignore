@@ -8,3 +8,10 @@ report.json
 .work/
 .build/
 .selftest/
+# The corpus, written from the checkout on each run (corpus/sync.mjs)
+corpus/demo/
+corpus/stories/
+corpus/generated/
+corpus/review/
+corpus/index.ts
+corpus/skipped.json
