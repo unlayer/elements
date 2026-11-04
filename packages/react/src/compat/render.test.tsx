@@ -321,9 +321,8 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(renderToPlainText(words(current))).toContain(tags[1]);
     });
 
-    // A bug to fix: a tag in a component's children is written escaped, and goes back into the plain text so, as
-    // `{% if orders &gt; 1 %}`, where 0.2.1 reads `{% if orders > 1 %}`.
-    it.fails("read an email service's tag in a component's children as it was written, in the plain text", () => {
+    // React writes a component's children escaped: the tag goes back into the plain text as it was written, as 0.2.1 reads it.
+    it("read an email service's tag in a component's children as it was written, in the plain text", () => {
       const tag = "{% if orders > 1 %}Thanks{% endif %}";
       const words = ({ Email, Row, Column, Button }: Release) => <Email><Row><Column><Button href="https://example.com">{tag}</Button></Column></Row></Email>;
       expect(renderToPlainText(words(current))).toBe(previous.renderToPlainText(words(previous)));
@@ -780,6 +779,7 @@ describe("today's components straight through React", () => {
 
     it("keep an email service's tag in their plain text, as a block's in a Column does", () => {
       expect(renderToPlainText(<Email><Row><Column><Row><Column><Paragraph html="Hi <%= name %>, you have items" /></Column></Row></Column></Row></Email>)).toBe("Hi <%= name %>, you have items");
+      expect(renderToPlainText(<Email><Row><Column><Row><Column><Paragraph>{"{% if orders > 1 %}Thanks{% endif %}"}</Paragraph></Column></Row></Column></Row></Email>)).toBe("{% if orders > 1 %}Thanks{% endif %}");
     });
 
     it("draw in the mode they say, or the template's", () => {

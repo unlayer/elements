@@ -82,4 +82,4 @@ export {
 export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
-export { htmlToPlainText } from "./utils/html-to-text";
+export { decodeEntities, htmlToPlainText } from "./utils/html-to-text";

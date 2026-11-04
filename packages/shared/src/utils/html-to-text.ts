@@ -93,7 +93,7 @@ const HTML_ENTITIES: Record<string, string> = {
 /**
  * Decode HTML entities (named and numeric).
  */
-function decodeEntities(text: string): string {
+export function decodeEntities(text: string): string {
   // Named entities
   let result = text.replace(/&\w+;/g, (match) => HTML_ENTITIES[match] ?? match);
 

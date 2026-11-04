@@ -7,7 +7,7 @@ import React from "react";
 import { renderToStaticMarkup } from "../utils/server-renderer";
 import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core";
 import { renderTemplate, type RenderResult } from "@unlayer-internal/elements-exporters";
-import { htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { decodeEntities, htmlToPlainText, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { ErrorFallback, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
@@ -104,8 +104,10 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const css = [...styles, result.bodyStyle ? `body{${result.bodyStyle}}` : ""].filter(Boolean).join("\n");
   const head = [css ? `<style>${styleText(css)}</style>` : "", js ? `<script>${js}</script>` : "", ...tags].filter(Boolean).join("\n");
   // The plain text, as legacy's: from the tree as legacy's markup reads (only when asked: it's another render). A tag goes
-  // back once it's read, so its service still fills it in, in the words as in a link's address.
+  // back once it's read, so its service still fills it in, in the words as in a link's address. It's as it was written:
+  // what React escaped of it (a component's children) is text here.
   const textMarkup = () => renderTemplate(forText(lowered.tree, lowered.mode)).body.replace(PREVIEW, "").replace(DIVIDER, "");
+  const tagsAsWritten = () => lowered.tags.map(decodeEntities);
   // The body in the root's host <div>, as legacy's parts have it: the <body> tag inside it in an email or a printed
   // document (a page's has none).
   const bodyTag = /<body\b[^>]*>/.exec(result.html)?.[0] ?? "<body>";
@@ -122,11 +124,11 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
     js,
     tags,
     get text() {
-      return restore(htmlToPlainText(textMarkup()));
+      return restoreServiceTags(htmlToPlainText(textMarkup()), tagsAsWritten());
     },
     get textMarkup() {
       // (Written as text: what reads this markup would take a tag for an element.)
-      return restoreServiceTags(textMarkup(), lowered.tags.map((tag) => tag.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")));
+      return restoreServiceTags(textMarkup(), tagsAsWritten().map((tag) => tag.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")));
     },
     inner: inReact.piece ? restore(sheet + asPiece(result.body)) : framed(sheet + result.body),
     diagnostics: [...diagnostics, ...result.diagnostics],
