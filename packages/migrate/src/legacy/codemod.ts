@@ -24,7 +24,7 @@ const KEYED = "KeyedFragmentOfMigration";
  * show as `&amp;`. Markup inside it (`${note ? `<em>${htmlText(note)}</em>` : ""}`, a list joined into one string) is
  * written by `inline`, as elements in a fragment.
  */
-function asChildren(code: string, inline: (markup: string, holes: string[]) => string): string {
+function asChildren(code: string, inline: (markup: string, holes: string[]) => string, unread: (what: string) => void = () => undefined): string {
   const source = `(${code})`;
   const file = ts.createSourceFile("value.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const unescaped = (node: ts.Node): ts.Expression | undefined =>
@@ -70,15 +70,34 @@ function asChildren(code: string, inline: (markup: string, holes: string[]) => s
     if (ts.isCallExpression(node) && node.arguments.length === 1 && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "join" && ts.isStringLiteralLike(node.arguments[0]) && !node.arguments[0].text && ts.isCallExpression(node.expression.expression)) {
       const map = node.expression.expression;
       const each = map.arguments[0];
-      if (map.arguments.length === 1 && ts.isArrowFunction(each) && each.parameters.length <= 2 && !ts.isBlock(each.body)) {
+      if (map.arguments.length === 1 && (ts.isArrowFunction(each) || ts.isFunctionExpression(each)) && each.parameters.length <= 2) {
         const params = each.parameters.map((parameter) => parameter.getText(file));
         const key = params.length === 2 ? each.parameters[1].name.getText(file) : "index";
         // (`.map((item) => …)` gains its index.)
         if (params.length < 2) params.push("index");
-        const body = shown(each.body);
-        const inner = body.startsWith("<>") && body.endsWith("</>") ? body.slice(2, -3) : `{${body}}`;
-        return `${code_(map.expression)}((${params.join(", ")}) => <${KEYED} key={${key}}>${inner}</${KEYED}>)`;
+        const keyed = (made: ts.Expression) => {
+          const body = shown(made);
+          return `<${KEYED} key={${key}}>${body.startsWith("<>") && body.endsWith("</>") ? body.slice(2, -3) : `{${body}}`}</${KEYED}>`;
+        };
+        if (!ts.isBlock(each.body)) return `${code_(map.expression)}((${params.join(", ")}) => ${keyed(each.body)})`;
+        // A block: what each of its returns gives (and not those of functions inside it).
+        const returns: ts.Expression[] = [];
+        const find = (at: ts.Node) => {
+          if (ts.isFunctionLike(at)) return;
+          if (ts.isReturnStatement(at) && at.expression) returns.push(at.expression);
+          at.forEachChild(find);
+        };
+        each.body.forEachChild(find);
+        let body = "";
+        let at = each.body.getStart(file);
+        for (const made of returns) {
+          body += source.slice(at, made.getStart(file)) + keyed(made);
+          at = made.getEnd();
+        }
+        return `${code_(map.expression)}((${params.join(", ")}) => ${body}${source.slice(at, each.body.getEnd())})`;
       }
+      // What a function elsewhere writes can't be read here.
+      unread(map.getText(file));
       return shown(map);
     }
     return code_(node);
@@ -583,7 +602,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         const parsed = inlineHtml(inner, innerHoles, nameOf);
         nested.push(parsed);
         return parsed.jsx;
-      }));
+      }, (what) => report.push(`${where(at)}: its ${drawn} has a list from code (${what}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`)));
     } else {
       report.push(`${where(at)}: its ${drawn} comes from an expression (${code(value)}): it's written as text, so markup in it would show; write that with Span, Link and LineBreak`);
       return [`{${code(value)}}`];
@@ -940,7 +959,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       whereEnabled(showsFooter, () => fromValues("footer", values.table!.footers));
     }
     const headers = props.get("headers");
-    if (headers) whereEnabled(showsHeader, () => {
+    // (Given these, today's always shows them.)
+    if (headers) whereEnabled(true, () => {
       const list = isLiteral(headers) ? (headers.literal as unknown[]) : undefined;
       rows.push(row("header", list ? list.map((h) => cell(words(h))) : [`{(${code(headers)}).map((text${typescript ? ": string" : ""}, index${typescript ? ": number" : ""}) => ${element("TableCell", ["key={index}", styleAttr([["border", lit(border)]])], ["{text}"])})}`]));
       if (!list) report.push(`${where(node)}: its headers come from code: they're written as text, where today's draw them as HTML, so markup in them would show (write that with Span and Link)`);

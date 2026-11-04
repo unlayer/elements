@@ -52,10 +52,12 @@ export const T = () => <Document documentSize="Letter" documentOrientation="land
   it("leaves a Table's hidden header and footer hidden, and says that cells from code are written as text", async () => {
     const { code, report } = await migrate(`const hidden = { enableHeader: false, enableFooter: false, table: { headers: [{ cells: [{ text: "Secret head" }] }], rows: [{ cells: [{ text: "Shown" }] }], footers: [{ cells: [{ text: "Secret foot" }] }] } };
 const shown = { enableFooter: true, table: { rows: [{ cells: [{ text: "Body" }] }], footers: [{ cells: [{ text: "Foot" }] }] } };
+const chosen = { table: { headers: [{ cells: [{ text: "Chosen" }] }], rows: [] } };
 export const T = ({ head = true, rows = [["x"]] }: { head?: boolean; rows?: string[][] }) => <Email><Row><Column>
       <Table values={hidden} />
       <Table values={shown} />
-      <Table headers={["A"]} enableHeader={head} data={rows} />
+      <Table values={chosen} enableHeader={head} />
+      <Table headers={["Always"]} enableHeader={false} data={rows} />
     </Column></Row></Email>;`, "Email, Row, Column, Table");
     // (The constants stay as they are: what matters is what the template writes.)
     const written = code.split("export const T")[1];
@@ -63,6 +65,7 @@ export const T = ({ head = true, rows = [["x"]] }: { head?: boolean; rows?: stri
     expect(written).toContain("Shown");
     expect(written).toContain("Foot");
     expect(written).toMatch(/head\)?\s*&&/);
+    expect(written).toContain("Always");
     expect(report.join("\n")).toContain("its data comes from code: it's written as text");
     expect(errors(code)).toEqual([]);
   });
@@ -145,6 +148,21 @@ export const T = ({ chosen }: { chosen: { cells: number[] } }) => <Email><Row la
     expect(code).toContain('"it&apos;s kept"');
     expect(code).not.toMatch(/htmlText|\.join\(/);
     expect(report).toEqual([]);
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("writes a list's markup from a function with a body too, and says where it can't read it", async () => {
+    const { code, report } = await migrate(`const wrap = (item: string) => \`<i>\${item}</i>\`;
+export const T = ({ items = ["Invoice"] }: { items?: string[] }) => <Email><Row><Column>
+      <Paragraph html={\`\${items.map((item) => {
+        return \`<i>\${htmlText(item)}</i>\`;
+      }).join("")}\`} />
+      <Paragraph html={\`\${items.map(wrap).join("")}\`} />
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(flat).toContain('<Spanstyle={{fontStyle:"italic"}}>{item}</Span>');
+    expect(flat).toContain("return(<Fragmentkey={index}>");
+    expect(report.join("\n")).toContain("has a list from code (items.map(wrap))");
     expect(errors(code)).toEqual([]);
   });
 
