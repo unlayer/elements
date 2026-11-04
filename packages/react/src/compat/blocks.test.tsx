@@ -1083,7 +1083,7 @@ describe("a social block", () => {
     expect(lowered(<Social icons={[]} iconSize={40} align="left" />, Page)).toEqual({
       type: "Column",
       style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
-      children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 } }],
+      children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 }, compat: { ownWidth: true } }],
     });
     expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { ariaLabel: "social" }, children: [] });
   });

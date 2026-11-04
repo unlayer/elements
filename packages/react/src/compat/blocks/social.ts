@@ -41,7 +41,7 @@ export const social: Lowering = (block, place): TreeNode => {
   const listed: unknown[] = Array.isArray(values.icons?.icons) ? values.icons.icons : [];
   if (!listed.length) {
     if (asEmail) return column([]);
-    const { compat: _, ...placeholder } = column([{ type: "Image", props: { src: `${cdn}/social/icons/default.png`, alt: "social icon" }, style: { height: size } }]);
+    const { compat: _, ...placeholder } = column([{ type: "Image", props: { src: `${cdn}/social/icons/default.png`, alt: "social icon" }, style: { height: size }, compat: { ownWidth: true } }]);
     return { ...placeholder, style: { ...placeholder.style, alignItems: align } };
   }
   const icons = listed.filter((icon): icon is Values => {

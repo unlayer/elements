@@ -38,7 +38,7 @@ export interface Node {
    * `minWidth` and `phoneMinWidth`); on an email's Raw `wide` (across the window, between Sections);
    * in an email, `ownPhone` (its phone styles start where what's hidden does) and on an Image
    * `fillsOnPhones` (its whole place, from where its Row stacks); on a page's Divider `inLine` (a line in a line of no
-   * height, by the font's middle).
+   * height, by the font's middle) and on its Image `ownWidth` (as wide as its file, past its place).
    */
   compat?: Record<string, Json>;
 }

@@ -1,4 +1,4 @@
-/** An Image: a block, no wider than its parent; its width attribute in px where it's known. */
+/** An Image: a block, no wider than its parent unless `compat.ownWidth` says so; its width attribute in px where it's known. */
 import { assetParts, type Asset } from "@unlayer-internal/elements-core";
 import { h } from "../jsx";
 import type { Component } from "./context";
@@ -20,7 +20,7 @@ export const Image: Component = ({ node, style, parent, placement, classes }) =>
       placement,
       {
         display: "block",
-        maxWidth: style.maxWidth ?? "100%",
+        maxWidth: node.compat?.ownWidth ? undefined : style.maxWidth ?? "100%",
         width: parent.type === "Row" ? undefined : style.width,
         height: style.height ?? "auto",
         alignSelf: style.alignSelf,
