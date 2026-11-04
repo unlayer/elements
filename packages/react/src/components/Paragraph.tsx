@@ -1,4 +1,5 @@
-import { ParagraphExporters, ParagraphDefaults } from "@unlayer/exporters";
+import { ParagraphExporters } from "@unlayer/exporters";
+import { ParagraphDefaults } from "../utils/tool-defaults";
 import type { ParagraphValues, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

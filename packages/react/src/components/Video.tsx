@@ -1,4 +1,5 @@
-import { VideoExporters, VideoDefaults } from "@unlayer/exporters";
+import { VideoExporters } from "@unlayer/exporters";
+import { VideoDefaults } from "../utils/tool-defaults";
 import type { VideoValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

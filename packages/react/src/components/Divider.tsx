@@ -1,4 +1,5 @@
-import { DividerExporters, DividerDefaults } from "@unlayer/exporters";
+import { DividerExporters } from "@unlayer/exporters";
+import { DividerDefaults } from "../utils/tool-defaults";
 import type { DividerValues, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

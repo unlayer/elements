@@ -1,4 +1,5 @@
-import { SocialExporters, SocialDefaults } from "@unlayer/exporters";
+import { SocialExporters } from "@unlayer/exporters";
+import { SocialDefaults } from "../utils/tool-defaults";
 import type { SocialValues, SocialIcon, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

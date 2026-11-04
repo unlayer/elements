@@ -6,7 +6,7 @@
  * draws), and a tool that isn't one of Elements' is left out, and said.
  */
 import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
-import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "@unlayer/exporters";
+import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "../utils/tool-defaults";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
 import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "../compat/values";

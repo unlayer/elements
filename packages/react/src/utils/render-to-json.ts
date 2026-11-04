@@ -18,12 +18,9 @@ import type {
   DesignContent,
 } from "@unlayer-internal/shared-elements";
 import { mergeValues } from "@unlayer-internal/shared-elements";
-// Schema version from the exporters bundle — matches the editor's currentVersion
-// at the time the exporters were generated. This ensures renderToJson output is
-// recognized as current by the editor, skipping unnecessary migrations.
-// Falls back to 24 for older exporters packages that don't export this yet.
-import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
-const schemaVersion: number = _schemaVersion ?? 24;
+// The editor's schema version: renderToJson output is recognized as current by the
+// editor, skipping unnecessary migrations.
+import { schemaVersion } from "./tool-defaults";
 import { mapSemanticProps } from "./semantic-props";
 import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";

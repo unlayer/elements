@@ -1,4 +1,5 @@
-import { HtmlExporters, HtmlDefaults } from "@unlayer/exporters";
+import { HtmlExporters } from "@unlayer/exporters";
+import { HtmlDefaults } from "../utils/tool-defaults";
 import type { HtmlValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

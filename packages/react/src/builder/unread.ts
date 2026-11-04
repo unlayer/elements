@@ -4,7 +4,7 @@
  * editor's own flags, a popup's settings) draws something the template won't (a row's background image, an anchor, a
  * display condition, a phone value Elements has no place for).
  */
-import { BodyDefaults, ColumnDefaults, RowDefaults } from "@unlayer/exporters";
+import { BodyDefaults, ColumnDefaults, RowDefaults } from "../utils/tool-defaults";
 import type { Values } from "../compat/values";
 import { HIDDEN } from "./manifest";
 import { same } from "./reading";

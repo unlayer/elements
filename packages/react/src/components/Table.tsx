@@ -1,4 +1,5 @@
-import { TableExporters, TableDefaults } from "@unlayer/exporters";
+import { TableExporters } from "@unlayer/exporters";
+import { TableDefaults } from "../utils/tool-defaults";
 import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

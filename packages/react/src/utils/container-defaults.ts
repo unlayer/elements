@@ -1,19 +1,14 @@
 /**
  * Default values for container components (Body, Row, Column).
  *
- * Runtime values come from @unlayer/exporters (extracted from the editor
- * schema at generation time). Types come from @unlayer/types
- * (generated from the same schema). Both are single source of truth.
+ * Runtime values are the editor schema's (tool-defaults.ts). Types come from
+ * @unlayer/types (generated from the same schema).
  *
  * Imported by both render-to-json.ts and extract-head.ts to ensure the
  * JSON output and head CSS always use consistent defaults.
  */
 
-import {
-  BodyDefaults,
-  RowDefaults,
-  ColumnDefaults,
-} from "@unlayer/exporters";
+import { BodyDefaults, RowDefaults, ColumnDefaults } from "./tool-defaults";
 import type { BodyValues, RowValues, ColumnValues } from "@unlayer-internal/shared-elements";
 
 // Body defaults from the editor schema.

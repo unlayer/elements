@@ -1,4 +1,5 @@
-import { HeadingExporters, HeadingDefaults } from "@unlayer/exporters";
+import { HeadingExporters } from "@unlayer/exporters";
+import { HeadingDefaults } from "../utils/tool-defaults";
 import type { HeadingValues, TextStyleProps, HeadingLevel } from "../types";
 import {
   createItemComponent,
