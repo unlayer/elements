@@ -4,7 +4,7 @@
  * These are NOT vitest tests — they are compile-time assertions checked by
  * `pnpm typecheck` (tsc --noEmit -p tsconfig.typecheck.json), which CI runs.
  * The file imports only TYPES, so it stays out of the render graph (no
- * storybook / @unlayer/exporters resolution noise) and type-checks in isolation.
+ * storybook resolution noise) and type-checks in isolation.
  *
  * Each `const _x: SomeType = value` asserts a natural authoring form compiles;
  * each `@ts-expect-error` asserts garbage is still rejected (tsc fails if the
