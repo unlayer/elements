@@ -4,6 +4,8 @@
  * that drops them deletes this file.
  */
 
+import { cssValueSafe } from "@unlayer-internal/shared-elements";
+
 type Sides = { top: number; right: number; bottom: number; left: number };
 
 /**
@@ -103,8 +105,25 @@ export function rowColorInEmail(value: string | undefined): string | undefined {
 
 /**
  * A page's or printed document's text and background colors: legacy's stylesheet takes a hex, rgb() or rgba() color,
- * or transparent; another (a name, hsl()) is its default, black text on white.
+ * or transparent; another (a name, hsl(), rgb() that isn't one) is its default, black text on white.
  */
 export function pageBodyColor(value: string | undefined, fallback: "#000000" | "#ffffff"): string {
-  return value && /^(#[0-9a-f]{3,8}|rgba?\(.*\)|transparent)$/i.test(value.trim()) ? value : fallback;
+  const text = typeof value === "string" ? value.trim() : "";
+  const rgb = /^rgb(a?)\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(,\s*\d*\.?\d+\s*)?\)$/i.exec(text);
+  const color = rgb ? !rgb[1] === !rgb[5] && [rgb[2], rgb[3], rgb[4]].every((n) => Number(n) <= 255) && !(Number(rgb[5]?.slice(1)) > 1) : /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|transparent)$/i.test(text);
+  return color ? value! : fallback;
+}
+
+/**
+ * What legacy's stylesheet gives the markup of a user's own block (the new engine's blocks have these as their own).
+ * In an email, tables and their cells are in the template's text color, which is the only color an Html block's text
+ * has: the new email's root has none. In a printed document, backgrounds print, and a `content` class of the user's
+ * takes the template's text and background, as legacy's own `.content` does.
+ */
+export function ownMarkupCss(mode: "email" | "web" | "document", body: { textColor?: string; backgroundColor?: string; fontFamily?: { value?: string } }): string {
+  const text = pageBodyColor(body.textColor, "#000000");
+  if (mode === "email") return `table, td { color: ${text}; }`;
+  if (mode !== "document") return "";
+  const font = body.fontFamily?.value || "Arial, Helvetica, sans-serif";
+  return `body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n.content { width: 100%; font-family: ${cssValueSafe(font) ? font : "inherit"}; font-size: 15px; color: ${text}; background-color: ${pageBodyColor(body.backgroundColor, "#ffffff")}; -webkit-print-color-adjust: exact; }`;
 }

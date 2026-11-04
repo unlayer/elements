@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Column, Document, Email, Html, Image, Page, Paragraph, Row, Table, registerTool, renderToHtml, renderToHtmlParts, renderToPlainText } from "../index";
 import { legacyRenderToHtml, legacyRenderToHtmlParts, legacyRenderToPlainText } from "../utils/render-to-html";
@@ -108,6 +109,160 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       table.mockRestore();
       button.mockRestore();
     }
+  });
+
+  describe("of custom tools, Html blocks and a user's own markup", () => {
+    const Tool = registerTool({
+      name: "open_tool",
+      renderer: {
+        exporters: { web: () => "<i>Tool</i>", email: () => "<i>Tool</i>" },
+        head: { css: (values) => `#${values._meta.htmlID} i { color: red; }`, js: () => "var tool = 1;", tags: () => ['<meta name="tool">'] },
+      },
+    });
+    const Mine = () => <section>Mine</section>;
+    const template = (Root: typeof Email) => (
+      <Root textColor="#333333" backgroundColor="#eeeeee">
+        <Row>
+          <Column>
+            <Paragraph>Words</Paragraph>
+            <Html html="<b>Html</b>" hideOnMobile mobile={{ containerPadding: "2px" } as never} />
+            <Tool />
+            <Mine />
+          </Column>
+        </Row>
+      </Root>
+    );
+    /** A spy on every function the closed package exports, in its objects (its exporters and its heads). */
+    const spyOnClosed = () => {
+      const seen = new Set<object>();
+      const spies: Array<ReturnType<typeof vi.spyOn>> = [];
+      const visit = (object: unknown) => {
+        if (!object || typeof object !== "object" || seen.has(object)) return;
+        seen.add(object);
+        for (const [key, value] of Object.entries(object)) {
+          if (typeof value === "function") spies.push(vi.spyOn(object as Record<string, any>, key).mockName(key));
+          else visit(value);
+        }
+      };
+      Object.values(exporters).forEach(visit);
+      return spies;
+    };
+    const ROOTS = [["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, typeof Email]>;
+
+    it.each(ROOTS)("run nothing of the closed package (%s)", (_, Root) => {
+      const spies = spyOnClosed();
+      try {
+        expect(spies.length).toBeGreaterThan(50);
+        const html = renderToHtml(template(Root));
+        const parts = renderToHtmlParts(template(Root));
+        const text = renderToPlainText(template(Root));
+        expect(spies.filter((spy) => spy.mock.calls.length).map((spy) => spy.getMockName())).toEqual([]);
+        for (const written of [html, parts.body]) for (const words of ["Words", "<b>Html</b>", "<i>Tool</i>", "<section>Mine</section>"]) expect(written).toContain(words);
+        expect(text).toContain("Html");
+        // The spies do see them: the same template through today's components.
+        legacyRenderToHtml(template(Root));
+        expect(spies.some((spy) => spy.mock.calls.length)).toBe(true);
+      } finally {
+        spies.forEach((spy) => spy.mockRestore());
+      }
+    });
+
+    it.each(ROOTS)("draw what the template holds as the same words as legacy (%s)", (_, Root) => {
+      expect(renderToPlainText(template(Root))).toBe(legacyRenderToPlainText(template(Root)));
+    });
+
+    it.each(ROOTS)("have their own head, whole, and none of legacy's (%s)", (_, Root) => {
+      const { css, js, tags, head } = renderToHtmlParts(template(Root));
+      expect(css).toContain("#u_content_custom_open_tool_1 i { color: red; }");
+      expect(js).toBe("var tool = 1;");
+      expect(tags).toEqual(['<meta name="tool">']);
+      expect(head).toContain('<meta name="tool">');
+      expect(css).not.toMatch(/u_content_body|font-size: 1rem/);
+    });
+
+    it("keep an email's text color on tables, which is the only color their text has", () => {
+      const { css } = renderToHtmlParts(template(Email));
+      expect(css).toContain("table, td { color: #333333; }");
+      // Before the tool's own rules, so that one of its own for a cell wins, as in legacy's head.
+      expect(css.indexOf("table, td { color")).toBeLessThan(css.indexOf("#u_content_custom_open_tool_1"));
+    });
+
+    it("print a document's backgrounds", () => {
+      expect(renderToHtmlParts(template(Document)).css).toContain("print-color-adjust: exact");
+    });
+
+    it("hide by their box's classes and the head's rules, and draw their phone padding", () => {
+      const email = renderToHtml(template(Email));
+      expect(email).toContain('class="u_content_html hide-mobile"');
+      expect(email).toContain("@media (max-width: 480px) { .hide-mobile { max-height: 0px; overflow: hidden; display: none !important; } }");
+      expect(email).toContain("@media (min-width: 0px) { .hide-default__display-block");
+      expect(email).toContain("@media (max-width: 480px) { #u_content_html_1 .v-container-padding-padding { padding: 2px !important; } }");
+      const page = renderToHtml(template(Page as never));
+      expect(page).toContain('class="u_content_html v-container-padding-padding hide-mobile"');
+      expect(page).toContain("@media (max-width: 480px) { .hide-mobile { display: none !important; } }");
+      expect(page).toContain("@media (max-width: 480px) { #u_content_html_1.v-container-padding-padding { padding: 2px !important; } }");
+      // A printed document has no phones.
+      const document = renderToHtml(template(Document as never));
+      expect(document).not.toMatch(/hide-mobile/);
+    });
+
+    it("have no device rules for the blocks a new component draws, which write no such classes", () => {
+      const { css } = renderToHtmlParts(<Page><Row mobile={{ padding: "1px" } as never}><Column><Paragraph mobile={{ fontSize: "20px" }}>Words</Paragraph><Html html="<b>Html</b>" /></Column></Row></Page>);
+      expect(css).not.toMatch(/u_row_1|u_content_paragraph_1|u_column_1/);
+    });
+
+    it("keep today's stylesheet beside a block that still keeps its legacy HTML", () => {
+      const { css, js } = renderToHtmlParts(<Email textColor="#333333"><Row><Column><Tool /><Table /></Column></Row></Email>);
+      expect(css).toContain("#u_content_custom_open_tool_1 i { color: red; }");
+      expect(js).toBe("var tool = 1;");
+      expect(css).toMatch(/table, td \{\s*color: #333333;/);
+    });
+
+    it("call a custom tool's exporter once, and only once it's lowered: a template that can't be renders as today", () => {
+      const exporter = vi.fn(() => "<i>Once</i>");
+      const Once = registerTool({ name: "once", renderer: { exporters: { web: exporter, email: exporter } } });
+      expect(renderToHtml(<Email><Row><Column><Once /></Column></Row></Email>)).toContain("<i>Once</i>");
+      expect(exporter).toHaveBeenCalledTimes(1);
+      exporter.mockClear();
+      const unlowerable = <Email><Row><Column><Once /></Column></Row><Row backgroundImage={{ url: "https://example.com/bg.png" } as never}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(unlowerable)).toContain("<i>Once</i>");
+      expect(exporter).toHaveBeenCalledTimes(1);
+    });
+
+    it("say so and leave out a custom tool whose exporter throws, as legacy, and keep the rest", () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const Broken = registerTool({ name: "broken", renderer: { exporters: { web: () => { throw new Error("no"); } } } });
+        const page = <Page><Row><Column><Broken /><Paragraph>Still here</Paragraph></Column></Row></Page>;
+        const html = renderToHtml(page);
+        expect(html).toContain("Still here");
+        expect(html).not.toContain("u_content_custom_broken");
+        expect(error).toHaveBeenCalledWith("broken rendering failed:", expect.any(Error));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("<broken> did not produce renderable HTML"));
+      } finally {
+        error.mockRestore();
+        warn.mockRestore();
+      }
+    });
+
+    it("leave no collecting marker in a block's HTML, and say so, where a block rendered to a string can't be told from one collected (another copy of React)", () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      const useId = vi.spyOn(React, "useId").mockImplementation(() => {
+        throw new Error("another copy of React");
+      });
+      try {
+        const Leaky = registerTool({ name: "leaky", renderer: { exporters: { web: (v) => `<i>${v.inner.html}</i>`, email: (v) => `<i>${v.inner.html}</i>` } } });
+        const Inner = () => <Leaky values={{ inner: { html: renderToStaticMarkup(<Paragraph>Lost</Paragraph>) } }} />;
+        const html = renderToHtml(<Email><Row><Column><Inner /><Paragraph>Kept</Paragraph></Column></Row></Email>);
+        expect(html).toContain("<i></i>");
+        expect(html).toContain("Kept");
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("left a marker behind"));
+      } finally {
+        useId.mockRestore();
+        error.mockRestore();
+      }
+    });
   });
 
   it("give the parts their shapes: head and body, the head's CSS and script, and its tags", () => {

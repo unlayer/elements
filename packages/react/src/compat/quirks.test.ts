@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { heads } from "@unlayer/exporters";
 import {
   buttonHover,
   dividerLength,
@@ -6,6 +7,7 @@ import {
   imageBox,
   imagePadding,
   outlookCopy,
+  ownMarkupCss,
   pageBodyColor,
   pageMargin,
   rowColorInEmail,
@@ -72,5 +74,27 @@ describe("legacy's quirks, drawn as legacy draws them", () => {
     expect(pageBodyColor("hsl(0, 100%, 50%)", "#ffffff")).toBe("#ffffff");
     expect(pageBodyColor("rgba(0, 0, 0, 0.5)", "#ffffff")).toBe("rgba(0, 0, 0, 0.5)");
     expect(pageBodyColor("#123456", "#000000")).toBe("#123456");
+  });
+
+  it("gives a user's own markup, as legacy's stylesheet does, an email's text color on tables, a document's printed backgrounds and `.content`", () => {
+    expect(ownMarkupCss("email", { textColor: "#333333" })).toBe("table, td { color: #333333; }");
+    expect(ownMarkupCss("web", { textColor: "#333333" })).toBe("");
+    const document = ownMarkupCss("document", { textColor: "#333333", backgroundColor: "#eeeeee", fontFamily: { value: "georgia,serif" } });
+    expect(document).toContain("body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }");
+    expect(document).toContain(".content { width: 100%; font-family: georgia,serif; font-size: 15px; color: #333333; background-color: #eeeeee; -webkit-print-color-adjust: exact; }");
+    expect(ownMarkupCss("document", { fontFamily: { value: "x}</style>" } })).not.toContain("</style>");
+  });
+
+  it("takes the colors the closed Body head takes, and its defaults for others", () => {
+    const meta = (displayMode: string) => ({ displayMode, isViewer: false, variant: null, type: "rows", headConfig: { hasFeature: () => false, getInitialValues: () => ({}) } });
+    const closed = (mode: string, values: Record<string, unknown>) => heads.Body.css({ ...values, _meta: { htmlID: "u_body" } }, values, meta(mode)) as string;
+    const declared = (css: string, selector: RegExp, property: string) => new RegExp(`${selector.source}[^}]*?\\b${property}: ([^;]*);`).exec(css)?.[1].trim();
+    for (const value of [undefined, "", "#333", "#3334", "#333333", "#33333333", "#12345", "red", "rgb(1,2,3)", "rgb( 1 , 2 , 3 )", "RGB(1,2,3)", "rgb(300,0,0)", "rgb(1,2,3,.5)", "rgba(1,2,3,.5)", "rgba(1,2,3)", "rgba(1,2,3,2)", "rgb(10%,0%,0%)", "transparent", " #333 ", "hsl(0,0%,0%)", "#333;}</style>"]) {
+      expect(declared(ownMarkupCss("email", { textColor: value }), /table, td \{/, "color"), `text ${value}`).toBe(declared(closed("email", { textColor: value }), /table, td \{/, "color"));
+      const page = { textColor: value, backgroundColor: value, fontFamily: { value: "georgia,serif" } };
+      for (const property of ["font-family", "font-size", "color", "background-color"]) {
+        expect(declared(ownMarkupCss("document", page), /\.content \{/, property), `${property} ${value}`).toBe(declared(closed("document", page), /\.content \{/, property));
+      }
+    }
   });
 });

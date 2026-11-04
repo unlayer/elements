@@ -70,6 +70,17 @@ export interface ExtractHeadOptions {
   displayMode: RenderMode;
   /** Optional head config for feature flags and initial values */
   headConfig?: HeadConfig;
+  /**
+   * Only what a template's blocks of open HTML need (see `writesOpenHtml`), with no closed head function run: their
+   * own head and their settings for a device. A block a new component draws writes none of the classes those select.
+   */
+  open?: boolean;
+}
+
+/** A block whose HTML is the user's own (a custom tool's exporter, an Html block, markup kept from a component of theirs). */
+export function writesOpenHtml(type: any): boolean {
+  const config = type?.[UNLAYER_CONFIG_KEY];
+  return config ? config.contentType === "custom" || config.name === "Html" : !!type?.[KEPT];
 }
 
 /**
@@ -122,7 +133,8 @@ function walkItem(
   styles: string[],
   scripts: string[],
   tags: string[],
-  deviceStyles: Record<string, string[]>
+  deviceStyles: Record<string, string[]>,
+  open = false
 ): void {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
@@ -134,14 +146,15 @@ function walkItem(
 
   const { name, defaultValues, propMapper } = config;
 
+  // Track component index (same counter pattern as render-to-json.ts)
+  const contentType = config.metaName ?? name.toLowerCase();
+  const count = nextCounter(counters, `u_content_${contentType}`);
+  if (open && !writesOpenHtml(componentType)) return;
+
   // Map and merge values (same as render-to-json and create-component)
   const { children, ...restProps } = element.props;
   const mappedValues = propMapper({ children, ...restProps });
   const finalValues = mergeValues(defaultValues, mappedValues);
-
-  // Track component index (same counter pattern as render-to-json.ts)
-  const contentType = config.metaName ?? name.toLowerCase();
-  const count = nextCounter(counters, `u_content_${contentType}`);
   const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
 
   collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles);
@@ -149,7 +162,7 @@ function walkItem(
   // The component's own head (custom tools) wins over the registry lookup
   const head =
     (config.head as ComponentHead | undefined) ??
-    (heads as Record<string, ComponentHead | undefined>)[name];
+    (open ? undefined : (heads as Record<string, ComponentHead | undefined>)[name]);
   callHead(head, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
 
 }
@@ -253,16 +266,21 @@ export function extractHeadFromTree(
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
   const bodyValues = ensureMeta(mergeValues(BODY_DEFAULTS, mapped), "body", 0);
 
-  // Body head
-  const bodyHead = (heads as Record<string, ComponentHead | undefined>)["Body"];
-  callHead(bodyHead, bodyValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
   // Walk rows
   const children = collectChildren(element.props.children);
-  for (const child of children) {
-    const name = getDisplayName(child);
-    if (name === "Row") {
-      walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
+  if (options.open) {
+    const named = (parents: React.ReactElement[], name: string) => parents.filter((c) => getDisplayName(c) === name).flatMap((c) => collectChildren((c.props as { children?: React.ReactNode }).children));
+    for (const block of named(named(children, "Row"), "Column")) walkItem(block, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles, true);
+  } else {
+    // Body head
+    const bodyHead = (heads as Record<string, ComponentHead | undefined>)["Body"];
+    callHead(bodyHead, bodyValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
+
+    for (const child of children) {
+      const name = getDisplayName(child);
+      if (name === "Row") {
+        walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
+      }
     }
   }
 

@@ -480,6 +480,9 @@ export function childrenHtml(children: React.ReactNode, place: (child: React.Rea
   return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
 }
 
+/** A block's finished HTML, of a root with these `children`, without what `childrenHtml` takes out of the rest. */
+export const blockWithoutMarkers = (children: React.ReactNode, html: string): string => withoutMarkers(html, collect(children).collection.nonce);
+
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */
 export function normalizedChildren(children: React.ReactNode): React.ReactNode[] {
   const c = collect(children);

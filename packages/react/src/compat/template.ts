@@ -1,18 +1,21 @@
 /**
  * A template of today's components as the new engine's tree (RFC 0001 step 7): its design lowered (lower.ts), each
  * block in the new components where its tool has moved over and it can be drawn as legacy draws it (blocks/), else a
- * Raw node with the HTML its exporter writes and the legacy stylesheet. Only those blocks are written by today's
- * exporters.
+ * Raw node. A Raw node of a custom tool, an Html block or a user's own markup holds that HTML in its box (contentBox),
+ * with what its head needs from the blocks themselves: nothing of the closed exporters runs. Any other Raw node holds
+ * the HTML its exporter writes and the legacy stylesheet; only those blocks are written by today's exporters.
  */
 import React from "react";
 import { checkDocument } from "@unlayer-internal/elements-core";
 import { htmlToPlainText, mergeValues, type UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { UNLAYER_CONFIG_KEY } from "../utils/create-component";
-import { KEPT, normalizedRoot } from "../utils/normalize";
+import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
+import { safeMeta, UNLAYER_CONFIG_KEY } from "../utils/create-component";
+import { blockWithoutMarkers, KEPT, normalizedRoot } from "../utils/normalize";
 import { recordingBlockHtml } from "../utils/block-html";
-import { extractHeadFromTree } from "../utils/extract-head";
+import { extractHeadFromTree, writesOpenHtml } from "../utils/extract-head";
 import { renderBody, resolveConfig, resolveDisplayMode } from "../utils/render-to-html";
-import { renderToJson } from "../utils/render-to-json";
+import { extractSemanticProps, renderToJson } from "../utils/render-to-json";
+import { mapSemanticProps } from "../utils/semantic-props";
 import { getDisplayName, ROOT_NAMES } from "../utils/unwrap-root";
 import { htmlRoot } from "../utils/unwrap-root";
 import Body from "../components/Body";
@@ -20,8 +23,9 @@ import Document from "../components/Document";
 import Email from "../components/Email";
 import Page from "../components/Page";
 import { BLOCKS } from "./blocks";
+import { ownMarkupCss } from "./quirks";
 import { serviceTag } from "./values";
-import { givenId, hidden, lowerDesign, Unlowerable, type DesignBlock, type Mode, type TreeNode } from "./lower";
+import { blockName, givenId, hidden, lowerDesign, Unlowerable, writeBlock, type BlockFrame, type DesignBlock, type Mode, type TreeNode } from "./lower";
 
 /** This copy's root components. */
 const OWN_ROOTS = new Set<unknown>([Body, Email, Page, Document]);
@@ -33,7 +37,7 @@ export interface Lowered {
   tree: { root: TreeNode };
   mode: Mode;
   config: Partial<UnlayerConfig>;
-  /** What today's head functions add to the head (custom tools' scripts and tags), for the Raw blocks that need it. */
+  /** What the head has for the Raw blocks that need it (custom tools' scripts and tags). */
   legacyHead: { css: string; js: string; tags: string[] } | undefined;
 }
 
@@ -53,7 +57,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   const outside = outsideTheDesign(normalizedRoot(root));
   if (outside) return { unlowered: outside };
   const design = renderToJson(root) as unknown as { body: Record<string, any> };
-  const sources = blockSources(root);
+  const { blocks: sources, body } = blockSources(root);
   // Blocks that keep today's HTML: their Raw nodes, by their number in the design (rows, their columns, their blocks).
   const raw = new Map<number, TreeNode>();
   let next = 0;
@@ -64,7 +68,7 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
       config: merged,
       block: (block, place) => {
         const n = next++;
-        const lowered = legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, source: sources[n] });
+        const lowered = legacyOnly(block, mode) ? undefined : BLOCKS[block.type]?.(withoutPhone(block, mode), { ...place, source: sources[n]?.values });
         const id = lowered ? givenId(block.values ?? {}) : undefined;
         const node = lowered && id ? { ...lowered, id } : lowered;
         if (node === null || (node && valid(node, mode))) return node;
@@ -78,14 +82,23 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
     throw error;
   }
   if (!raw.size) return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: undefined };
+  // Each is written here, once the template is lowered (a template that isn't renders as today, which writes them).
   const html = new Map<number, string>();
-  recordingBlockHtml((n) => raw.has(n), (n, written) => html.set(n, written), () => renderBody(root, config, name));
-  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig });
+  const closed = new Set<number>();
+  const { children } = root.props as { children?: React.ReactNode };
+  for (const n of raw.keys()) {
+    const source = sources[n];
+    if (!source || !writesOpenHtml(source.element.type)) closed.add(n);
+    else html.set(n, blockWithoutMarkers(children, writeBlock(source.element, source.id, source.frame, mode, { ...merged, mode }) ?? ""));
+  }
+  if (closed.size) recordingBlockHtml((n) => closed.has(n), (n, written) => html.set(n, written), () => renderBody(root, config, name));
+  const head = extractHeadFromTree(root, { displayMode: mode, headConfig: merged.headConfig, open: !closed.size });
+  const css = closed.size ? head.css : [ownMarkupCss(mode, body), head.css].filter(Boolean).join("\n");
   for (const [n, node] of raw) {
     const written = html.get(n) ?? "";
     // In a printed document, legacy's text is in the font's own line height ("normal"), where a page's root has 1.5.
     const markup = written && mode === "document" ? `<div style="line-height:normal">${written}</div>` : written;
-    node.props = { html: markup, css: head.css, text: htmlToPlainText(written) };
+    node.props = { html: markup, css, text: htmlToPlainText(written) };
   }
   return { root, tree: dropEmpty(tree), mode, config: merged, legacyHead: head };
 }
@@ -153,31 +166,52 @@ function withoutPhone(block: DesignBlock, mode: Mode): DesignBlock {
   return { ...block, values: { ...block.values, _override: override } };
 }
 
+/** A block of the template, as a Column gives it to its exporter. */
+interface BlockSource {
+  /** Its values as its exporter gets them (its props mapped, its defaults in); undefined where it has no tool. */
+  values?: Record<string, any>;
+  /** The block, as collected. */
+  element: React.ReactElement<any>;
+  /** Its id, numbered as a render numbers them. */
+  id: string;
+  frame: BlockFrame;
+}
+
 /**
- * Each block's values as its exporter gets them (its props mapped, its defaults in), in the design's order: rows, their
- * columns, their blocks, as renderToJson walks the same collected template.
+ * Each block of the template, in the design's order (rows, their columns, their blocks, as renderToJson walks the same
+ * collected template), and the body's values.
  */
-function blockSources(root: React.ReactElement): Array<Record<string, any> | undefined> {
-  const out: Array<Record<string, any> | undefined> = [];
+function blockSources(root: React.ReactElement): { blocks: BlockSource[]; body: Record<string, any> } {
+  const out: BlockSource[] = [];
   const elements = (node: React.ReactNode) => React.Children.toArray(node).filter(React.isValidElement) as Array<React.ReactElement<any>>;
-  for (const row of elements(normalizedRoot(root).props.children)) {
+  const counts: Record<string, number> = {};
+  const nextId = (prefix: string) => `${prefix}_${(counts[prefix] = (counts[prefix] ?? 0) + 1)}`;
+  const mapped = (element: React.ReactElement<any>, defaults: any, name: string) => mapSemanticProps<Record<string, any>>(extractSemanticProps(element.props), defaults, name);
+  const collected = normalizedRoot(root);
+  const bodyValues = mergeValues<Record<string, any>>(BODY_DEFAULTS as Record<string, any>, mapped(collected, BODY_DEFAULTS, "Body"));
+  for (const row of elements(collected.props.children)) {
     if (getDisplayName(row) !== "Row") continue;
-    for (const column of elements(row.props.children)) {
-      if (getDisplayName(column) !== "Column") continue;
-      for (const child of elements(column.props.children)) {
-        const type = child.type as any;
-        const block = !type?.[UNLAYER_CONFIG_KEY] && type?.[KEPT] ? (type[KEPT] as React.ReactElement<any>) : child;
+    const columns = elements(row.props.children).filter((column) => getDisplayName(column) === "Column");
+    const cells: number[] = row.props.layout?.cells ?? row.props.cells ?? Array(Math.max(1, columns.length)).fill(1);
+    const ownRow = mapped(row, ROW_DEFAULTS, "Row");
+    const rowValues = { ...ownRow, cells, _meta: safeMeta({ htmlID: nextId("u_row"), htmlClassNames: "u_row", ...ownRow._meta }) };
+    columns.forEach((column, colIndex) => {
+      const ownColumn = mapped(column, COLUMN_DEFAULTS, "Column");
+      const columnValues = { ...ownColumn, _meta: safeMeta({ htmlID: nextId("u_column"), htmlClassNames: "u_column", ...ownColumn._meta }) };
+      for (const element of elements(column.props.children)) {
+        const type = element.type as any;
+        const block = !type?.[UNLAYER_CONFIG_KEY] && type?.[KEPT] ? (type[KEPT] as React.ReactElement<any>) : element;
         const config = (block.type as any)?.[UNLAYER_CONFIG_KEY];
-        if (!config) {
-          out.push(undefined);
-          continue;
+        let values: Record<string, any> | undefined;
+        if (config) {
+          const { children, ...props } = block.props;
+          values = mergeValues(config.defaultValues, config.propMapper({ children, ...props }));
         }
-        const { children, ...props } = block.props;
-        out.push(mergeValues(config.defaultValues, config.propMapper({ children, ...props })));
+        out.push({ values, element, id: nextId(`u_content_${blockName(type)}`), frame: { colIndex, cells, bodyValues, rowValues, columnValues } });
       }
-    }
+    });
   }
-  return out;
+  return { blocks: out, body: bodyValues };
 }
 
 /** The tree without Raw nodes that hold nothing (a block that writes nothing in this output). */

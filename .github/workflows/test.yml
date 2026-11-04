@@ -65,9 +65,12 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 389KB.
+      # Fail if the react-elements ESM bundle exceeds 393KB.
       # Today's components' default values as data in this package added about
-      # 5KB, for now: the legacy render paths still in it go with @unlayer/exporters.
+      # 5KB, and writing custom tools, Html blocks and a user's own markup without
+      # @unlayer/exporters (their box, their head, what today's body, row and
+      # column give a tool's exporter) about 4KB, for now: the legacy render paths
+      # still in it go with @unlayer/exporters.
       # Today's components render through the new engine (RFC 0001 step 7): the
       # main entry bundles its core and writers too (the /primitives entry's,
       # without its JSX API), and the lowering of today's designs into them,
@@ -92,7 +95,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=389000
+          MAX_SIZE=393000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -142,7 +145,8 @@ jobs:
       # read without throwing. Reading the rich text the builder's editor
       # saves as its export writes it (its links, merge tags, headings and
       # lists, which the shared generator leaves out) grew it by about 9KB
-      # more. It imports @unlayer/exporters for today's
+      # more; writing a block's box without @unlayer/exporters by about 1KB,
+      # for now. It imports @unlayer/exporters for today's
       # components' defaults, as the main entry does. Raise it on purpose,
       # with what grew.
       - name: Check /builder bundle size
@@ -150,7 +154,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=452000
+          MAX_SIZE=452500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

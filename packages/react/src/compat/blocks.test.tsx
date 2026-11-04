@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { HtmlExporters } from "@unlayer/exporters";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Video, registerTool } from "../index";
+import { recordingBlockHtml } from "../utils/block-html";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
+import { renderBody } from "../utils/render-to-html";
 import { withRenderScope } from "../utils/render-scope";
 import type { TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -226,5 +228,94 @@ describe("an Html block's own HTML", () => {
         }
       }
     }
+  });
+});
+
+describe("a custom tool, an Html block and a user's own markup", () => {
+  type Root = typeof Email;
+  const calls: unknown[][] = [];
+  const Tool = registerTool({
+    name: "frame_probe",
+    values: { label: "default" },
+    renderer: {
+      exporters: {
+        web: (values, ...args) => (calls.push([values, ...args]), `<i>web ${values.label} ${values._meta.htmlID}</i>`),
+        email: (values, ...args) => (calls.push([values, ...args]), `<i>email ${values.label} ${values._meta.htmlID}</i>`),
+      },
+    },
+  });
+  const Mine = ({ label }: { label: string; containerPadding?: string; hideOnDesktop?: boolean }) => <section>{label}</section>;
+  const template = (Root: Root) => (
+    <Root contentWidth="640px" textColor="#333333" fontFamily={{ label: "Georgia", value: "georgia,serif" } as never}>
+      <Row cells={[1, 2]} backgroundColor="#fafafa" padding="4px">
+        <Column padding="8px">
+          <Paragraph>First</Paragraph>
+          <Html html="<b>One</b>" containerPadding={20} hideOnMobile />
+          <Tool label="a" />
+          <Html html="<b>Two</b>" values={{ _meta: { htmlID: "given" } } as never} />
+        </Column>
+        <Column padding="2px 6px">
+          <Mine label="mine" containerPadding="3px" hideOnDesktop />
+          <Tool label="b" hideOnMobile={"its own" as never} containerPadding="0px" values={{ _override: { tablet: { hideTablet: true } } }} />
+          <Paragraph>Last</Paragraph>
+        </Column>
+      </Row>
+      <Row>
+        <Column>
+          <Tool label="c" mode="web" />
+          <Mine label="again" />
+        </Column>
+      </Row>
+    </Root>
+  );
+  const raws = (node: TreeNode): TreeNode[] => (node.type === "Raw" ? [node] : (node.children ?? []).flatMap((c) => (typeof c === "string" ? [] : raws(c))));
+  const lower = (element: React.ReactElement) => withRenderScope(() => lowerTemplate(element, undefined, "renderToHtml")) as Lowered;
+  /** The blocks but the paragraphs (the template's first and seventh), as today's Column writes them. */
+  const asToday = (element: React.ReactElement) => {
+    const html = new Map<number, string>();
+    withRenderScope(() => recordingBlockHtml((n) => n !== 0 && n !== 6, (n, written) => html.set(n, written), () => renderBody(element, undefined)));
+    return [...html.values()];
+  };
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, Root]>)("are written as today's Column writes them, byte for byte, numbered as it numbers them (%s)", (name, Root) => {
+    const today = asToday(template(Root));
+    const now = raws(lower(template(Root)).tree.root).map((node) => String(node.props?.html));
+    expect(now).toEqual(name === "Document" ? today.map((html) => `<div style="line-height:normal">${html}</div>`) : today);
+    expect(now).toHaveLength(7);
+    const all = now.join("");
+    for (const id of ["u_content_html_1", "u_content_custom_frame_probe_1", "given", "u_content_mine_1", "u_content_custom_frame_probe_2", "u_content_custom_frame_probe_3", "u_content_mine_2"]) expect(all).toContain(`id="${id}"`);
+  });
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as Array<[string, Root]>)("give a custom tool's exporter what today's Column gives it (%s)", (_, Root) => {
+    calls.length = 0;
+    asToday(template(Root));
+    const today = calls.splice(0);
+    lower(template(Root));
+    expect(today).toHaveLength(3);
+    expect(calls).toEqual(today);
+  });
+
+  it("are Raw nodes wherever they're hidden, by their box's classes", () => {
+    const [one, , , mine, tool] = raws(lower(template(Email)).tree.root);
+    expect(one.hidden).toBeUndefined();
+    expect(one.props?.html).toContain('class="u_content_html hide-mobile"');
+    expect(one.props?.html).toContain("padding:20px;");
+    expect(mine.props?.html).toContain('class="u_content_mine hide-default__display-table hide-desktop"');
+    expect(mine.props?.html).toContain("<section>mine</section>");
+    // A custom tool's `hideOnMobile` is its own value; its overrides are its settings.
+    expect(tool.props?.html).toContain('class="u_content_custom_frame_probe hide-tablet"');
+    expect(tool.props?.html).toContain("padding:0px;");
+  });
+
+  it("take a block's own mode for its exporter, and the template's for its box", () => {
+    const [, , , , , third] = raws(lower(template(Email)).tree.root);
+    expect(third.props?.html).toContain("<i>web c u_content_custom_frame_probe_3</i>");
+    expect(third.props?.html).toContain('<table id="u_content_custom_frame_probe_3"');
+  });
+
+  it("read as legacy's plain text", () => {
+    const [one, , two] = raws(lower(template(Page)).tree.root);
+    expect(one.props?.text).toBe("One");
+    expect(two.props?.text).toBe("Two");
   });
 });
