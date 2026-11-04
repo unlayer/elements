@@ -105,12 +105,12 @@ export const image: Lowering = (block, place): TreeNode => {
     borders[1];
   const share = typeof size.width === "string" && size.width.endsWith("%") ? (slot * parseFloat(size.width)) / 100 : typeof size.width === "number" ? size.width : slot;
   const stacks = place.cells.length > 1 && !(place.row.noStackMobile || place.row._override?.mobile?.noStackMobile);
-  if (place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 && imagePhone.maxWidth === undefined) imagePhone.maxWidth = size.maxWidth;
+  const stackedMaxWidth = place.mode === "email" && stacks && typeof size.maxWidth === "number" && size.maxWidth > share + 0.5 ? size.maxWidth : undefined;
   // Legacy gives an image its alternate text as its title too (a tooltip).
   const props = { src: asset, alt, ...(alt ? { title: alt } : {}) };
   const sized = { width: size.width, maxWidth: size.maxWidth, ...imageBox(values) };
   const withPhone = Object.keys(imagePhone).length ? { mobile: imagePhone } : {};
-  const drawn: TreeNode = { type: "Image", props, style: sized, ...withPhone };
+  const drawn: TreeNode = { type: "Image", props, style: sized, ...withPhone, ...(stackedMaxWidth !== undefined ? { compat: { stackedMaxWidth } } : {}) };
   const column = (child: TreeNode): TreeNode => ({ type: "Column", style: box, ...(Object.keys(columnPhone).length ? { mobile: columnPhone } : {}), children: [child] });
   const action = webLink(values.action) === null ? undefined : drawnLink(values.action, place.keep, place.note);
   const href = (action?.href as { href?: string } | undefined)?.href ? (action as Record<string, Json>) : undefined;

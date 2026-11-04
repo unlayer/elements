@@ -200,23 +200,24 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
       expect(stacking ?? "").not.toContain("display:");
     });
 
-    it("leave what belongs to a row's stacking at the email's width: an image's maximum, a line across its columns", () => {
+    it("leave what belongs to a row's stacking at the email's width: an image's maximum, its columns' cells", () => {
       const line = { borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: "#ff0000" };
-      const { 480: phone, 620: stacking } = queries(
-        renderToHtml(
-          <Email contentWidth="600px">
-            <Row cells={[1, 1]}>
-              <Column border={line as never}><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" values={{ _override: { mobile: { containerPadding: "37px" } } } as never} /></Column>
-              <Column border={line as never}><Paragraph>B</Paragraph></Column>
-            </Row>
-          </Email>
-        )
+      const html = renderToHtml(
+        <Email contentWidth="600px">
+          <Row cells={[1, 1]}>
+            <Column border={line as never}><Image src={{ url: "https://example.com/a.png", width: 600, height: 300 }} altText="A" values={{ _override: { mobile: { containerPadding: "37px" } } } as never} /></Column>
+            <Column border={line as never}><Paragraph>B</Paragraph></Column>
+          </Row>
+        </Email>
       );
+      const { 480: phone, 620: stacking } = queries(html);
       expect(stacking).toContain("max-width:300px!important");
-      expect(stacking).toContain("border-top:2px solid");
+      // Its columns are cells that stack there, each with its own line.
+      expect(stacking).toContain("display:block!important");
+      expect(html.match(/<td[^>]*style="[^"]*border-top:2px solid/g)).toHaveLength(2);
       expect(phone).toContain("padding:37px");
       expect(phone).not.toContain("max-width:300px");
-      expect(phone).not.toContain("border-top");
+      expect(phone).not.toContain("display:block");
     });
 
     it("are a page's own, and nothing changes on one", () => {
