@@ -8,7 +8,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { collectDeviceStyles, cssIdent, deviceStylesCss } from "../../utils/device-overrides";
 import { contentBox, givenId, type DesignBlock, type Place, type TreeNode } from "../lower";
-import { declared, linkHoverOf, linkStyleOf, styled } from "../links";
+import { blockLinks, bodyLinks, declared, linkHoverOf, linkStyleOf, styled } from "../links";
 import { parseRuns } from "../runs";
 import { fontOfValues, spaceBeforeTag, textTransformOfText } from "../quirks";
 import { deviceValues, drawnWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
@@ -125,11 +125,14 @@ function written(type: "Paragraph" | "Heading", values: Values, html: string, le
     const body = [declared("color", style?.color), declared("text-decoration", style?.textDecoration)].filter(Boolean).join(" ");
     return body ? `#${cssIdent(id)} ${selector} { ${body} }` : "";
   };
+  // (Underlined against the body's stylesheet, where that says otherwise.)
+  const own = linkStyleOf(values, "email");
+  const underlined = own && bodyLinks(place.body, place.mode).style.textDecoration ? { textDecoration: "underline", ...own } : own;
   return {
     type: "Raw",
     props: {
       html: contentBox(`${outlook[0]}${inner}${outlook[1]}`, { id, className: `u_content_${name}`, padding: values.containerPadding ?? "10px", override: values._override }, place.body.fontFamily?.value, place.mode),
-      css: [deviceStylesCss(device, place.mode), rule("a", linkStyleOf(values, "email")), rule("a:hover", linkHoverOf(values, place.mode))].filter(Boolean).join("\n"),
+      css: [deviceStylesCss(device, place.mode), rule("a", underlined), rule("a:hover", linkHoverOf(values, place.mode))].filter(Boolean).join("\n"),
     },
   };
 }
@@ -172,13 +175,14 @@ function textBlock(tool: "Paragraph" | "Heading", block: DesignBlock, place: Pla
       if (onPhones !== undefined) phone.lineHeight = onPhones;
     }
   }
+  const links = blockLinks(values, place.body, place.mode);
   const node: TreeNode = {
     type,
     ...(level || dir ? { props: { ...(level ? { level } : {}), ...(dir ? { dir } : {}) } } : {}),
     style: { ...style, ...(some(padding) ? { padding: padding! } : {}) },
     ...(Object.keys(phone).length ? { mobile: phone } : {}),
     ...(place.inOwnRow && style.color ? { compat: { ownColor: true } } : {}),
-    children: styled(children, linkStyleOf(values, "email") ?? undefined, linkHoverOf(values, place.mode)),
+    children: styled(children, links.style, links.hover),
   };
   // HTML with nothing to draw (a line break) is a line of its height, as legacy's, with no words in its plain text. No
   // text at all is only its padding.

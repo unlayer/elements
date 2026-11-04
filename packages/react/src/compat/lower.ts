@@ -11,7 +11,7 @@ import { escapeKeepingTags, type UnlayerConfig } from "@unlayer-internal/shared-
 import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { collectDeviceStyles, cssValue, deviceStylesCss } from "../utils/device-overrides";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
-import { bodyLinkCss, bodyLinks, styled } from "./links";
+import { bodyLinkCss } from "./links";
 import { documentBodyPicture, ownMarkupCss, pageBodyColor, pageMargin, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
 import { ALIGN, attribute, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
 
@@ -609,12 +609,10 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
     return [...wide(among[index]), ...(around ? [aroundRow(around[0], "open")] : []), ...anchor(r), row(r, index, place, options, frame), ...(around ? [aroundRow(around[1], "close")] : [])];
   });
   rows.push(...wide(among[(design.body.rows ?? []).length]));
-  const links = bodyLinks(values, options.mode);
-  const linked = styled(rows, links.style, links.hover) as TreeNode[];
   const textColor = email ? values.textColor : pageBodyColor(values.textColor, "#000000");
   const preview = email && typeof values.preheaderText === "string" && values.preheaderText.trim() ? values.preheaderText.slice(0, PREVIEW_LENGTH) : undefined;
   if (frame.fixedTable) frame.rules.push(`.${frame.fixedTable} > table { table-layout: fixed; }`);
-  const css = [...(frame.mode === "document" || frame.loose ? [ownMarkupCss(options.mode, values), bodyLinkCss(values, options.mode)] : []), ...frame.rules, deviceStylesCss(frame.device, options.mode)].filter(Boolean).join("\n");
+  const css = [frame.mode === "document" || frame.loose ? ownMarkupCss(options.mode, values) : "", options.embedded ? "" : bodyLinkCss(values, options.mode), ...frame.rules, deviceStylesCss(frame.device, options.mode)].filter(Boolean).join("\n");
   const root = defined({
     type: email ? "Email" : "Page",
     props: defined({
@@ -638,7 +636,7 @@ export function lowerDesign(design: { body: Values }, options: LowerOptions): { 
       previewHtml: preview?.includes("<%") ? escapeKeepingTags(preview) : undefined,
     }),
     // A page keeps the browser's margin around its rows (legacy's page doesn't reset the body's).
-    children: email ? linked : options.embedded ? linked : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: linked }] : linked }],
+    children: email ? rows : options.embedded ? rows : [{ type: "Column", style: { padding: pageMargin() }, children: content ? [{ type: "Column", compat: { className: content }, children: rows }] : rows }],
   });
   return { root, diagnostics: frame.notes };
 }

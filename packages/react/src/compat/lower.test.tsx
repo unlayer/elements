@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as previous from "@unlayer/react-elements-previous";
-import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, registerTool, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, registerTool, Row, renderToHtml, renderToJson, renderToPlainText, Table } from "../index";
 import { withRenderScope } from "../utils/render-scope";
 import { contentBox, lowerDesign, PAGE_WIDTH, type Mode, type TreeNode } from "./lower";
 import { lowerTemplate, type Lowered } from "./template";
@@ -313,6 +313,42 @@ describe("lowerDesign()", () => {
       }
       const hovered = renderToHtml(<Page linkStyle={{ linkColor: "#ff0000", linkHoverColor: "#00ff00" } as never}><Row><Column><Paragraph html='<a href="https://example.com">a link</a>' /></Column></Row></Page>);
       expect(hovered).toMatch(/:hover\{color:#0f0!important\}/);
+    });
+
+    it("keeps what a block sets for its own links over the body's link style", () => {
+      const link = '<a href="https://example.com">x</a>';
+      const own = { inherit: false, linkColor: "#00aa00", linkHoverColor: "#00aa00", linkUnderline: true, linkHoverUnderline: true };
+      const paragraph = (Root: typeof Email, body: Record<string, unknown>, style: Record<string, unknown>) => renderToHtml(<Root linkStyle={body as never}><Row><Column><Paragraph html={link} linkStyle={style as never} /></Column></Row></Root>);
+      // An underline it asks for, under a body with none.
+      expect(paragraph(Email, { linkUnderline: false }, own)).toMatch(/<a [^>]*style="color:#0a0;text-decoration:underline"[^>]*>x</);
+      // A body's hover color: its own in its place, and none where its links don't change.
+      const body = { linkColor: "#ff0000", linkHoverColor: "#0000ff", linkUnderline: true, linkHoverUnderline: true };
+      const hovered = paragraph(Page, body, { ...own, linkHoverColor: "#123456" });
+      expect(hovered).toMatch(/:hover\{color:#123456!important\}/);
+      expect(hovered).not.toContain("color:#00f!important");
+      expect(paragraph(Page, body, own)).not.toMatch(/:hover\{color:/);
+      // A color it doesn't give is the body's.
+      expect(paragraph(Email, { linkColor: "#ff0000" }, { inherit: false, linkColor: "", linkUnderline: false })).toMatch(/<a [^>]*style="color:#f00;text-decoration:none"[^>]*>x</);
+      // A block that takes the body's has it, and so does a table that does.
+      expect(paragraph(Page, body, { inherit: true })).toMatch(/:hover\{color:#00f!important\}/);
+      const table = { headers: [], rows: [{ cells: [{ text: link }] }], footers: [] };
+      const cell = (values: Record<string, unknown>) => renderToHtml(<Email linkStyle={{ linkColor: "#ff0000", linkUnderline: false } as never}><Row><Column><Table values={{ table, ...values } as never} /></Column></Row></Email>);
+      expect(cell({ linkStyle: { inherit: true } })).toMatch(/<a [^>]*style="color:#f00;text-decoration:none"[^>]*>x</);
+      // (A table's default is its own, the browser's blue, as the editor's table has it.)
+      expect(cell({})).toMatch(/<a [^>]*style="color:#00e;text-decoration:underline"[^>]*>x</);
+      expect(cell({ linkStyle: { linkColor: "#00aa00", linkUnderline: true } })).toMatch(/<a [^>]*style="color:#0a0;text-decoration:underline"[^>]*>x</);
+    });
+
+    it("gives a text block written as it is its own underline, over the body's stylesheet", () => {
+      const own = { inherit: false, linkColor: "#00aa00", linkHoverColor: "#00aa00", linkUnderline: true, linkHoverUnderline: true };
+      const html = renderToHtml(<Email linkStyle={{ linkUnderline: false } as never}><Row><Column><Paragraph html='<blockquote><a href="https://example.com">x</a></blockquote>' linkStyle={own as never} /></Column></Row></Email>);
+      expect(html).toMatch(/a \{ text-decoration: none; \}/);
+      expect(html).toMatch(/#[\w-]+ a \{ color: #00aa00; text-decoration: underline; \}/);
+    });
+
+    it("gives an Email's Outlook table the content's alignment", () => {
+      const html = renderToHtml(<Email contentWidth="600px" contentAlign="right"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);
+      expect(html).toContain('<td align="right"><!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="right">');
     });
 
     it("draws the body's text size and weight on a page only, as legacy's stylesheet has them", () => {

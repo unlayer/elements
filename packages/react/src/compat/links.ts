@@ -42,6 +42,14 @@ export function bodyLinks(body: Values, mode: Place["mode"]): { style: Record<st
   return { style: { ...style, ...(typeof color === "string" && !/^#0000ee$/i.test(color) ? { color } : {}) }, hover: linkHoverOf(values, mode) };
 }
 
+/** A block's links: its own style where it has one (a color it doesn't give is the body's), else the body's. */
+export function blockLinks(values: Values, body: Values, mode: Place["mode"]): { style: Record<string, Json>; hover: Record<string, Json> } {
+  const fromBody = bodyLinks(body, mode);
+  const own = linkStyleOf(values, "email");
+  if (!own) return fromBody;
+  return { style: { ...(fromBody.style.color === undefined ? {} : { color: fromBody.style.color }), ...own }, hover: linkHoverOf(values, mode) };
+}
+
 /** The body's link style for markup of the user's own, which has no Link to hold it. */
 export function bodyLinkCss(body: Values, mode: Place["mode"]): string {
   const { style, hover } = bodyLinks(body, mode);

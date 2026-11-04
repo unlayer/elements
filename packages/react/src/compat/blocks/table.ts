@@ -8,7 +8,7 @@ import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { linesInHeaderAndFooter, spaceBeforeTag } from "../quirks";
 import { parseRuns } from "../runs";
-import { styled } from "../links";
+import { bodyLinks, styled } from "../links";
 import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 
 const VERTICAL = new Set(["top", "middle", "bottom"]);
@@ -45,12 +45,12 @@ function sectionStyle(values: Values, section: string, mode: Place["mode"], note
   return Object.fromEntries(Object.entries(out).filter(([, value]) => value !== undefined)) as Record<string, Json>;
 }
 
-/** The style a link in the table has, where it isn't the body's, and on a page under the pointer. */
+/** The style a link in the table has, its own where it isn't the body's, and on a page under the pointer. */
 function linkStyle(values: Values, place: Place): { style: Record<string, Json>; hover: Record<string, Json> } {
   const own: Values = values.linkStyle ?? {};
   const body: Values = place.body.linkStyle ?? {};
-  const style: Record<string, Json> = {};
-  const hover: Record<string, Json> = {};
+  const style: Record<string, Json> = { ...bodyLinks(place.body, place.mode).style };
+  const hover: Record<string, Json> = { ...bodyLinks(place.body, place.mode).hover };
   if (own.inherit) return { style, hover };
   const line = (under: unknown) => (under ? "underline" : "none");
   if (own.linkColor && own.linkColor !== (body.linkColor ?? "#0000ee")) style.color = own.linkColor;
