@@ -1085,6 +1085,10 @@ describe("a social block", () => {
       style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "start" },
       children: [{ type: "Image", props: { src: "https://cdn.tools.unlayer.com/social/icons/default.png", alt: "social icon" }, style: { height: 40 }, compat: { ownWidth: true } }],
     });
+    // Wider than a narrow column, it isn't squeezed into it, and starts where a line of text would.
+    const placeholder = renderToHtml(<Page><Row><Column><Social icons={[]} align="right" /></Column></Row></Page>).match(/<img[^>]*default\.png[^>]*>/)![0];
+    expect(placeholder).toContain("align-self:safe flex-end");
+    expect(placeholder).not.toContain("max-width");
     expect(lowered(<Social icons={[]} />)).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 } }, compat: { ariaLabel: "social" }, children: [] });
   });
 
