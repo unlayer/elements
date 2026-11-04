@@ -65,44 +65,23 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 450.5KB.
-      # Drawing every template through the new engine, whatever it holds, added
-      # about 57KB, for now: the legacy render paths still in it go with
-      # @unlayer/exporters. Every block, in each case it kept today's HTML for
-      # (its values on desktop and phones, a table's sections and cells, text's
-      # own markup, what can't be read said), and every frame (a row's or the
-      # body's picture, class names, columns as table cells, markup and text
-      # among them, what it refuses left out).
-      # Today's components' default values as data in this package added about
-      # 5KB, and writing custom tools, Html blocks and a user's own markup without
-      # @unlayer/exporters (their box, their head, what today's body, row and
-      # column give a tool's exporter) about 4KB, for now: the legacy render paths
-      # still in it go with @unlayer/exporters.
-      # Today's components render through the new engine (RFC 0001 step 7): the
-      # main entry bundles its core and writers too (the /primitives entry's,
-      # without its JSX API), and the lowering of today's designs into them,
-      # about 254KB more: about 372KB; reading text, frames and blocks fail
-      # closed (the entities HTML reads, the values a frame may hold, the
-      # cases that keep today's HTML) adds about 8KB: about 381KB. Before that it was about 118KB
-      # (0.1.22: about 76KB). Most of that growth was
-      # the render that collects a template's rows and blocks (one React render,
-      # so hooks, context, Fragments and the user's components work as React
-      # renders them; a component that throws, suspends or is async left out
-      # with a message naming it; markup and blocks rendered to strings inside
-      # the user's components kept), phone device-override CSS, visibility
-      # settings, escaping of the values users give (Heading/Button text,
-      # link URLs, menu text, social links, ids, fonts, the text direction), and
-      # rendering where a bundler gives Elements another copy of React than
-      # react-dom's (Next.js's server layers), and loading a second module of
-      # react-dom's when Elements is called inside a renderToString it renders with,
-      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
+      # Fail if the react-elements ESM bundle exceeds 439.5KB. It holds today's
+      # components and the new engine they render through: its core and writers
+      # (about 216KB, the /primitives entry's, without its JSX API); the lowering
+      # of today's designs into its tree (src/compat, about 117KB: each block and
+      # frame in each case 0.2.1 drew it, what can't be read said); the render that
+      # collects a template's rows and blocks, with the head and phone CSS of
+      # open HTML (src/utils, about 66KB); the values today's components read and
+      # plain text (the shared package, about 24KB); the components themselves
+      # (about 14KB).
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
+      # Raise it on purpose, with what grew.
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=437000
+          MAX_SIZE=439500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -112,21 +91,10 @@ jobs:
           echo "✅ Bundle size within budget"
 
       # The new engine's entry (/primitives) has its own budget: about 242KB
-      # unminified ESM, its core, writers and JSX API bundled (a Table's shared
-      # borders, row heights and footer; a Button's width with its padding on
-      # top, its place and its link's other attributes; Social, Menu,
-      # Video, Grid, Layer, Document's print HTML, Canvas and Svg, outline(),
-      # and the PDF and image checks validate() runs for a Document or a
-      # Canvas: what they can't show, content that can't fit; the Raw node
-      # importers make for markup they bring in; a Menu that wraps and says
-      # where it can't, messages at a Grid's places in the template, the
-      # layout version; a font's own line height, a Row's children as words
-      # and its direction, a Column's page break, an Image's place in its line
-      # and on phones, a Link's other attributes, about 3.5KB; what today's
-      # components draw that no style holds: a background picture on a Section
-      # or a Row, a Row's columns as table cells, class names, labels for a
-      # screen reader, a block's phone styles at 480px, about 4KB), with no
-      # @unlayer/exporters in it. Raise it on purpose, with what grew.
+      # unminified ESM. Its core (the components' definitions, validation, layout,
+      # about 117KB), its writers (email, page, print HTML and plain text, about
+      # 102KB), its JSX API (about 17KB) and what it shares with the main entry's
+      # render (about 5KB). Raise it on purpose, with what grew.
       - name: Check /primitives bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
@@ -142,29 +110,21 @@ jobs:
           echo "✅ /primitives bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 463KB unminified ESM. It writes the builder's design
-      # through today's components and renderToJson, so it bundles the main
-      # entry's (today's components, the new engine they render through, the
-      # lowering of their designs) and the /primitives entry's JSX API, with
-      # the adapter itself (the hidden properties' manifest, the run parser's
-      # builder reading, the JSX printer) about 30KB beside them. Reading
-      # designs as the builder draws them grew it by about 19KB: each value it
-      # doesn't read said, rich text (textJson) and the builder's paragraphs,
-      # every link shape, phone values, and malformed or deeply nested values
-      # read without throwing. Reading the rich text the builder's editor
-      # saves as its export writes it (its links, merge tags, headings and
-      # lists, which the shared generator leaves out) grew it by about 9KB
-      # more; writing a block's box without @unlayer/exporters by about 1KB,
-      # for now; what the writers gained for today's components' blocks and
-      # frames by about 10KB. It imports @unlayer/exporters for today's
-      # components' defaults, as the main entry does. Raise it on purpose,
-      # with what grew.
+      # own budget: about 449KB unminified ESM. The adapter itself (the hidden
+      # properties' manifest, reading designs and the builder's rich text, the JSX
+      # printer, about 127KB); the core and writers it lays out and writes locked
+      # markup with (about 217KB); today's components and renderToJson, which it
+      # writes the builder's design through (about 62KB); the /primitives JSX API it
+      # reads templates with (about 11KB), the shared package (about 23KB) and
+      # today's value and run parsers (about 16KB). It leaves out what draws today's
+      # components through React, which it doesn't call (tsup.config.ts). Raise it on
+      # purpose, with what grew.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=565000
+          MAX_SIZE=449500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -172,8 +132,7 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
-      # Every package's unit tests but the codemod's (their own job) and react's, which run once, with coverage.
-      # The closed package is gone: no bundle imports it (a comment or a message naming it doesn't count).
+      # The package no longer depends on @unlayer/exporters: no bundle imports it (a message naming it doesn't count).
       - name: No bundle imports @unlayer/exporters
         run: |
           if grep -lE "(from |import ?\(?|require\()[\"']@unlayer/exporters" packages/*/dist/*.js packages/*/dist/*.cjs; then
@@ -181,6 +140,7 @@ jobs:
             exit 1
           fi
 
+      # Every package's unit tests but the codemod's (their own job) and react's, which run once, with coverage.
       - name: Run tests
         run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
 
