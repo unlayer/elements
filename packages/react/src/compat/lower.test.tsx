@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import * as previous from "@unlayer/react-elements-previous";
 import { Button, Column, Divider, Document, Email, Heading, Html, Page, Paragraph, registerTool, Row, renderToHtml, renderToJson, renderToPlainText, Table } from "../index";
 import { withRenderScope } from "../utils/render-scope";
@@ -344,6 +345,12 @@ describe("lowerDesign()", () => {
       const html = renderToHtml(<Email linkStyle={{ linkUnderline: false } as never}><Row><Column><Paragraph html='<blockquote><a href="https://example.com">x</a></blockquote>' linkStyle={own as never} /></Column></Row></Email>);
       expect(html).toMatch(/a \{ text-decoration: none; \}/);
       expect(html).toMatch(/#[\w-]+ a \{ color: #00aa00; text-decoration: underline; \}/);
+    });
+
+    it("gives markup of the user's own the body's link style in a template rendered straight through React", () => {
+      const html = renderToStaticMarkup(<Email linkStyle={{ linkColor: "#ff0000", linkUnderline: false } as never}><Row><Column><Html html='<a href="https://example.com">x</a>' /></Column></Row></Email>);
+      expect(html).toContain("a { color: #ff0000; text-decoration: none; }");
+      expect(renderToStaticMarkup(<Email><Row><Column><Html html='<a href="https://example.com">x</a>' /></Column></Row></Email>)).not.toContain("a { ");
     });
 
     it("gives an Email's Outlook table the content's alignment", () => {
