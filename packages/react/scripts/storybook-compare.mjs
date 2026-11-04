@@ -3,12 +3,13 @@
 // Against a running Storybook instead: STORYBOOK_URL=http://localhost:6006 node scripts/storybook-compare.mjs
 // One design: COMPARE_ONLY=stripe-receipt
 //
-// The new engine draws what main draws. Each "Primitives/Compare with main" story puts one of main's
-// designs, rendered by today's components, next to the same design written with the new components.
-// This loads each one in headless Chromium at the desktop and phone widths, with main's quirks drawn
-// (where main draws something other than what its template asks, the story's `nextAsMain`), and checks
-// that every run of text and every image sits in the same place, at the same size and in the same style
-// on both sides, within a pixel, each image is the same file, and each link goes to the same place.
+// The new engine draws what main draws. Each "Primitives/Main through the new engine" story puts one of main's
+// templates, rendered by today's components, next to the same template rendered by the new engine; each
+// "Primitives/Email and page" story, a template drawn as a Page next to the same drawn as an Email; each
+// "Primitives/Builder" story, what the builder draws of a template's design next to what fromDesign() brings back.
+// This loads each one in headless Chromium at the desktop and phone widths, and checks that every run of text and
+// every image sits in the same place, at the same size and in the same style on both sides, within a pixel, each
+// image is the same file, and each link goes to the same place.
 //
 // Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes, background images
 // drawn as the placeholder):
@@ -29,9 +30,9 @@ const PKG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const STATIC_DIR = join(PKG_DIR, "storybook-static");
 const PORT = 6008;
 const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
-// main's designs next to the same written with the new components, and next to the codemod's migration of them; and
-// templates drawn as a Page next to the same drawn as an Email; and main's templates lowered into the new engine.
-const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--", "primitives-main-through-the-new-engine", "primitives-builder--"];
+// Templates drawn as a Page next to the same drawn as an Email; main's templates lowered into the new engine; and
+// templates as the builder draws them next to what comes back from it.
+const PREFIXES = ["primitives-email-and-page--", "primitives-main-through-the-new-engine", "primitives-builder--"];
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
 // Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
@@ -179,8 +180,7 @@ const near = (a, b, allowance = { x: TOLERANCE, y: TOLERANCE }) =>
 
 /**
  * What differs between main's frame and the new engine's. `links`: where each link goes too, for main's templates
- * through the new engine (the same template, so the same links); a design written with the new components, or
- * migrated by the codemod, says its links' targets itself.
+ * through the new engine (the same template, so the same links).
  */
 function differences([main, next], allowance, links) {
   const out = [];

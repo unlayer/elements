@@ -66,6 +66,8 @@ The codemod never drops anything quietly. It lists, with the line:
 ## Checked against main
 
 main's example templates are migrated by the codemod in this repository (`packages/react/src/primitives/codemod`,
-the codemod's output unedited), and Storybook's "Primitives/Codemod of main" shows each next to main's. The
-comparison gate (`pnpm --filter @unlayer/react-elements test:compare`) renders both in Chromium, at desktop and
-phone widths, and fails on any difference in where text sits, its styles, the images, or what's painted.
+the codemod's output unedited, which a test checks), and the round-trip tests take each migrated template to the
+builder and back. The comparison gate (`pnpm --filter @unlayer/react-elements test:compare`) renders main's templates
+as today's components do next to the new engine's render of them, and each migrated template as the builder draws it
+next to what comes back from the builder, in Chromium, at desktop and phone widths, and fails on any difference in
+where text sits, its styles, the images, or what's painted.
