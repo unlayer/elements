@@ -126,9 +126,104 @@ describe("an image block", () => {
     expect((node?.children as TreeNode[])[0]).toMatchObject({ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1200, height: 600 }, alt: "A", title: "A" }, style: { width: "100%", maxWidth: 500 } });
   });
 
-  it("keeps its legacy HTML where it links somewhere: legacy's link holds it at the size its place gives it", () => {
-    const linked = <Image src={{ url: "https://example.com/a.png", width: 200, height: 100 }} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
-    for (const Root of [Email, Page, Document]) expect(lowered(linked, Root)?.type).toBe("Raw");
+  const asset = { url: "https://example.com/a.png", width: 600, height: 300 };
+  const inner = (node: TreeNode | undefined) => (node?.children as TreeNode[])[0];
+
+  it("in a link on a page has its size on a box around the link, which fills it, as legacy's link holds it at the size its place gives it", () => {
+    const linked = <Image src={asset} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />;
+    for (const Root of [Page, Document as Root]) {
+      expect(inner(lowered(linked, Root))).toEqual({
+        type: "Column",
+        style: { width: "40%", maxWidth: expect.any(Number), alignItems: "stretch" },
+        children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", props: expect.objectContaining({ alt: "A" }), style: { width: "100%" } }] }],
+      });
+    }
+  });
+
+  it("in a link in an email is the Image of its size in a Link, and reads as the link's address in plain text", () => {
+    const node = lowered(<Image src={asset} altText="A" width="40%" action={{ url: "https://example.com", target: "_self" } as never} />);
+    expect(inner(node)).toMatchObject({ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [{ type: "Image", style: { width: "40%" } }] });
+    expect(node?.textAs).toEqual({ type: "Paragraph", children: [{ type: "Link", props: { href: { href: "https://example.com", target: "_self" } }, children: [] }] });
+  });
+
+  it("keeps a target legacy writes though a link here has no such target", () => {
+    const node = inner(lowered(<Image src={asset} action={{ url: "https://example.com", target: "_top" } as never} />));
+    expect(node.props).toEqual({ href: { href: "https://example.com" }, attrs: { target: "_top" } });
+  });
+
+  it("in an email, drawn shorter than a line of text, sits in a line of the template's text: by its middle where it's centered, its top at a side", () => {
+    const short = { url: "https://example.com/a.png", width: 100, height: 10 };
+    expect(inner(lowered(<Image src={short} />))).toMatchObject({ type: "Text", style: { lineHeight: "normal", textAlign: "center" }, children: [{ type: "Image", style: { verticalAlign: "middle" } }] });
+    expect(inner(lowered(<Image src={short} textAlign="left" />))).toMatchObject({ type: "Text", style: { textAlign: "left" }, children: [{ type: "Image", style: { verticalAlign: "top" } }] });
+    expect(inner(lowered(<Image src={short} action={{ url: "https://example.com" } as never} />))).toMatchObject({ type: "Text", children: [{ type: "Link", children: [{ type: "Image" }] }] });
+    // A line of its own height isn't one: a page's has none, nor does an image as tall as a line.
+    expect(inner(lowered(<Image src={short} />, Page)).type).toBe("Image");
+    expect(inner(lowered(<Image src={{ ...short, height: 24 }} />)).type).toBe("Image");
+    expect(inner(lowered(<Image src={short} mode="web" />)).type).toBe("Image");
+  });
+
+  it("with no URL has its padding and nothing in it", () => {
+    const { node, said } = drawn(<Image values={{ src: { url: "" } } as never} />);
+    expect(node).toEqual({ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" } });
+    expect(said).toEqual(["An image with no URL draws nothing."]);
+  });
+
+  it("with a URL that runs a script is left empty, and says so", () => {
+    const { node, said } = drawn(<Image values={{ src: { url: "javascript:alert(1)" } } as never} />);
+    expect(node?.children).toBeUndefined();
+    expect(said.join()).toContain("isn't one Elements writes");
+  });
+
+  it("with a link that can't be read draws no link, and says so", () => {
+    const { node, said } = drawn(<Image src={asset} values={{ action: 7 } as never} />, Page);
+    expect(inner(node).type).toBe("Image");
+    expect(said).toEqual(["A link 7 can't be read: it's a link to nothing."]);
+  });
+
+  it("with a link that runs a script links to nothing, and says so", () => {
+    const { node, said } = drawn(<Image src={asset} action={{ url: "javascript:alert(1)" } as never} />);
+    expect(inner(node)).toMatchObject({ type: "Link", props: { href: { href: "" } } });
+    expect(said.join()).toContain("isn't a link Elements will write");
+  });
+
+  it("draws what's dynamic or full width as any other, its padding kept", () => {
+    const plain = lowered(<Image src={asset} />);
+    expect(lowered(<Image src={{ ...asset, dynamic: true } as never} />)).toEqual(plain);
+    expect(lowered(<Image src={asset} values={{ fullWidth: true } as never} />)).toEqual(plain);
+  });
+
+  it("without what can't be read: padding and alignment, each said; an email's cell centers \"middle\", a page's aligns left", () => {
+    const padded = drawn(<Image src={asset} containerPadding="lots" />);
+    expect(padded.node?.style).toEqual({ alignItems: "center" });
+    expect(padded.said).toEqual(['An image\'s padding "lots" can\'t be read: it\'s drawn without it.']);
+    const align = (Root: Root) => drawn(<Image src={asset} values={{ textAlign: "middle" } as never} />, Root);
+    expect(align(Email).node?.style?.alignItems).toBe("center");
+    expect(align(Page).node?.style?.alignItems).toBe("start");
+    expect(align(Page).said).toEqual(['An image\'s alignment "middle" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("with a width pinned that can't be read is as wide as its place, at most its own width, and says so", () => {
+    const { node, said } = drawn(<Image values={{ src: { ...asset, autoWidth: false, maxWidth: "big" } } as never} />);
+    expect(inner(node).style).toMatchObject({ width: "100%", maxWidth: 500 });
+    expect(said).toEqual(['An image\'s width "big" can\'t be read: it\'s drawn without it.']);
+  });
+
+  it("takes phone settings: its padding, its width and where it sits; says what can't be read, and what isn't read", () => {
+    const node = lowered(<Image src={asset} mobile={{ containerPadding: "30px", textAlign: "left", src: { autoWidth: false, maxWidth: "80%" } } as never} />, Page);
+    expect(node?.mobile).toEqual({ padding: { top: 30, right: 30, bottom: 30, left: 30 } });
+    expect(inner(node).mobile).toEqual({ alignSelf: "start", width: "80%", maxWidth: "80%" });
+    expect(drawn(<Image src={asset} values={{ _override: { mobile: { src: "oops" } } } as never} />, Page).said).toEqual(['An image\'s width on phones "oops" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} mobile={{ containerPadding: "lots" } as never} />, Page).said).toEqual(['An image\'s padding on phones "lots" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} mobile={{ textAlign: "nowhere" } as never} />, Page).said).toEqual(['An image\'s alignment on phones "nowhere" can\'t be read: it\'s drawn without it.']);
+    expect(drawn(<Image src={asset} values={{ _override: { mobile: { altText: "other" } } } as never} />, Page).said).toEqual(["An image's altText on phones isn't read: it's drawn without it."]);
+  });
+
+  it("reads as its alternate text in plain text, twice only where its own markup is an email's with a copy for Outlook", () => {
+    const reads = (element: React.ReactElement, Root: Root) => ((lowered(element, Root)?.textAs?.children as TreeNode[] | undefined)?.[0]?.props?.html);
+    expect(reads(<Image src={asset} altText="A" />, Email)).toBe('<img alt="A"><img alt="A">');
+    expect(reads(<Image src={asset} altText="A" mode="web" />, Email)).toBe('<img alt="A">');
+    expect(reads(<Image src={asset} altText="A" mode="email" />, Page)).toBe('<img alt="A"><img alt="A">');
+    expect(lowered(<Image src={asset} altText="A" />, Page)?.textAs).toBeUndefined();
   });
 
   it("caps an email image on phones at legacy's maximum where that's past its width on desktop (a stacked column is wider)", () => {

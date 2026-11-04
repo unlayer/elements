@@ -374,6 +374,12 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(renderToPlainText(<Page><Row><Column><Menu items={[{ text: "Docs", href: "https://a.example/<%id%>" }]} /></Column></Row></Page>)).toContain("(https://a.example/<%id%>)");
   });
 
+  it("can't be ended by a double quote in an email service's tag, in an attribute", () => {
+    const html = renderToHtml(<Email><Row><Column><Image src={`https://a.example/{{ " }}x.png`} alt={'{{ " }} x-pwn=1 y'} /></Column></Row></Email>);
+    expect(new DOMParser().parseFromString(html, "text/html").querySelector("[x-pwn]")).toBeNull();
+    expect(html).toContain("{{ &quot; }} x-pwn=1 y");
+  });
+
   it("draw an image a template links as legacy links it", () => {
     const html = renderToHtml(<Page><Row><Column><Image src="https://example.com/a.png" alt="A" action={{ url: "#hero", target: "_self" } as never} /></Column></Row></Page>);
     expect(html).toMatch(/<a href="#hero" target="_self"[^>]*>\s*<img[^>]*alt="A"/);
