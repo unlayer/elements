@@ -254,7 +254,9 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
   const around = cell || borderBox(element, sizing) ? 0 : paddingAndBorders(doc, element, available);
   const set = (value: number | undefined) => (value === undefined ? undefined : value + around);
   const declared = set(length(doc.property(element, "width"), available) ?? length(attr(element, "width"), available));
-  let width = givenWidth ?? declared ?? (inline ? undefined : available - margin.left - margin.right);
+  // A table with no width of its own is as wide as what's in it (a button's, whose cell's `align` has no room to move its text).
+  const fits = element.tagName === "table" && givenWidth === undefined && declared === undefined && !inline ? extent(doc, element)?.max : undefined;
+  let width = givenWidth ?? declared ?? (inline ? undefined : Math.min(fits ?? Infinity, available - margin.left - margin.right));
   const max = cell ? undefined : set(length(doc.property(element, "max-width"), available));
   const min = cell ? undefined : set(length(doc.property(element, "min-width"), available));
   if (width !== undefined && max !== undefined) width = Math.min(width, max);

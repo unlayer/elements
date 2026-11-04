@@ -44,6 +44,15 @@ describe("where text sits across the page", () => {
     expect(moved(link, button)).toEqual([]);
   });
 
+  it("sizes a table with no width by what's in it: an `align` on its cell has no room to move its text across the page", () => {
+    const table = (attributes: string) => `<table width="600" cellpadding="0" cellspacing="0"><tr><td><table ${attributes}cellpadding="0" cellspacing="0"><tr><td align="center"><a href="https://example.com" style="display:inline-block;padding:12px 20px">Get</a></td></tr></table></td></tr></table>`;
+    const [word, x, width] = /^Get@(\d+)\+(\d+):center$/.exec(boxes(page(table("")))[0])!;
+    expect(word).toBeTruthy();
+    expect(Number(x)).toBe(0);
+    expect(Number(width)).toBeLessThan(100);
+    expect(boxes(page(table('width="600" ')))).toEqual(["Get@0+600:center"]);
+  });
+
   it("places a block by its auto margins: one side auto puts it on the other", () => {
     expect(boxes(page('<div style="width:200px;margin-left:auto;margin-right:0">Right</div>'))).toEqual(["Right@500+200:left"]);
   });
