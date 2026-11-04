@@ -95,8 +95,10 @@ export function table(block: DesignBlock, place: Place): TreeNode {
   const { values, phone } = deviceValues(stored, ["containerPadding"], place.mode);
   const note = (what: string, value: unknown) => place.note(`A table's ${what} ${JSON.stringify(value)} can't be read: it's drawn without it.`);
   const data: Values = values.table ?? {};
-  const cellsOf = (row: Values): Values[] => (Array.isArray(row?.cells) ? row.cells : []);
-  const rowsOf = (list: unknown): Values[] => (Array.isArray(list) ? list : []);
+  const isValues = (value: unknown): value is Values => !!value && typeof value === "object";
+  // A cell that can't be read is an empty one, which keeps the columns after it where they are; a row is left out.
+  const cellsOf = (row: Values): Values[] => (Array.isArray(row?.cells) ? row.cells : []).map((own: unknown) => (isValues(own) ? own : (note("cell", own), {})));
+  const rowsOf = (list: unknown): Values[] => (Array.isArray(list) ? list : []).filter((own: unknown) => isValues(own) || (note("row", own), false));
   const [headers, rows, footers] = [rowsOf(data.headers), rowsOf(data.rows), rowsOf(data.footers)];
   // (A block given a mode of its own is drawn as that output's.)
   const document = (values.mode ?? place.mode) === "document";

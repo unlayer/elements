@@ -885,6 +885,38 @@ describe("a table block", () => {
   it("reads in plain text as legacy's markup does: a line for each cell", () => {
     expect(block({}).textAs).toEqual({ type: "Raw", props: { html: "<table>" + ["H1", "H2", "A1", "A2", "B1", "B2", "C1", "C2"].map((text) => `<td>${text}</td>\n\n`).join("") + "</table>" } });
   });
+
+  describe.each([["an email", Email], ["a page", Page], ["a printed document", Document as Root]] as const)("in %s", (_, Root) => {
+    const around = (table: unknown, values: Record<string, unknown> = {}) => <Root><Row><Column><Paragraph>Before</Paragraph><Table values={{ table, ...values } as never} /><Paragraph>After</Paragraph></Column></Row></Root>;
+    const warnings = (table: unknown, values?: Record<string, unknown>) => withRenderScope(() => lowerTemplate(around(table, values), undefined, "renderToHtml") as Lowered).diagnostics.filter((d) => d.severity === "warning").map((d) => d.message);
+    const empty = { headers: [], footers: [] };
+
+    it("leaves out a row that's nothing, says so, and the words around it stay", () => {
+      for (const list of [[null], [undefined], ["x"], [7]]) {
+        const html = renderToHtml(around({ ...empty, rows: list }));
+        expect(html).toContain("Before");
+        expect(html).toContain("After");
+        expect(warnings({ ...empty, rows: list })).toEqual([`A table's row ${JSON.stringify(list[0])} can't be read: it's drawn without it.`]);
+      }
+      const html = renderToHtml(around({ ...empty, rows: [null, cells("Kept")] }));
+      expect(html).toContain("Kept");
+    });
+
+    it("draws a cell that's nothing as an empty one, says so, and the cells after it keep their columns", () => {
+      const table = { ...empty, rows: [cells("First", "Second"), { cells: [null, { text: "Third" }] }] };
+      const html = renderToHtml(around(table));
+      for (const words of ["Before", "After", "First", "Third"]) expect(html).toContain(words);
+      expect(warnings(table)).toEqual(["A table's cell null can't be read: it's drawn without it."]);
+      // (Each row has two, a printed table's spacer too.)
+      expect(new Set(rowsOf(lowered(<Table values={{ table } as never} />, Root) as TreeNode).map((row) => row.children?.length))).toEqual(new Set([2]));
+    });
+
+    it("reads a header and a footer the same way", () => {
+      const table = { headers: [null, { cells: [null] }], footers: [null], rows: [cells("Kept")] };
+      const html = renderToHtml(around(table, { enableHeader: true, enableFooter: true }));
+      for (const words of ["Before", "After", "Kept"]) expect(html).toContain(words);
+    });
+  });
 });
 
 describe("a menu block", () => {

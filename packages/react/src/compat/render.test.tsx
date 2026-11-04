@@ -161,6 +161,35 @@ describe("renderToHtml(), renderToHtmlParts() and renderToPlainText() through th
     expect(called).not.toHaveBeenCalled();
   });
 
+  describe.each([["an email", Email], ["a page", Page], ["a printed document", Document]] as const)("in %s", (_, Root) => {
+    it("leave a block that can't be drawn undrawn and say so, and the rest draws, as 0.2.1's", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        // A sanitizer that throws on one block's HTML: each tool that reads it.
+        const toSafeHtml = (html: string) => {
+          if (html.includes("Refused")) throw new Error(`refused ${Root.displayName}`);
+          return html;
+        };
+        const blocks = [<Paragraph html="Refused" />, <Heading text="Refused" />, <Button href="https://example.com" text="Refused" />];
+        const template = (block: React.ReactElement, L: Release = current) => { const R = L[Root.displayName as "Email"]; return <R><L.Row><L.Column><L.Paragraph>Before</L.Paragraph>{block}<L.Paragraph>After</L.Paragraph></L.Column></L.Row></R>; };
+        for (const block of blocks) {
+          const html = renderToHtml(template(block), { toSafeHtml } as never);
+          expect(html).toContain("Before");
+          expect(html).toContain("After");
+          expect(html).not.toContain("Refused");
+          expect(renderToPlainText(template(block), { toSafeHtml } as never)).toBe("Before\n\nAfter");
+        }
+        const said = warn.mock.calls.flat().join("\n");
+        expect(said).toContain(`refused ${Root.displayName}`);
+        expect(said).toContain("it's left out");
+      } finally {
+        warn.mockRestore();
+        error.mockRestore();
+      }
+    });
+  });
+
   it("say so of a root of another copy of today's components, which they can't read", () => {
     const Foreign = Object.assign((props: { children?: React.ReactNode }) => <div>{props.children}</div>, { displayName: "Email" });
     const template = <Foreign><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Foreign>;

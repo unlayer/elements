@@ -180,16 +180,22 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
         raw.set(n, kept);
         return kept;
       }
-      const lowered = lower(withoutPhone(block, mode), { ...place, id: blocks[n]?.id, source: blocks[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern), keepHtml: (html) => keepHtmlTags(html, tags) });
-      if (lowered === null) return null;
-      // The block's own HTML in its box, as its tool writes it (it says what its head needs).
-      if (lowered.type === "Raw") {
-        raw.set(n, lowered);
-        html.set(n, String(lowered.props?.html ?? ""));
-        return lowered;
+      // One block's failure (a sanitizer that throws, a value nothing foresaw) is that block's: the rest draws, as legacy's.
+      try {
+        const lowered = lower(withoutPhone(block, mode), { ...place, id: blocks[n]?.id, source: blocks[n]?.values, note, keep: (text, pattern) => keepServiceTags(text, tags, pattern), keepHtml: (html) => keepHtmlTags(html, tags) });
+        if (lowered === null) return null;
+        // The block's own HTML in its box, as its tool writes it (it says what its head needs).
+        if (lowered.type === "Raw") {
+          raw.set(n, lowered);
+          html.set(n, String(lowered.props?.html ?? ""));
+          return lowered;
+        }
+        const drawn = drawable(withGivenId(lowered, givenId(block.values ?? {})), mode, note);
+        return drawn && ownPhone(drawn, mode);
+      } catch (error) {
+        note(`A ${block.type} block can't be drawn (${error instanceof Error ? error.message : String(error)}): it's left out.`);
+        return null;
       }
-      const drawn = drawable(withGivenId(lowered, givenId(block.values ?? {})), mode, note);
-      return drawn && ownPhone(drawn, mode);
     },
   });
   const tree = { root: lowered };
