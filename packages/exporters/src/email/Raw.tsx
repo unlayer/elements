@@ -21,8 +21,10 @@ export const Raw: Component = ({ node }) => {
       </tr>
     );
   }
+  // An Html block of a template takes the text around it, as on a page. (Today's components' markup is the editor's, which doesn't.)
+  const around = node.type === "Html" ? { color: node.text.color, fontFamily: node.text.fontFamily, fontWeight: node.text.fontWeight, lineHeight: node.text.lineHeight, letterSpacing: node.text.letterSpacing, textAlign: node.text.textAlign } : {};
   return (
-    <div id={node.id} style={{ fontSize: node.text.fontSize }}>
+    <div id={node.id} style={{ ...around, fontSize: node.text.fontSize }}>
       {raw(String(node.props.html))}
     </div>
   );

@@ -129,8 +129,8 @@ export const Line: React.FC<LineProps> = createPrimitive(LineDefinition);
 export const Polygon: React.FC<PolygonProps> = createPrimitive(PolygonDefinition);
 export const Path: React.FC<PathProps> = createPrimitive(PathDefinition);
 export const Video: React.FC<VideoProps> = createPrimitive(VideoDefinition);
-/** Markup written as it is (the builder's HTML block). */
-export const Html: React.FC<HtmlProps> = createPrimitive(HtmlDefinition);
+/** Markup written as it is (the builder's HTML block), given as `html` or as JSX in it. */
+export const Html = createPrimitive(HtmlDefinition) as unknown as React.FC<HtmlProps>;
 
 export interface EmailStyle extends StyleOf<typeof EmailDefinition> {}
 export interface EmailProps extends PropsOf<typeof EmailDefinition, EmailStyle> {}
@@ -211,4 +211,6 @@ export interface PathProps extends PropsOf<typeof PathDefinition, PathStyle> {}
 export interface VideoStyle extends StyleOf<typeof VideoDefinition> {}
 export interface VideoProps extends PropsOf<typeof VideoDefinition, VideoStyle> {}
 export interface HtmlStyle extends StyleOf<typeof HtmlDefinition> {}
-export interface HtmlProps extends PropsOf<typeof HtmlDefinition, HtmlStyle> {}
+export type HtmlProps = Omit<PropsOf<typeof HtmlDefinition, HtmlStyle>, "html" | "children"> &
+  // As a string, or as JSX, which React writes.
+  ({ html: string; children?: undefined } | { html?: undefined; children: React.ReactNode });

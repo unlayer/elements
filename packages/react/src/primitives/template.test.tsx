@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
+import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Html, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import * as primitives from "./index";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
@@ -364,6 +364,31 @@ describe("validate()", () => {
     ]);
     expect(result.diagnostics[1].message).toMatch(/gap/);
     expect(validate(welcome)).toEqual({ valid: true, diagnostics: [] });
+  });
+
+  it("takes an Html block's markup as JSX, written as React writes it, in an email and on a page", async () => {
+    for (const Root of [Email, Page]) {
+      const { html, diagnostics } = await render(
+        <Root>
+          <Html>
+            <div style={{ color: "#123456" }}>Tom &amp; <b>Jerry</b></div>
+          </Html>
+        </Root>
+      );
+      expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      expect(html).toContain('<div style="color:#123456">Tom &amp; <b>Jerry</b></div>');
+    }
+    // @ts-expect-error: no markup at all
+    expect(validate(<Email><Html /></Email>).valid).toBe(false);
+    // What's in it is markup: a component of a template has nowhere to go in it.
+    expect(validate(<Email><Html><Text>x</Text></Html></Email>).valid).toBe(false);
+  });
+
+  it("gives an Html block the text around it in an email too, as on a page", async () => {
+    const { html } = await render(<Email style={{ color: "#123456", fontFamily: "Georgia, serif" }}><Html html="<p>x</p>" /></Email>);
+    const around = /<div[^>]*style="([^"]*)"[^>]*><p>x<\/p>/.exec(html)?.[1];
+    expect(around).toContain("color:#123456");
+    expect(around).toContain("font-family:Georgia, serif");
   });
 
   it("reports HTML that isn't a component, and what isn't one root", () => {

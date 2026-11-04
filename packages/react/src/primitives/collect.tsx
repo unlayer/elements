@@ -135,6 +135,12 @@ function read(html: string, collection: PrimitiveCollection, diagnostics: Diagno
   const text = (between: string) => {
     if (!between) return;
     const into = open[open.length - 1];
+    // What an Html block holds is its markup, as React writes it.
+    if (into.node?.type === "Html") {
+      const props = (into.node.props ??= {}) as Record<string, unknown>;
+      props.html = `${typeof props.html === "string" ? props.html : ""}${between}`;
+      return;
+    }
     if (/<[a-zA-Z!/]/.test(between)) {
       const where = into.node ? `in a ${into.node.type}` : "around the root";
       diagnostics.push({

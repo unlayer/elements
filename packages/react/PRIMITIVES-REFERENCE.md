@@ -636,7 +636,7 @@ Markup written as it is, for what no component says (the builder's HTML block): 
 Holds: nothing. Drawn in: email, page.
 
 Props:
-- `html`: text (required). The markup, written as it is: only markup you trust.
+- `html`: text (required). The markup, written as it is: only markup you trust. Or give it as JSX inside the block, which React writes.
 - `text`: text. What it reads as in the plain-text version, and in a PDF or an image (its markup's words where there's none).
 
 ## Inline

@@ -934,7 +934,8 @@ describe("email HTML", () => {
 
     it("writes an Html block, its authorable twin, the same way, its text in the plain text", () => {
       const { body, text } = render(email([{ type: "Html", props: { html: "<a href=\"https://example.com\">Buy <b>now</b></a>" } }]));
-      expect(notOutlook(body)).toContain('<tr><td><div style="font-size:16px"><a href="https://example.com">Buy <b>now</b></a></div></td></tr>');
+      // In the text around it, as on a page.
+      expect(notOutlook(body)).toMatch(/<tr><td><div style="[^"]*font-size:16px[^"]*"><a href="https:\/\/example\.com">Buy <b>now<\/b><\/a><\/div><\/td><\/tr>/);
       expect(text).toBe("Buy now");
     });
   });
