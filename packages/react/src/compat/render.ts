@@ -74,8 +74,9 @@ export function renderThroughNewEngine(element: React.ReactElement, options: Ren
   const diagnostics = [...lowered.diagnostics, ...refused].map((diagnostic) => ({ ...diagnostic, message: restore(diagnostic.message) }));
   warnOnce(diagnostics);
 
-  // The root's fonts, then the option's, each URL once: stylesheets legacy links (an email's out of Outlook's view).
-  const fonts = withoutMarks([...(rootProps.fonts ?? []), ...optionFonts]).filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
+  // The root's fonts, the option's, then the editor's the design uses, each URL once: stylesheets linked (an email's out
+  // of Outlook's view), as the editor's export links them.
+  const fonts = withoutMarks([...(rootProps.fonts ?? []), ...optionFonts, ...(inReact.embedded ? [] : lowered.fonts ?? [])]).filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
   const links = fonts.map((font) => `<link href="${attribute(font.url)}" rel="stylesheet" type="text/css">`).join("");
   // What today's head functions add for blocks that keep their legacy HTML (a custom tool's script and tags).
   const js = lowered.head?.js ?? "";
