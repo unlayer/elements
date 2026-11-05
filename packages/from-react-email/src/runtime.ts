@@ -49,7 +49,7 @@ function renderToStaticMarkup(element: React.ReactElement): string {
 
 export interface RuntimeResult {
   tree: ElementNode;
-  /** Web fonts the template loads, for renderToHtml's `fonts` option. */
+  /** Web fonts' stylesheets the template loads. */
   fonts: Array<{ url: string }>;
   report: ConversionReport;
 }
