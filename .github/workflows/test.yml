@@ -54,48 +54,28 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      # ── DX type contract ────────────────────────────────────────
-      # tsc gate over the agent-friendly prop types (src/dx-types.test-d.tsx).
-      # The build only type-checks the index import graph, so this catches a
-      # relaxed input type being reverted (e.g. the Column `border` regression).
+      # ── Type contract ───────────────────────────────────────────
+      # tsc gate over the components' prop types, render()'s and component()'s
+      # (src/primitives/types.test-d.tsx and the other files in
+      # tsconfig.typecheck.json), and each engine package's sources. The build
+      # only type-checks each entry's import graph, so this catches a relaxed or
+      # broken input type.
       - name: Type contract
         run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck && pnpm --filter @unlayer/elements-pdf typecheck && pnpm --filter @unlayer/elements-image typecheck
 
       - name: Converter typechecks
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
-      # ── Bundle size budget ──────────────────────────────────────
-      # Fail if /legacy's ESM bundle (dist/index.js) exceeds its budget. It holds today's
-      # components and the new engine they render through: its core and writers
-      # (about 216KB, the main entry's, without its JSX API); the lowering
-      # of today's designs into its tree (src/compat, about 119KB: each block and
-      # frame in each case 0.2.1 drew it, what can't be read said); the render that
-      # collects a template's rows and blocks, with the head and phone CSS of
-      # open HTML (src/utils, about 66KB); the values today's components read and
-      # plain text (the shared package, about 24KB); the components themselves
-      # (about 14KB). The design values and runs it reads with the builder adapter
-      # are the adapter's (src/builder), with its own copy of a link's reading.
-      # The budget tracks the unminified ESM output as a proxy for code volume;
-      # it still flags accidental dependency bundling (any real dep is 10KB+).
-      # Raise it on purpose, with what grew.
-      - name: Check /legacy bundle size
-        run: |
-          BUNDLE="packages/react/dist/index.js"
-          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=451000
-          echo "Bundle: $BUNDLE"
-          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
-          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
-            echo "::error::/legacy bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
-            exit 1
-          fi
-          echo "✅ /legacy bundle within budget"
+      # ── Bundle size budgets ─────────────────────────────────────
+      # Each entry's ESM bundle against its budget. The budgets track the
+      # unminified ESM output as a proxy for code volume; they still flag
+      # accidental dependency bundling (any real dep is 10KB+).
 
-      # The main entry (the new components, dist/primitives.js) has its own budget: about 242KB
+      # The main entry (the components, dist/primitives.js): about 242KB
       # unminified ESM. Its core (the components' definitions, validation, layout,
       # about 117KB), its writers (email, page, print HTML and plain text, about
-      # 102KB), its JSX API (about 17KB) and what it shares with /legacy's
-      # render (about 5KB). Raise it on purpose, with what grew.
+      # 102KB), its JSX API (about 17KB) and the render that collects a template
+      # (about 5KB). Raise it on purpose, with what grew.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
@@ -116,8 +96,8 @@ jobs:
       # reading designs, their values, runs and rich text, the JSX printer); the core
       # and writers it lays out and writes locked markup with (about 217KB); the main
       # entry's JSX API it reads templates with (about 11KB) and the render that
-      # collects them (about 5KB). It imports nothing of today's components or the
-      # shared package (src/builder/imports.test.ts). Raise it on purpose, with what
+      # collects them (about 5KB). It imports only its own files, the main entry's
+      # and React (src/builder/imports.test.ts). Raise it on purpose, with what
       # grew.
       - name: Check /builder bundle size
         run: |
@@ -132,7 +112,7 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
-      # The package no longer depends on @unlayer/exporters: no bundle imports it (a message naming it doesn't count).
+      # The closed @unlayer/exporters isn't a dependency: no package's bundle imports it (a message naming it doesn't count).
       - name: No bundle imports @unlayer/exporters
         run: |
           if grep -lE "(from |import ?\(?|require\()[\"']@unlayer/exporters" packages/*/dist/*.js packages/*/dist/*.cjs; then
