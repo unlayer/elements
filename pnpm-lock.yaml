@@ -466,6 +466,12 @@ importers:
       playwright:
         specifier: 1.60.0
         version: 1.60.0
+      react-dom19:
+        specifier: npm:react-dom@19.1.0
+        version: react-dom@19.1.0(react@18.3.1)
+      react19:
+        specifier: npm:react@19.1.0
+        version: react@19.1.0
       storybook:
         specifier: ^9.1.1
         version: 9.1.16(@testing-library/dom@10.4.1)(prettier@3.6.2)(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))

@@ -1,9 +1,9 @@
 // @vitest-environment node
 
 /**
- * Verifies the package works in a plain Node.js environment (no jsdom,
- * no browser APIs). Catches module-level calls to client-only APIs like
- * createContext that would break Next.js Server Components or SSR runtimes.
+ * Verifies the package's entries work in a plain Node.js environment (no
+ * jsdom, no browser APIs). Catches module-level calls to client-only APIs
+ * that would break Next.js Server Components or SSR runtimes.
  */
 
 import { describe, it, expect } from "vitest";
@@ -14,68 +14,30 @@ import { join, resolve } from "path";
 import ts from "typescript";
 
 describe("Node environment (no jsdom)", () => {
-  it("imports without calling createContext at module level", async () => {
-    const mod = await import("./index");
-
-    expect(mod.Button).toBeDefined();
-    expect(mod.Body).toBeDefined();
-    expect(mod.Row).toBeDefined();
-    expect(mod.Column).toBeDefined();
-    expect(mod.renderToHtml).toBeDefined();
-    expect(mod.UnlayerProvider).toBeDefined();
+  it("imports the main entry and /builder without a browser", async () => {
+    const main = await import("./primitives/index");
+    const builder = await import("./builder/index");
+    for (const name of ["Email", "Page", "Document", "Row", "Column", "Paragraph", "Button", "render", "validate", "outline", "prepare", "component"] as const) expect(main[name], name).toBeTypeOf("function");
+    expect(builder.toDesign).toBeTypeOf("function");
+    expect(builder.fromDesign).toBeTypeOf("function");
+    expect(typeof document).toBe("undefined");
   });
 
-  it("renderToHtml produces HTML", async () => {
-    const { renderToHtml, Body, Row, Column, Paragraph } = await import("./index");
-
-    const html = renderToHtml(
-      React.createElement(Body, null,
-        React.createElement(Row, null,
-          React.createElement(Column, null,
-            React.createElement(Paragraph, { mode: "web" }, "Hello from Node")
-          )
-        )
-      ),
-      { mode: "web" }
-    );
-
+  it("render() produces HTML and plain text", async () => {
+    const { render, Email, Paragraph } = await import("./primitives/index");
+    const { html, text } = await render(React.createElement(Email, null, React.createElement(Paragraph, null, "Hello from Node")));
+    expect(html).toMatch(/^<!DOCTYPE html/i);
     expect(html).toContain("Hello from Node");
-    expect(typeof html).toBe("string");
+    expect(text).toBe("Hello from Node");
   });
 
-  it("renderToJson produces DesignJSON", async () => {
-    const { renderToJson, Body, Row, Column, Button } = await import("./index");
-
-    const json = renderToJson(
-      React.createElement(Body, null,
-        React.createElement(Row, null,
-          React.createElement(Column, null,
-            React.createElement(Button, { mode: "web" }, "Click")
-          )
-        )
-      )
-    );
-
-    expect(json).toHaveProperty("body");
-    expect(json).toHaveProperty("body.rows");
-    expect(json.body.rows).toHaveLength(1);
-    expect(json.body.rows[0].columns[0].contents).toHaveLength(1);
-  });
-
-  it("renderToPlainText produces text", async () => {
-    const { renderToPlainText, Body, Row, Column, Paragraph } = await import("./index");
-
-    const text = renderToPlainText(
-      React.createElement(Body, null,
-        React.createElement(Row, null,
-          React.createElement(Column, null,
-            React.createElement(Paragraph, { mode: "web" }, "Plain text test")
-          )
-        )
-      )
-    );
-
-    expect(typeof text).toBe("string");
+  it("toDesign() produces the builder's design, and fromDesign() reads it back", async () => {
+    const { Email, Button } = await import("./primitives/index");
+    const { toDesign, fromDesign } = await import("./builder/index");
+    const { design } = toDesign(React.createElement(Email, null, React.createElement(Button, { href: "https://example.com" }, "Click")));
+    expect(design.body.rows).toHaveLength(1);
+    expect(design.body.rows[0].columns[0].contents).toHaveLength(1);
+    expect(fromDesign(design).code).toContain("Click");
   });
 });
 
