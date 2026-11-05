@@ -31,6 +31,8 @@ export interface Raised {
 
 type Child = { child: Node; path: string };
 
+const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (node.children ?? []).some((child) => typeof child !== "string" && holdsPageNumber(child));
+
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
 
@@ -43,6 +45,7 @@ export function raise(element: React.ReactElement): Raised {
   if (root.type !== "Email" && root.type !== "Page" && root.type !== "Document") {
     return { element: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`], hidden };
   }
+  if (holdsPageNumber(root)) report.push("root: a PageNumber goes to the builder as its token ({{page_number}}), which the editor's PDF prints as it is: the builder has no page numbers yet");
   const prepared = prepareTemplate(document, { components });
   if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), hidden };
   const resolvedRoot = prepared.resolved.root;

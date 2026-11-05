@@ -1,6 +1,6 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, PageFooter, PageNumber, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
 import { collectTemplate } from "../primitives/collect";
@@ -89,7 +89,7 @@ describe("toDesign", () => {
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
     expect(blocks(design).map((content) => content.type)).toEqual(["heading", "text", "page_break", "text", "page_break", "text", "page_break", "text"]);
     expect(blocks(design)[1].values.text).toBe("Page {{page_number}} of {{page_count}}");
-    expect(report).toEqual([]);
+    expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet")]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
@@ -181,6 +181,14 @@ describe("a link's window", () => {
     const { design } = toDesign(<Email><Button href="https://example.com">Go</Button></Email>);
     expect(JSON.stringify(design)).toContain('"href":{"name":"web","values":{"href":"https://example.com","target":"_self"}}');
     expect(fromDesign(design, { displayMode: "email" }).code).toMatch(/href="https:\/\/example\.com"/);
+  });
+});
+
+describe("a page number", () => {
+  it("says the editor's PDF prints its token, as the builder has no page numbers yet", () => {
+    const { report } = toDesign(<Document><PageFooter><Text>Page <PageNumber /></Text></PageFooter><Text>x</Text></Document>);
+    expect(report.join("\n")).toContain("the builder has no page numbers yet");
+    expect(toDesign(<Document><Text>x</Text></Document>).report.join("\n")).not.toContain("page numbers");
   });
 });
 

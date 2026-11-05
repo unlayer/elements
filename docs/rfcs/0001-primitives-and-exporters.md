@@ -597,6 +597,10 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
   their own (a line of links) is markup; a Row's `justifyContent` is hidden, but its columns fill it; a link's
   hover in text and a Social icon's target have no place; a button's or an image's alignment on phones, which
   places it there, comes back said, not read (Elements places a block the same on phones).
+- **Known limits, until the builder has them:** a line height goes in the builder's field as a whole
+  percentage, rounded up, as Chromium draws a percentage's whole part only (`24px` at 13px is `185%`, 24.05px
+  there); a `PageNumber` goes as its token (`{{page_number}}`), which the editor's PDF prints as it is, and
+  `report` says so.
 - **Tested** by what a reader gets, not by the tree: a template, to the builder and back, draws the same
   boxes, text, images and links (and a second trip changes nothing), over the adapter's templates, main's
   examples, the codemod's and generated ones; each field of each tool edited in the builder has its expected
