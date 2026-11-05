@@ -468,6 +468,23 @@ export const Other = (Row: () => null) => <Row />;`);
     ]);
   });
 
+  it("leaves a template as it was where its root is chosen at run time, as today's root doesn't draw the new components", async () => {
+    const source = `import { Email, Page, Row, Column } from "@unlayer/react-elements";
+export const T = ({ web }: { web: boolean }) => {
+  const Root = web ? Page : Email;
+  return <Root><Row><Column /></Row></Root>;
+};`;
+    const { code, report } = await migrateElements(source);
+    expect(code).toBe(source);
+    expect(report.join("\n")).toMatch(/line 3: its root is chosen at run time/);
+    // Through a namespace too.
+    const namespaced = `import * as E from "@unlayer/react-elements";\nexport const T = ({ web }: { web: boolean }) => { const Root = web ? E.Page : E.Email; return <Root><E.Row /></Root>; };`;
+    expect((await migrateElements(namespaced)).code).toBe(namespaced);
+    // Its type alone doesn't stop it.
+    const typed = await migrateElements(`import { Email, Row } from "@unlayer/react-elements";\ntype P = React.ComponentProps<typeof Email>;\nexport const T = (p: P) => <Email><Row /></Email>;`);
+    expect(typed.code).toContain("@unlayer/react-elements/primitives");
+  });
+
   it("writes one of today's layouts outside a Row's props as its cells, so nothing is left using today's ColumnLayouts", async () => {
     const { code, report } = await migrate(`const layout = ColumnLayouts.TwoWideNarrow;
 export const T = () => <Email><Row layout={layout}><Column /><Column /></Row></Email>;`);

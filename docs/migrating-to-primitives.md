@@ -22,6 +22,9 @@ A namespace re-export (`export * as E from "@unlayer/react-elements"`) isn't fol
 fails, naming the file. A `.js`, `.jsx`, `.mjs` or `.cjs` template gets JavaScript, a `.ts` or `.tsx` one
 TypeScript. `--report notes.md` (or `.json`) writes what it noted for each template.
 
+A template whose root is chosen at run time (`const Root = web ? Page : Email`) stays as it was, with a note:
+write it with one root, or by hand in the new components.
+
 From code, `migrateElements(source)` (from `@unlayer/migrate/elements`) returns `{ code, report }`.
 
 ## What it writes

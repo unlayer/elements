@@ -159,6 +159,7 @@ const DEFAULT_TO = "@unlayer/react-elements/primitives";
 const COMPONENTS = new Set(["Email", "Page", "Document", "PageBreak", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
 /** What the codemod migrates of today's exports: its components and its layouts. */
 export const MIGRATED = new Set([...COMPONENTS, "ColumnLayouts"]);
+const ROOTS = new Set(["Email", "Page", "Document"]);
 /** A record's own value for a key (never one from Object.prototype, as `constructor` would be). */
 const own = <T>(record: Record<string, T> | undefined, key: string): T | undefined => (record && Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined);
 const LAYOUTS: Record<string, number[]> = {
@@ -347,6 +348,22 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
     if (specifiers.length) kept.push(`{ ${specifiers.join(", ")} }`);
     imports.push({ statement, kept });
+  }
+
+  // A root chosen at run time (`web ? Page : Email`): what's in it would go into today's root, which doesn't draw the
+  // new components, and its props can't be read. The template stays as it was: today's components keep working.
+  let rootAsValue: ts.Node | undefined;
+  const findRootValue = (n: ts.Node): void => {
+    if (rootAsValue || ts.isImportDeclaration(n)) return;
+    const parent = n.parent;
+    const named = parent && ((ts.isPropertyAccessExpression(parent) && parent.name === n) || (ts.isPropertyAssignment(parent) && parent.name === n));
+    const root = (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n)) && ROOTS.has(local.get(n.getText(file)) ?? "");
+    if (root && !named && !isTag(n) && !ts.isTypeQueryNode(parent) && !(ts.isIdentifier(n) && shadowed(n))) rootAsValue = n;
+    ts.forEachChild(n, findRootValue);
+  };
+  findRootValue(file);
+  if (rootAsValue) {
+    return { code: source, report: [`${where(rootAsValue)}: its root is chosen at run time (${rootAsValue.parent.getText(file).slice(0, 60)}), which isn't migrated: this template stays as it was. Write it with one root, or by hand in the new components`] };
   }
 
   // The names the module declares itself (a component of its own called Section, Next's Link): a new component whose
