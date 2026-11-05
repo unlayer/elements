@@ -456,7 +456,16 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         textAlign: (block ? alignOf(style) ?? ctx.inherited.blockAlign ?? start(ctx) : ctx.inherited.blockAlign ?? physicalAlign(ctx.inherited.textAlign, ctx) ?? start(ctx)) as string,
         color: color(ownColor(style.color, ctx.inherited.color)) ?? "#0000ee",
         padding: sidesToCss(padding),
-        ...(style._phone ? { mobile: { ...textProps(style, ctx, {}).mobile, ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}) } } : {}),
+        ...(style._phone
+          ? {
+              mobile: {
+                ...textProps(style, ctx, {}).mobile,
+                ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}),
+                // A link a phone rule makes a block (`mobile:block`) fills the column there.
+                ...(/^block$/.test(String((style._phone as Style).display ?? "").trim()) && !block ? { width: "100%" } : {}),
+              },
+            }
+          : {}),
         borderRadius: style.borderRadius !== undefined ? cssLength(style.borderRadius) : "0px",
         // Every side, from the shorthand or longhands (Tailwind writes border-width/-style/-color).
         border: borderProp(borders(style)),

@@ -190,6 +190,17 @@ describe("phone styles", () => {
     expect(sizes[0]).toBeLessThan(24);
   });
 
+  it("makes a button a phone rule shows as a block fill the column on phones, in both modes", async () => {
+    const source = `${imports}
+      export default function T() { return <Tailwind><Html><Head/><Body><Container>
+        <Text className="m-0">Ready?</Text>
+        <Button href="https://example.com/start" className="bg-indigo-600 px-[20px] py-[12px] text-white max-sm:block max-sm:text-center">Start planning</Button>
+      </Container></Body></Html></Tailwind>; }`;
+    const { codemod, codes } = await convertBoth(source);
+    for (const code of codes) expect(code).toMatch(/mobile=\{\{[^}]*width: "100%"[^}]*\}\}\s*>\s*Start planning/);
+    expect(codemod.report.notes.filter((n) => n.reason === "tailwind class not inlined")).toEqual([]);
+  });
+
   it("both modes carry phone-only row padding and hiding through nested sections", async () => {
     const source = `${imports}
       export default function T() { return <Tailwind><Html><Head/><Body><Container>

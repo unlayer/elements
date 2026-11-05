@@ -45,6 +45,8 @@ export function handledPhoneClass(cls: string, rules: Map<string, Style>, compon
     /^(padding|margin)(Top|Right|Bottom|Left)?$/.test(key) ||
     ["fontSize", "lineHeight", "textAlign"].includes(key) ||
     (key === "display" && value === "none") ||
-    ((component === "Column" || component === "Img") && ((key === "display" && value === "block") || ((key === "width" || key === "maxWidth") && value === "100%")))
+    ((component === "Column" || component === "Img") && ((key === "display" && value === "block") || ((key === "width" || key === "maxWidth") && value === "100%"))) ||
+    // A button a phone rule makes a block fills the column there (see buttonBlock).
+    (component === "Button" && key === "display" && value === "block")
   );
 }
