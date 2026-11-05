@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Canvas, Circle, Column, Ellipse, Heading, Line, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Svg, Text } from "../index";
-import { code } from "../../compat/SideBySide";
+import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
   title: "Canvas",

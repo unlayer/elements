@@ -116,7 +116,7 @@ function toJsonNode({ type, props }: Recorded, diagnostics: Diagnostic[]): JsonN
   const semantic: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
     if (value === undefined) continue;
-    // What today's components give the writers, as they lower into the tree. It holds markup: a template has no say in it.
+    // What Elements 0.2's components gave the writers as they lowered into the tree. It holds markup: a template has no say in it.
     if (key === "compat") diagnostics.push({ code: "jsx/compat", severity: "warning", message: `A <${type}>'s compat isn't a prop of a template: it's left out`, path: "jsx" });
     else if (NODE_KEYS.has(key)) node[key] = value;
     else semantic[key] = value;

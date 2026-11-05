@@ -1,5 +1,5 @@
 /**
- * The examples and component stories of today's components, each written again with the new components. The builder's
+ * The examples and component stories of Elements 0.2's components, each written again with the new components. The builder's
  * round-trip tests take each to the builder and back. Each is in a scope of its own, as it would be in a file of its
  * own. Only tests import this; it's in no bundle.
  */
@@ -484,7 +484,7 @@ export const luma = (() => {
  * "Warby Parker · Order Shipped", written with the new components
  * (its layout read as `stripe` says).
  *
- * Today's components put a Row's padding outside the 600px content: in a window narrower than 712px, this Row's 56px
+ * Elements 0.2's components put a Row's padding outside the 600px content: in a window narrower than 712px, this Row's 56px
  * sides narrow its paragraph.
  */
 export const warby = (() => {

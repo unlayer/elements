@@ -1,5 +1,5 @@
 /**
- * A text tool's HTML read back as blocks of runs, as the builder draws it. Runs are today's components' run parser's
+ * A text tool's HTML read back as blocks of runs, as the builder draws it. Runs are Elements 0.2's components' run parser's
  * (read-runs.ts: it fails closed), with merge tags as MergeTags. A `<p>` is a block of its own: the builder's export
  * resets a paragraph's margins (`p { margin: 0 }`, and its editor writes `margin: 0px` on each), so one has none unless
  * its own style gives it some, which are its padding. A `<ul>` or `<ol>` is a List, its padding its indent and its items' margin its gap.

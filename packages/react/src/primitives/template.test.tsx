@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Html, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import * as primitives from "./index";
-import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
 const tree = (element: React.ReactElement) => collectTemplate(element).document;
 
@@ -63,7 +62,7 @@ describe("render()", () => {
     expect(text).toBe("THANKS, {{first_name}}: YOUR ORDER (https://example.com/Orders/AbC)\n\nhttps://example.com/Docs\n\n[ACME LOGO] (https://example.com/Home)");
   });
 
-  it("takes no compat from a template, directly or in a custom component: it's for today's components' lowering, and holds markup and CSS", async () => {
+  it("takes no compat from a template, directly or in a custom component: it was for Elements 0.2's components' lowering, and holds markup and CSS", async () => {
     const compat = (value: Record<string, unknown>) => ({ compat: value }) as object;
     const template = (
       <Email {...compat({ css: "body{color:red}", previewHtml: "<script>1</script>" })}>
@@ -240,23 +239,6 @@ describe("render()", () => {
 
   it("is the same every time for the same template", async () => {
     expect((await render(welcome)).html).toBe((await render(welcome)).html);
-  });
-
-  it("leaves the main entry's rendering as it was, before and after", async () => {
-    const legacy = () =>
-      renderToHtml(
-        <LegacyEmail>
-          <LegacyRow>
-            <LegacyColumn>
-              <LegacyParagraph>Hello</LegacyParagraph>
-            </LegacyColumn>
-          </LegacyRow>
-        </LegacyEmail>
-      );
-    const before = legacy();
-    await render(welcome);
-    expect(legacy()).toBe(before);
-    expect(before).toContain("Hello");
   });
 
   it("says how to use a component rendered outside render()", () => {

@@ -8,30 +8,16 @@
  * keeps it stable when the design JSON is opened in an editor, which treats
  * `src.width`/`height` as the intrinsic dimensions and may refresh them.
  *
- * Authors pass pixels, so a px pin is captured as `{ autoWidth:false,
- * maxWidth:<px> }` and converted here to the equivalent percent using the same
- * available-width geometry the renderers use (contentWidth × column share, minus
- * paddings/borders), so the emitted value renders at the requested on-screen size.
+ * A design's image is read (blocks.ts) with the same available-width geometry the
+ * editor's renderers use: contentWidth × column share, minus paddings and borders.
  */
-
-/** Parse a CSS length to px, strictly: a number or a numeric string with an
- *  optional px unit ("12" / "12px"). Non-px units ("1.5em", "calc(…)") return
- *  undefined so the pinning pass leaves them untouched instead of misreading
- *  them as px (SizeInput allows non-px CSS strings). */
-function toPx(value: unknown): number | undefined {
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  if (typeof value !== "string") return undefined;
-  const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(value.trim());
-  return m ? parseFloat(m[1]) : undefined;
-}
 
 // NOTE: the geometry parsers below use parseFloat on each token, intentionally
 // mirroring the renderer's explodePaddingsOrMargins / explodeBorder (which the
 // image exporter subtracts from the available width). The renderer reads a token
 // like "10%" as its numeric value (10), so the slot math must too — switching to
-// strict px parsing here would make the pinned percent diverge from what the
-// editor actually renders. Strict px parsing is only for the display-pin value
-// (toPx, in pinImageSrc), never for the geometry.
+// strict px parsing here would make the slot diverge from what the editor
+// actually renders.
 
 /** Left/right edge sizes from a CSS box shorthand (padding/margin), parsed the
  *  same way the renderer's explodePaddingsOrMargins does (parseFloat per token). */
@@ -77,16 +63,14 @@ function fixedContentWidth(contentWidth: unknown): number | undefined {
 /** Unlayer's body content width fallback when `contentWidth` isn't fixed px. */
 const FALLBACK_BODY_CONTENT_WIDTH = 500;
 /** Unlayer's default content-block padding when a block sets none. */
-export const DEFAULT_CONTAINER_PADDING = "10px";
+const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * A body `contentWidth` resolved to px: the fixed px value, or `fallback`
  * (500, Unlayer's base width) for non-px values like `"50%"` / `"auto"`.
  *
- * Shared with Row's grid CSS (`toContentWidthPx`) so the slot geometry here and
- * the renderer's column math agree on what counts as a fixed width — and so a
- * non-px `contentWidth` collapses to the same base everywhere instead of being
- * `parseInt`-ed into a bogus px value (e.g. `"50%"` → 50).
+ * A non-px `contentWidth` collapses to that base instead of being `parseInt`-ed
+ * into a bogus px value (e.g. `"50%"` → 50).
  */
 export function bodyContentWidthPx(
   contentWidth: unknown,
@@ -135,38 +119,4 @@ export function contentSlotWidth(ctx: SlotContext): number {
 
   const ip = edges(ctx.containerPadding ?? DEFAULT_CONTAINER_PADDING);
   return colAvail - ip.left - ip.right;
-}
-
-const PERCENT = /^\d+(?:\.\d+)?%$/;
-
-/** Round to 2 decimals, matching the editor's percent precision. */
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-/**
- * Convert a px display pin on an image `src` to the editor's canonical percent.
- *
- * Only touches a pinned image (`autoWidth === false`) whose `maxWidth` is a
- * px/number placeholder; a percent `maxWidth` is already canonical and is left
- * as-is, and a responsive image (`autoWidth !== false`) is untouched. A pin
- * wider than the slot clamps to 100%, mirroring the editor.
- */
-export function pinImageSrc<T extends Record<string, any> | undefined>(
-  src: T,
-  availableWidth: number | undefined
-): T {
-  if (!src || typeof src !== "object") return src;
-  if ((src as Record<string, any>).autoWidth !== false) return src;
-
-  const maxWidth = (src as Record<string, any>).maxWidth;
-  if (typeof maxWidth === "string" && PERCENT.test(maxWidth.trim())) return src;
-
-  const pinPx = toPx(maxWidth);
-  if (pinPx == null) return src;
-
-  const avail = availableWidth && availableWidth > 0 ? availableWidth : undefined;
-  const pct = avail ? (pinPx >= avail ? 100 : round2((pinPx / avail) * 100)) : 100;
-
-  return { ...src, autoWidth: false, maxWidth: `${pct}%` } as T;
 }

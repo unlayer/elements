@@ -231,7 +231,7 @@ describe("a design read back", () => {
     expect(read("video", { video: { type: "vimeo", videoId: "12345", thumbnail: "https://i.vimeocdn.com/custom.jpg" } }).tree).toContain("custom.jpg");
   });
 
-  it("keeps a social icon with no link, as today's components do", () => {
+  it("keeps a social icon with no link, as Elements 0.2's components do", () => {
     expect(read("social", { icons: { iconType: "circle", icons: [{ name: "X", url: "" }, { name: "GitHub", url: "https://x.test" }] } }).tree).toContain('"name":"X"');
   });
 

@@ -3,5 +3,3 @@ packages:
   - 'examples/*'
   - '!examples/nextjs-app-router'
 
-catalog:
-  "@unlayer/types": "1.497.0"

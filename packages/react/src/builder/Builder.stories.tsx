@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, sideBySide, type Args } from "../compat/SideBySide";
+import { args, argTypes, sideBySide, type Args } from "../stories/SideBySide";
 import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../primitives/testing/codemod-examples";
 import { fromDesign, toDesign } from "./index";
 import { HIDDEN } from "./manifest";

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Button, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Section } from "../index";
-import { args, argTypes, code, sideBySide, type Args } from "../../compat/SideBySide";
+import { args, argTypes, code, sideBySide, type Args } from "../../stories/SideBySide";
 
 const meta: Meta<Args> = {
   title: "Layouts",

@@ -1,10 +1,9 @@
 // @vitest-environment node
 
 /**
- * /builder (toDesign() and fromDesign()) imports nothing of Elements 0.2's components: not src/index.ts,
- * src/components, src/compat, their render and renderToJson in src/utils, nor the shared package. Each file it
- * imports, and each file those import (type imports too: a module deleted breaks them as well), is the builder's, the
- * new components', or one of the three their collecting render is made of; each package, React or the new engine.
+ * /builder (toDesign() and fromDesign()) imports only what it's made of. Each file it imports, and each file those
+ * import (type imports too: a module deleted breaks them as well), is the builder's, the new components', or one of
+ * the three their collecting render is made of; each package, React or the new engine.
  */
 import { existsSync, readFileSync, statSync } from "fs";
 import { dirname, join, relative, resolve, sep } from "path";

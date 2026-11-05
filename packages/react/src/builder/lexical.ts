@@ -1,6 +1,6 @@
 /**
  * The builder's rich text (its editor's Lexical JSON, `textJson`) as HTML, walking the JSON with no editor or DOM: the
- * generator today's components wrote a Paragraph's text with (packages/shared's lexical-helpers.ts), which text-json.ts
+ * generator Elements 0.2's components wrote a Paragraph's text with (the shared package's lexical-helpers.ts, until 0.3.0), which text-json.ts
  * reads a design's rich text through. Kept as it is: what it writes is what fromDesign() reads.
  */
 

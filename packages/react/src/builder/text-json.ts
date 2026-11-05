@@ -1,6 +1,6 @@
 /**
  * A tool's rich text (its editor's Lexical JSON, `textJson`) as HTML, for reading it back: the generator's
- * (lexical.ts, as today's components write it), with each node the builder's editor saves written as the editor's own export writes it. The
+ * (lexical.ts, as Elements 0.2's components write it), with each node the builder's editor saves written as the editor's own export writes it. The
  * generator knows Lexical's nodes (text, paragraph, heading, list, list item, link, line break); the editor saves
  * its own, which it writes as their words only, or not at all. Each is turned into the generator's node, and what the
  * generator doesn't write of it but the editor does is added to its tag:

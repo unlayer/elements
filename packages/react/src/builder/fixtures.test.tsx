@@ -55,7 +55,7 @@ describe("designs the real builder saved", () => {
       "email",
       [
         // The heading's background and corners, and the image's corners (blocks 0 and 4), were in the payload only;
-        // the earlier adapter wrote every link to open a new window, today's components' default (1 and 3).
+        // the earlier adapter wrote every link to open a new window, Elements 0.2's components' default (1 and 3).
         "block 0 (Heading) own",
         "block 1 (Paragraph) runs",
         "block 3 (Button) own",

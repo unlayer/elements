@@ -1,8 +1,8 @@
 /**
- * Each of the builder's tools read back from its values alone, as the codemod writes today's components: its
+ * Each of the builder's tools read back from its values alone, as the codemod writes Elements 0.2's components: its
  * component with the styles its fields give, but those equal to what it would take anyway (its defaults, what it
  * inherits from the root), and its hidden properties; a block whose spacing or alignment is its place's in a `Column`
- * around it with that padding and `alignItems`. Values are read as today's components read them (read-values.ts: what
+ * around it with that padding and `alignItems`. Values are read as Elements 0.2's components read them (read-values.ts: what
  * they, and so the builder, draw), and a tool that isn't one of Elements' is left out, and said.
  */
 import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type Node } from "@unlayer-internal/elements-core";
@@ -20,7 +20,7 @@ import { readBorder } from "./values";
 export type { Context, Slot };
 
 /**
- * A link as Elements', read as today's components read one (every shape their writers read: a URL, the builder's
+ * A link as Elements', read as Elements 0.2's components read one (every shape their writers read: a URL, the builder's
  * `{ name, values, attrs }`, an email's or a phone's link with its URL in `attrs`, `{ url, target }`): its target
  * where it says a new window, the URL alone otherwise. None where it has no URL; where it holds what a link here
  * can't (a class, attributes of its own, a click handler, another target), that's said and it's left out.

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Column, Document, Heading, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "../index";
-import { code } from "../../compat/SideBySide";
+import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
   title: "Document",

@@ -663,8 +663,8 @@ export function lineHeight(): Kind<LineHeightInput, LineHeight> {
 // ─── URLs: images and links ─────────────────────────────────────────────────
 
 /**
- * An email service's tag in a URL, as it's written or as today's components keep it from the writers (a mark:
- * packages/react/src/compat/values.ts). Its service fills it in later, perhaps with nothing.
+ * An email service's tag in a URL, as it's written or as Elements 0.2's components kept it from the writers (a mark,
+ * `\uFDD0<n>\uFDD1`). Its service fills it in later, perhaps with nothing.
  */
 const SERVICE_TAG = /<%[\s\S]*?%>|\{%[\s\S]*?%\}|\{\{[\s\S]*?\}\}|\uFDD0\d+\uFDD1/g;
 

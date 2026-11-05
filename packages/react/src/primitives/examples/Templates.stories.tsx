@@ -1,5 +1,5 @@
 import type { Meta } from "@storybook/react-vite";
-import { args, argTypes, showing, type Args } from "../../compat/SideBySide";
+import { args, argTypes, showing, type Args } from "../../stories/SideBySide";
 import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../testing/examples";
 
 const meta: Meta<Args> = {

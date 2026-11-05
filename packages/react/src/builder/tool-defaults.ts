@@ -1,7 +1,7 @@
 /**
  * Each tool's default values and the schema version of the design JSON, as the Unlayer builder's editor defines them:
  * what toDesign() writes a part's values over (design.ts), and what fromDesign() reads a value an item doesn't have as. Plain data, in the editor's
- * key order (a design's JSON keeps it, and the regression tests compare it with the previous release's).
+ * key order (a design's JSON keeps it).
  */
 
 /** The version of the editor's design schema these values are from. */
@@ -206,56 +206,6 @@ export const SocialDefaults: Record<string, any> = {
   align: "center",
   iconSize: 32,
   spacing: 5
-};
-
-export const TableDefaults: Record<string, any> = {
-  columns: 2,
-  rows: 2,
-  border: {
-    borderTopWidth: "1px",
-    borderTopStyle: "solid",
-    borderTopColor: "#CCC",
-    borderLeftWidth: "1px",
-    borderLeftStyle: "solid",
-    borderLeftColor: "#CCC",
-    borderRightWidth: "1px",
-    borderRightStyle: "solid",
-    borderRightColor: "#CCC",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: "#CCC"
-  },
-  stripedRows: false,
-  stripedRowsBackgroundColor: "#CCC",
-  enableHeader: true,
-  repeatHeaderOnEachPage: true,
-  headerBackgroundColor: "#DDDDDD",
-  headerFontWeight: 700,
-  headerFontSize: "14px",
-  headerTextAlign: "left",
-  headerVerticalAlign: "middle",
-  headerPadding: "10px",
-  contentBackgroundColor: "#FFFFFF",
-  contentFontSize: "14px",
-  contentTextAlign: "left",
-  contentVerticalAlign: "middle",
-  contentLineHeight: "140%",
-  contentPadding: "10px",
-  enableFooter: false,
-  repeatFooterOnEachPage: true,
-  footerBackgroundColor: "#DDDDDD",
-  footerFontWeight: 700,
-  footerFontSize: "14px",
-  footerTextAlign: "left",
-  footerVerticalAlign: "middle",
-  footerPadding: "10px",
-  linkStyle: {
-    body: true,
-    linkColor: "#0000ee",
-    linkHoverColor: "#0000ee",
-    linkUnderline: true,
-    linkHoverUnderline: true
-  }
 };
 
 export const TextDefaults: Record<string, any> = {

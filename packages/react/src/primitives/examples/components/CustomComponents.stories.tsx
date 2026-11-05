@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, asEmailAndPage, type Args } from "../../../compat/SideBySide";
+import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
 import { Button, Column, component, Email, Heading, Image, Paragraph, prop, Row, Section, Text } from "../../index";
 import { FONT, INK, LINE, MUTED, picture, WASH } from "./shared";
 

@@ -1,5 +1,5 @@
 import type { Meta } from "@storybook/react-vite";
-import { args, argTypes, asEmailAndPage, type Args } from "../../../compat/SideBySide";
+import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
 import { Button, Column, Heading, Image, Layer, Paragraph, Section, Text } from "../../index";
 import { BRAND, FONT, landscape, picture } from "./shared";
 

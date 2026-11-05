@@ -143,7 +143,7 @@ async function fingerprint(target, selector = "#storybook-root") {
 
 /**
  * The story and what it draws in frames of its own: each render of the new components is its own document (see
- * compat/SideBySide.tsx), whose stylesheet and phone styles only answer the frame.
+ * src/stories/SideBySide.tsx), whose stylesheet and phone styles only answer the frame.
  */
 async function storyFingerprint(page) {
   const lines = await fingerprint(page);

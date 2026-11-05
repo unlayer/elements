@@ -1,7 +1,7 @@
 /**
  * The plain-text version of a template (emails send it beside the HTML: spam
  * filters count against HTML-only mail), written from the tree rather than
- * read back out of the HTML. Same conventions as the main entry's
+ * read back out of the HTML. Same conventions as Elements 0.2's
  * renderToPlainText: large headings in capitals, a link as "text (url)", an
  * image as "[alt]", a divider as "---", blocks apart by a blank line; list
  * items as "- " or "1. " (nested ones indented), a table's rows a line each,

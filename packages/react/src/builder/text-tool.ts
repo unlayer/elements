@@ -34,7 +34,7 @@ export function textTool(tool: "text" | "heading", given: Values, context: Conte
   const id = givenId(values);
   const props = defined({ ...(level && level !== 1 ? { level } : {}), dir: str(values.textDirection), ...hidden.props });
   const visibility = { ...hiddenOn(values), ...hidden.hidden };
-  // Its links' style where it's its own (the builder's link style), as today's components read it; a hover style a page draws, said.
+  // Its links' style where it's its own (the builder's link style), as Elements 0.2's components read it; a hover style a page draws, said.
   const linkStyle = linkStyleOf(values, context.mode);
   if (linkStyle === null) context.say("its links' hover style, which a page draws, has no place: left out");
   const links = linkStyle ?? linkStyleOf(values, "email");

@@ -5,7 +5,6 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    setupFiles: ['./src/test-setup.ts'],
     globals: true,
     coverage: {
       exclude: [
@@ -13,9 +12,8 @@ export default defineConfig({
         'scripts/**',
         // Storybook stories are exercised by the Storybook smoke/visual gates
         '**/*.stories.tsx',
-        '**/*.fixture.tsx',
-        // So are the frames two of them draw in; and the fixtures: designs in the new components, and the codemod's output
-        'src/compat/SideBySide.tsx',
+        // So are the frames they draw in; and the fixtures: designs in the new components, and the codemod's output
+        'src/stories/SideBySide.tsx',
         'src/primitives/testing/examples.tsx',
         'src/primitives/testing/codemod-examples.tsx',
         ...coverageConfigDefaults.exclude,

@@ -1,5 +1,5 @@
 /**
- * A design's values as today's components read them, which is how the builder draws them: lengths, sides, colors,
+ * A design's values as Elements 0.2's components read them, which is how the builder draws them: lengths, sides, colors,
  * borders, line heights, weights, fonts, alignments and links (as the new engine's), email services' tags, the id an
  * author gave a part, where it's hidden, and a text tool's link style. fromDesign() reads designs with these; today's
  * components' lowering (src/compat) reads them with the same.
@@ -131,8 +131,8 @@ export function serviceTag(text: string): boolean {
 }
 
 /**
- * Whether text holds what today's lowering keeps of an email service's tag, a mark it writes as `\uFDD0<n>\uFDD1`
- * (see compat/values.ts): a value holding one is only known once the tag is filled in.
+ * Whether text holds what Elements 0.2's lowering kept of an email service's tag, a mark it wrote as `\uFDD0<n>\uFDD1`:
+ * a value holding one is only known once the tag is filled in.
  */
 export const holdsKept = (text: string): boolean => text.includes("\uFDD0");
 

@@ -3,9 +3,8 @@ import { defineConfig, type Options } from 'tsup';
 const shared: Options = {
   format: ['cjs', 'esm'],
   dts: {
-    // Inline types from private workspace packages and their type deps
-    // so consumers get full type completion without extra installs
-    resolve: ['@unlayer-internal/shared-elements', '@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters', '@unlayer/types'],
+    // Inline types from the private workspace packages so consumers get full type completion without extra installs
+    resolve: ['@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
   },
   splitting: false,
   sourcemap: true,
@@ -15,15 +14,13 @@ const shared: Options = {
   esbuildOptions(options, { format }) {
     options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
   },
-  // Bundle @unlayer-internal/shared-elements, elements-core and elements-exporters into the output so consumers
-  // don't need to install it separately (it's a private workspace package).
-  // Its own deps (Lexical) stay external via our dependencies.
-  noExternal: ['@unlayer-internal/shared-elements', '@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
+  // Bundle elements-core and elements-exporters into the output so consumers don't need to install them separately
+  // (they're private workspace packages).
+  noExternal: ['@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
   treeshake: true,
 };
 
 export default defineConfig([
-  { ...shared, entry: { index: 'src/index.ts', primitives: 'src/primitives/index.ts' }, clean: true },
-  // toDesign() and fromDesign() import nothing of today's components (src/builder/imports.test.ts).
+  { ...shared, entry: { primitives: 'src/primitives/index.ts' }, clean: true },
   { ...shared, entry: { builder: 'src/builder/index.ts' } },
 ]);
