@@ -12,7 +12,7 @@
  */
 import * as prettier from "prettier";
 import ts from "typescript";
-import { formatTsx } from "@unlayer/convert-core";
+import { formatTsx } from "../print";
 import { hole, inlineHtml, inPx, plain } from "./html";
 
 /** Stands for React's Fragment in what's written, until it's known what the template can call it. */

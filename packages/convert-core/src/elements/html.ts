@@ -5,7 +5,7 @@
  * are decoded. What a run of text can't hold (an image, a list's bullets, a style such as line-height) is left out,
  * and each is named in what's returned for the caller to report: the migration never drops markup quietly.
  */
-import { decodeHtmlEntities } from "@unlayer/convert-core";
+import { decodeHtmlEntities } from "../entities";
 
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g;
 const ATTRIBUTE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;

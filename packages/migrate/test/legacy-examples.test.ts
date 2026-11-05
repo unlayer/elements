@@ -6,10 +6,9 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { formatTsx } from "@unlayer/convert-core";
+import { formatTsx, migrateElements } from "@unlayer/convert-core";
 import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
-import { migrateElements } from "../src/legacy/codemod";
 
 const REACT = path.resolve(__dirname, "../../react/src");
 const FILE = path.join(REACT, "primitives/testing/codemod-examples.tsx");

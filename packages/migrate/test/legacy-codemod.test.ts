@@ -7,8 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
-import { inlineHtml } from "../src/legacy/html";
-import { migrateElements } from "../src/legacy/codemod";
+import { inlineHtml, migrateElements } from "@unlayer/convert-core";
 import { main, type Io } from "../src/cli";
 import { errors } from "./migrated";
 

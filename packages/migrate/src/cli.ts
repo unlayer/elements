@@ -1084,7 +1084,7 @@ async function inNewComponents({ code, source, file, target, Original, props, li
   release: Array<() => void>;
 }): Promise<{ code?: string; check?: Awaited<ReturnType<Library["verifyNewComponents"]>>; report?: string[]; note?: string }> {
   const keptBecause = (why: string) => ({ note: `kept in today's components: ${why}` });
-  const { migrateElements } = await import("./legacy/codemod");
+  const { migrateElements } = await import("@unlayer/convert-core");
   let moved: Awaited<ReturnType<typeof migrateElements>>;
   try {
     moved = await migrateElements(code, { typescript: !/\.(js|jsx|mjs|cjs)$/.test(target) });
