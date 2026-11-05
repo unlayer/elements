@@ -6,7 +6,7 @@
  */
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
-import { DEFAULT_FROM, MIGRATED } from "@unlayer/convert-core";
+import { DEFAULT_FROM, MIGRATED } from "../convert";
 
 /** Where an import leads among the project's files, or undefined (a package, a file that isn't there). */
 export type Resolve = (specifier: string, fromFile: string) => Promise<string | undefined>;

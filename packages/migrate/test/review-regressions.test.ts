@@ -6,7 +6,7 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import Module, { createRequire } from "node:module";
-import * as lib from "@unlayer/from-react-email";
+import * as lib from "../src/react-email/index";
 import { main, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
 

@@ -1,0 +1,4413 @@
+/**
+ * Codemod mode: rewrite a React Email template's source into an Elements
+ * component that keeps the template's props, loops and conditions.
+ *
+ * Only the import and the returned JSX change. JSX inside expressions
+ * (`{items.map(…)}`, `{cond && …}`) is converted in place, so the logic stays.
+ * Styles are read statically (object literals, module constants, Tailwind
+ * classes); what can't be read is reported.
+ *
+ * The template is written in Elements 0.2's components first, as source
+ * text, and moved to the new components at once (`toNewComponents`, in
+ * ../convert): today's components are never run.
+ */
+
+import ts from "typescript";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import * as ReactEmail from "@react-email/components";
+import {
+  decodeHtmlEntities,
+  SLOT,
+  SLOT_CLOSE,
+  SLOT_OPEN,
+  el,
+  expr,
+  fallbackHtml,
+  formatTsx,
+  hole,
+  isExpr,
+  printJsx,
+  ReportBuilder,
+  TODAYS_COMPONENTS,
+  toNewComponents,
+  type ConversionReport,
+  type ElementNode,
+  type Expr,
+} from "../convert";
+import { borders, boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, needsTextBox, wrapPadding } from "./boxes";
+import { layout, NO_STYLE, type BoxNode, type ColumnNode, type ColumnsHole, type Flow, type RowNode } from "./layout";
+import {
+  buttonBlock,
+  collapse,
+  dividerBlock,
+  headingBlock,
+  headingMarginProps,
+  imageBlock,
+  fontStylesheets,
+  importedStylesheets,
+  hasWidth,
+  inheritedStyle,
+  withBrowserDefaults,
+  noteAttributes,
+  paragraphBlock,
+  INHERITED,
+  LIST_DEFAULTS,
+  spanStyle,
+  loopMargins,
+  type Block,
+  type FontSpec,
+  type Content,
+  type MapCtx,
+  type Parts,
+} from "./map";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { inlineLocalComponents, type ModuleLoader } from "./components";
+import { inlineLocalJsx, inlineMapCallbacks } from "./inline";
+import { normalizeInlined } from "./normalize";
+import { htmlToJsx, slot, Unwritable } from "./plain-jsx";
+import { jsxText } from "./jsx-text";
+import { splitConditionalClasses } from "./variants";
+import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
+import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
+
+/** The functions the codemod adds to a migration, by their usual names (another, `_name`, where the template has the name). */
+export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "KeptHtml", "tailwindStyle", "holdsElements", "plainText"];
+
+/**
+ * Where a kept block's JSX goes in the printed tree (see `keep`): private-use characters, which a template's own code
+ * doesn't hold, as ../convert's slots.
+ */
+const KEPT_OPEN = "\uE002";
+const KEPT_CLOSE = "\uE003";
+const KEPT = /\{\uE002(\d+)\uE003\}/g;
+
+/**
+ * The library types the converter's program has (it has no others, so it never reads the project's or Node's): lists
+ * and the global types TypeScript needs, written with only what tells an item's type and what a list's methods give,
+ * and the utility types (as lib.es5.d.ts writes them), so `Record<Locale, { help: string }>` gives its values' types.
+ */
+const LISTS_FILE = "\u0000lists.d.ts";
+const LISTS = `
+interface Array<T> {
+  length: number;
+  [n: number]: T;
+  map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[];
+  flatMap<U>(callbackfn: (value: T, index: number, array: T[]) => U | ReadonlyArray<U>, thisArg?: any): U[];
+  filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[];
+  find(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void;
+  some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
+  every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
+  slice(start?: number, end?: number): T[];
+  concat(...items: Array<T | ReadonlyArray<T>>): T[];
+  reverse(): T[];
+  sort(compareFn?: (a: T, b: T) => number): this;
+  at(index: number): T | undefined;
+  includes(searchElement: T, fromIndex?: number): boolean;
+  indexOf(searchElement: T, fromIndex?: number): number;
+  join(separator?: string): string;
+}
+interface ReadonlyArray<T> {
+  readonly length: number;
+  readonly [n: number]: T;
+  map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[];
+  flatMap<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U | ReadonlyArray<U>, thisArg?: any): U[];
+  filter(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T[];
+  find(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void, thisArg?: any): void;
+  slice(start?: number, end?: number): T[];
+  at(index: number): T | undefined;
+  join(separator?: string): string;
+}
+type Partial<T> = { [P in keyof T]?: T[P] };
+type Required<T> = { [P in keyof T]-?: T[P] };
+type Readonly<T> = { readonly [P in keyof T]: T[P] };
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+type Record<K extends keyof any, T> = { [P in K]: T };
+type Exclude<T, U> = T extends U ? never : T;
+type Extract<T, U> = T extends U ? T : never;
+type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
+type NonNullable<T> = T & {};
+type Parameters<T extends (...args: any) => any> = T extends (...args: infer P) => any ? P : never;
+type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : any;
+interface Boolean {}
+interface Function {}
+interface CallableFunction extends Function {}
+interface NewableFunction extends Function {}
+interface IArguments {}
+interface Number {}
+interface Object {}
+interface RegExp {}
+interface String {}
+`;
+let listsFile: ts.SourceFile | undefined;
+const lists = (): ts.SourceFile => (listsFile ??= ts.createSourceFile(LISTS_FILE, LISTS, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS));
+
+/** The prop a block written both ways carries until it's printed (see `switched`). */
+const SWITCH = "\uE004switch";
+
+/** The props an Html block takes from a component of the template's own that Elements keeps as one (as KeptHtml is). */
+const KEPT_PROPS = new Set(["key", "containerPadding", "hideOnMobile", "hideOnDesktop"]);
+
+/**
+ * Inline content (text, links, bold) that can only be shown by rendering the template, as the HTML text an Elements
+ * Paragraph holds can't be: a value that may hold React elements, a component of the template's own, a style from
+ * props. Its block is kept as it renders instead (see `fallback`), named by `message`.
+ */
+class KeepBlock extends Error {}
+
+/** Markers for what comes from code in an element rendered here (see `markupElement`): two sets, to tell them apart. */
+const MARKS = [
+  (i: number) => `\uE010${i}\uE011`,
+  (i: number) => `\uE012${i}\uE013`,
+];
+
+export interface CodemodResult {
+  /** The template in the new components. */
+  code: string;
+  /**
+   * The template as the converter wrote it first, in Elements 0.2's components (source text, never run): what the
+   * codemod moved to the new components.
+   */
+  intermediate: string;
+  report: ConversionReport;
+  /** The functions the codemod added to `code` (escaping, a component's HTML): they show what they're given as it is. */
+  helpers: string[];
+  /** The web fonts' stylesheets the template loads (its head's links and imports, its `<Font>`s), for the editor. */
+  fonts: Array<{ url: string }>;
+  /** What moving it to the new components may change, or left out: one line each, with where. */
+  notes: string[];
+  /** Of those, the Rows whose Columns are written one under another (their layout comes from code): they move. */
+  stacked: string[];
+}
+
+/** The template in today's components, before it moves to the new ones (see `convertSource`). */
+type TodaysResult = Pick<CodemodResult, "code" | "report" | "helpers" | "fonts">;
+
+type Ctx = MapCtx;
+
+const STRUCTURE = new Set(["Row", "Column", "Section", "Container"]);
+const BOXES = new Set(["Container", "Body", "Html", "Tailwind", "Section"]);
+const HOST_CONTENT = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "img", "hr", "a", "ul", "ol"]);
+
+/** A JSX element read statically. */
+interface Jsx {
+  node: ts.JsxElement | ts.JsxSelfClosingElement;
+  /** React Email component name, or undefined for HTML / user components. */
+  name?: string;
+  tag: string;
+  attrs: Map<string, ts.Expression | undefined>;
+  style: Style;
+  children: ts.JsxChild[];
+  /** Props that must be preserved by rendering the original JSX. */
+  opaqueProps: boolean;
+}
+
+const SKIP = new Set(["Head", "Font", "Preview", "head", "style", "meta", "title", "link", "script"]);
+/**
+ * A dropped style that can show or hide content: a property that does (`display`, `visibility`, `opacity`,
+ * `max-height`, `overflow`, Outlook's `mso-hide`) or a class that does (`hidden`, `sm:hidden`, `invisible`, `sr-only`, …).
+ */
+const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide|text-?indent|clip-?path)\b|-\d{4,}px|font-?size["'`]?\s*:\s*["'`]?0(px)?(?![\d.])|(^|["'`\s:{(,])(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0|text-\[0px\])(?=$|["'`\s:,})])/i;
+/** Style properties no value of which hides content (unlike `display`, `fontSize: 0`, a far negative margin or an indent). */
+const CANT_HIDE = new Set(["color", "backgroundColor", "borderColor", "borderRadius", "fontFamily", "fontWeight", "fontStyle", "textAlign", "textDecoration", "textTransform", "lineHeight", "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]);
+
+/**
+ * A Tailwind class that hides, under a variant that can apply on a screen (`dark:hidden`, `sm:hidden`): one the
+ * codemod can't keep shows what the original hides there. Not hover and the like (a static email never has them),
+ * nor print.
+ */
+const HIDING_VARIANT = /^(?!.*(?:^|[:_])(?:hover|focus|focus-within|focus-visible|active|visited|disabled|group-[\w-]+|peer-[\w-]+|print)[:_])(?:[a-z0-9-]+[:_])+!?(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0)$/;
+/** HTML elements of text (formatting, lists, paragraphs) that inline content writes itself, with the attributes text needs. */
+const TEXT_TAGS = new Set("a abbr b big blockquote br center cite code del dfn div em font h1 h2 h3 h4 h5 h6 i ins kbd label li mark ol p pre q s samp small span strike strong sub sup time u ul var".split(" "));
+const INLINE_TAGS = new Set(["span", "strong", "b", "em", "i", "br", "small", "u", "code", "sup", "sub"]);
+
+export interface CodemodOptions {
+  fileName?: string;
+  /**
+   * Reads a module the template imports, so components it imports from
+   * other files can be inlined too (see components.ts). The CLI passes one
+   * that reads the project's files.
+   */
+  loadModule?: ModuleLoader;
+  /**
+   * The template's Tailwind config, when the source's isn't a plain literal
+   * (plugins, imported presets). Get it with `findTailwind`.
+   */
+  tailwindConfig?: Record<string, unknown>;
+  /** The template's own <Tailwind> (from `findTailwind`), to resolve classes as it does. */
+  tailwind?: unknown;
+}
+
+export async function convertSource(source: string, options: CodemodOptions = {}): Promise<CodemodResult> {
+  const fileName = options.fileName ?? "template.tsx";
+  // Source-level preparation: React Email components by name, same-file
+  // components and JSX constants where they're used, and conditional
+  // classNames as one element per class list.
+  // (Same lines as the source: `Email.Text` → `Text`.)
+  const named = nameNamespaces(source, fileName);
+  const mapped = inlineMapCallbacks(named, fileName);
+  const components = inlineLocalComponents(mapped.source, fileName, options.loadModule);
+  const constants = inlineLocalJsx(components.source, fileName);
+  // What inlining wrote, as code the template could have written (`{undefined && …}` folded, …).
+  const variants = splitConditionalClasses(normalizeInlined(constants.source, fileName), fileName);
+  const javascript = /\.(?:jsx?|mjs|cjs)$/i.test(fileName);
+  let file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const converter = (unwritten = new Set<number>()) => new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule, undefined, unwritten);
+  // A prop's default written where it's read (`name === undefined ? "Acme" : name`) as `name ?? "Acme"` where that's the same.
+  const nullish = converter().nullishDefaults();
+  if (nullish.length) {
+    let text = variants.source;
+    for (const edit of nullish.sort((a, b) => b.from - a.from)) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
+    file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  }
+  // Backgrounds computed from props are written as that code where the box's background goes (see `computedBackground`);
+  // one that couldn't be (the box flattened, its color in HTML) is converted again as before: lost, with the colors
+  // computed under it (see `computedColors`).
+  const unwritten = new Set<number>();
+  let todays: TodaysResult;
+  for (;;) {
+    const run = converter(unwritten);
+    const result = await run.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
+    const failed = [...run.unwrittenBackgrounds].filter((at) => !unwritten.has(at));
+    if (!failed.length) {
+      todays = result;
+      break;
+    }
+    for (const at of failed) unwritten.add(at);
+  }
+  // In the new components (a NewComponentsError where it can't be), without the helpers only today's markup needed,
+  // and without what only a prop the new components don't take read (a constant for a background image), so a build
+  // with noUnusedLocals still passes.
+  const moved = await toNewComponents(todays.code, { typescript: !javascript });
+  let code = await withoutUnusedHelpers(moved.code);
+  const tidy = dropUnused(code, ts.createSourceFile(fileName, todays.code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), javascript, new Set(), new Set());
+  if (tidy !== code) code = await formatTsx(tidy);
+  return { ...todays, code, intermediate: todays.code, helpers: todays.helpers.filter((name) => new RegExp(`\\b${name}\\b`).test(code)), notes: moved.notes.map(withoutLine), stacked: moved.stacked.map(withoutLine) };
+}
+
+/** What the codemod said, without the line of the intermediate source it's on (no one reads that source). */
+export function withoutLine(note: string): string {
+  return note.replace(/^line \d+: /, "");
+}
+
+/** The module without the helpers the conversion wrote for today's components' markup, where nothing uses them now. */
+async function withoutUnusedHelpers(code: string): Promise<string> {
+  for (;;) {
+    const file = ts.createSourceFile("template.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const unused = file.statements.find((statement): statement is ts.FunctionDeclaration & { name: ts.Identifier } => {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !/^_*(escapeHtml|htmlText|htmlAttribute|KeptHtml|tailwindStyle|holdsElements|plainText)\d*$/.test(statement.name.text)) return false;
+      // (KeptHtml also names itself, in the line after it.)
+      return (code.match(new RegExp(`\\b${statement.name.text}\\b`, "g")) ?? []).length === (/KeptHtml/.test(statement.name.text) ? 2 : 1);
+    });
+    if (!unused) return code;
+    code = (code.slice(0, unused.getFullStart()) + code.slice(unused.getEnd())).replace(new RegExp(`\\n[ \\t]*${unused.name.text}\\.displayName = "Html";`), "");
+  }
+}
+
+/**
+ * `import * as Email from "@react-email/components"` with `<Email.Text>`:
+ * named imports instead (`import { Text } from …`, `<Text>`), so the codemod
+ * finds the components. A name the file already uses gets an alias
+ * (`EmailText`). Left as it is when the namespace is used other than as
+ * `Email.Name`.
+ */
+function nameNamespaces(source: string, fileName: string): string {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const edits: Array<{ from: number; to: number; text: string }> = [];
+  const identifiers: ts.Identifier[] = [];
+  const collect = (node: ts.Node) => {
+    if (ts.isIdentifier(node)) identifiers.push(node);
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || !isReactEmailModule(statement.moduleSpecifier.text)) continue;
+    const clause = statement.importClause;
+    const bindings = clause?.namedBindings;
+    if (!clause || clause.name || !bindings || !ts.isNamespaceImport(bindings)) continue;
+    const namespace = bindings.name.text;
+    // Each use: `Email.Text` (a value or tag) or `Email.TextProps` (a type).
+    const uses: Array<{ node: ts.PropertyAccessExpression | ts.QualifiedName; member: string; type: boolean }> = [];
+    let other = false;
+    for (const id of identifiers) {
+      if (id.text !== namespace || id === bindings.name) continue;
+      const parent = id.parent;
+      if (ts.isPropertyAccessExpression(parent) && parent.expression === id && ts.isIdentifier(parent.name)) uses.push({ node: parent, member: parent.name.text, type: false });
+      else if (ts.isQualifiedName(parent) && parent.left === id) uses.push({ node: parent, member: parent.right.text, type: !ts.isTypeQueryNode(parent.parent) });
+      else other = true;
+    }
+    if (other || !uses.length) continue;
+    const members = [...new Set(uses.map((u) => u.member))];
+    // Names the file uses besides these members.
+    const memberNodes = new Set(uses.map((u) => (ts.isPropertyAccessExpression(u.node) ? u.node.name : u.node.right)));
+    const taken = new Set(identifiers.filter((id) => !memberNodes.has(id) && id.text !== namespace).map((id) => id.text));
+    const local = new Map(members.map((m) => [m, taken.has(m) ? `${namespace}${m}` : m]));
+    if (members.some((m) => local.get(m) !== m && taken.has(local.get(m)!))) continue;
+    const specifiers = members.map((m) => {
+      const type = uses.filter((u) => u.member === m).every((u) => u.type);
+      return `${type && !clause.isTypeOnly ? "type " : ""}${local.get(m) === m ? m : `${m} as ${local.get(m)}`}`;
+    });
+    edits.push({ from: bindings.getStart(), to: bindings.getEnd(), text: `{ ${specifiers.join(", ")} }` });
+    for (const use of uses) edits.push({ from: use.node.getStart(), to: use.node.getEnd(), text: local.get(use.member)! });
+  }
+  edits.sort((a, b) => b.from - a.from);
+  for (const edit of edits) source = source.slice(0, edit.from) + edit.text + source.slice(edit.to);
+  return source;
+}
+
+/** `undefined` or `null`, which a spread adds nothing from (an optional prop left out, once inlined). */
+function nothing(expression: ts.Expression): boolean {
+  const node = unwrap(expression);
+  return (ts.isIdentifier(node) && node.text === "undefined") || node.kind === ts.SyntaxKind.NullKeyword;
+}
+
+/** Packages React Email components are imported from: `react-email` and `@react-email/*`. */
+function isReactEmailModule(from: string): boolean {
+  return from === "react-email" || from.startsWith("@react-email/");
+}
+
+class Converter {
+  private readonly report = new ReportBuilder();
+  private readonly components = new Map<string, string>();
+  /** Where each React Email import comes from (`react-email`, `@react-email/components`, …), and which are types. */
+  private readonly componentSources = new Map<string, { from: string; type: boolean; barrel?: boolean }>();
+  private readonly constants = new Map<string, ts.Expression>();
+  private readonly checker: ts.TypeChecker;
+  private tailwind: ResolvedClasses = NO_CLASSES;
+  private needsEscape = false;
+  private needsHtmlText = false;
+  private needsAttribute = false;
+  private needsPlainText = false;
+  private plainTextName = "plainText";
+  /** The functions the migrated file gets, by names the template doesn't use already. */
+  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", KeptHtml: "KeptHtml", tailwindStyle: "tailwindStyle", TAILWIND_CLASSES: "TAILWIND_CLASSES", holdsElements: "holdsElements", isValidElement: "isValidElement" };
+  /** Each kept block's JSX (see `keep`). */
+  private readonly kept: string[] = [];
+  /**
+   * The block being converted (its source range), and the values in its text that may be React elements (see
+   * `textOf`): such a block is written both ways, chosen when it renders (see `withKeptHtml`).
+   */
+  private switching?: { from: number; to: number; values: string[] };
+  /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
+  private readonly switchRanges: Array<{ from: number; to: number }> = [];
+  private needsHoldsElements = false;
+  /** Backgrounds computed from props, by the color (or image URL) standing in for each until it's printed (see `computedBackground`, `computedImage`). */
+  private readonly computedBackgrounds = new Map<string, { code: string; always: boolean; at: number }>();
+  /** Where each computed background is written in the source, to its stand-in. */
+  private readonly backgroundAt = new Map<number, string>();
+  /** Computed backgrounds this conversion couldn't write as code (see convertSource). */
+  readonly unwrittenBackgrounds = new Set<number>();
+  /** Each block kept as React: its source, and the text color around it (`known`: none above it is computed). */
+  private readonly keptUses: Array<{ nodes: readonly ts.Node[]; color: string | undefined; known: boolean }> = [];
+  /** The text color the tables and cells of each component of the file kept as React take (see `keptComponentColors`). */
+  private readonly componentColors = new Map<ts.Node, string | undefined>();
+  /** The style each Tailwind class a string of the file holds gives, for classes worked out at render time (see `tailwindStyle`). */
+  private readonly classTable = new Map<string, Style>();
+  private needsTailwindStyle = false;
+  /** Style properties written as code on the block they set (see `computedColors`): not lost. */
+  private readonly keptStyleParts = new Set<number>();
+  /** Source ranges written into text as the HTML they render (see `markupElement`): their computed styles are kept. */
+  private readonly renderedRanges: Array<{ from: number; to: number }> = [];
+  /** Module constants copied in with imported components: dropped if the output doesn't use them. */
+  private copied: string[] = [];
+  private original?: string;
+  /** Lines of `file` → lines of `original` (see lineMap). */
+  private lines?: number[];
+  /** Source ranges copied into the output as-is (fallbacks). */
+  private readonly fallbackRanges: Array<{ from: number; to: number }> = [];
+  /** Rules on a single class from the head's <style>: desktop, and phone media queries. */
+  private readonly headClasses = new Map<string, Style>();
+  private readonly headImportant = new Map<string, Set<string>>();
+  private readonly headPhoneImportant = new Map<string, Set<string>>();
+  private readonly headPhone = new Map<string, Style>();
+  private readonly headOrder: RuleOrder = new Map();
+  private readonly phoneNoted = new Set<string>();
+  private mutations?: Set<ts.Symbol>;
+  /** Statements added before a return (a `dir` worked out once): where, and the code. */
+  private readonly hoisted: Array<{ at: number; text: string }> = [];
+  /** Style values computed at render time, by where they are in the source. */
+  private readonly droppedStyles: Array<{ from: number; to: number; detail: string; text: string }> = [];
+  private generatedHelpers = new Set<string>();
+  /** The web fonts' stylesheets the template's returns load. */
+  private readonly stylesheets: string[] = [];
+
+  /** Stylesheets a return loads, kept for the result's `fonts`. */
+  private loads(stylesheets: Array<{ url: string }>): Array<{ url: string }> {
+    this.stylesheets.push(...stylesheets.map((s) => s.url));
+    return stylesheets;
+  }
+
+
+  constructor(
+    private readonly file: ts.SourceFile,
+    private readonly tailwindConfig?: Record<string, unknown>,
+    private readonly javascript = false,
+    private readonly tailwindComponent?: unknown,
+    private readonly loadModule?: ModuleLoader,
+    /** The project's modules read for values the template imports (see `importedConstant`), shared with theirs. */
+    private readonly modules = new Map<string, Converter | { json: unknown } | null>(),
+    /** Computed backgrounds (by where they're written) that can't be written as code: lost, as before. */
+    private readonly unwritten = new Set<number>(),
+  ) {
+    const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
+    while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
+    for (const key of Object.keys(this.helper) as Array<keyof typeof this.helper>) while (names.has(this.helper[key])) this.helper[key] = `_${this.helper[key]}`;
+    // Bind this source without resolving dependencies. The checker still
+    // distinguishes module constants from parameters, locals and loop bindings.
+    // Only this file: no @types packages either (handed this file too, the program would rename it after them).
+    // A JavaScript template (`.jsx`) is in the program too: without `allowJs` it isn't, and the checker has no symbols
+    // for it (its module constants aren't read) and crashes on its JSX attributes.
+    // With the few library types a template's values go through (see LISTS): a list's item in `items.map((item) => …)`
+    // has its type then, so text read from it is known to be text (see `provablyText`).
+    const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [], allowJs: true };
+    const host = ts.createCompilerHost(options);
+    host.getSourceFile = (name) => (name === file.fileName ? file : name === LISTS_FILE ? lists() : undefined);
+    this.checker = ts.createProgram([file.fileName, LISTS_FILE], options, host).getTypeChecker();
+  }
+
+  async run(prepared: {
+    components: string[];
+    constants: string[];
+    variants: number;
+    copied: string[];
+    /** The template as written, before its components were inlined (React Email components by name). */
+    original?: string;
+  }): Promise<TodaysResult> {
+    this.copied = prepared.copied;
+    this.original = prepared.original;
+    for (const name of prepared.components) this.report.info("local component inlined where it's used", name);
+    for (const name of prepared.constants) this.report.info("local JSX constant inlined where it's used", name);
+    if (prepared.variants) this.report.info("conditional className split into one element per class list", String(prepared.variants));
+    this.readModule();
+    const component = this.findComponent();
+    if (!component) throw new Error("No default-exported component found");
+    const returned = this.returnedJsx(component);
+    if (!returned.length)
+      throw new Error("Couldn't find the JSX the component returns");
+
+    this.tailwind = await this.resolveClasses(this.file);
+    const conversions = returned.map((expression) => ({
+      expression,
+      tree: this.root(expression),
+    }));
+    this.keptComponentColors();
+    // A computed style is lost where its element became Elements; one kept as HTML keeps it.
+    for (const dropped of this.droppedStyles) {
+      if (this.keptStyleParts.has(dropped.from)) continue;
+      if (![...this.fallbackRanges, ...this.renderedRanges].some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail, SHOWS.test(dropped.text));
+    }
+    // Counted as the design gets it: a block written both ways is the kept markup where the preview props give elements.
+    const report = this.report.finish(
+      el(
+        "Email",
+        {},
+        conversions.map((c) => this.asPreviewed(c.tree)),
+      ),
+    );
+    const code = await this.emit(conversions);
+    return { code, report, helpers: [...this.generatedHelpers], fonts: [...new Set(this.stylesheets)].map((url) => ({ url })) };
+  }
+
+  // ============================================
+  // Module
+  // ============================================
+
+  private readModule(): void {
+    for (const statement of this.file.statements) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+        const from = statement.moduleSpecifier.text;
+        const bindings = statement.importClause?.namedBindings;
+        if (bindings && ts.isNamedImports(bindings)) {
+          for (const spec of bindings.elements) {
+            const imported = (spec.propertyName ?? spec.name).text;
+            // From React Email, or from a file of the project's that passes React Email's on (`export { Text } from "react-email"`).
+            const name = isReactEmailModule(from) ? imported : this.reactEmailExport(from, imported, this.file.fileName);
+            if (name === undefined) continue;
+            this.components.set(spec.name.text, name);
+            this.componentSources.set(spec.name.text, { from, type: !!statement.importClause?.isTypeOnly || spec.isTypeOnly, ...(isReactEmailModule(from) ? {} : { barrel: true }) });
+          }
+        }
+      }
+      if (ts.isVariableStatement(statement)) {
+        for (const decl of statement.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.initializer) this.constants.set(decl.name.text, decl.initializer);
+        }
+      }
+    }
+  }
+
+  /**
+   * The React Email component a file of the project's exports as `name`, passing it on (`export { Text } from
+   * "react-email"`, `export * from "@react-email/components"`, or an import exported again), through other such files.
+   */
+  private reactEmailExport(specifier: string, name: string, fromFile: string, depth = 0): string | undefined {
+    if (!this.loadModule || depth > 8 || !/^[./]/.test(specifier)) return undefined;
+    const loaded = this.loadModule(specifier, fromFile);
+    if (!loaded) return undefined;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const follow = (target: string, imported: string): string | undefined =>
+      isReactEmailModule(target) ? (Object.prototype.hasOwnProperty.call(ReactEmail, imported) ? imported : undefined) : this.reactEmailExport(target, imported, loaded.fileName, depth + 1);
+    // A name the module declares and exports itself is its own, whatever an `export *` passes on (an explicit export wins).
+    const declares = (st: ts.Statement) =>
+      hasModifier(st, ts.SyntaxKind.ExportKeyword) &&
+      (ts.isVariableStatement(st)
+        ? st.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && d.name.text === name)
+        : (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name);
+    if (module.statements.some(declares)) return undefined;
+    // Names it exports explicitly (`export { Button } from "./button"`) before what `export *` passes on.
+    const stars: string[] = [];
+    for (const statement of module.statements) {
+      if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
+      const target = statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) ? statement.moduleSpecifier.text : undefined;
+      if (!statement.exportClause) {
+        if (target) stars.push(target);
+        continue;
+      }
+      if (!ts.isNamedExports(statement.exportClause)) continue;
+      for (const element of statement.exportClause.elements) {
+        if (element.isTypeOnly || element.name.text !== name) continue;
+        const local = (element.propertyName ?? element.name).text;
+        if (target) return follow(target, local);
+        // `import { Text } from "react-email"; export { Text };`
+        for (const st of module.statements) {
+          const bindings = ts.isImportDeclaration(st) && ts.isStringLiteral(st.moduleSpecifier) && !st.importClause?.isTypeOnly ? st.importClause?.namedBindings : undefined;
+          const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === local && !e.isTypeOnly) : undefined;
+          if (spec) return follow((st as ts.ImportDeclaration).moduleSpecifier.getText().slice(1, -1), (spec.propertyName ?? spec.name).text);
+        }
+        return undefined;
+      }
+    }
+    for (const target of stars) {
+      const found = follow(target, name);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  private findComponent(): ts.FunctionLikeDeclaration | undefined {
+    const wrappers = new Set<string>();
+    const namespaces = new Set<string>();
+    for (const statement of this.file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const clause = statement.importClause;
+      if (clause?.name) namespaces.add(clause.name.text);
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const spec of bindings.elements) {
+          if (["memo", "forwardRef"].includes((spec.propertyName ?? spec.name).text)) wrappers.add(spec.name.text);
+        }
+      }
+    }
+    const seen = new Set<string>();
+    const resolve = (expression: ts.Expression): ts.FunctionLikeDeclaration | undefined => {
+      const value = unwrap(expression);
+      if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
+      if (ts.isCallExpression(value) && value.arguments.length) {
+        const callee = unwrap(value.expression);
+        const wrapper = ts.isIdentifier(callee) ? wrappers.has(callee.text)
+          : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && namespaces.has(callee.expression.text) && ["memo", "forwardRef"].includes(callee.name.text);
+        if (wrapper) return resolve(value.arguments[0]);
+      }
+      if (!ts.isIdentifier(value) || seen.has(value.text)) return undefined;
+      seen.add(value.text);
+      for (const statement of this.file.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name?.text === value.text) return statement;
+      }
+      const initializer = this.constants.get(value.text);
+      return initializer ? resolve(initializer) : undefined;
+    };
+    for (const statement of this.file.statements) {
+      if (ts.isFunctionDeclaration(statement) && hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return statement;
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals) return resolve(statement.expression);
+      // `export { Welcome as default }`.
+      if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        const named = statement.exportClause.elements.find((e) => e.name.text === "default" && !e.isTypeOnly);
+        if (named) return resolve(named.propertyName ?? named.name);
+      }
+    }
+    return undefined;
+  }
+
+  private returnedJsx(fn: ts.FunctionLikeDeclaration): ts.Expression[] {
+    if (!fn.body) return [];
+    const returns: ts.Expression[] = [];
+    const add = (expression: ts.Expression): void => {
+      const value = unwrap(expression);
+      if (ts.isConditionalExpression(value)) {
+        add(value.whenTrue);
+        add(value.whenFalse);
+      } else if (!rendersNothing(value)) returns.push(value);
+      // `return null` (an early exit) renders nothing: it stays as written.
+    };
+    if (!ts.isBlock(fn.body)) {
+      add(fn.body);
+      return returns;
+    }
+    const visit = (node: ts.Node): void => {
+      // A callback/helper has its own returns, converted only where used.
+      if (ts.isFunctionLike(node)) return;
+      if (ts.isReturnStatement(node)) {
+        if (node.expression) add(node.expression);
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(fn.body);
+    return returns;
+  }
+
+  private async resolveClasses(fn: ts.Node): Promise<ResolvedClasses> {
+    const classes: string[] = [];
+    // A shared class list may appear on components with different phone props.
+    const classOwners = new Map<string, Set<string>>();
+    let config: Record<string, unknown> | undefined;
+    // Each <Tailwind>'s config (or none): classes are resolved with one, so different ones can't be kept.
+    const configs = new Set<string>();
+    let usesTailwind = false;
+    let dynamicClasses = false;
+    const component = this.findComponent();
+    const visit = (node: ts.Node) => {
+      // A class list in an object spread onto an element (`const shared = { className: "…" }`) is resolved too.
+      if (ts.isPropertyAssignment(node) && node.name.getText() === "className") {
+        const value = this.styleValue(() => this.evaluate(node.initializer));
+        if (typeof value === "string") classes.push(value);
+      }
+      if (ts.isJsxAttribute(node) && node.name.getText() === "className") {
+        const value = this.styleValue(() => this.attrValue(node.initializer) ?? this.classList(node.initializer));
+        // A class-list call's classes picked from values (`active && "font-bold"`) can't be kept: lost.
+        const call = node.initializer && ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
+        if (call && this.classListCall(call) && call.arguments.some((arg) => typeof this.styleValue(() => this.evaluate(arg)) !== "string" && !nothing(arg))) this.lose(node, node.getText());
+        const owner = node.parent.parent;
+        if (typeof value === "string") {
+          classes.push(value);
+          if (ts.isJsxOpeningElement(owner) || ts.isJsxSelfClosingElement(owner)) {
+            const names = classOwners.get(value) ?? new Set<string>();
+            names.add(this.components.get(owner.tagName.getText()) ?? owner.tagName.getText());
+            classOwners.set(value, names);
+          }
+        } else if (node.initializer) {
+          dynamicClasses = true;
+          // Classes built from values (`text-${tone}-500`), or picked by a value (`plan === "pro" ? "…" : undefined`,
+          // `active && "…"`, `tones[level]`), can't be kept: lost, the check fails. One that comes to nothing
+          // (`(true) ? undefined : "mb-9"` once inlined) has none; a component's own prop passed on is noted.
+          const expression = ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
+          const inner = expression && unwrap(expression);
+          const built = inner && (ts.isTemplateExpression(inner) || (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.PlusToken));
+          const picked =
+            inner &&
+            (ts.isConditionalExpression(inner) ||
+              ts.isElementAccessExpression(inner) ||
+              (ts.isBinaryExpression(inner) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(inner.operatorToken.kind)));
+          if (expression && this.comesToNothing(expression)) {
+            // No classes.
+          } else if (built || picked) this.lose(node, node.getText());
+          // Held in a value or returned by a helper that reads the component's props or its own values
+          // (`className={etaClass}`, `className={noticeClass(status)}`): the same, picked where it can't be kept.
+          else if (expression && component && !this.classListCall(expression) && this.declaredInside(expression, component)) this.lose(node, node.getText());
+          else if (!(expression && this.classListCall(expression))) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
+        }
+      }
+      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.get(node.tagName.getText()) === "Tailwind") {
+        const attr = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText() === "config") as ts.JsxAttribute | undefined;
+        usesTailwind = true;
+        const value = attr ? this.styleValue(() => this.attrValue(attr.initializer)) : undefined;
+        // A config built from props or the component's own values differs from one render to the next: it can't be frozen.
+        const configCode = attr?.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : undefined;
+        if (configCode && value === undefined && component && this.declaredInside(configCode, component)) {
+          throw new Error("Can't convert a <Tailwind> config built from props or values inside the component: the migrated template's styles are fixed. Build the config from module-level values");
+        }
+        if (value && typeof value === "object") config = value as Record<string, unknown>;
+        else if (attr && !this.tailwindConfig) this.report.note("tailwind config not static; default config used");
+        configs.add(attr ? (value && typeof value === "object" ? JSON.stringify(value) : attr.initializer?.getText() ?? "") : "(none)");
+        if (configs.size > 1) {
+          throw new Error("Can't convert a template with different <Tailwind> configs (one return's and another's): the migrated template resolves classes with one. Use the same config in each");
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(fn);
+    // Without <Tailwind>, class names are plain CSS classes: nothing to resolve.
+    if (!usesTailwind) return NO_CLASSES;
+    const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config, this.tailwindComponent);
+    // Classes worked out at render time (`rounded px-1 ${tone}`): each class a string of the file holds, resolved on its
+    // own, for markup kept as React to look them up (see `tailwindStyle`).
+    if (dynamicClasses) {
+      const tokens = new Set<string>();
+      const collect = (node: ts.Node) => {
+        const text = ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) ? node.text : undefined;
+        if (text !== undefined && !ts.isImportDeclaration(node.parent) && !ts.isExternalModuleReference(node.parent)) for (const token of text.split(/\s+/)) if (/^!?-?[a-z][\w:/.[\]#%()-]*$/.test(token)) tokens.add(token);
+        ts.forEachChild(node, collect);
+      };
+      collect(this.file);
+      const each = await resolveTailwind([...tokens], this.tailwindConfig ?? config, this.tailwindComponent);
+      for (const [token, style] of each.styles) if (Object.keys(style).length && !each.leftover.has(token)) this.classTable.set(token, style);
+    }
+    for (const [list, rest] of resolved.leftover) {
+      for (const cls of rest) {
+        if ([...(classOwners.get(list) ?? [""])].every((name) => handledPhoneClass(cls, resolved.phone, name))) continue;
+        const name = resolved.written?.get(cls) ?? cls;
+        this.report.note("tailwind class not inlined", name);
+        // In any class list, also one the preview props don't pick (`plan === "free" ? "dark:hidden" : …`), which the
+        // check doesn't see: what it hides shows in the migration.
+        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${name}, which the migration doesn't keep`, true);
+      }
+    }
+    return resolved;
+  }
+
+  // ============================================
+  // Static values
+  // ============================================
+
+  /** Evaluate literals, object/array literals and module constants. */
+  /** Whether a value is nothing (`undefined`, `null`, `false`) wherever it renders: through conditions it can work out. */
+  private comesToNothing(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (nothing(node) || node.kind === ts.SyntaxKind.FalseKeyword) return true;
+    if (ts.isConditionalExpression(node)) {
+      const test = this.truthy(node.condition, 0);
+      return test !== undefined && this.comesToNothing(test ? node.whenTrue : node.whenFalse);
+    }
+    return false;
+  }
+
+  /**
+   * Whether a constant imported from the project's files is read as its value (see `importedConstant`): only for a
+   * style or a class list, which the codemod writes as values, and to tell a value shown in text is text
+   * (`provablyText`). Text, links and conditions keep the import, as written.
+   */
+  private importsRead = false;
+
+  /** `read()`'s value, with constants imported from the project's files read (see `importsRead`). */
+  private styleValue<T>(read: () => T): T {
+    const was = this.importsRead;
+    this.importsRead = true;
+    try {
+      return read();
+    } finally {
+      this.importsRead = was;
+    }
+  }
+
+  private evaluate(node: ts.Expression | undefined, depth = 0): unknown {
+    if (!node || depth > 20) return undefined;
+    node = unwrap(node);
+    // A JSX attribute's string has its HTML entities decoded (`&amp;` is `&`), as JSX reads it.
+    if (ts.isStringLiteral(node) && ts.isJsxAttribute(node.parent)) return decodeHtmlEntities(node.text);
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+    if (ts.isTemplateExpression(node)) {
+      let text = node.head.text;
+      for (const span of node.templateSpans) {
+        const value = this.evaluate(span.expression, depth + 1);
+        if (typeof value !== "string" && typeof value !== "number") return undefined;
+        text += String(value) + span.literal.text;
+      }
+      return text;
+    }
+    if (ts.isNumericLiteral(node)) return Number(node.text);
+    if (ts.isConditionalExpression(node)) {
+      const test = this.truthy(node.condition, depth + 1);
+      return test === undefined ? undefined : this.evaluate(test ? node.whenTrue : node.whenFalse, depth + 1);
+    }
+    if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
+    if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
+    if (node.kind === ts.SyntaxKind.NullKeyword) return null;
+    if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.MinusToken) {
+      const value = this.evaluate(node.operand, depth + 1);
+      return typeof value === "number" ? -value : undefined;
+    }
+    if (ts.isIdentifier(node)) {
+      const value = this.constantValue(node);
+      return value ? this.evaluate(value, depth + 1) : this.importsRead ? this.importedConstant(node, depth + 1) : undefined;
+    }
+    // A property of a constant (`styles.body`, `theme.colors.primary`, `sizes["lg"]`): read from the
+    // literal that sets it, so the constant's other properties (a function, a prop) don't matter.
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const key = ts.isPropertyAccessExpression(node) ? node.name.text : this.evaluate(node.argumentExpression, depth + 1);
+      if (typeof key !== "string" && typeof key !== "number") return undefined;
+      return this.member(node.expression, String(key), depth + 1);
+    }
+    if (ts.isArrayLiteralExpression(node)) {
+      const items = node.elements.map((item) => this.evaluate(item, depth + 1));
+      return items.some((item) => item === undefined) ? undefined : items;
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+      const out: Record<string, unknown> = {};
+      for (const prop of node.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          if (nothing(prop.expression)) continue;
+          const value = this.evaluate(prop.expression, depth + 1);
+          if (!value || typeof value !== "object") return undefined;
+          Object.assign(out, value);
+        } else if (ts.isPropertyAssignment(prop)) {
+          const key = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
+          const value = this.evaluate(prop.initializer, depth + 1);
+          if (key === undefined || value === undefined) return undefined;
+          out[key] = value;
+        } else if (ts.isShorthandPropertyAssignment(prop)) {
+          const value = this.evaluate(prop.name, depth + 1);
+          if (value === undefined) return undefined;
+          out[prop.name.text] = value;
+        } else {
+          return undefined;
+        }
+      }
+      return out;
+    }
+    return undefined;
+  }
+
+  /** What a module constant is set to: only a `const` that isn't changed later. */
+  private constantValue(node: ts.Identifier): ts.Expression | undefined {
+    const value = this.constants.get(node.text);
+    const binding = ts.isShorthandPropertyAssignment(node.parent)
+      ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
+      : this.checker.getSymbolAtLocation(node);
+    // A `let` can be reassigned (`configure(url)`), and a const object changed (`theme.color = …`),
+    // so its first value isn't what renders.
+    return value && binding && !this.mutated().has(binding) && binding.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
+      ? value
+      : undefined;
+  }
+
+  /**
+   * A constant another file of the project exports, as its value (`import { styles } from "./theme"`, a JSON file's
+   * data): read there as this file's own are, through what that file imports in turn. Undefined when it can't be told
+   * (a package, a `let`, a value the template changes).
+   */
+  private importedConstant(node: ts.Identifier, depth: number): unknown {
+    if (!this.loadModule || depth > 20) return undefined;
+    const symbol = ts.isShorthandPropertyAssignment(node.parent) ? this.checker.getShorthandAssignmentValueSymbol(node.parent) : this.checker.getSymbolAtLocation(node);
+    const decl = symbol?.declarations?.[0];
+    if (!symbol || !decl || this.mutated().has(symbol) || !(ts.isImportSpecifier(decl) || ts.isImportClause(decl))) return undefined;
+    const declaration = ts.isImportClause(decl) ? decl.parent : decl.parent.parent.parent;
+    if (!ts.isStringLiteral(declaration.moduleSpecifier) || !/^[./]/.test(declaration.moduleSpecifier.text) || (ts.isImportSpecifier(decl) && decl.isTypeOnly) || declaration.importClause?.isTypeOnly) return undefined;
+    return this.exportedValue(declaration.moduleSpecifier.text, ts.isImportClause(decl) ? "default" : (decl.propertyName ?? decl.name).text, this.file.fileName, depth);
+  }
+
+  /** What the module `specifier` (from `from`) exports as `name`, as a value (see `importedConstant`). */
+  private exportedValue(specifier: string, name: string, from: string, depth: number): unknown {
+    const loaded = this.loadModule?.(specifier, from);
+    if (!loaded || depth > 20) return undefined;
+    let module = this.modules.get(loaded.fileName);
+    if (module === undefined) {
+      this.modules.set(loaded.fileName, null); // being read: an import back to it gives nothing
+      if (/\.json$/i.test(loaded.fileName)) {
+        try {
+          module = { json: JSON.parse(loaded.source) };
+        } catch {
+          module = null;
+        }
+      } else {
+        const file = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName) ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
+        const reader = new Converter(file, undefined, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName), undefined, this.loadModule, this.modules);
+        reader.importsRead = true; // read only for a style: what it imports is too
+        reader.readModule();
+        module = reader;
+      }
+      this.modules.set(loaded.fileName, module);
+    }
+    if (!module) return undefined;
+    if (!(module instanceof Converter)) {
+      const data = module.json as Record<string, unknown> | null;
+      return name === "default" ? data : data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, name) ? data[name] : undefined;
+    }
+    return module.exported(name, depth + 1);
+  }
+
+  /** What this module exports as `name`, as a value: a `const` it exports, or names again (`export { a as b }`, `from`). */
+  private exported(name: string, depth: number): unknown {
+    for (const statement of this.file.statements) {
+      if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword) && name !== "default") {
+        const decl = statement.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === name);
+        if (decl) return this.evaluate(decl.name as ts.Identifier, depth);
+      }
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals && name === "default") return this.evaluate(statement.expression, depth);
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        const element = statement.exportClause.elements.find((e) => e.name.text === name && !e.isTypeOnly);
+        if (!element) continue;
+        const local = element.propertyName ?? element.name;
+        if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) return this.exportedValue(statement.moduleSpecifier.text, local.text, this.file.fileName, depth);
+        // `const theme = …; export { theme }`: the local constant (through `evaluate`, which checks it's one), or what it imports.
+        for (const st of this.file.statements) {
+          const decl = ts.isVariableStatement(st) ? st.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === local.text) : undefined;
+          if (decl) return this.evaluate(decl.name as ts.Identifier, depth);
+          const bindings = ts.isImportDeclaration(st) && ts.isStringLiteral(st.moduleSpecifier) ? st.importClause?.namedBindings : undefined;
+          const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === local.text) : undefined;
+          if (spec) return this.exportedValue((st as ts.ImportDeclaration).moduleSpecifier.getText().slice(1, -1), (spec.propertyName ?? spec.name).text, this.file.fileName, depth);
+        }
+        return undefined;
+      }
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly && !statement.exportClause && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) && name !== "default") {
+        const value = this.exportedValue(statement.moduleSpecifier.text, name, this.file.fileName, depth);
+        if (value !== undefined) return value;
+      }
+    }
+    return undefined;
+  }
+
+  /** The literal an expression is written as: itself, a constant's, or a property of one (`styles.card`). */
+  private literalOf(expression: ts.Expression, depth: number): ts.Expression | undefined {
+    if (depth > 20) return undefined;
+    const node = unwrap(expression);
+    if (ts.isIdentifier(node)) {
+      const value = this.constantValue(node);
+      return value && this.literalOf(value, depth + 1);
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const key = ts.isPropertyAccessExpression(node) ? node.name.text : this.evaluate(node.argumentExpression, depth + 1);
+      const parent = (typeof key === "string" || typeof key === "number") && this.literalOf(node.expression, depth + 1);
+      if (!parent || !ts.isObjectLiteralExpression(parent)) return undefined;
+      let found: ts.Expression | undefined;
+      for (const prop of parent.properties) {
+        const name = !ts.isSpreadAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name)) ? prop.name.text : undefined;
+        // A spread or a computed key could set it: the literal isn't known.
+        if (name === undefined) return undefined;
+        if (name === String(key)) found = ts.isPropertyAssignment(prop) ? prop.initializer : ts.isShorthandPropertyAssignment(prop) ? prop.name : undefined;
+      }
+      return found && this.literalOf(found, depth + 1);
+    }
+    return node;
+  }
+
+  /** A property of a constant (`styles.body`): undefined when what sets it isn't known. */
+  private member(object: ts.Expression, key: string, depth: number): unknown {
+    const literal = this.literalOf(object, depth);
+    if (!literal || !ts.isObjectLiteralExpression(literal)) {
+      // Built some other way (`[...items]`, a spread above it): from its whole value.
+      const value = this.evaluate(literal ?? object, depth + 1);
+      return value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, key) ? (value as Record<string, unknown>)[key] : undefined;
+    }
+    let found: unknown;
+    for (const prop of literal.properties) {
+      if (ts.isSpreadAssignment(prop)) {
+        if (nothing(prop.expression)) continue;
+        const spread = this.evaluate(prop.expression, depth + 1);
+        if (!spread || typeof spread !== "object") return undefined;
+        if (Object.prototype.hasOwnProperty.call(spread, key)) found = (spread as Record<string, unknown>)[key];
+        continue;
+      }
+      const name = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name) ? prop.name.text : undefined;
+      if (name === undefined) return undefined;
+      if (name !== key) continue;
+      if (ts.isPropertyAssignment(prop)) found = this.evaluate(prop.initializer, depth + 1);
+      else if (ts.isShorthandPropertyAssignment(prop)) found = this.evaluate(prop.name, depth + 1);
+      else return undefined;
+    }
+    return found;
+  }
+
+  /**
+   * Whether a value holds JSX (a prop like `banner: ReactElement`): from its type, or, without
+   * types, from the preview props' value for it.
+   */
+  private jsxValued(expression: ts.Expression): boolean {
+    const resolved = this.checker.getTypeAtLocation(expression);
+    const type = this.checker.typeToString(resolved);
+    if (/\b(ReactElement|JSX\.Element|ReactPortal)\b|\bElement\[\]/.test(type)) return true;
+    // A value that's JSX on some paths (`channel === "marketing" && legalFooter`: `false | Element`).
+    const parts = resolved.isUnion() ? resolved.types : [resolved];
+    const elementish = (t: ts.Type) => /^(Element|ReactElement|ReactPortal)$/.test(t.aliasSymbol?.getName() ?? t.getSymbol()?.getName() ?? "");
+    if (parts.some((t) => elementish(t) || (this.checker.isArrayType(t) && (this.checker.getTypeArguments(t as ts.TypeReference) ?? []).some(elementish)))) return true;
+    // Without the project's types: a value that can be a constant written as JSX, on any path of the condition.
+    if (this.yieldsJsxConstant(expression)) return true;
+    // A variable given JSX after it's declared (`message = <>…<br />…</>` in one branch), or what a function of the file's
+    // own that returns JSX gives (`renderGuests(guests)`).
+    if (this.assignedJsx(expression) || this.returnsJsx(expression)) return true;
+    // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
+    if (ts.isIdentifier(expression)) {
+      let pushed = false;
+      const find = (node: ts.Node) => {
+        if (pushed) return;
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && /^(push|unshift)$/.test(node.expression.name.text) && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === expression.text && node.arguments.some((arg) => containsJsx(arg))) pushed = true;
+        else ts.forEachChild(node, find);
+      };
+      find(this.file);
+      if (pushed) return true;
+    }
+    const name = ts.isIdentifier(expression) ? expression.text : ts.isPropertyAccessExpression(expression) ? expression.name.text : undefined;
+    if (!name || !/^(any|ReactNode|React\.ReactNode)$/.test(type)) return false;
+    // Untyped, or typed ReactNode (text or JSX): JSX when the preview props give JSX.
+    let found = false;
+    const visit = (node: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(node) && ts.isPropertyAccessExpression(node.left) && node.left.name.text === "PreviewProps" && ts.isObjectLiteralExpression(unwrap(node.right))) {
+        for (const prop of (unwrap(node.right) as ts.ObjectLiteralExpression).properties) {
+          if (ts.isPropertyAssignment(prop) && prop.name.getText() === name && containsJsx(prop.initializer)) found = true;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return found;
+  }
+
+  /**
+   * Whether a variable is given JSX after it's declared (`let message: string | ReactNode = ""; if (…) message = <>…</>`):
+   * shown in text, it may be elements (links, line breaks) that plain text would lose.
+   */
+  private assignedJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isIdentifier(node)) return false;
+    const symbol = this.checker.getSymbolAtLocation(node);
+    if (!symbol) return false;
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(unwrap(n.left)) && this.checker.getSymbolAtLocation(unwrap(n.left)) === symbol && containsJsx(n.right)) found = true;
+      else ts.forEachChild(n, visit);
+    };
+    visit(this.file);
+    return found;
+  }
+
+  /** Whether code calls a function of the file's own that returns JSX (`renderGuests(guests)`): it gives elements. */
+  private returnsJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isCallExpression(node)) return false;
+    const callee = unwrap(node.expression);
+    const declaration = ts.isIdentifier(callee) ? this.checker.getSymbolAtLocation(callee)?.valueDeclaration : undefined;
+    const fn = declaration && ts.isFunctionDeclaration(declaration) ? declaration
+      : declaration && ts.isVariableDeclaration(declaration) && declaration.initializer && (ts.isArrowFunction(unwrap(declaration.initializer)) || ts.isFunctionExpression(unwrap(declaration.initializer))) ? (unwrap(declaration.initializer) as ts.ArrowFunction | ts.FunctionExpression)
+      : undefined;
+    if (!fn?.body) return false;
+    if (!ts.isBlock(fn.body)) return containsJsx(fn.body);
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found || (ts.isFunctionLike(n) && n !== fn && !ts.isArrowFunction(n))) return;
+      if (ts.isReturnStatement(n) && n.expression && containsJsx(n.expression)) found = true;
+      else ts.forEachChild(n, visit);
+    };
+    visit(fn.body);
+    return found;
+  }
+
+  private previewValues?: Map<string, string>;
+
+  /**
+   * The text code shows with the preview props: a prop (`orderId`, `props.user.name`) the preview gives a
+   * string or number. Undefined for anything else (a call, a condition, a prop the preview leaves out).
+   */
+  private previewText(code: Expr): string | undefined {
+    if (!this.previewValues) {
+      const values = new Map<string, string>();
+      const collect = (object: ts.ObjectLiteralExpression, prefix: string) => {
+        for (const prop of object.properties) {
+          if (!ts.isPropertyAssignment(prop) || !(ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) continue;
+          const value = unwrap(prop.initializer);
+          if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) || ts.isNumericLiteral(value)) values.set(prefix + prop.name.text, value.text);
+          else if (ts.isObjectLiteralExpression(value)) collect(value, `${prefix}${prop.name.text}.`);
+        }
+      };
+      const visit = (node: ts.Node) => {
+        if (ts.isBinaryExpression(node) && ts.isPropertyAccessExpression(node.left) && node.left.name.text === "PreviewProps" && ts.isObjectLiteralExpression(unwrap(node.right))) {
+          collect(unwrap(node.right) as ts.ObjectLiteralExpression, "");
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(this.file);
+      this.previewValues = values;
+    }
+    const path = code.$expr.trim().replace(/^props\./, "");
+    return /^[\w$]+(\.[\w$]+)*$/.test(path) ? this.previewValues.get(path) : undefined;
+  }
+
+  /** Whether a value's declared type admits JSX (`ReactNode`, `ReactElement`, `JSX.Element`), whatever the preview gives. */
+  /**
+   * Whether a value may be a number, as far as its type tells (one that can't be read may): React shows a number
+   * that's false (`0`), and nothing for false, null, undefined or "".
+   */
+  private mayBeNumber(expression: ts.Expression): boolean {
+    const type = this.checker.getTypeAtLocation(expression);
+    const may = ts.TypeFlags.NumberLike | ts.TypeFlags.BigIntLike | ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.TypeParameter | ts.TypeFlags.Intersection | ts.TypeFlags.Index | ts.TypeFlags.IndexedAccess | ts.TypeFlags.Conditional | ts.TypeFlags.Substitution;
+    return (type.isUnion() ? type.types : [type]).some((part) => (part.flags & may) !== 0);
+  }
+
+  private mayHoldJsx(expression: ts.Expression): boolean {
+    const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
+    return /\b(ReactNode|ReactElement|JSX\.Element|ReactPortal|ReactChild|ReactFragment)\b/.test(type);
+  }
+
+  /** Whether a call builds a class list (`cx`, `clsx`, `classnames`, `cn`, `twMerge`). */
+  private classListCall(node: ts.Expression): node is ts.CallExpression {
+    const call = unwrap(node);
+    return ts.isCallExpression(call) && /^(cx|clsx|classnames|classNames|cn|twMerge|twJoin)$/.test(call.expression.getText());
+  }
+
+  /** The classes a class-list call always gives (its string arguments); the ones it picks from values are left out. */
+  private classListOf(node: ts.Expression): string | undefined {
+    const call = unwrap(node) as ts.CallExpression;
+    const fixed = call.arguments.map((arg) => this.styleValue(() => this.evaluate(arg))).filter((v): v is string => typeof v === "string");
+    return fixed.length ? fixed.join(" ") : undefined;
+  }
+
+  /** A className attribute's class-list call, as the classes it always gives. */
+  private classList(initializer: ts.JsxAttributeValue | undefined): string | undefined {
+    const expression = initializer && ts.isJsxExpression(initializer) ? initializer.expression : undefined;
+    return expression && this.classListCall(expression) ? this.classListOf(expression) : undefined;
+  }
+
+  /** Whether an expression uses a value declared inside `scope` (its props, or values worked out in it). */
+  /** Whether one of the values an expression can give (`cond && footer`, `a ? b : c`, `x ?? y`) is a constant declared as JSX. */
+  private yieldsJsxConstant(expression: ts.Expression, depth = 0): boolean {
+    const e = unwrap(expression);
+    if (depth > 8) return false;
+    if (ts.isConditionalExpression(e)) return this.yieldsJsxConstant(e.whenTrue, depth + 1) || this.yieldsJsxConstant(e.whenFalse, depth + 1);
+    if (ts.isBinaryExpression(e)) {
+      const op = e.operatorToken.kind;
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken) return this.yieldsJsxConstant(e.right, depth + 1);
+      if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) return this.yieldsJsxConstant(e.left, depth + 1) || this.yieldsJsxConstant(e.right, depth + 1);
+      return false;
+    }
+    if (!ts.isIdentifier(e)) return false;
+    const declaration = this.checker.getSymbolAtLocation(e)?.declarations?.[0];
+    return !!declaration && ts.isVariableDeclaration(declaration) && !!declaration.initializer && containsJsx(declaration.initializer);
+  }
+
+  private declaredInside(node: ts.Node, scope: ts.Node): boolean {
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      // A name that reads a value: not a property's own name (`theme:`, `.extend`), but `{ brand }` reads `brand`.
+      const parent = n.parent;
+      const named = parent && ((ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || (ts.isMethodDeclaration(parent) && parent.name === n));
+      if (ts.isIdentifier(n) && !named) {
+        const symbol = parent && ts.isShorthandPropertyAssignment(parent) ? this.checker.getShorthandAssignmentValueSymbol(parent) : this.checker.getSymbolAtLocation(n);
+        if (symbol?.declarations?.some((d) => d.getStart() >= scope.getStart() && d.getEnd() <= scope.getEnd())) found = true;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
+  /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
+  private lose(part: ts.Node, text: string): void {
+    const line = this.originalLine(part.getStart());
+    // What it reads too (`hasPaid ? hiddenStyle : undefined`, where hiddenStyle is `{ display: "none" }`), for whether it shows or hides;
+    // not for a property no value of which can hide anything (`color: theme.brand`, read from a file that can't be read).
+    const property = (ts.isPropertyAssignment(part) || ts.isShorthandPropertyAssignment(part)) && (ts.isIdentifier(part.name) || ts.isStringLiteral(part.name)) ? part.name.text : undefined;
+    const read = property && CANT_HIDE.has(property) ? text : [text, ...this.namedValues(part)].join("\n");
+    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text: read });
+  }
+
+  /**
+   * The values the names in `node` stand for, as their text: constants and functions of the file (through each
+   * other, a few deep: `trackingStyle(status)`, whose body gives `{ display: "none" }`), and what another module
+   * exports under an imported name (`offscreen` from `./theme`).
+   */
+  private namedValues(node: ts.Node, depth = 0, seen = new Set<ts.Node>()): string[] {
+    const out: string[] = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isIdentifier(n) && depth < 4) {
+        const symbol = this.checker.getSymbolAtLocation(n);
+        const decl = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
+        const value = decl && ts.isVariableDeclaration(decl) ? decl.initializer : decl && ts.isFunctionDeclaration(decl) ? decl : undefined;
+        if (value && !seen.has(value)) {
+          seen.add(value);
+          out.push(value.getText(), ...this.namedValues(value, depth + 1, seen));
+        } else if (decl && (ts.isImportSpecifier(decl) || ts.isImportClause(decl)) && !seen.has(decl)) {
+          seen.add(decl);
+          const text = this.importedValue(decl);
+          if (text !== undefined) out.push(text);
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return out;
+  }
+
+  /** What another module exports under a name this file imports, as its text (undefined when it can't be read). */
+  private importedValue(decl: ts.ImportSpecifier | ts.ImportClause): string | undefined {
+    const declaration = ts.isImportClause(decl) ? decl.parent : decl.parent.parent.parent;
+    if (!ts.isStringLiteral(declaration.moduleSpecifier) || !this.loadModule) return undefined;
+    const loaded = this.loadModule(declaration.moduleSpecifier.text, this.file.fileName);
+    if (!loaded) return undefined;
+    // A JSON file is data: what it holds is its text (no `display` in it is a style that hides).
+    if (/\.json$/i.test(loaded.fileName)) return loaded.source;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const name = ts.isImportClause(decl) ? "default" : (decl.propertyName ?? decl.name).text;
+    for (const statement of module.statements) {
+      if (name === "default" && ts.isExportAssignment(statement)) return statement.expression.getText(module);
+      if (ts.isFunctionDeclaration(statement) && (statement.name?.text === name || (name === "default" && statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)))) return statement.getText(module);
+      if (ts.isVariableStatement(statement)) {
+        for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) return d.initializer.getText(module);
+      }
+    }
+    // Passed on from somewhere else (`export { offscreen } from "./styles"`): can't be told here, so it may hide.
+    return "display";
+  }
+
+  /** Values changed after they're declared (`theme.color = …`, `items.push(…)`), by symbol. */
+  private mutated(): Set<ts.Symbol> {
+    if (this.mutations) return this.mutations;
+    const out = new Set<ts.Symbol>();
+    const mark = (target: ts.Expression | undefined, memberOnly: boolean) => {
+      if (!target || (memberOnly && !ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target))) return;
+      let root: ts.Expression = target;
+      while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root) || ts.isParenthesizedExpression(root) || ts.isNonNullExpression(root)) root = root.expression;
+      const symbol = ts.isIdentifier(root) ? this.checker.getSymbolAtLocation(root) : undefined;
+      if (symbol) out.add(symbol);
+    };
+    const visit = (node: ts.Node) => {
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) mark(node.left, true);
+      else if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)) mark(node.operand, true);
+      else if (ts.isDeleteExpression(node)) mark(node.expression, true);
+      else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        const { expression: object, name } = node.expression;
+        if (ts.isIdentifier(object) && object.text === "Object" && /^(assign|defineProperty|defineProperties|setPrototypeOf)$/.test(name.text)) mark(node.arguments[0], false);
+        else if (/^(push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)$/.test(name.text)) mark(object, false);
+      }
+      // A call made for what it does, not what it gives (`applyTheme(styles, dark)`, also `dark && applyTheme(styles)`
+      // or in a choice): it may change what it's passed.
+      if (ts.isExpressionStatement(node)) {
+        const calls = (n: ts.Node): void => {
+          if (ts.isFunctionLike(n)) return;
+          if (ts.isCallExpression(n) && !/^console\./.test(n.expression.getText())) for (const arg of n.arguments) mark(arg, false);
+          ts.forEachChild(n, calls);
+        };
+        calls(node.expression);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    // A change through another name (`const alias = style; alias.color = …`) changes the original too.
+    for (let changed = true; changed; ) {
+      changed = false;
+      const aliases = (node: ts.Node): void => {
+        // Or through a part of it (`const card = styles.card; card.color = …`).
+        let root = ts.isVariableDeclaration(node) && node.initializer ? unwrap(node.initializer) : undefined;
+        while (root && (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root))) root = unwrap(root.expression);
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && root && ts.isIdentifier(root)) {
+          const alias = this.checker.getSymbolAtLocation(node.name);
+          const original = this.checker.getSymbolAtLocation(root);
+          if (alias && original && out.has(alias) && !out.has(original)) {
+            out.add(original);
+            changed = true;
+          }
+        }
+        ts.forEachChild(node, aliases);
+      };
+      aliases(this.file);
+    }
+    return (this.mutations = out);
+  }
+
+  /** A prop whose value is computed (`as={level}`): lost, as the codemod writes a fixed one. */
+  private computed(jsx: Jsx, name: string): boolean {
+    const value = jsx.attrs.get(name);
+    if (!value || this.evaluate(value) !== undefined || nothing(value)) return false;
+    this.lose(value.parent ?? value, `${name}={${value.getText()}}`);
+    return true;
+  }
+
+  /** The line of a position in the template as written (components inlined above it move lines). */
+  private originalLine(position: number): number {
+    const line = this.file.getLineAndCharacterOfPosition(position).line + 1;
+    if (this.original === undefined || this.original === this.file.text) return line;
+    this.lines ??= lineMap(this.original, this.file.text);
+    return this.lines[line - 1] ?? line;
+  }
+
+  /**
+   * The properties of a style object that are known; the ones computed from
+   * props or state are recorded as lost (unless the element is kept as HTML).
+   */
+  /** An element's `style` prop: its value, or what it sets that can be read without running it. */
+  private inlineStyle(expression: ts.Expression | undefined, box = false): Style {
+    return this.styleValue(() => {
+      const value = this.evaluate(expression);
+      return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression, box);
+    });
+  }
+
+  private staticStyle(expression: ts.Expression | undefined, box = false): Style {
+    const style: Style = {};
+    const node = expression && unwrap(expression);
+    const lose = (part: ts.Node, text: string) => this.lose(part, text);
+    if (!node || !ts.isObjectLiteralExpression(node)) {
+      if (expression) lose(expression, `style={${expression.getText()}}`);
+      return style;
+    }
+    for (const prop of node.properties) {
+      if (ts.isSpreadAssignment(prop) && nothing(prop.expression)) continue;
+      const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+      const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
+      if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
+      else if (box && key === "backgroundColor" && ts.isPropertyAssignment(prop) && this.computedBackground(prop)) style.backgroundColor = this.computedBackground(prop);
+      else if (box && key === "backgroundImage" && ts.isPropertyAssignment(prop) && this.computedImage(prop)) style.backgroundImage = `url(${this.computedImage(prop)})`;
+      else lose(prop, prop.getText());
+    }
+    return style;
+  }
+
+  /**
+   * A box's background computed from props (`backgroundColor: dark ? "#000000" : "#ffffff"`): a color standing in for it
+   * while the box is converted, written as that code where it lands (see `withComputedBackgrounds`), so text whose
+   * color is computed with it stays readable. Undefined where it can't be (see convertSource).
+   */
+  private computedBackground(prop: ts.PropertyAssignment): string | undefined {
+    const at = prop.getStart();
+    if (this.unwritten.has(at) || containsJsx(prop.initializer)) return undefined;
+    const known = this.backgroundAt.get(at);
+    if (known) return known;
+    const text = this.file.getFullText().toLowerCase();
+    let stand = "";
+    for (let n = this.computedBackgrounds.size + 1; !stand || text.includes(stand) || this.computedBackgrounds.has(stand); n++) stand = `#c0d${n.toString(16).padStart(3, "0")}`;
+    const type = this.checker.getTypeAtLocation(prop.initializer);
+    const always = (type.isUnion() ? type.types : [type]).every((t) => t.isStringLiteral() && t.value !== "");
+    this.computedBackgrounds.set(stand, { code: prop.initializer.getText(), always, at });
+    this.backgroundAt.set(at, stand);
+    return stand;
+  }
+
+  /**
+   * A box's background image whose URL is computed (`url(${baseUrl}/static/hero.png)`): a URL standing in for it while
+   * the box is converted, written as the template's code for the URL (`` `${baseUrl}/static/hero.png` ``) where it lands
+   * (see `withComputedBackgrounds`), with its size, repeat and position as written. Only a template literal that is one
+   * `url(…)`; undefined otherwise, or where it can't be written (see convertSource).
+   */
+  private computedImage(prop: ts.PropertyAssignment): string | undefined {
+    const at = prop.getStart();
+    const value = unwrap(prop.initializer);
+    if (this.unwritten.has(at) || !ts.isTemplateExpression(value)) return undefined;
+    const match = /^`url\((['"]?)([\s\S]*)\1\)`$/.exec(value.getText());
+    if (!match || /^\s|\s$/.test(match[2]) || /[()]/.test(match[2].replace(/\$\{[^}]*\}/g, ""))) return undefined;
+    const known = this.backgroundAt.get(at);
+    if (known) return known;
+    const text = this.file.getFullText().toLowerCase();
+    let stand = "";
+    for (let n = this.computedBackgrounds.size + 1; !stand || text.includes(stand) || this.computedBackgrounds.has(stand); n++) stand = `https://computed.invalid/c0d${n.toString(16).padStart(3, "0")}.png`;
+    this.computedBackgrounds.set(stand, { code: `\`${match[2]}\``, always: true, at });
+    this.backgroundAt.set(at, stand);
+    return stand;
+  }
+
+  /** Whether a condition is true, when it's known (`undefined`, a constant, `a === b` of known values). */
+  private truthy(node: ts.Expression, depth: number): boolean | undefined {
+    node = unwrap(node);
+    const known = (side: ts.Expression): { value: unknown } | undefined => {
+      side = unwrap(side);
+      if (ts.isIdentifier(side) && side.text === "undefined") return { value: undefined };
+      const value = this.evaluate(side, depth + 1);
+      return value === undefined ? undefined : { value };
+    };
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      const equal = op === ts.SyntaxKind.EqualsEqualsEqualsToken, unequal = op === ts.SyntaxKind.ExclamationEqualsEqualsToken;
+      if (!equal && !unequal) return undefined;
+      const left = known(node.left), right = known(node.right);
+      if (!left || !right) return undefined;
+      return (left.value === right.value) === equal;
+    }
+    const value = known(node);
+    return value && Boolean(value.value);
+  }
+
+  private attrValue(initializer: ts.JsxAttributeValue | undefined): unknown {
+    if (!initializer) return true;
+    if (ts.isStringLiteral(initializer)) return decodeHtmlEntities(initializer.text);
+    if (ts.isJsxExpression(initializer)) return this.evaluate(initializer.expression);
+    return undefined;
+  }
+
+  /** A prop as a value when static, else as code. */
+  /**
+   * A link's target, or what the element opens it in without one (`fallback`):
+   * from props, the same, where the prop is left out.
+   */
+  private target(jsx: Jsx, fallback: string): unknown {
+    const given = this.attr(jsx, "target");
+    return isExpr(given) ? expr(`${given.$expr} ?? ${JSON.stringify(fallback)}`) : given ?? fallback;
+  }
+
+  private attr(jsx: Jsx, name: string): unknown {
+    if (!jsx.attrs.has(name)) return undefined;
+    const value = jsx.attrs.get(name);
+    if (value === undefined) return true;
+    const evaluated = this.evaluate(value);
+    return evaluated !== undefined ? evaluated : expr(value.getText());
+  }
+
+  /**
+   * An attribute that's text (an image's alt): code whose value may not be text (an element, a number, untyped) as the
+   * text React writes for it (`plainText`), as the new components take only text there.
+   */
+  private textAttr(jsx: Jsx, name: string): unknown {
+    const value = this.attr(jsx, name);
+    const expression = jsx.attrs.get(name);
+    if (!isExpr(value) || !expression || this.provablyText(expression)) return value;
+    this.needsPlainText = true;
+    return expr(`${this.plainTextName}(${value.$expr})`);
+  }
+
+  // ============================================
+  // JSX
+  // ============================================
+
+  /** Expand literal spreads without evaluating their dynamic values. */
+  private spreadAttrs(expression: ts.Expression, depth = 0): Map<string, ts.Expression> | undefined {
+    if (depth > 20) return undefined;
+    const node = unwrap(expression);
+    const attrs = new Map<string, ts.Expression>();
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const prop of node.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          const spread = this.spreadAttrs(prop.expression, depth + 1);
+          if (!spread) return undefined;
+          for (const [key, value] of spread) attrs.set(key, value);
+        } else if (ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) {
+          attrs.set(prop.name.text, prop.initializer);
+        } else if (ts.isShorthandPropertyAssignment(prop) && !prop.objectAssignmentInitializer) {
+          attrs.set(prop.name.text, prop.name);
+        } else return undefined;
+      }
+      return attrs;
+    }
+    // Module objects can be expanded only when every value is static. Moving
+    // an unevaluated module expression here could capture a shadowing local.
+    const value = this.evaluate(node);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    for (const [key, inner] of Object.entries(value)) {
+      const literal = ts.createSourceFile("prop.ts", `const value = ${JSON.stringify(inner)};`, ts.ScriptTarget.Latest, true);
+      attrs.set(key, (literal.statements[0] as ts.VariableStatement).declarationList.declarations[0].initializer!);
+    }
+    return attrs;
+  }
+
+  private read(node: ts.JsxElement | ts.JsxSelfClosingElement): Jsx {
+    const opening = ts.isJsxElement(node) ? node.openingElement : node;
+    const tag = opening.tagName.getText();
+    const attrs = new Map<string, ts.Expression | undefined>();
+    let opaqueProps = false;
+    for (const prop of opening.attributes.properties) {
+      if (ts.isJsxSpreadAttribute(prop)) {
+        const spread = this.spreadAttrs(prop.expression);
+        if (spread) for (const [key, value] of spread) attrs.set(key, value);
+        else opaqueProps = true;
+        continue;
+      }
+      const init = prop.initializer;
+      attrs.set(
+        prop.name.getText(),
+        init === undefined ? undefined : ts.isStringLiteral(init) ? init : ts.isJsxExpression(init) ? init.expression : undefined
+      );
+    }
+    let style: Style = {};
+    // Head rules marked !important: they win over the element's own style too.
+    let important: { rules: Style; names: Set<string> } | undefined;
+    // A box's background from props is kept as code (see `computedBackground`).
+    const box = /^(Body|Container|Section|Row|Column)$/.test(this.components.get(tag) ?? "") || /^(div|table|tbody|tr|td|center|section)$/.test(tag);
+    const inline = attrs.has("style") ? this.inlineStyle(attrs.get("style"), box) : undefined;
+    const className = attrs.get("className");
+    if (className) {
+      const value = this.styleValue(() => this.evaluate(className)) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
+      if (typeof value === "string") style = withPhoneStyles({ ...(this.tailwind.styles.get(value) ?? {}) }, this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
+      // Head <style> rules on these classes sit under Tailwind's inline styles, as in the browser.
+      if (typeof value === "string" && (this.headClasses.size || this.headPhone.size)) {
+        const names = value.split(/\s+/);
+        // React Email's own inline styles (Text's 14px) beat a class rule unless it's !important.
+        const component = this.components.get(tag);
+        const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
+        const rules = underInline(component, classStyle(names, this.headClasses, this.headImportant, this.headOrder), strong(this.headImportant));
+        important = { rules, names: strong(this.headImportant) };
+        const phoneStrong = strong(this.headPhoneImportant);
+        // A head phone rule is under the element's own inline style too, unless it's !important.
+        const own = inlineKeys(inline);
+        const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underKeys(underInline(component, rule, phoneStrong), own, phoneStrong)] as const));
+        for (const cls of names) for (const css of unheldPhoneStyles(phone.get(cls) ?? {}, component)) this.notePhone(`${css} (.${cls})`);
+        const head = withPhoneStyles(rules, names, phone);
+        const phoneStyle = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
+        style = { ...head, ...style, ...(Object.keys(phoneStyle).length ? { _phone: phoneStyle } : {}) };
+      }
+    }
+    if (inline) {
+      style = { ...style, ...inline };
+      if (important) style = overInline(style, important.rules, important.names);
+    }
+    opaqueProps ||= attrs.has("children") || attrs.has("dangerouslySetInnerHTML");
+    const name = this.components.get(tag);
+    if (opaqueProps && ["Html", "Body", "Tailwind", "Head", "Preview", "Font"].includes(name ?? "")) {
+      throw new Error(`Can't safely convert ${tag} with dynamic spread or content props`);
+    }
+    return {
+      node,
+      tag,
+      name,
+      attrs,
+      style,
+      children: ts.isJsxElement(node) ? [...node.children] : [],
+      opaqueProps,
+    };
+  }
+
+  /** Children with fragments flattened, and empty text and code that shows nothing (`{undefined}`, `{false}`, `{[]}`) dropped. */
+  private flatten(children: readonly ts.JsxChild[]): ts.JsxChild[] {
+    const out: ts.JsxChild[] = [];
+    for (const child of children) {
+      if (ts.isJsxFragment(child)) out.push(...this.flatten(child.children));
+      else if (ts.isJsxText(child) && !jsxText(child.text)) continue;
+      else if (ts.isJsxExpression(child) && (!child.expression || showsNothing(child.expression))) continue;
+      else out.push(child);
+    }
+    return out;
+  }
+
+  private root(returned: ts.Expression): ElementNode {
+    if (
+      !ts.isJsxElement(returned) &&
+      !ts.isJsxSelfClosingElement(returned) &&
+      !ts.isJsxFragment(returned)
+    ) {
+      const call = ts.isCallExpression(returned) ? returned.expression.getText() : undefined;
+      throw new Error(
+        call
+          ? `A template return must be JSX: it returns what ${call}(…) builds, which can't be converted. Write that function as a component and return <${call.charAt(0).toUpperCase()}${call.slice(1)}>…</${call.charAt(0).toUpperCase()}${call.slice(1)}>`
+          : "A template return must be JSX: return the JSX itself (not a variable holding it), with separate returns for conditional roots",
+      );
+    }
+    let previewText: unknown;
+    let lastFont: string | undefined;
+    const fonts: FontSpec[] = [];
+    const linked: string[] = [];
+    let body: Jsx | undefined;
+    let document: Jsx | undefined;
+    // Each return is a document of its own: one's <style> rules don't reach another's elements.
+    for (const map of [this.headClasses, this.headImportant, this.headPhone, this.headPhoneImportant, this.headOrder]) map.clear();
+    /** `wrapper`: a component of the template's own around what's being read (a context provider). */
+    const seek = (children: ts.JsxChild[], wrapper?: string) => {
+      for (const child of this.flatten(children)) {
+        // A <style> under a condition (`{alert && <style>…</style>}`) applies only sometimes: the migrated template can't keep that.
+        if (ts.isJsxExpression(child) && child.expression && containsTag(child.expression, "style")) {
+          throw new Error("Can't convert a <style> shown under a condition: the migrated template has one set of styles. Write the styles out unconditionally, or apply them inline where the condition is");
+        }
+        if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
+        const jsx = this.read(child);
+        // <Html> inside a component of the template's own: the migrated root is <Email>, and the wrapper would be dropped.
+        if (jsx.name === "Html" && wrapper) {
+          throw new Error(`Can't convert <Html> inside <${wrapper}>: the migrated template's root is <Email>, so <${wrapper}> (a context provider, say) would be dropped. Move it inside <Html>, or provide what it gives another way`);
+        }
+        if (jsx.name === "Html" && !document) document = jsx;
+        if (jsx.name === "Preview") previewText = this.plainContent(jsx.children);
+        if (jsx.name === "Font") {
+          const family = this.attr(jsx, "fontFamily");
+          const fallback = this.attr(jsx, "fallbackFontFamily");
+          // Each <Font> writes `* { font-family }`: the last one is what every element gets.
+          if (typeof family === "string") lastFont = [family, ...([] as unknown[]).concat(fallback ?? []).map(String)].join(", ");
+          const webFont = this.attr(jsx, "webFont") as { url?: unknown; format?: unknown } | undefined;
+          const weight = this.attr(jsx, "fontWeight");
+          const style = this.attr(jsx, "fontStyle");
+          if (typeof family === "string" && webFont && typeof webFont.url === "string") {
+            fonts.push({
+              family,
+              url: webFont.url,
+              format: typeof webFont.format === "string" ? webFont.format : undefined,
+              weight: typeof weight === "string" || typeof weight === "number" ? weight : undefined,
+              style: typeof style === "string" ? style : undefined,
+            });
+          } else if (jsx.attrs.has("webFont")) {
+            this.report.note("web font not static: not loaded", String(family));
+          }
+        }
+        // Stylesheets the head links or imports (web fonts).
+        if (!jsx.name && jsx.tag === "link" && /stylesheet/i.test(String(this.attr(jsx, "rel") ?? "")) && typeof this.attr(jsx, "href") === "string") {
+          linked.push(String(this.attr(jsx, "href")));
+        }
+        if (!jsx.name && jsx.tag === "style") {
+          const inner = this.attr(jsx, "dangerouslySetInnerHTML") as { __html?: unknown } | undefined;
+          const css = typeof inner?.__html === "string" ? inner.__html : this.plainContent(jsx.children);
+          // CSS that comes from code can't be read to convert, and dropping it would change the email.
+          if (typeof css !== "string" && (inner !== undefined || jsx.children.some((c) => !this.isBlank(c)))) {
+            throw new Error("Can't convert a <style> whose CSS comes from code: write the CSS out in the template");
+          }
+          if (typeof css === "string") {
+            linked.push(...importedStylesheets(css));
+            // A stylesheet for some media only (`media="print"`, a phone's width): its rules apply as in that query.
+            const media = this.attr(jsx, "media");
+            if (media !== undefined && typeof media !== "string") throw new Error("Can't convert a <style> whose media comes from code: write the media query out in the template");
+            const sheet = media && !/^\s*(only\s+)?(all|screen)?\s*$/i.test(media) ? `@media ${media}{${css}}` : css;
+            const rules = stylesheetRules(sheet);
+            addRules(this.headClasses, this.headImportant, { styles: rules.classes, important: rules.important, order: rules.order }, this.headOrder);
+            addRules(this.headPhone, this.headPhoneImportant, phoneRules(sheet));
+            for (const selector of rules.other) this.report.note("head style rule not converted", selector);
+          }
+        }
+        if (jsx.name === "Body" && !body) body = jsx;
+        else if (jsx.name === "Html" || jsx.name === "Tailwind" || jsx.name === "Head") seek(jsx.children, jsx.name === "Html" ? undefined : wrapper);
+        else if (!body) seek(jsx.children, jsx.name || !/^[A-Z]|\./.test(jsx.tag) ? wrapper : jsx.tag);
+      }
+    };
+    const top = ts.isJsxFragment(returned) ? [...returned.children] : [returned as ts.JsxChild];
+    seek(top as ts.JsxChild[]);
+    // <Preview> can sit anywhere (often first inside <Body>).
+    if (previewText === undefined) {
+      const find = (node: ts.Node): void => {
+        if (previewText !== undefined || ts.isJsxExpression(node)) return;
+        if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && this.read(node).name === "Preview") {
+          previewText = this.plainContent(this.read(node).children);
+          return;
+        }
+        ts.forEachChild(node, find);
+      };
+      find(returned);
+    }
+
+    const content = body ? body.children : (top as ts.JsxChild[]);
+    const container = this.findContainer(content);
+    const bodyStyle = body?.style ?? {};
+    // Its width in em is relative to its own font size (the body's, else 16px).
+    const em = fontSizePx(container?.style.fontSize, fontSizePx(bodyStyle.fontSize, 16) ?? 16) ?? fontSizePx(bodyStyle.fontSize, 16) ?? 16;
+    const sizes = [toPx(container?.style.maxWidth, em), toPx(container?.style.width, em)].filter((n): n is number => !!n && n > 0);
+    // React Email's Container is 37.5em wide unless it says otherwise.
+    const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
+    if (container && !sizes.length) noteContainerWidth(container.style, em, contentWidth, this.report);
+    // A <Font> reaches every element without a family of its own (its `* {}` rule): it's the email's font then.
+    const rootFont = (lastFont ?? bodyStyle.fontFamily ?? container?.style.fontFamily) as string | undefined;
+    // `dir` from props (`dir={direction}`) is worked out where each block is aligned.
+    const dir = this.hoistDirection(returned, document && this.attr(document, "dir"));
+    const rtl = isExpr(dir) ? dir : /^rtl$/i.test(String(dir ?? "")) || undefined;
+    const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, ...(lastFont ? { universalFont: lastFont } : {}) };
+    const page = pageColor(bodyStyle, this.report, document?.style);
+    const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page, textOf: (code) => this.previewText(code) });
+    return el(
+      "Email",
+      {
+        backgroundColor: page,
+        contentWidth: px(contentWidth),
+        fontFamily: rootFont ? fontFamilyProp(rootFont) : undefined,
+        textColor: color(bodyStyle.color),
+        previewText: previewText === "" ? undefined : previewText,
+        fonts: fonts.length || linked.length ? this.loads(fontStylesheets(fonts, linked)) : undefined,
+        textDirection: dir,
+        lang: document && this.attr(document, "lang"),
+      },
+      rows.length ? rows : [el("Row", {}, [el("Column")])]
+    );
+  }
+
+  /**
+   * A `dir` written as an expression other than a name (`locale === "ar" ? "rtl" : "ltr"`): a
+   * const before the return, so the blocks aligned by it don't each repeat it. Left as it is when
+   * the email is one branch of a condition, where the expression may only hold in that branch.
+   */
+  private hoistDirection(returned: ts.Expression, dir: unknown): unknown {
+    if (!isExpr(dir) || /^[\w$.]+$/.test(dir.$expr)) return dir;
+    let node: ts.Node = returned;
+    while (ts.isParenthesizedExpression(node.parent)) node = node.parent;
+    const statement = node.parent;
+    if (!ts.isReturnStatement(statement) || !ts.isBlock(statement.parent)) return dir;
+    const source = this.file.getFullText();
+    let name = "textDirection";
+    for (let n = 2; new RegExp(`\\b${name}\\b`).test(source) || this.hoisted.some((h) => h.text.startsWith(`const ${name} =`)); n++) name = `textDirection${n}`;
+    const at = statement.getStart();
+    this.hoisted.push({ at, text: `const ${name} = ${dir.$expr};\n${/[ \t]*$/.exec(source.slice(0, at))?.[0] ?? ""}` });
+    return expr(name);
+  }
+
+  /** The first Container, through wrappers (Tailwind, Html, Body, Sections). */
+  private findContainer(children: readonly ts.JsxChild[]): Jsx | undefined {
+    for (const child of this.flatten(children)) {
+      if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
+      const jsx = this.read(child);
+      if (jsx.name === "Container") return jsx;
+      const inner = this.findContainer(jsx.children);
+      if (inner) return inner;
+    }
+    return undefined;
+  }
+
+  // ============================================
+  // Structure → the layout tree
+  // ============================================
+
+  /** A box's children → layout flow: boxes, rows, content and code, in order. */
+  private flow(children: readonly ts.JsxChild[], ctx: Ctx): Flow[] {
+    const out: Flow[] = [];
+    let loose: ts.JsxChild[] = [];
+    const flush = () => {
+      out.push(...this.contentFlow(loose, ctx));
+      loose = [];
+    };
+    for (const child of this.flatten(children)) {
+      // Code making boxes stacks them, one after the other; code making inline ones (pills, badges, icons)
+      // keeps them on a line, as text.
+      if (ts.isJsxExpression(child) && child.expression && containsJsx(child.expression) && !this.makesInlineImages(child.expression) && (this.holdsStructure(child.expression) || this.holdsTextBoxes(child.expression))) {
+        flush();
+        out.push(this.rowsHole(child.expression, ctx));
+        continue;
+      }
+      if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) {
+        loose.push(child);
+        continue;
+      }
+      let jsx = this.read(child);
+      if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
+      if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
+      // Hidden (the `hidden` attribute too, from props or not): kept as HTML, as it renders.
+      if (isHidden(jsx.style) || jsx.attrs.has("hidden")) {
+        if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
+        flush();
+        out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
+      if (jsx.opaqueProps) {
+        flush();
+        out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
+      if (jsx.name && BOXES.has(jsx.name)) {
+        flush();
+        out.push(this.boxNode(jsx, ctx));
+      } else if (jsx.name === "Row") {
+        flush();
+        out.push(...this.rowFlow(jsx, ctx));
+      } else if (jsx.name === "Column") {
+        flush();
+        out.push(...this.rowFlow(jsx, ctx, [child]));
+      } else if (this.isWrapper(jsx)) {
+        // A plain wrapper (div, table, center) around React Email components.
+        flush();
+        this.report.info("wrapper element treated as a section", jsx.tag);
+        out.push(this.boxNode(jsx, ctx));
+      } else {
+        loose.push(child);
+      }
+    }
+    flush();
+    return out;
+  }
+
+  private boxNode(jsx: Jsx, ctx: Ctx): BoxNode {
+    const style = jsx.style;
+    return {
+      kind: "box",
+      container: jsx.name === "Container",
+      label: jsx.name ?? jsx.tag,
+      style: boxStyle(style, { fitWidth: () => this.fitWidth(jsx), table: jsx.name === "Section" || jsx.name === "Container" || jsx.name === "Row" ? { align: this.attr(jsx, "align") } : undefined }),
+      children: this.flow(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }),
+    };
+  }
+
+  /** Code whose JSX holds rows or boxes: laid out where it sits, each item in place. */
+  private rowsHole(expression: ts.Expression, ctx: Ctx): Flow {
+    const parts = this.holeParts(expression, (jsx, key) => {
+      const flow = this.flow([jsx], ctx);
+      if (key && flow.length === 1 && flow[0].kind !== "rows") flow[0].key = key;
+      return flow;
+    });
+    if (parts) return { kind: "rows", code: parts.code, slots: parts.slots };
+    return { kind: "content", block: { node: this.codeFallback(expression, false, ctx), margin: ZERO, padding: ZERO } };
+  }
+
+  /**
+   * A React Email Row. Only cells belong in a <tr>: browsers move anything
+   * else out, before the row's table, where it stacks, so that's where it
+   * goes. One column is a box (it can hold more rows); several make a row.
+   */
+  private rowFlow(jsx: Jsx, ctx: Ctx, kids = this.flatten(jsx.children).filter((kid) => !this.isBlank(kid))): Flow[] {
+    let opaqueColumn = false;
+    let hiddenColumn = false;
+    const scan = (node: ts.Node) => {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const child = this.read(node);
+        if (child.name === "Column" || child.tag === "td") {
+          opaqueColumn ||= child.opaqueProps;
+          hiddenColumn ||= isHidden(child.style);
+        }
+      }
+      ts.forEachChild(node, scan);
+    };
+    for (const kid of kids) scan(kid);
+    if (hiddenColumn) return [{ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } }];
+    if (jsx.opaqueProps || opaqueColumn) return [{ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } }];
+    const style = jsx.name === "Row" ? jsx.style : {};
+    const kinds = kids.map((kid) => this.cellKind(kid));
+    // Can't tell what goes in the row's cells (custom components, code
+    // mixing cells and content): keep the whole Row as it renders.
+    if (kinds.includes("unknown")) return [{ kind: "content", block: { node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO } }];
+    if (kinds.includes("content")) {
+      this.report.info("content directly in a Row stacked above it");
+      const stray = kids.filter((_, i) => kinds[i] === "content");
+      const cells = kids.filter((_, i) => kinds[i] === "cell");
+      return [...this.contentFlow(stray, ctx), ...(cells.length ? this.rowFlow(jsx, ctx, cells) : [])];
+    }
+    if (!kids.length) return [];
+    const rowCtx: Ctx = { ...ctx, inherited: inherit(ctx.inherited, style) };
+    const only = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) ? this.read(kids[0] as ts.JsxElement) : undefined;
+    if (only) {
+      const colStyle = this.columnStyle(only);
+      return [
+        {
+          kind: "box",
+          label: "Row",
+          style: mergeRowAndColumn(boxStyle(style, { table: { align: jsx.name === "Row" ? this.attr(jsx, "align") : undefined } }), boxStyle(colStyle)),
+          children: this.flow(only.children, { ...rowCtx, inherited: inherit(rowCtx.inherited, colStyle) }),
+        },
+      ];
+    }
+    const plain = kids.filter((kid): kid is ts.JsxElement | ts.JsxSelfClosingElement => ts.isJsxElement(kid) || ts.isJsxSelfClosingElement(kid));
+    if (plain.length === kids.length) noteVerticalAlign(plain.map((kid) => this.columnStyle(this.read(kid))), rowCtx);
+    const columns: Array<ColumnNode | ColumnsHole> = kids.map((kid) => {
+      if (ts.isJsxExpression(kid) && kid.expression) {
+        const expression = kid.expression;
+        const parts = this.holeParts(expression, (node, key) => [this.columnNode(this.read(node), rowCtx, key)]);
+        if (parts) return { kind: "columns", code: parts.code, slots: parts.slots, mappedOver: this.mappedList(expression) };
+        return { kind: "column", style: NO_STYLE, blocks: [{ node: this.codeFallback(expression, true, rowCtx), margin: ZERO, padding: ZERO }] };
+      }
+      return this.columnNode(this.read(kid as ts.JsxElement), rowCtx);
+    });
+    const branches = kids.length === 1 && ts.isJsxExpression(kids[0]) ? this.branchWidths(kids[0].expression) : undefined;
+    return [{ kind: "row", style: boxStyle(style, { table: { align: jsx.name === "Row" ? this.attr(jsx, "align") : undefined } }), columns, branches }];
+  }
+
+  private columnNode(col: Jsx, ctx: Ctx, key?: Expr): ColumnNode {
+    const colStyle = this.columnStyle(col);
+    let look = boxStyle(colStyle);
+    let content = col.children;
+    let inherited = inherit(ctx.inherited, colStyle);
+    // A column holding one styled box (a card): the box's look goes on the column.
+    const kids = this.flatten(col.children).filter((k) => !this.isBlank(k));
+    const box = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) ? this.read(kids[0] as ts.JsxElement) : undefined;
+    if (box && (box.name === "Section" || box.name === "Container") && !this.hasStructure(this.flatten(box.children))) {
+      look = mergeColumnAndBox(look, boxStyle(box.style));
+      content = box.children;
+      inherited = inherit(inherited, box.style);
+    }
+    const colCtx: Ctx = { ...ctx, inherited };
+    return {
+      kind: "column",
+      key,
+      style: { ...look, margin: ZERO, width: undefined, align: undefined },
+      width: this.columnWidth(col),
+      stacks: this.stacksOnPhones(col),
+      blocks: this.blocks(content, colCtx).map((entry) => this.boxless(entry, ctx)),
+    };
+  }
+
+  /**
+   * A text block where its own box can't be drawn (in a column of several, in code, in a box flattened into a column):
+   * its background goes behind its words (a span in its HTML), so text set light on it stays readable; the box's
+   * width, padding, border and corners are listed as lost.
+   */
+  private boxless(entry: { block: Block; style?: Style }, ctx: Ctx): Block {
+    if (!entry.style) return entry.block;
+    const background = fillColor(entry.style);
+    const { backgroundColor: _, background: __, backgroundImage: ___, ...rest } = entry.style;
+    noteTextBox(background ? rest : entry.style, ctx);
+    const node = entry.block.node;
+    if (!background || /[<>"'`\\{};$]/.test(background)) return entry.block;
+    const wrapped = this.withBackground(node, background);
+    if (!wrapped) return entry.block;
+    ctx.report.note("text background kept behind its words only (its box can't be drawn here)", background);
+    return { ...entry.block, node: wrapped };
+  }
+
+  /**
+   * A Paragraph or Heading with its text in a span with this background (a color, or code giving one, written escaped
+   * when it renders). Undefined for another block.
+   */
+  private withBackground(node: ElementNode, background: string | Expr): ElementNode | undefined {
+    const key = node.type === "Paragraph" ? "html" : node.type === "Heading" ? "text" : undefined;
+    if (!key) return undefined;
+    let html = node.props?.[key] as Content | undefined;
+    if (html === undefined) {
+      // Children (text and values) as HTML.
+      const parts = (node.children ?? []).filter((c): c is string | Expr => typeof c === "string" || isExpr(c));
+      if (parts.length !== (node.children ?? []).length) return undefined;
+      if (parts.some(isExpr)) {
+        this.needsEscape = true;
+        this.needsHtmlText = true;
+      }
+      html = parts.every((p) => typeof p === "string")
+        ? escapeHtml((parts as string[]).join(""))
+        : expr(templateCode(parts.map((p) => (typeof p === "string" ? escapeHtml(p) : expr(`${this.helper.htmlText}(${p.$expr})`)))));
+    }
+    if (isExpr(background)) this.needsEscape = true;
+    const open = isExpr(background) ? `<span style="background-color:\${${this.helper.escapeHtml}(String(${background.$expr}))}">` : escapeTemplate(`<span style="background-color:${background}">`);
+    const inner = isExpr(html) ? (oneTemplate(html.$expr) ? html.$expr.slice(1, -1) : `\${${html.$expr}}`) : escapeTemplate(html);
+    const wrapped: Content = isExpr(html) || isExpr(background) ? expr(`\`${open}${inner}</span>\``) : `<span style="background-color:${background}">${html}</span>`;
+    const { children: _, ...without } = node;
+    return { ...without, props: { ...node.props, [key]: wrapped } };
+  }
+
+  /** Whether the column's classes make it full width on phones (`mobile:!block`). */
+  private stacksOnPhones(col: Jsx): boolean {
+    const className = col.attrs.get("className");
+    const value = className ? this.styleValue(() => this.evaluate(className)) : undefined;
+    // Tailwind's phone classes (`mobile:!block`), or a class a head <style> stacks on phones.
+    return typeof value === "string" && (stacksOnPhones(this.tailwind.leftover.get(value) ?? [], this.tailwind.phone) || stacksOnPhones(value.split(/\s+/), this.headPhone));
+  }
+
+  /** A Column's style, with its `align` attribute as text-align (which, as an attribute, also places blocks in it). */
+  private columnStyle(col: Jsx): Style {
+    const align = this.attr(col, "align");
+    // From props (`align={side}`): the codemod can't keep it, so the check fails, naming it.
+    if (isExpr(align)) this.computed(col, "align");
+    // A CSS text-align of its own overrides the attribute's (`-webkit-center`): blocks then stay where the CSS puts them.
+    return { ...(typeof align === "string" ? { textAlign: align, ...(col.style.textAlign === undefined ? { _alignAttribute: align } : {}) } : {}), ...col.style };
+  }
+
+  private columnWidth(col: Jsx): number | string | undefined {
+    const width = this.attr(col, "width");
+    // Computed from props (`width={wide ? 500 : 100}`): the codemod writes a fixed width, so the check fails.
+    if (isExpr(width)) this.computed(col, "width");
+    return columnWidth(col.style, isExpr(width) ? undefined : width);
+  }
+
+  /** What a Row child puts in the row: a cell, content (moved out of the table), or unknown. */
+  private cellKind(kid: ts.JsxChild): "cell" | "content" | "unknown" {
+    const kindOf = (jsx: Jsx) => {
+      if (jsx.name === "Column" || (!jsx.name && jsx.tag === "td")) return "cell";
+      if (!jsx.name && /^[A-Z]/.test(jsx.tag)) return "unknown"; // a custom component: may render cells
+      return "content";
+    };
+    if (ts.isJsxElement(kid) || ts.isJsxSelfClosingElement(kid)) return kindOf(this.read(kid));
+    if (ts.isJsxExpression(kid) && kid.expression && containsJsx(kid.expression)) {
+      const kinds = new Set(this.outermostJsx(kid.expression).map((jsx) => kindOf(this.read(jsx))));
+      return kinds.size === 1 ? ([...kinds][0] as "cell" | "content" | "unknown") : "unknown";
+    }
+    return "content";
+  }
+
+  /**
+   * The width of one cell: a Column, or `c ? <Column/> : <Column/>` with the
+   * same width both ways. False when it isn't one cell.
+   */
+  private cellWidth(node: ts.Expression): number | string | undefined | false {
+    const value = unwrap(node);
+    if ((ts.isJsxElement(value) || ts.isJsxSelfClosingElement(value)) && this.cellKind(value) === "cell") return this.columnWidth(this.read(value));
+    if (ts.isConditionalExpression(value)) {
+      const a = this.cellWidth(value.whenTrue);
+      const b = this.cellWidth(value.whenFalse);
+      return a !== false && a === b ? a : false;
+    }
+    return false;
+  }
+
+  /** `list.map((item) => <Column/>)` (the callback returns one cell): `list`'s code. */
+  private mappedList(expression: ts.Expression): string | undefined {
+    const call = unwrap(expression);
+    if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== "map") return undefined;
+    const callback = call.arguments[0] && unwrap(call.arguments[0]);
+    if (!callback || !(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) return undefined;
+    let body: ts.Node | undefined = callback.body;
+    if (ts.isBlock(body)) {
+      const last = body.statements[body.statements.length - 1];
+      body = last && ts.isReturnStatement(last) && last.expression ? last.expression : undefined;
+    }
+    if (!body || this.cellWidth(body as ts.Expression) === false) return undefined;
+    // The widths are written from the list once more: only its length counts. So calls that change its order in place
+    // (`events.reverse()`) aren't written there (the columns would get it reversed twice), one that changes its length
+    // in place (`push`) means no widths, and a `?.` anywhere (`recs?.slice(0, 3)`, `logos?.map`) may give no list.
+    let optional = Boolean(call.questionDotToken || call.expression.questionDotToken);
+    const written = (node: ts.Expression): string | undefined => {
+      const n = unwrap(node);
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const name = n.expression.name.text;
+        if (/^(push|pop|shift|unshift|splice)$/.test(name)) return undefined;
+        optional ||= Boolean(n.questionDotToken || n.expression.questionDotToken);
+        if (/^(reverse|sort|fill|copyWithin)$/.test(name)) return written(n.expression.expression);
+        const inner = written(n.expression.expression);
+        return inner === undefined ? undefined : `${inner}${n.expression.questionDotToken ? "?." : "."}${name}${n.questionDotToken ? "?." : ""}(${n.arguments.map((arg) => arg.getText()).join(", ")})`;
+      }
+      if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && n.questionDotToken) optional = true;
+      if (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) {
+        const inner = written(n.expression);
+        return inner === undefined ? undefined : `${inner}${n.questionDotToken ? "?." : ts.isPropertyAccessExpression(n) ? "." : ""}${ts.isPropertyAccessExpression(n) ? n.name.text : `[${n.argumentExpression.getText()}]`}`;
+      }
+      return n.getText();
+    };
+    const list = written(call.expression.expression);
+    if (list === undefined) return undefined;
+    return optional ? `(${list} ?? [])` : list;
+  }
+
+  /** `cond ? <>…</> : <>…</>` where both branches are static cell lists: their widths. */
+  private branchWidths(expression: ts.Expression | undefined): RowNode["branches"] {
+    const node = expression && unwrap(expression);
+    if (!node || !ts.isConditionalExpression(node)) return undefined;
+    const widthsOf = (branch: ts.Expression) => {
+      const value = unwrap(branch);
+      const cells = ts.isJsxFragment(value) ? this.flatten(value.children).filter((c) => !this.isBlank(c)) : [value as ts.JsxChild];
+      const widths: Array<number | string | undefined> = [];
+      for (const cell of cells) {
+        const width = this.cellWidth(ts.isJsxExpression(cell) && cell.expression ? cell.expression : (cell as ts.Expression));
+        if (width === false) return undefined;
+        widths.push(width);
+      }
+      return widths;
+    };
+    const whenTrue = widthsOf(node.whenTrue);
+    const whenFalse = widthsOf(node.whenFalse);
+    return whenTrue && whenFalse ? { condition: node.condition.getText(), whenTrue, whenFalse } : undefined;
+  }
+
+  /** `width: fit-content` around one row of fixed-width columns: their total width. */
+  private fitWidth(jsx: Jsx): number | undefined {
+    const kids = this.flatten(jsx.children).filter((k) => !this.isBlank(k));
+    if (kids.length !== 1 || !(ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0]))) return undefined;
+    const only = this.read(kids[0] as ts.JsxElement);
+    const cells = only.name === "Row" ? this.flatten(only.children).filter((k) => !this.isBlank(k)) : only.name === "Column" ? [kids[0]] : [];
+    if (!cells.length || !cells.every((c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c))) return undefined;
+    const widths = cells.map((c) => this.columnWidth(this.read(c as ts.JsxElement)));
+    return widths.every((w): w is number => typeof w === "number") ? widths.reduce((a, b) => a + b, 0) : undefined;
+  }
+
+  /** Whitespace text and `{" "}`: nothing a <tr> or a row shows. */
+  private isBlank(kid: ts.JsxChild): boolean {
+    if (ts.isJsxText(kid)) return !jsxText(kid.text).trim();
+    if (ts.isJsxExpression(kid)) {
+      if (!kid.expression) return true;
+      const value = this.evaluate(kid.expression);
+      return typeof value === "string" && !value.trim();
+    }
+    return false;
+  }
+
+  /** Whether children hold Rows or Columns (at any depth through boxes), directly or from code. */
+  private hasColumns(kids: readonly ts.JsxChild[]): boolean {
+    const columns = (jsx: Jsx): boolean =>
+      (jsx.name === "Row" && (!this.soleColumn(jsx) || this.hasColumns(this.flatten(this.soleColumn(jsx)!.children)))) ||
+      jsx.name === "Column" || (!jsx.name && jsx.tag === "td") ||
+      ((jsx.name === "Section" || jsx.name === "Container" || this.isWrapper(jsx)) && this.hasColumns(this.flatten(jsx.children)));
+    return kids.some((kid) => {
+      if (ts.isJsxElement(kid) || ts.isJsxSelfClosingElement(kid)) return columns(this.read(kid));
+      if (ts.isJsxExpression(kid) && kid.expression) return this.outermostJsx(kid.expression).some((jsx) => columns(this.read(jsx)));
+      return false;
+    });
+  }
+
+  /** A Row's only Column (written out, not from code): the Row is just a box around it. */
+  private soleColumn(row: Jsx): Jsx | undefined {
+    const kids = this.flatten(row.children).filter((kid) => !this.isBlank(kid));
+    if (kids.length !== 1 || !(ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0]))) return undefined;
+    const column = this.read(kids[0]);
+    return column.name === "Column" ? column : undefined;
+  }
+
+  /** Whether children include rows, sections or containers, directly or from code. */
+  private hasStructure(kids: readonly ts.JsxChild[]): boolean {
+    return kids.some((kid) => {
+      if (ts.isJsxElement(kid) || ts.isJsxSelfClosingElement(kid)) return this.isStructure(this.read(kid));
+      if (ts.isJsxExpression(kid) && kid.expression) return this.holdsStructure(kid.expression);
+      return false;
+    });
+  }
+
+  /** Text with its own box (max-width, background, border): it needs a row of its own. */
+  private holdsTextBoxes(expression: ts.Expression): boolean {
+    return this.outermostJsx(expression).some((jsx) => {
+      const read = this.read(jsx);
+      return (
+        ["Text", "Heading"].includes(read.name ?? hostAlias(read.tag)) &&
+        needsTextBox(read.style)
+      );
+    });
+  }
+
+  private holdsStructure(expression: ts.Expression): boolean {
+    return this.outermostJsx(expression).some((jsx) => this.isStructure(this.read(jsx)));
+  }
+
+  private isStructure(jsx: Jsx): boolean {
+    return STRUCTURE.has(jsx.name ?? "") || this.isWrapper(jsx);
+  }
+
+  /** A plain HTML element around React Email components. */
+  private isWrapper(jsx: Jsx): boolean {
+    return (
+      !jsx.name &&
+      /^[a-z]/.test(jsx.tag) &&
+      !HOST_CONTENT.has(jsx.tag) &&
+      !INLINE_TAGS.has(jsx.tag) &&
+      this.hasComponents(jsx)
+    );
+  }
+
+  private outermostJsx(node: ts.Node): Array<ts.JsxElement | ts.JsxSelfClosingElement> {
+    const out: Array<ts.JsxElement | ts.JsxSelfClosingElement> = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) out.push(n);
+      else if (ts.isJsxFragment(n)) n.children.forEach(visit);
+      else ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return out;
+  }
+
+  // ============================================
+  // Content
+  // ============================================
+
+  /** Content at box level: blocks, with max-width text in narrow boxes of its own. */
+  private contentFlow(children: readonly ts.JsxChild[], ctx: Ctx): Flow[] {
+    return this.blocks(children, ctx).map((entry) =>
+      entry.style ? textBox(entry.block, entry.style) : { kind: "content", block: entry.block }
+    );
+  }
+
+  /** Children → content blocks (inline runs become one Paragraph; code stays, its JSX converted). */
+  private blocks(children: readonly ts.JsxChild[], ctx: Ctx): Array<{ block: Block; style?: Style }> {
+    const out: Array<{ block: Block; style?: Style }> = [];
+    let inline: ts.JsxChild[] = [];
+    const flushInline = () => {
+      if (inline.length) {
+        const parts = this.plainParts(inline);
+        const outer = this.switching;
+        this.switching = { from: inline[0].getStart(), to: inline[inline.length - 1].getEnd(), values: [] };
+        try {
+          // Text whose style around it has no Paragraph prop (uppercase, italics) goes in a span: as HTML then, as for a Text.
+          const block = paragraphBlock(parts && !needsHtml(spanStyle({}, ctx)) ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED);
+          // Values alone (`{note}`): no block when they show nothing (null, false, ""), as React shows nothing.
+          const alone = inline.every((child) => ts.isJsxExpression(child));
+          const blocks = this.switched([block], inline, ctx, false, alone);
+          out.push({ block: blocks ? blocks[0] : { node: this.keepChildren(inline, ctx, "text from values that may hold elements"), margin: ZERO, padding: ZERO } });
+        } catch (error) {
+          if (!(error instanceof KeepBlock)) throw error;
+          out.push({ block: { node: this.keepChildren(inline, ctx, error.message), margin: ZERO, padding: ZERO } });
+        } finally {
+          this.switching = outer;
+        }
+      }
+      inline = [];
+    };
+    const significant = this.flatten(children);
+    const element = (c: ts.JsxChild | undefined): c is ts.JsxElement | ts.JsxSelfClosingElement => !!c && (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c));
+    const imageish = (c: ts.JsxChild | undefined) => element(c) && this.isInlineImage(this.read(c));
+    // Code making only inline images (`stars.map(s => <Img className="inline-block" />)`): a run of its own.
+    const imageList = (c: ts.JsxChild | undefined) => !!c && ts.isJsxExpression(c) && !!c.expression && this.makesInlineImages(c.expression);
+    for (const [at, child] of significant.entries()) {
+      // A prop or value holding JSX (`{banner}`) isn't text: kept as HTML, rendered as the template renders it.
+      if (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression) && this.jsxValued(child.expression)) {
+        flushInline();
+        out.push({ block: { node: this.keepChildren([child], ctx, `JSX from a value: ${child.expression.getText().slice(0, 40)}`), margin: ZERO, padding: ZERO } });
+        continue;
+      }
+      if (ts.isJsxText(child) || (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression))) {
+        inline.push(child);
+        continue;
+      }
+      // Image links and inline images side by side (icon rows, rating stars) flow inline together.
+      const neighbour = (c: ts.JsxChild | undefined) => imageish(c) || imageList(c);
+      if (imageList(child) || (imageish(child) && (neighbour(significant[at - 1]) || neighbour(significant[at + 1])))) {
+        inline.push(child);
+        continue;
+      }
+      if (ts.isJsxExpression(child) && child.expression) {
+        flushInline();
+        const expression = child.expression;
+        const items: Block[][] = [];
+        const parts = this.holeParts(expression, (jsx, key) => {
+          const blocks = this.blocks([jsx], ctx).map((entry) => this.boxless(entry, ctx));
+          items.push(blocks);
+          const nodes = blocks.map((block) => block.node);
+          if (key && nodes.length === 1 && nodes[0].type !== "#expr") nodes[0].props = { key, ...nodes[0].props };
+          return nodes;
+        });
+        // A loop's items stack like CSS blocks: their margins collapse
+        // between them and with the blocks around the loop.
+        const shared = parts && isLoop(expression) ? loopMargins(items) : undefined;
+        for (const blocks of items) collapse(shared && blocks.length ? [{ ...blocks[0], margin: { ...blocks[0].margin, top: 0 } }, ...blocks.slice(1)] : blocks);
+        out.push({ block: { node: parts ? hole(parts.code, parts.slots) : this.codeFallback(expression, false, ctx), margin: shared ?? ZERO, padding: ZERO } });
+        continue;
+      }
+      if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
+      let jsx = this.read(child);
+      if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
+      if (isHidden(jsx.style) || jsx.attrs.has("hidden")) {
+        if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
+        flushInline();
+        out.push({ block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
+      if (this.isInline(jsx)) {
+        inline.push(child);
+        continue;
+      }
+      flushInline();
+      const blocks = this.block(jsx, ctx);
+      const textual = ["Text", "Heading"].includes(jsx.name ?? hostAlias(jsx.tag));
+      blocks.forEach((block) => out.push({ block, style: textual && blocks.length === 1 ? jsx.style : undefined }));
+    }
+    flushInline();
+    return out;
+  }
+
+  /** A phone style a head rule sets that Elements can't hold: once per rule, as elements are read more than once. */
+  private notePhone(detail: string): void {
+    if (this.phoneNoted.has(detail)) return;
+    this.phoneNoted.add(detail);
+    this.report.note("phone style not converted", detail);
+  }
+
+  /** An element as blocks; one whose text only rendering the template can show (see KeepBlock) is kept as it renders. */
+  private block(jsx: Jsx, ctx: Ctx): Block[] {
+    const outer = this.switching;
+    this.switching = { from: jsx.node.getStart(), to: jsx.node.getEnd(), values: [] };
+    try {
+      const blocks = this.blockOf(jsx, ctx).map((block) => (block.node.type === "#expr" || block.node.fallback ? block : { ...block, node: this.computedColors(jsx, block.node) }));
+      return this.switched(blocks, [jsx.node], ctx, true) ?? [{ node: this.fallback(jsx, ctx, "text from values that may hold elements"), margin: ZERO, padding: ZERO }];
+    } catch (error) {
+      if (!(error instanceof KeepBlock)) throw error;
+      return [{ node: this.fallback(jsx, ctx, error.message), margin: ZERO, padding: ZERO }];
+    } finally {
+      this.switching = outer;
+    }
+  }
+
+  /**
+   * `tree` as the design gets it with the preview props: a block written both ways (see `switched`) whose values the
+   * preview props give as elements (JSX) is its kept markup there, counted as kept.
+   */
+  private asPreviewed(node: ElementNode): ElementNode {
+    const choice = node.props?.[SWITCH] as { test: string[] } | undefined;
+    if (choice?.test.some((value) => this.previewGivesJsx(value))) return { ...node, fallback: `text from a value the preview props give as elements: ${choice.test.join(", ")}` };
+    const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.asPreviewed(child) as T));
+    return {
+      ...node,
+      ...(node.children ? { children: node.children.map(each) } : {}),
+      ...(node.slots ? { slots: node.slots.map((slot) => slot.map(each)) } : {}),
+    };
+  }
+
+  /** Whether the preview props give JSX for a value read from props (`note`, `props.user.bio`). */
+  private previewGivesJsx(value: string): boolean {
+    const keys = value.replace(/\?\./g, ".").replace(/^props\./, "").split(".");
+    if (!keys.every((k) => /^[A-Za-z_$][\w$]*$/.test(k))) return false;
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(n.left) && n.left.name.text === "PreviewProps") {
+        let object: ts.Expression | undefined = unwrap(n.right);
+        for (const key of keys) {
+          if (!object || !ts.isObjectLiteralExpression(object)) return;
+          const prop: ts.PropertyAssignment | undefined = object.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText().replace(/^["']|["']$/g, "") === key);
+          object = prop ? unwrap(prop.initializer) : undefined;
+        }
+        if (object && containsJsx(object)) found = true;
+        return;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(this.file);
+    return found;
+  }
+
+  /** Whether an element of the template around `node` has a background computed from props that isn't written as code. */
+  private underUnwrittenBackground(node: ts.Node): boolean {
+    for (let n: ts.Node | undefined = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+      if (!ts.isJsxElement(n)) continue;
+      const style = n.openingElement.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+      const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+      const literal = code && unwrap(code);
+      if (!literal || !ts.isObjectLiteralExpression(literal) || this.styleValue(() => this.evaluate(literal)) !== undefined) continue;
+      for (const prop of literal.properties) {
+        const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+        if (key !== "backgroundColor" && key !== "background") continue;
+        const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+        if (this.styleValue(() => this.evaluate(value)) !== undefined) continue;
+        if (key === "background" || !this.backgroundAt.has(prop.getStart())) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * A text color (or a button's background) an element's style computes (`style={{ color: accent }}`, a tone picked from
+   * props): written on its block as that code, with the color it would have without one after `||` (an empty or missing
+   * value takes the color around it, as in the browser), instead of a fixed color that can make its text unreadable.
+   */
+  private computedColors(jsx: Jsx, node: ElementNode): ElementNode {
+    // Under a box whose background is computed too and can't be written, a computed color could make text unreadable
+    // (white on the white the box falls back to): it's lost then, as before.
+    if (this.underUnwrittenBackground(jsx.node)) return node;
+    const code = jsx.attrs.get("style");
+    const literal = code && unwrap(code);
+    const props: Record<string, string> = node.type === "Button" ? { color: "color", backgroundColor: "backgroundColor" } : node.type === "Paragraph" || node.type === "Heading" ? { color: "color" } : {};
+    if (!literal || !ts.isObjectLiteralExpression(literal) || !Object.keys(props).length) return node;
+    const computed = (value: ts.Expression) => !containsJsx(value) && this.styleValue(() => this.evaluate(value)) === undefined;
+    let out = node;
+    // A text's background from code (`done ? "#16a34a" : "#e2e8f0"`) goes behind its words, as the color written with
+    // it may only be readable on it (white on that green). Where it can't be, the text keeps its color's fallback.
+    let background = true;
+    if (node.type === "Paragraph" || node.type === "Heading") {
+      for (const prop of literal.properties) {
+        const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+        if (key !== "backgroundColor" && key !== "background") continue;
+        const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+        if (!computed(value)) continue;
+        const wrapped = key === "backgroundColor" ? this.withBackground(out, expr(value.getText())) : undefined;
+        if (!wrapped) {
+          background = false;
+          continue;
+        }
+        out = wrapped;
+        this.keptStyleParts.add(prop.getStart());
+      }
+    }
+    if (!background) return out;
+    for (const prop of literal.properties) {
+      if (!(ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) || !(ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) continue;
+      const name = props[prop.name.text];
+      const value = ts.isPropertyAssignment(prop) ? prop.initializer : prop.name;
+      if (!name || !computed(value)) continue;
+      const fallback = out.props?.[name];
+      // (No fallback for a value that's always text: `done ? "#fff" : "#94a3b8" || …` is always truthy, TS2872.)
+      const type = this.checker.getTypeAtLocation(value);
+      const always = (type.isUnion() ? type.types : [type]).every((t) => (t.isStringLiteral() && t.value !== "") || (t.isNumberLiteral() && t.value !== 0));
+      out = { ...out, props: { ...out.props, [name]: expr(typeof fallback === "string" && !always ? `(${value.getText()}) || ${JSON.stringify(fallback)}` : value.getText()) } };
+      this.keptStyleParts.add(prop.getStart());
+    }
+    return out;
+  }
+
+  /**
+   * A block whose text has values that may be React elements (see `textOf`): written as it is for text, and also as the
+   * JSX it came from, kept as it renders (`holdsElements(note) ? <KeptHtml>…</KeptHtml> : <Paragraph html={…} />`).
+   * `blocks` as they are when there are none; undefined when it isn't one block that can be written so.
+   */
+  private switched(blocks: Block[], source: readonly ts.Node[], ctx: Ctx, element: boolean, alone = false): Block[] | undefined {
+    const values = [...new Set(this.switching?.values ?? [])];
+    if (!values.length) return blocks;
+    const [only] = blocks;
+    if (blocks.length !== 1 || only.node.type === "#expr" || only.node.fallback) return undefined;
+    const color = this.keptColor(ctx);
+    let kept: ElementNode;
+    try {
+      // As HTML elements, as React Email renders them: the migration doesn't need its components for the block.
+      kept = this.keep(this.plainJsx(source, color, true).jsx, ctx, "", element);
+    } catch (error) {
+      if (!(error instanceof Unwritable)) throw error;
+      const components = [...new Set(source.flatMap((node) => this.reactEmailTags(node)))];
+      this.report.info("keeps @react-email/components", `${error.message.startsWith("<") ? error.message : components.map((c) => `<${c}>`).join(", ") || error.message} in the block for ${values.join(", ")} couldn't be rewritten`);
+      for (const node of source) this.refuseTailwind(node);
+      for (const node of source) this.switchRanges.push({ from: node.getStart(), to: node.getEnd() });
+      this.noteKeptUse(source, ctx);
+      kept = this.keep(source.map((node) => this.keptText(node, color)).join(""), ctx, "", element);
+    }
+    this.needsHoldsElements = true;
+    return [{ ...only, node: { ...only.node, props: { ...only.node.props, [SWITCH]: { test: values, kept: (kept.props!.html as Expr).$expr, alone } } } }];
+  }
+
+  /** The React Email components a node holds, by the names the template gives them. */
+  private reactEmailTags(node: ts.Node): string[] {
+    const out: string[] = [];
+    const visit = (n: ts.Node) => {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && this.components.has(n.tagName.getText())) out.push(n.tagName.getText());
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return out;
+  }
+
+  /**
+   * JSX as the HTML elements React renders for it, written back as JSX (see plain-jsx.ts): React Email's components are
+   * rendered here, with markers standing for what comes from code (a value shown, an attribute or a style property from
+   * code, a condition or a list of JSX, written back as code), so the block keeps what it shows without them. Rendered
+   * twice with different markers: a component that does more with a value than show it can't be written so. `root`: the
+   * block itself, whose paragraph or heading margins its block's padding holds, as the Paragraph's does. Unwritable
+   * (naming what) where it can't be.
+   */
+  private plainJsx(nodes: readonly ts.Node[], color: string | undefined, root: boolean): { jsx: string; roots: number } {
+    const slots: Array<{ code: string; read: boolean }> = [];
+    const build = (set: number): React.ReactNode[] => {
+      let n = 0;
+      const take = (code: string, read: boolean) => {
+        const i = n++;
+        if (set === 0) slots.push({ code, read });
+        return slot(i, set);
+      };
+      const reads = (e: ts.Expression) => {
+        let x = unwrap(e);
+        while (ts.isPropertyAccessExpression(x) || (ts.isElementAccessExpression(x) && (ts.isStringLiteral(x.argumentExpression) || ts.isNumericLiteral(x.argumentExpression)))) x = unwrap(x.expression);
+        return ts.isIdentifier(x);
+      };
+      const child = (c: ts.Node): React.ReactNode => {
+        if (ts.isJsxText(c)) return jsxText(c.text) || null;
+        if (ts.isJsxExpression(c)) {
+          const e = c.expression;
+          if (!e) return null;
+          if (containsJsx(e)) return take(this.jsxCode(e, color), false);
+          const value = this.evaluate(e);
+          if (typeof value === "string" || typeof value === "number") return String(value);
+          if (value === null || typeof value === "boolean" || nothing(e)) return null;
+          return take(e.getText(), reads(e));
+        }
+        if (ts.isJsxFragment(c)) return React.createElement(React.Fragment, null, ...c.children.map(child));
+        if (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) return element(c);
+        throw new Unwritable("code in text");
+      };
+      const element = (node: ts.JsxElement | ts.JsxSelfClosingElement): React.ReactElement => {
+        const opening = ts.isJsxElement(node) ? node.openingElement : node;
+        const tag = opening.tagName.getText();
+        const name = this.components.get(tag);
+        const type: unknown = /^[a-z][\w-]*$/.test(tag) ? tag
+          : /^(React\.)?Fragment$/.test(tag) && this.isReactFragment(tag) ? React.Fragment
+          // React Email's CodeInline renders a <style> and the text twice (for one mail client): a <code>, as the text block has it.
+          : name === "CodeInline" ? "code"
+          : name !== undefined && !this.componentSources.get(tag)?.type ? (ReactEmail as Record<string, unknown>)[name]
+          : undefined;
+        if (!type) throw new Unwritable(`<${tag}>`);
+        const props: Record<string, unknown> = {};
+        for (const attr of opening.attributes.properties) {
+          if (ts.isJsxSpreadAttribute(attr)) {
+            const value = this.styleValue(() => this.evaluate(attr.expression));
+            if (!value || typeof value !== "object" || Array.isArray(value)) throw new Unwritable(`<${tag}>`);
+            Object.assign(props, value);
+            continue;
+          }
+          const attrName = attr.name.getText();
+          if (/^(key|ref|style|className)$/.test(attrName)) continue;
+          const init = attr.initializer;
+          if (!init) props[attrName] = true;
+          else if (ts.isStringLiteral(init)) props[attrName] = decodeHtmlEntities(init.text);
+          else if (ts.isJsxExpression(init) && init.expression) {
+            const e = init.expression;
+            if (containsJsx(e)) throw new Unwritable(`<${tag}>`);
+            const value = this.evaluate(e);
+            if (value !== undefined && (typeof value !== "object" || attrName === "dangerouslySetInnerHTML")) props[attrName] = value;
+            else if (attrName === "dangerouslySetInnerHTML") throw new Unwritable(`<${tag}>`);
+            else props[attrName] = take(e.getText(), reads(e));
+          }
+        }
+        // Its classes and head rules as styles (the migrated email has neither), its own style, and what its style
+        // computes from code as markers.
+        const read = this.read(node);
+        const className = opening.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
+        const classes = className ? this.styleValue(() => this.attrValue(className.initializer)) : undefined;
+        if (className && typeof classes !== "string") throw new Unwritable(`<${tag}>`);
+        if (typeof classes === "string" && !this.classStyles(classes).drop) props.className = classes;
+        const style: Record<string, unknown> = Object.fromEntries(Object.entries(read.style).filter(([k]) => !k.startsWith("_")));
+        const styleAttr = opening.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+        const styleCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
+        if (styleCode && this.styleValue(() => this.evaluate(styleCode)) === undefined) {
+          const literal = unwrap(styleCode);
+          if (!ts.isObjectLiteralExpression(literal)) throw new Unwritable(`<${tag}>`);
+          for (const prop of literal.properties) {
+            if (ts.isSpreadAssignment(prop)) {
+              if (nothing(prop.expression)) continue;
+              const value = this.styleValue(() => this.evaluate(prop.expression));
+              if (!value || typeof value !== "object") throw new Unwritable(`<${tag}>`);
+              continue;
+            }
+            const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+            if (key === undefined) throw new Unwritable(`<${tag}>`);
+            const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+            if (this.styleValue(() => this.evaluate(value)) === undefined) style[key] = take(value.getText(), reads(value));
+          }
+        }
+        for (const [key, value] of Object.entries(style)) {
+          // A computed background standing in as a color (see computedBackground): its code.
+          const stand = typeof value === "string" ? this.computedBackgrounds.get(value.trim().toLowerCase()) : undefined;
+          if (stand) style[key] = take(stand.code, false);
+        }
+        if (Object.keys(style).length) props.style = style;
+        const children = ts.isJsxElement(node) ? node.children.map(child) : [];
+        return React.createElement(type as React.ElementType, props, ...children);
+      };
+      return nodes.map(child);
+    };
+    const single = nodes.length === 1 && (ts.isJsxElement(nodes[0]) || ts.isJsxSelfClosingElement(nodes[0])) ? this.read(nodes[0] as ts.JsxElement) : undefined;
+    const block = root && single && /^(Text|Heading)$/.test(single.name ?? hostAlias(single.tag) ?? "");
+    const render = (set: number) => {
+      const html = withBrowserDefaults(renderToStaticMarkup(React.createElement(React.Fragment, null, ...build(set))).replace(/<link rel="preload" as="image"[^>]*>/g, ""), color);
+      return block ? withoutMargins(html) : html;
+    };
+    let first: string;
+    let second: string;
+    try {
+      first = render(0);
+      second = render(1);
+    } catch (error) {
+      if (error instanceof Unwritable) throw error;
+      throw new Unwritable(single ? `<${single.tag}>` : "markup that doesn't render on its own");
+    }
+    if (first.replace(/(\d+)/g, "\0$1\0") !== second.replace(/(\d+)/g, "\0$1\0")) throw new Unwritable(single ? `<${single.tag}>` : "markup that changes what it's given");
+    // A value shown twice is read twice: only one that only reads.
+    slots.forEach((s, i) => {
+      if (!s.read && first.split(slot(i)).length > 2) throw new Unwritable(single ? `<${single.tag}>` : "markup that shows a value twice");
+    });
+    return htmlToJsx(first, (i) => slots[i].code);
+  }
+
+  /** Code with JSX in text (a condition, a list) with its JSX as HTML elements (see `plainJsx`). */
+  private jsxCode(expression: ts.Expression, color: string | undefined): string {
+    const node = unwrap(expression);
+    const branch = (b: ts.Expression) => (containsJsx(b) ? `(${this.jsxCode(b, color)})` : b.getText());
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return `<>${this.plainJsx([node], color, false).jsx}</>`;
+    if (ts.isConditionalExpression(node) && !containsJsx(node.condition)) return `(${node.condition.getText()}) ? ${branch(node.whenTrue)} : ${branch(node.whenFalse)}`;
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind)) {
+      return `(${node.left.getText()}) ${node.operatorToken.getText()} ${branch(node.right)}`;
+    }
+    const callback = ts.isCallExpression(node) && node.arguments.length === 1 ? unwrap(node.arguments[0]) : undefined;
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "map" && !containsJsx(node.expression.expression) && callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+      const start = callback.getStart();
+      // Each item's JSX, its key on the element it gives.
+      const item = (e: ts.Expression) => {
+        const value = unwrap(e);
+        if (!containsJsx(value)) return e.getText();
+        const keyed = (ts.isJsxElement(value) || ts.isJsxSelfClosingElement(value)) ? this.read(value).attrs.get("key") : undefined;
+        const out = this.plainJsx([value], color, false);
+        if (keyed && out.roots === 1 && /^<[a-z]/.test(out.jsx)) return `(${out.jsx.replace(/^<([a-z][\w-]*)/, `<$1 key={${keyed.getText()}}`)})`;
+        return `(<>${out.jsx}</>)`;
+      };
+      let text = callback.getText();
+      if (!ts.isBlock(callback.body)) text = `${text.slice(0, callback.body.getStart() - start)}${item(callback.body)}`;
+      else {
+        const edits: Array<{ from: number; to: number; text: string }> = [];
+        const visit = (n: ts.Node): void => {
+          if (ts.isFunctionLike(n)) {
+            if (containsJsx(n)) throw new Unwritable("code in text");
+            return;
+          }
+          if (ts.isReturnStatement(n)) {
+            if (n.expression) edits.push({ from: n.expression.getStart() - start, to: n.expression.getEnd() - start, text: item(n.expression) });
+            return;
+          }
+          if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) throw new Unwritable("code in text");
+          ts.forEachChild(n, visit);
+        };
+        callback.body.statements.forEach(visit);
+        for (const edit of edits.sort((a, b) => b.from - a.from)) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
+      }
+      return `${node.expression.expression.getText()}${node.expression.questionDotToken ? "?." : "."}map(${text})`;
+    }
+    throw new Unwritable("code in text");
+  }
+
+  private blockOf(jsx: Jsx, ctx: Ctx): Block[] {
+    if (jsx.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
+    const style = jsx.style;
+    const kind = jsx.name ?? hostAlias(jsx.tag);
+    if (["Text", "Heading", "Button", "Img", "Link"].includes(kind ?? "")) noteAttributes(jsx.attrs.keys(), ctx, kind!);
+    switch (kind) {
+      case "Text": {
+        const parts = this.plainParts(jsx.children);
+        const html = parts ? "" : this.inlineContent(jsx.children);
+        return [paragraphBlock(parts && needsHtml(spanStyle(style, ctx)) ? this.inlineContent(jsx.children) : html, style, ctx, margins(style, { top: 16, bottom: 16 }), parts)];
+      }
+      case "Heading": {
+        this.computed(jsx, "as");
+        const level = String(this.attr(jsx, "as") ?? (jsx.name ? "h1" : jsx.tag));
+        const content = this.inlineContent(jsx.children);
+        // A margin from props (`m={margin}`) can't be kept: written as a fixed one, so it's reported.
+        for (const k of ["m", "mx", "my", "mt", "mr", "mb", "ml"]) this.computed(jsx, k);
+        const marginProps = headingMarginProps(Object.fromEntries(["m", "mx", "my", "mt", "mr", "mb", "ml"].map((k) => [k, this.attr(jsx, k)])));
+        const parts = this.plainParts(jsx.children);
+        return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
+      }
+      case "Button":
+        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.target(jsx, "_blank"))];
+      case "Img":
+        this.computed(jsx, "width");
+        if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
+        // Elements images have no border: one with a border is kept as HTML, as it renders.
+        if (borders(style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
+        return [imageBlock({ src: this.attr(jsx, "src"), alt: this.textAttr(jsx, "alt"), width: this.attr(jsx, "width"), height: this.attr(jsx, "height") }, style, ctx)];
+      case "Hr":
+        return [dividerBlock(style, ctx)];
+      case "List": {
+        // Elements text takes list markup (the editor edits it as a list) — unless
+        // its items come from code that isn't JSX (they could be elements): kept.
+        const opaque = this.flatten(jsx.children).some((c) => ts.isJsxExpression(c) && c.expression && !containsJsx(c.expression) && !this.isBlank(c));
+        if (opaque) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
+        return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, margins(style, { top: 16, bottom: 16 }), undefined, LIST_DEFAULTS)];
+      }
+      case "Link": {
+        const kids = this.flatten(jsx.children);
+        const only = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) ? this.read(kids[0] as ts.JsxElement) : undefined;
+        if (only && (only.name === "Img" || only.tag === "img")) {
+          if (only.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
+          if (!hasWidth(this.attr(only, "width"), only.style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
+          if (borders(only.style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
+          this.computed(only, "width");
+          // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
+          const target = this.target(jsx, jsx.name === "Link" ? "_blank" : "_self");
+          return [imageBlock({ src: this.attr(only, "src"), alt: this.textAttr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href"), target }, only.style, ctx)];
+        }
+        if (fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
+          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.target(jsx, jsx.name === "Link" ? "_blank" : "_self"))];
+        }
+        return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, ZERO)];
+      }
+      case "Row": {
+        // Inside a column of several, a Row of one Column is a box: its content goes in this column.
+        const column = this.soleColumn(jsx);
+        if (!column || this.hasColumns(this.flatten(column.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
+        // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
+        if (drawsBox(style) || drawsBox(column.style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
+        const inside = this.blocks(column.children, { ...ctx, inherited: inherit(inherit(ctx.inherited, style), column.style) }).map((entry) => this.boxless(entry, ctx));
+        return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(column.style, "padding")), ctx, style._phone || column.style._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(column.style, "padding", boxSides(column.style, "padding")) ?? boxSides(column.style, "padding")) : undefined, style._phone?.display === "none" || column.style._phone?.display === "none");
+      }
+      case "Section":
+      case "Container": {
+        // Inside a column of several: rows can't nest, so the section's
+        // content goes in this column, with its padding around it.
+        // Columns can't nest in a column: those are kept. Sections inside flatten too.
+        if (this.hasColumns(this.flatten(jsx.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
+        // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
+        if (drawsBox(style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
+        const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => this.boxless(entry, ctx));
+        return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
+      }
+      default:
+        if (this.isWrapper(jsx)) {
+          this.report.note("wrapper element flattened", jsx.tag);
+          const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => this.boxless(entry, ctx));
+          return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
+        }
+        return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
+    }
+  }
+
+  /** A button's label: as children, or as markup when a text style has no prop (uppercase, italics), as for Text. */
+  private buttonLabel(children: ts.JsxChild[], style: Style): Content | Parts {
+    const parts = this.plainParts(children);
+    return parts && !needsHtml(style) ? parts : this.inlineContent(children);
+  }
+
+  /** An attribute from code in markup: a value that's always a string is written as it is, any other is left out when missing. */
+  private codeAttribute(name: string, code: string): string {
+    if (/^[`"']/.test(code.trim())) return `${name}="\${${this.helper.escapeHtml}(String(${code}))}"`;
+    this.needsAttribute = true;
+    return `\${${this.helper.htmlAttribute}("${name}", ${code})}`;
+  }
+
+  private isInline(jsx: Jsx): boolean {
+    if (!jsx.name && INLINE_TAGS.has(jsx.tag)) return true;
+    if (jsx.name === "CodeInline") return true;
+    // A Text set inline (pills, badges side by side) flows with its neighbours.
+    if ((jsx.name === "Text" || (!jsx.name && jsx.tag === "p")) && inlineDisplay(jsx.style)) return true;
+    if (jsx.name === "Link" || jsx.tag === "a") {
+      const style = jsx.style;
+      const kids = this.flatten(jsx.children);
+      const onlyImage = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) && ["Img", "img"].includes(this.read(kids[0] as ts.JsxElement).name ?? this.read(kids[0] as ts.JsxElement).tag);
+      const buttonLike = fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft);
+      return !onlyImage && !buttonLike && style.display !== "block";
+    }
+    return false;
+  }
+
+  /** An image link, or an image set inline (`display: inline-block`): it sits on a line with its neighbours. */
+  private isInlineImage(jsx: Jsx): boolean {
+    return (
+      this.isImageLink(jsx) ||
+      ((jsx.name === "Img" || jsx.tag === "img") && inlineDisplay(jsx.style)) ||
+      // Text set inline (`display: inline-block` pills, badges): it sits on a line with its neighbours too.
+      ((jsx.name === "Text" || jsx.name === "Link" || /^(p|span|a|strong|em|b|i)$/.test(jsx.tag)) && /^inline(-block)?$/.test(String(jsx.style.display ?? "").trim()) && this.textOnly(jsx))
+    );
+  }
+
+  /** Whether an element holds only text and inline text markup (no blocks, images or code making them). */
+  private textOnly(jsx: Jsx): boolean {
+    return this.flatten(jsx.children).every((c) => ts.isJsxText(c) || (ts.isJsxExpression(c) && !!c.expression && !containsJsx(c.expression)) || ((ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && /^(span|strong|em|b|i|u|br|a)$/.test(c.kind === ts.SyntaxKind.JsxElement ? c.openingElement.tagName.getText() : c.tagName.getText())));
+  }
+
+  /** Whether code only makes inline images: every JSX element it returns is one. */
+  private makesInlineImages(expression: ts.Expression): boolean {
+    const roots: Array<ts.JsxElement | ts.JsxSelfClosingElement> = [];
+    const visit = (node: ts.Node) => {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) roots.push(node);
+      else if (!ts.isJsxFragment(node)) ts.forEachChild(node, visit);
+      else roots.push(node as never);
+    };
+    visit(expression);
+    return (
+      roots.length > 0 &&
+      roots.every(
+        (node) =>
+          (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+          this.isInlineImage(this.read(node)),
+      )
+    );
+  }
+
+  private isImageLink(jsx: Jsx): boolean {
+    if (jsx.name !== "Link" && jsx.tag !== "a") return false;
+    const kids = this.flatten(jsx.children);
+    return (
+      kids.length === 1 &&
+      (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) &&
+      ["Img", "img"].includes(
+        this.read(kids[0] as ts.JsxElement).name ??
+          this.read(kids[0] as ts.JsxElement).tag,
+      )
+    );
+  }
+
+  private hasComponents(jsx: Jsx): boolean {
+    let found = false;
+    const visit = (node: ts.Node) => {
+      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.has(node.tagName.getText())) found = true;
+      if (!found) ts.forEachChild(node, visit);
+    };
+    jsx.children.forEach(visit);
+    return found;
+  }
+
+  /** Something Elements can't express: kept as it renders (see `keep`). */
+  private fallback(jsx: Jsx, ctx?: Ctx, why?: string): ElementNode {
+    this.refuseTailwind(jsx.node);
+    this.fallbackRanges.push({ from: jsx.node.getStart(), to: jsx.node.getEnd() });
+    const reason = why ?? (jsx.name ? `unsupported component: ${jsx.name}` : /^[A-Z]/.test(jsx.tag) ? `custom component: ${jsx.tag}` : `unsupported element: ${jsx.tag}`);
+    // An HTML element or a React Email component renders an element; a component of the template's own may render text only.
+    const element = jsx.name !== undefined || /^[a-z][\w-]*$/.test(jsx.tag);
+    this.noteKeptUse([jsx.node], ctx);
+    return this.keep(this.keptText(jsx.node, this.keptColor(ctx)), ctx, reason, element);
+  }
+
+  /**
+   * Markup kept as React that renders React Email's <Tailwind> (directly, or in a component that couldn't be inlined,
+   * through the components it renders): <Tailwind> suspends the first time it renders a config, and Elements renders
+   * synchronously, so a fresh process would leave that content out of the email. Such a template is refused, saying so.
+   */
+  private refuseTailwind(node: ts.Node): void {
+    const found = this.tailwindIn(node, this.file, 0, new Set());
+    if (!found) return;
+    throw new Error(
+      `Can't convert this template: ${found} is kept as React (it couldn't be inlined: a spread prop, a hook, …) and renders React Email's <Tailwind>, which suspends on its first render; Elements renders synchronously, so that content would be left out of the email. Make it inlinable (props without a spread), or put <Tailwind> in the template itself`
+    );
+  }
+
+  /** The component in `node` (JSX in `file`) that renders React Email's <Tailwind> (`<Tailwind>` itself), or undefined. */
+  private tailwindIn(node: ts.Node, file: ts.SourceFile, depth: number, seen: Set<string>): string | undefined {
+    let found: string | undefined;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && ts.isIdentifier(n.tagName) && /^[A-Z]/.test(n.tagName.text)) {
+        const tag = n.tagName.text;
+        if (this.reactEmailName(tag, file) === "Tailwind") found = "<Tailwind>";
+        else if (this.componentRendersTailwind(tag, file, depth + 1, seen)) found = `<${tag}>`;
+      }
+      if (!found) ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
+  /** The React Email component `name` is in `file` (imported from React Email, or through a project file), if it's one. */
+  private reactEmailName(name: string, file: ts.SourceFile): string | undefined {
+    if (file === this.file) return this.components.get(name);
+    for (const statement of file.statements) {
+      const bindings = ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) ? statement.importClause?.namedBindings : undefined;
+      const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === name) : undefined;
+      if (!spec) continue;
+      const from = ((statement as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral).text;
+      const imported = (spec.propertyName ?? spec.name).text;
+      return isReactEmailModule(from) ? imported : this.reactEmailExport(from, imported, file.fileName);
+    }
+    return undefined;
+  }
+
+  /** Whether the component `name` of `file` (its own, or one it imports from the project) renders <Tailwind> (see `refuseTailwind`). */
+  private componentRendersTailwind(name: string, file: ts.SourceFile, depth: number, seen: Set<string>): boolean {
+    const key = `${file.fileName}#${name}`;
+    if (depth > 6 || seen.has(key)) return false;
+    seen.add(key);
+    for (const statement of file.statements) {
+      const own = (ts.isFunctionDeclaration(statement) && statement.name?.text === name) || (ts.isVariableStatement(statement) && statement.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && d.name.text === name));
+      if (own) return !!this.tailwindIn(statement, file, depth, seen);
+    }
+    for (const statement of file.statements) {
+      const clause = ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) ? statement.importClause : undefined;
+      const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements.find((e) => e.name.text === name) : undefined;
+      const imported = named ? (named.propertyName ?? named.name).text : clause?.name?.text === name ? "default" : undefined;
+      if (imported) return this.exportRendersTailwind(imported, ((statement as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral).text, file.fileName, depth + 1, seen);
+    }
+    return false;
+  }
+
+  /** Whether what the project file `specifier` (from `from`) exports as `name` renders <Tailwind>: its own, or passed on. */
+  private exportRendersTailwind(name: string, specifier: string, from: string, depth: number, seen: Set<string>): boolean {
+    if (depth > 6 || !/^[./]/.test(specifier) || !this.loadModule) return false;
+    const loaded = this.loadModule(specifier, from);
+    if (!loaded) return false;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    for (const st of module.statements) {
+      if (name === "default" && ts.isExportAssignment(st)) return ts.isIdentifier(st.expression) ? this.componentRendersTailwind(st.expression.text, module, depth + 1, seen) : !!this.tailwindIn(st, module, depth, seen);
+      if (name === "default" && ts.isFunctionDeclaration(st) && hasModifier(st, ts.SyntaxKind.DefaultKeyword)) return !!this.tailwindIn(st, module, depth, seen);
+      if (!ts.isExportDeclaration(st) || st.isTypeOnly) continue;
+      const target = st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier) ? st.moduleSpecifier.text : undefined;
+      if (!st.exportClause) {
+        if (target && name !== "default" && this.exportRendersTailwind(name, target, loaded.fileName, depth + 1, seen)) return true;
+        continue;
+      }
+      if (!ts.isNamedExports(st.exportClause)) continue;
+      const element = st.exportClause.elements.find((e) => e.name.text === name && !e.isTypeOnly);
+      if (!element) continue;
+      const local = (element.propertyName ?? element.name).text;
+      return target ? this.exportRendersTailwind(local, target, loaded.fileName, depth + 1, seen) : this.componentRendersTailwind(local, module, depth + 1, seen);
+    }
+    return name !== "default" && this.componentRendersTailwind(name, module, depth + 1, seen);
+  }
+
+  /**
+   * Edits writing `value === undefined ? fallback : value` (how inlining writes a prop's default where it's given a
+   * value it reads, see components.ts) as `value ?? fallback` where that's the same: the value is known and isn't null
+   * (a constant, data from a JSON file).
+   */
+  nullishDefaults(): Array<{ from: number; to: number; text: string }> {
+    const edits: Array<{ from: number; to: number; text: string }> = [];
+    const read = (n: ts.Expression): boolean => ts.isIdentifier(n) || (ts.isPropertyAccessExpression(n) && !n.questionDotToken && read(n.expression));
+    const visit = (node: ts.Node) => {
+      if (ts.isConditionalExpression(node)) {
+        const test = unwrap(node.condition);
+        const value = ts.isBinaryExpression(test) ? unwrap(test.left) : undefined;
+        if (ts.isBinaryExpression(test) && value && test.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken && unwrap(test.right).getText() === "undefined" && read(value) && unwrap(node.whenFalse).getText().replace(/\s+/g, "") === value.getText().replace(/\s+/g, "")) {
+          const known = this.styleValue(() => this.evaluate(value));
+          if (known !== undefined && known !== null) {
+            const fallback = unwrap(node.whenTrue);
+            const right = ts.isBinaryExpression(fallback) || ts.isConditionalExpression(fallback) ? `(${fallback.getText()})` : fallback.getText();
+            let parent = node.parent;
+            while (ts.isParenthesizedExpression(parent)) parent = parent.parent;
+            const bare = ts.isJsxExpression(parent) || ts.isTemplateSpan(parent) || ts.isVariableDeclaration(parent) || ts.isPropertyAssignment(parent) || ts.isCallExpression(parent) || ts.isArrayLiteralExpression(parent) || ts.isReturnStatement(parent);
+            const text = `${value.getText()} ?? ${right}`;
+            edits.push({ from: node.getStart(), to: node.getEnd(), text: bare ? text : `(${text})` });
+            return;
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return edits;
+  }
+
+  /** A block kept as React: what it renders, and the text color around it, for its components (see `keptComponentColors`). */
+  private noteKeptUse(nodes: readonly ts.Node[], ctx?: Ctx): void {
+    this.keptUses.push({ nodes, color: this.keptColor(ctx), known: !nodes.length || this.colorKnownAbove(nodes[0]) });
+  }
+
+  /**
+   * Whether the text color a node of the template inherits is known: no element around it sets one from code
+   * (`style={{ color: accent }}`, a spread that can't be read), which the conversion couldn't follow.
+   */
+  private colorKnownAbove(node: ts.Node): boolean {
+    for (let n: ts.Node | undefined = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+      if (ts.isFunctionLike(n) && !ts.isArrowFunction(n.parent) && n === this.findComponent()) break;
+      if (!ts.isJsxElement(n)) continue;
+      const style = n.openingElement.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+      const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+      if (!code) continue;
+      const value = this.styleValue(() => this.evaluate(code));
+      if (value && typeof value === "object") {
+        if ("color" in value) return true;
+        continue;
+      }
+      const literal = unwrap(code);
+      if (!ts.isObjectLiteralExpression(literal)) return false;
+      for (const prop of literal.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          const spread = this.styleValue(() => this.evaluate(prop.expression));
+          if (!spread || typeof spread !== "object") return false;
+        } else if (prop.name && prop.name.getText().replace(/^["']|["']$/g, "") === "color") {
+          return this.styleValue(() => this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop.name as ts.Identifier))) !== undefined;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Components of the file kept as React (a hook, a spread) render their own tables and cells, which the email's
+   * `table, td { color: #000000 }` turns black where the original's text took the color around them. Each is given the
+   * text color of where it's used (through the components that use it), written on its tables and cells as on kept
+   * markup. Where its uses are under different colors, under one computed from code, or it's exported (other templates
+   * render it), the color can't be written: its text would show in another color than the original's, which can make it
+   * unreadable (white on white), so that's reported as content.
+   */
+  private keptComponentColors(): void {
+    const template = this.findComponent();
+    const declarations = new Map<ts.Symbol, ts.Node>();
+    for (const statement of this.file.statements) {
+      const named = ts.isFunctionDeclaration(statement) && statement.name ? [statement.name]
+        : ts.isVariableStatement(statement) ? statement.declarationList.declarations.filter((d) => d.initializer && (ts.isArrowFunction(unwrap(d.initializer)) || ts.isFunctionExpression(unwrap(d.initializer)))).map((d) => d.name)
+        : [];
+      for (const name of named) {
+        const symbol = ts.isIdentifier(name) ? this.checker.getSymbolAtLocation(name) : undefined;
+        if (symbol && !(template && statement.getStart() <= template.getStart() && statement.getEnd() >= template.getEnd())) declarations.set(symbol, statement);
+      }
+    }
+    if (!declarations.size) return;
+    const used = (nodes: readonly ts.Node[]): Set<ts.Node> => {
+      const out = new Set<ts.Node>();
+      const visit = (n: ts.Node) => {
+        if (ts.isIdentifier(n)) {
+          const declaration = declarations.get(this.checker.getSymbolAtLocation(n) as ts.Symbol);
+          if (declaration && !(n.getStart() >= declaration.getStart() && n.getEnd() <= declaration.getEnd())) out.add(declaration);
+        }
+        ts.forEachChild(n, visit);
+      };
+      nodes.forEach(visit);
+      return out;
+    };
+    const UNKNOWN = "\u0000computed";
+    const colors = new Map<ts.Node, Set<string>>();
+    const add = (declaration: ts.Node, color: string): boolean => {
+      const set = colors.get(declaration) ?? new Set<string>();
+      colors.set(declaration, set);
+      if (set.has(color)) return false;
+      set.add(color);
+      return true;
+    };
+    // No color around is the browser's black, as `td { color: #000000 }` gives.
+    const normal = (color: string | undefined) => (color ?? "#000000").trim().toLowerCase().replace(/^#000$|^black$|^rgb\(0,\s*0,\s*0\)$/, "#000000");
+    for (const use of this.keptUses) for (const declaration of used(use.nodes)) add(declaration, use.known ? normal(use.color) : UNKNOWN);
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const [declaration, set] of colors) for (const inner of used([declaration])) for (const color of [...set]) changed = add(inner, color) || changed;
+    }
+    const exported = new Set(this.exportedStatements());
+    for (const [declaration, set] of colors) {
+      if (!this.cellsWithoutColor(declaration)) continue;
+      const [only] = set;
+      if (set.size === 1 && only !== UNKNOWN && (only === "#000000" || !exported.has(declaration as ts.Statement))) {
+        if (only !== "#000000") this.componentColors.set(declaration, only);
+        continue;
+      }
+      const name = (ts.isFunctionDeclaration(declaration) ? declaration.name?.text : ts.isVariableStatement(declaration) ? declaration.declarationList.declarations[0].name.getText() : undefined) ?? "component";
+      const why = set.has(UNKNOWN) ? "under a text color computed from code" : set.size > 1 ? `under different text colors (${[...set].join(", ")})` : "exported, so other templates may render it";
+      this.report.lostStyle(`line ${this.originalLine(declaration.getStart())}: <${name}>, kept as React, renders tables or cells without a text color of its own, ${why}: the email's "table, td { color: #000000 }" shows their text in black there`, true);
+    }
+  }
+
+  /** Whether `node` renders a table or cell (an HTML one, or React Email's) whose style doesn't set a text color. */
+  private cellsWithoutColor(node: ts.Node): boolean {
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+        const tag = n.tagName.getText();
+        const kind = /^[a-z]/.test(tag) ? tag : { Section: "table", Container: "table", Row: "table", Column: "td" }[this.components.get(tag) ?? ""];
+        if (kind === "table" || kind === "td") {
+          const style = n.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+          const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+          const value = code && this.styleValue(() => this.evaluate(code));
+          // React Email's Section and Container hold a cell of their own that no style reaches.
+          const inner = kind === "table" && /^(Section|Container)$/.test(this.components.get(tag) ?? "");
+          if (inner || !(value && typeof value === "object" && "color" in value)) found = true;
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
+  /** Children kept as they render (text, code, a value holding JSX), in a div. */
+  private keepChildren(children: readonly ts.JsxChild[], ctx: Ctx, reason: string): ElementNode {
+    for (const child of children) this.refuseTailwind(child);
+    for (const child of children) this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
+    this.noteKeptUse(children, ctx);
+    const color = this.keptColor(ctx);
+    return this.keep(children.map((child) => this.keptText(child, color)).join(""), ctx, reason, false);
+  }
+
+  /** The text color kept markup's tables and cells take from around it: the color of the div `inherited` puts it in. */
+  private keptColor(ctx?: Ctx): string | undefined {
+    return (ctx && inheritedStyle(ctx))?.color;
+  }
+
+  /**
+   * Kept JSX as an Html block: in the printed template, the JSX in a `KeptHtml` (a component of the migration's own that
+   * renders what it's given), which Elements renders in the email and keeps as an Html block in the design. In a div
+   * with the text styles it inherited in the original, or in a plain one where it may render no element: Elements shows
+   * a component that renders only text as text, which the design doesn't keep.
+   */
+  private keep(jsx: string, ctx: Ctx | undefined, reason: string, element: boolean): ElementNode {
+    const style = ctx && inheritedStyle(ctx);
+    this.kept.push(style ? `<div style={${JSON.stringify(style)}}>${jsx}</div>` : element ? jsx : `<div>${jsx}</div>`);
+    return { ...fallbackHtml("", reason), props: { html: expr(`${KEPT_OPEN}${this.kept.length - 1}${KEPT_CLOSE}`) } };
+  }
+
+  /**
+   * Source kept as it is (fallbacks), with its Tailwind classes written as inline styles (the migrated template has no
+   * <Tailwind> to apply them), and the browser's defaults the email's head styles would change stated (see
+   * `browserDefaults`; `color`, the text color around it).
+   */
+  private keptText(node: ts.Node, color?: string): string {
+    const start = node.getStart();
+    let text = node.getText();
+    for (const edit of this.styleEdits(node, { color }).sort((a, b) => b.from - a.from)) {
+      text = text.slice(0, edit.from - start) + edit.text + text.slice(edit.to - start);
+    }
+    return text;
+  }
+
+  /**
+   * What a static class list gives an element without the template's <Tailwind> and head <style>: the styles Tailwind
+   * inlines and a head rule's hiding (`.hide{display:none}`), under its own style (`before`) or over it (`after`, a
+   * hiding marked !important). `drop`: the class list goes (Tailwind inlined it; classes it couldn't, `mobile:` or
+   * `hover:`, have no stylesheet here).
+   */
+  private classStyles(value: string): { before: Style; after: Style; drop: boolean } {
+    const tailwind = this.tailwind.styles.get(value);
+    // Hidden when the display that wins among its class rules (by !important, then stylesheet order) is none.
+    const names = value.split(/\s+/);
+    const hidden = (name: string) => /^none$/i.test(String(this.headClasses.get(name)?.display ?? "").trim());
+    const hides = names.some(hidden) && /^none$/i.test(String(classStyle(names, this.headClasses, this.headImportant, this.headOrder).display ?? "").trim());
+    const strongHide = hides && names.some((name) => this.headImportant.get(name)?.has("display"));
+    return {
+      before: { ...tailwind, ...(hides && !strongHide ? { display: "none" } : {}) },
+      after: strongHide ? { display: "none" } : {},
+      drop: !!tailwind && Object.keys(tailwind).length > 0,
+    };
+  }
+
+  /**
+   * Edits to each element under `root`: its static className as the styles it gives (see `classStyles`), and with
+   * `kept`, the browser's defaults the email's head styles would change on it (see `browserDefaults`).
+   */
+  private styleEdits(root: ts.Node, kept?: { color?: string; except?: (node: ts.Node) => boolean; colorAt?: (node: ts.Node) => string | undefined }): Array<{ from: number; to: number; text: string }> {
+    const edits: Array<{ from: number; to: number; text: string }> = [];
+    const visit = (node: ts.Node) => {
+      // A component of the template's own that takes no `style` keeps its className: a style would be a prop it
+      // doesn't have (a type error), and do nothing either way.
+      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && (/^[a-z][\w-]*$/.test(node.tagName.getText()) || this.components.has(node.tagName.getText()) || this.takesStyle(node.tagName.getText()))) {
+        const kept_ = kept && !kept.except?.(node) ? { ...kept, color: kept.colorAt?.(node) ?? kept.color } : undefined;
+        const attrs = node.attributes.properties;
+        const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
+        const value = className ? this.styleValue(() => this.attrValue(className.initializer)) : undefined;
+        const classes = typeof value === "string" ? this.classStyles(value) : { before: {}, after: {}, drop: false };
+        // Classes worked out at render time, in markup kept as React: looked up then (see `tailwindStyle`).
+        const classCode = kept_ && value === undefined && this.classTable.size && className?.initializer && ts.isJsxExpression(className.initializer) && className.initializer.expression ? className.initializer.expression : undefined;
+        if (classCode) this.needsTailwindStyle = true;
+        const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+        const ownCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
+        // What its own style sets: from its value, or the names an object literal of it writes out.
+        const own = ownCode && this.styleValue(() => this.evaluate(ownCode));
+        const literal = ownCode && unwrap(ownCode);
+        const ownKeys = own && typeof own === "object" ? new Set(Object.keys(own))
+          : literal && ts.isObjectLiteralExpression(literal) && literal.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) ? new Set(literal.properties.map((p) => (p.name as ts.Identifier).text))
+          : undefined;
+        // The defaults it doesn't set (all of them, under its own, when what it sets can't be told).
+        const sets = ownCode ? (ownKeys && new Set([...Object.keys(classes.before), ...ownKeys, ...Object.keys(classes.after)])) : new Set(Object.keys(classes.before));
+        const defaults = kept_ ? this.browserDefaults(node.tagName.getText(), sets, kept_.color) : {};
+        const entries = (style: Style) => Object.entries(style).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`);
+        // React Email's Section and Container put what they hold in a cell of their own, which no style reaches: under the
+        // email's `td { color: #000000 }` it would lose the text color they set or take: a div in it says it again.
+        const box = this.components.get(node.tagName.getText());
+        const inner = kept_ && (box === "Section" || box === "Container") && ts.isJsxOpeningElement(node) && sets ? (ownKeys?.has("color") ? (own as Style | undefined)?.color : kept_.color) : undefined;
+        if (inner && ts.isJsxElement(node.parent) && node.parent.children.some((c) => !(ts.isJsxText(c) && !c.text.trim()))) {
+          edits.push({ from: node.getEnd(), to: node.getEnd(), text: `<div style={{ color: ${JSON.stringify(inner)} }}>` });
+          edits.push({ from: node.parent.closingElement.getStart(), to: node.parent.closingElement.getStart(), text: "</div>" });
+        }
+        if (Object.keys(classes.before).length || Object.keys(classes.after).length || Object.keys(defaults).length || classCode) {
+          // Under its own style when what that sets can't be told (so it wins), else after it. What it sets itself isn't
+          // written before it; under a style that can't be read, the rest is written as one object spread first, as
+          // TypeScript rejects a property its spread always overwrites (TS2783).
+          const [under, over] = sets ? [{}, defaults] : [defaults, {}];
+          const leading: Style = { ...under, ...classes.before };
+          for (const key of ownKeys ?? []) delete leading[key];
+          const first = ownCode && !ownKeys ? (Object.keys(leading).length ? [`...{ ${entries(leading).join(", ")} }`] : []) : entries(leading);
+          const looked = classCode ? [`...${this.helper.tailwindStyle}(${classCode.getText()})`] : [];
+          const merged = `style={{ ${[...first, ...looked, ...(ownCode ? [`...(${ownCode.getText()})`] : []), ...entries(over), ...entries(classes.after)].join(", ")} }}`;
+          if (className && classes.drop) edits.push({ from: className.getStart(), to: className.getEnd(), text: "" });
+          if (styleAttr) edits.push({ from: styleAttr.getStart(), to: styleAttr.getEnd(), text: merged });
+          else {
+            const at = className?.getEnd() ?? (attrs.length ? attrs[attrs.length - 1].getEnd() : node.tagName.getEnd());
+            edits.push({ from: at, to: at, text: ` ${merged}` });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(root);
+    return edits;
+  }
+
+  /**
+   * Whether a component of the file's own takes a `style` (destructures it, or passes its props on): one that doesn't, or
+   * one from another file, isn't given one.
+   */
+  private takesStyle(tag: string): boolean {
+    for (const statement of this.file.statements) {
+      const fn = ts.isFunctionDeclaration(statement) && statement.name?.text === tag ? statement
+        : ts.isVariableStatement(statement) ? statement.declarationList.declarations.map((d) => (ts.isIdentifier(d.name) && d.name.text === tag && d.initializer ? unwrap(d.initializer) : undefined)).find((init): init is ts.ArrowFunction | ts.FunctionExpression => !!init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+        : undefined;
+      if (!fn) continue;
+      const param = fn.parameters[0];
+      if (!param) return false;
+      if (ts.isObjectBindingPattern(param.name)) return param.name.elements.some((e) => !!e.dotDotDotToken || (e.propertyName ?? e.name).getText() === "style");
+      return ts.isIdentifier(param.name) && new RegExp(`\\b${param.name.text}\\.style\\b|\\.\\.\\.${param.name.text}\\b`).test(fn.getText());
+    }
+    return false;
+  }
+
+  /**
+   * The browser's defaults that an Elements email's head styles change, for an element kept as markup, where its style
+   * (`sets`: what it sets, when known) doesn't say otherwise: the email sets `table, td { color: #000000 }`, under which
+   * kept tables and cells would lose the text color around them (`color`), and the editor's export resets tables to
+   * `border-collapse: collapse` (dropping their padding, rounded corners and cell spacing) and paragraphs to `margin: 0`.
+   * On HTML elements, and on React Email components whose style lands on one: Section, Container and Row on their
+   * table, Column on its cell (Text sets its margins itself).
+   */
+  private browserDefaults(tag: string, sets: Set<string> | undefined, color?: string): Style {
+    const kind = /^[a-z]/.test(tag) ? tag : { Section: "table", Container: "table", Row: "table", Column: "td" }[this.components.get(tag) ?? ""];
+    const set = (...names: string[]) => !!sets && names.some((name) => sets.has(name));
+    const out: Style = {};
+    if ((kind === "table" || kind === "td") && color && !set("color")) out.color = color;
+    if (kind === "table" && !set("borderCollapse")) out.borderCollapse = "separate";
+    if (kind === "p" && !set("margin", "marginBlock")) {
+      if (!set("marginTop", "marginBlockStart")) out.marginTop = "1em";
+      if (!set("marginBottom", "marginBlockEnd")) out.marginBottom = "1em";
+    }
+    return out;
+  }
+
+  // ============================================
+  // Text
+  // ============================================
+
+  /** Text + expressions only (no inline elements), as children. */
+  private plainParts(children: readonly ts.JsxChild[], textOnly = false): Parts | undefined {
+    const parts: Parts = [];
+    for (const child of this.flatten(children)) {
+      if (ts.isJsxText(child)) parts.push(jsxText(child.text));
+      else if (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression)) {
+        const value = this.evaluate(child.expression);
+        // A value typed to hold JSX (`message: ReactNode`) may get a link or bold text where the preview
+        // gives text: not plain text, but rendered as React would (inlineContent's htmlText).
+        if (!textOnly && value === undefined && (this.mayHoldJsx(child.expression) || this.assignedJsx(child.expression) || this.returnsJsx(child.expression))) return undefined;
+        parts.push(typeof value === "string" || typeof value === "number" ? String(value) : expr(child.expression.getText()));
+      } else return undefined;
+    }
+    // Neighbouring strings merge, so the text prints as one run.
+    return parts.reduce<Parts>((out, part) => {
+      const last = out[out.length - 1];
+      if (typeof part === "string" && typeof last === "string") out[out.length - 1] = last + part;
+      else out.push(part);
+      return out;
+    }, []);
+  }
+
+  /** Text + expressions as one value (for a prop like previewText). */
+  private plainContent(children: readonly ts.JsxChild[]): string | Expr | undefined {
+    const parts = this.plainParts(children, true);
+    if (!parts) return undefined;
+    if (parts.every((p) => typeof p === "string")) return parts.join("");
+    this.needsPlainText = true;
+    if (parts.length === 1 && isExpr(parts[0])) return expr(`${this.plainTextName}(${parts[0].$expr})`);
+    return expr(`\`${parts.map((p) => (typeof p === "string" ? escapeTemplate(p) : `\${${this.plainTextName}(${p.$expr})}`)).join("")}\``);
+  }
+
+  /** Inline content (text, expressions, links, bold, …) as HTML. */
+  private inlineContent(children: readonly ts.JsxChild[]): Content {
+    const parts: Array<string | Expr> = [];
+    const visit = (nodes: readonly ts.JsxChild[]) => {
+      for (const child of this.flatten(nodes)) {
+        if (ts.isJsxText(child)) parts.push(escapeHtml(jsxText(child.text)));
+        else if (ts.isJsxExpression(child) && child.expression) {
+          if (containsJsx(child.expression)) {
+            this.renderedRanges.push({ from: child.getStart(), to: child.getEnd() });
+            this.markupValue(child.expression, parts);
+            continue;
+          }
+          const value = this.evaluate(child.expression);
+          if (typeof value === "string" || typeof value === "number") parts.push(escapeHtml(String(value)));
+          // Its value is unknown: text or a number, escaped (one that may be React elements keeps the block).
+          else parts.push(this.textOf(child.expression));
+        } else if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
+          const jsx = this.read(child);
+          const tag =
+            jsx.name === "Link" ? "a"
+            : jsx.name === "CodeInline" ? "code"
+            : (jsx.name === "Text" || jsx.tag === "p") && inlineDisplay(jsx.style) ? "span"
+            : jsx.name ? undefined
+            // A component the codemod doesn't convert (`<Trans>`) is rendered where the template renders, not written as a tag.
+            : /^[A-Z]|\./.test(jsx.tag) ? undefined
+            // Text markup is written with the attributes text needs; anything else (an inline <svg> icon, an <img>) as it
+            // renders, with all of its attributes.
+            : TEXT_TAGS.has(jsx.tag) ? jsx.tag
+            : undefined;
+          if (jsx.opaqueProps) throw new KeepBlock(`dynamic spread or content props in text: ${jsx.tag}`);
+          if (!tag) {
+            // A React Email component (an image in a link), or an element that isn't text markup, as the HTML it renders;
+            // a component of the template's own keeps the block.
+            this.renderedRanges.push({ from: child.getStart(), to: child.getEnd() });
+            this.markupElement(child, parts);
+            continue;
+          }
+          // Each attribute, and whether it's code (a fixed one's text can hold `${`, which isn't code).
+          const attrs: Array<{ text: string; code?: boolean }> = [];
+          const href = jsx.name === "Link" || tag === "a" ? this.attr(jsx, "href") : undefined;
+          // A URL from props that's missing renders no href, as React renders it (not href="undefined").
+          if (href !== undefined) attrs.push(isExpr(href) ? { text: this.codeAttribute("href", href.$expr), code: true } : { text: `href="${escapeAttribute(String(href))}"` });
+          if (href !== undefined) this.needsEscape ||= isExpr(href);
+          const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
+          if (css) attrs.push({ text: `style="${escapeAttribute(css)}"` });
+          // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps the target it has.
+          // `hidden`, fixed or from props (`hidden={taxRate === 0}`): kept, so the text hides when the original's does.
+          const hidden = this.attr(jsx, "hidden");
+          if (isExpr(hidden)) {
+            this.needsEscape = true;
+            attrs.push({ text: this.codeAttribute("hidden", `(${hidden.$expr}) || undefined`), code: true });
+          } else if (hidden === true || hidden === "" || hidden === "hidden" || hidden === "true") attrs.push({ text: "hidden" });
+          // A list's numbering (`<ol start={3} type="a" reversed>`, `<li value={5}>`): what a reader reads before each item.
+          for (const name of tag === "ol" ? ["start", "type", "reversed"] : tag === "ul" ? ["type"] : tag === "li" ? ["value", "type"] : []) {
+            const value = this.attr(jsx, name);
+            if (value === undefined || value === null || value === false) continue;
+            if (isExpr(value)) {
+              this.needsEscape = true;
+              attrs.push({ text: this.codeAttribute(name, name === "reversed" ? `(${value.$expr}) || undefined` : value.$expr), code: true });
+            } else if (name !== "reversed") attrs.push({ text: `${name}="${escapeAttribute(String(value))}"` });
+            else if (value === true || value === "" || value === "reversed" || value === "true") attrs.push({ text: "reversed" });
+          }
+          if (jsx.name === "Link" || tag === "a") {
+            const target = this.attr(jsx, "target");
+            if (isExpr(target)) this.needsEscape = true;
+            // From props: where it's left out, a Link still opens a new tab.
+            if (isExpr(target)) attrs.push({ text: this.codeAttribute("target", jsx.name === "Link" ? `${target.$expr} ?? "_blank"` : target.$expr), code: true });
+            else if (typeof target === "string" || jsx.name === "Link") attrs.push({ text: `target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"` });
+          }
+          // With code in it, the tag is a template literal (fixed text escaped for it); an attribute
+          // from code that may be missing brings its own space (it may render nothing).
+          const code = attrs.some((a) => a.code);
+          const open = code
+            ? expr(`\`<${tag}${attrs.map((a) => (a.code ? (a.text.startsWith(`\${${this.helper.htmlAttribute}(`) ? a.text : ` ${a.text}`) : ` ${escapeTemplate(a.text)}`)).join("")}>\``)
+            : `<${tag}${attrs.map((a) => ` ${a.text}`).join("")}>`;
+          if (tag === "br") {
+            parts.push("<br/>");
+            continue;
+          }
+          parts.push(open);
+          visit(jsx.children);
+          parts.push(`</${tag}>`);
+        }
+      }
+    };
+    visit(children);
+    if (parts.every((p) => typeof p === "string")) return parts.join("");
+    return expr(
+      `\`${parts.map((p) => (typeof p === "string" ? escapeTemplate(p) : p.$expr.startsWith("`") ? p.$expr.slice(1, -1) : `\${${p.$expr}}`)).join("")}\``
+    );
+  }
+
+  /** A value shown in text, as HTML code: text and numbers escaped (`htmlText`); one that may hold React elements keeps its block. */
+  private textOf(expression: ts.Expression): Expr {
+    // A value that may be React elements (typed to hold them, or its type can't be read: `any`, an imported type, a
+    // .jsx template): its block is also written as it renders, used when it holds one (see `switched`). Only a value
+    // read where the block is (not a loop's item inside it), with no call, as it's read twice (tested, then shown).
+    if (!this.provablyText(expression)) {
+      if (this.switching && this.readHere(expression, this.switching)) this.switching.values.push(expression.getText().replace(/\s+/g, ""));
+      else if (this.mayHoldJsx(expression) || this.jsxValued(expression)) throw new KeepBlock(`text from a value that may hold elements: ${expression.getText().slice(0, 40)}`);
+    }
+    this.needsEscape = true;
+    this.needsHtmlText = true;
+    return expr(`${this.helper.htmlText}(${expression.getText()})`);
+  }
+
+  /**
+   * Whether a value shown in text is text whatever it's given: its type is made only of strings, numbers, booleans,
+   * `null`, `undefined` (and lists of them). Not when the type can't be read (`any`, a type from another file), nor
+   * React's node types.
+   */
+  private provablyText(expression: ts.Expression): boolean {
+    if (this.mayHoldJsx(expression)) return false;
+    // A constant of the project's whose value is text (`import { POSTAL_ADDRESS } from "./config"`, typed `any` here as
+    // its file isn't read for types) is text; it's still written as the code that reads it.
+    const value = this.styleValue(() => this.evaluate(expression));
+    if (typeof value === "string" || typeof value === "number") return true;
+    const text = (type: ts.Type, depth: number): boolean => {
+      if (depth > 5) return false;
+      if (type.isUnion()) return type.types.every((t) => text(t, depth + 1));
+      if (this.checker.isArrayType(type)) return (this.checker.getTypeArguments(type as ts.TypeReference) ?? []).every((t) => text(t, depth + 1));
+      const flags = ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike | ts.TypeFlags.BooleanLike | ts.TypeFlags.BigIntLike | ts.TypeFlags.EnumLike | ts.TypeFlags.Null | ts.TypeFlags.Undefined | ts.TypeFlags.Void | ts.TypeFlags.Never;
+      return (type.flags & flags) !== 0;
+    };
+    return text(this.checker.getTypeAtLocation(expression), 0);
+  }
+
+  /** Whether `expression` only reads values (`note`, `props.user.name`) declared outside `range` (not a loop's item in it). */
+  private readHere(expression: ts.Expression, range: { from: number; to: number }): boolean {
+    let node = unwrap(expression);
+    while (ts.isPropertyAccessExpression(node) || (ts.isElementAccessExpression(node) && (ts.isStringLiteral(node.argumentExpression) || ts.isNumericLiteral(node.argumentExpression)))) node = unwrap(node.expression);
+    if (!ts.isIdentifier(node)) return false;
+    const declarations = this.checker.getSymbolAtLocation(node)?.declarations ?? [];
+    return declarations.length > 0 && declarations.every((d) => d.getStart() < range.from || d.getStart() >= range.to);
+  }
+
+  /**
+   * Code with JSX shown in text (`{note ? <b>{note}</b> : null}`, `{stars.map((s) => <Img src={s} />)}`), as the HTML
+   * React renders for it, written as code that builds it: conditions and lists stay code, each element is rendered here
+   * (see `markupElement`). Anything else keeps the block (KeepBlock).
+   */
+  private markupValue(expression: ts.Expression, out: Array<string | Expr>): void {
+    const node = unwrap(expression);
+    if (!containsJsx(node)) {
+      const value = this.evaluate(node);
+      if (typeof value === "string" || typeof value === "number") out.push(escapeHtml(String(value)));
+      else if (!(value === null || typeof value === "boolean" || nothing(node))) out.push(this.textOf(expression));
+      return;
+    }
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) return this.markupElement(node, out);
+    if (ts.isJsxFragment(node)) return this.markupChildren(node.children, out);
+    if (ts.isConditionalExpression(node)) {
+      out.push(expr(`(${node.condition.getText()}) ? ${this.markupCode(node.whenTrue)} : ${this.markupCode(node.whenFalse)}`));
+      return;
+    }
+    // The value on the left is written twice (tested, then shown): only one that reads, with no call (`label()`
+    // could give other text the second time); anything else keeps the block, as React renders it. A test whose value
+    // can't be a number shows nothing when it fails, so it's written once (`name && !name.includes("@")`).
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && !pure(node.left) && !this.mayBeNumber(node.left)) {
+      return void out.push(expr(`(${node.left.getText()}) ? ${this.markupCode(node.right)} : ""`));
+    }
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && pure(node.left)) {
+      const left = node.left.getText();
+      const op = node.operatorToken.kind;
+      this.needsEscape = true;
+      this.needsHtmlText = true;
+      // What React shows for `a && <B/>` when `a` is false: `a` itself (0 shows; false, null, undefined and "" don't).
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken) return void out.push(expr(`(${left}) ? ${this.markupCode(node.right)} : ${this.helper.htmlText}(${left})`));
+      // `a || <B/>` and `a ?? <B/>` show `a` when it's there: text only, or the block is kept.
+      if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) {
+        const shown = this.textOf(node.left).$expr;
+        const missing = op === ts.SyntaxKind.BarBarToken ? `!(${left})` : `(${left}) === null || (${left}) === undefined`;
+        return void out.push(expr(`${missing} ? ${this.markupCode(node.right)} : ${shown}`));
+      }
+    }
+    if (ts.isCallExpression(node)) return this.markupList(node, out);
+    throw new KeepBlock(`code in text: ${expression.getText().replace(/\s+/g, " ").slice(0, 40)}`);
+  }
+
+  /** JSX children as HTML (see `markupValue`). */
+  private markupChildren(children: readonly ts.JsxChild[], out: Array<string | Expr>): void {
+    for (const child of children) {
+      if (ts.isJsxText(child)) {
+        const text = jsxText(child.text);
+        if (text) out.push(escapeHtml(text));
+      } else if (ts.isJsxExpression(child)) {
+        if (child.expression) this.markupValue(child.expression, out);
+      } else this.markupValue(child, out);
+    }
+  }
+
+  /** `markupValue` as one string expression (a template literal, or `""`). */
+  private markupCode(expression: ts.Expression): string {
+    const parts: Array<string | Expr> = [];
+    this.markupValue(expression, parts);
+    return templateCode(parts);
+  }
+
+  /** `list.map((item) => <…/>)` in text: the items' HTML joined (an array shows its items one after another). */
+  private markupList(call: ts.CallExpression, out: Array<string | Expr>): void {
+    const callee = call.expression;
+    const callback = call.arguments[0] && unwrap(call.arguments[0]);
+    if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "map" || call.arguments.length !== 1 || call.questionDotToken || !callback || !(ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) || containsJsx(callee.expression)) {
+      throw new KeepBlock(`code in text: ${call.getText().replace(/\s+/g, " ").slice(0, 40)}`);
+    }
+    const start = callback.getStart();
+    const text = callback.getText();
+    let written: string;
+    if (!ts.isBlock(callback.body)) {
+      written = `${text.slice(0, callback.body.getStart() - start)}${this.markupCode(callback.body)}`;
+    } else {
+      // Each return gives the item's HTML; JSX anywhere else in the callback (`const row = <Row/>`) can't be followed.
+      const edits: Array<{ from: number; to: number; text: string }> = [];
+      const visit = (node: ts.Node): void => {
+        if (ts.isFunctionLike(node)) {
+          if (containsJsx(node)) throw new KeepBlock(`code in text: ${call.getText().replace(/\s+/g, " ").slice(0, 40)}`);
+          return;
+        }
+        if (ts.isReturnStatement(node)) {
+          if (node.expression) edits.push({ from: node.expression.getStart() - start, to: node.expression.getEnd() - start, text: this.markupCode(node.expression) });
+          return;
+        }
+        if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) throw new KeepBlock(`code in text: ${call.getText().replace(/\s+/g, " ").slice(0, 40)}`);
+        ts.forEachChild(node, visit);
+      };
+      callback.body.statements.forEach(visit);
+      written = text;
+      for (const edit of edits.sort((a, b) => b.from - a.from)) written = written.slice(0, edit.from) + edit.text + written.slice(edit.to);
+    }
+    const list = `${callee.expression.getText()}${callee.questionDotToken ? "?." : "."}map(${written})`;
+    // A list read with `?.` may be missing: nothing shows then.
+    out.push(expr(/\?\./.test(callee.expression.getText()) || callee.questionDotToken ? `(${list} ?? []).join("")` : `${list}.join("")`));
+  }
+
+  /**
+   * An HTML element or a React Email component in text, as the HTML React renders for it: rendered here, with markers
+   * standing for its children and for attributes from code, which become the children's HTML and `htmlAttribute(…)`.
+   * Rendered twice with different markers, so a component that does more with a value than show it (a style worked out
+   * from it, a check) is caught: the block is kept then. A component of the template's own, a style or spread from
+   * code, keep the block too.
+   */
+  private markupElement(node: ts.JsxElement | ts.JsxSelfClosingElement, out: Array<string | Expr>): void {
+    const opening = ts.isJsxElement(node) ? node.openingElement : node;
+    const tag = opening.tagName.getText();
+    const children = ts.isJsxElement(node) ? node.children.filter((c) => !(ts.isJsxText(c) && !jsxText(c.text)) && !(ts.isJsxExpression(c) && !c.expression)) : [];
+    if (/^(React\.)?Fragment$/.test(tag) && this.isReactFragment(tag)) return this.markupChildren(children, out);
+    const name = this.components.get(tag);
+    const type: unknown = /^[a-z][\w-]*$/.test(tag) ? tag : name !== undefined && !this.componentSources.get(tag)?.type ? (ReactEmail as Record<string, unknown>)[name] : undefined;
+    if (type === undefined) throw new KeepBlock(`component in text: ${tag}`);
+    const props: Record<string, unknown> = {};
+    const code: Array<{ name: string; code: string }> = [];
+    for (const attr of opening.attributes.properties) {
+      if (ts.isJsxSpreadAttribute(attr)) {
+        const value = this.evaluate(attr.expression);
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new KeepBlock(`dynamic spread props in text: ${tag}`);
+        Object.assign(props, value);
+        continue;
+      }
+      const attrName = attr.name.getText();
+      if (attrName === "key" || attrName === "ref") continue;
+      const init = attr.initializer;
+      const expression = init && ts.isJsxExpression(init) ? init.expression : undefined;
+      if (init === undefined) props[attrName] = true;
+      else if (ts.isStringLiteral(init)) props[attrName] = decodeHtmlEntities(init.text);
+      else if (!expression || nothing(expression)) props[attrName] = undefined;
+      else {
+        const value = attrName === "style" || attrName === "className" ? this.styleValue(() => this.evaluate(expression)) : this.evaluate(expression);
+        if (value !== undefined) props[attrName] = value;
+        else if (["style", "dangerouslySetInnerHTML", "children"].includes(attrName) || containsJsx(expression)) throw new KeepBlock(`${attrName} from code in text: ${tag}`);
+        else code.push({ name: attrName, code: expression.getText() });
+      }
+    }
+    // Its classes, as the kept markup's (see `styleEdits`).
+    if (typeof props.className === "string") {
+      const classes = this.classStyles(props.className);
+      if (Object.keys(classes.before).length || Object.keys(classes.after).length) props.style = { ...classes.before, ...(props.style as Style | undefined), ...classes.after };
+      if (classes.drop) delete props.className;
+    }
+    const render = (mark: (i: number) => string) => {
+      const given: Record<string, unknown> = { ...props };
+      code.forEach((c, i) => (given[c.name] = mark(i)));
+      if (children.length) given.children = mark(code.length);
+      // The browser's defaults the email's head styles change, as on kept markup (no color: none is inherited here).
+      return withBrowserDefaults(renderToStaticMarkup(React.createElement(type as React.ElementType, given)).replace(/<link rel="preload" as="image"[^>]*>/g, ""));
+    };
+    let html: string;
+    let other: string;
+    try {
+      html = render(MARKS[0]);
+      other = render(MARKS[1]);
+    } catch {
+      throw new KeepBlock(`element in text that doesn't render on its own: ${tag}`);
+    }
+    const count = code.length + (children.length ? 1 : 0);
+    const same = (text: string, mark: (i: number) => string) => Array.from({ length: count }, (_, i) => i).reduce((t, i) => t.split(mark(i)).join(`\0${i}\0`), text);
+    if (same(html, MARKS[0]) !== same(other, MARKS[1])) throw new KeepBlock(`element in text that changes what it's given: ${tag}`);
+    // Each marker once: an attribute's whole value, or the children where text goes.
+    const places: Array<{ at: number; length: number; part: Array<string | Expr> }> = [];
+    for (let i = 0; i < count; i++) {
+      const mark = MARKS[0](i);
+      if (html.split(mark).length !== 2) throw new KeepBlock(`element in text that changes what it's given: ${tag}`);
+      if (i === code.length) {
+        const at = html.indexOf(mark);
+        if (html.lastIndexOf("<", at) > html.lastIndexOf(">", at)) throw new KeepBlock(`element in text that changes what it's given: ${tag}`);
+        const inner: Array<string | Expr> = [];
+        this.markupChildren(children, inner);
+        places.push({ at, length: mark.length, part: inner });
+        continue;
+      }
+      const attribute = new RegExp(` ([^\\s"'<>/=]+)="${mark}"`).exec(html);
+      if (!attribute) throw new KeepBlock(`element in text that changes what it's given: ${tag}`);
+      const value = code[i].code;
+      this.needsEscape = true;
+      places.push({ at: attribute.index, length: attribute[0].length, part: /^[`"']/.test(value.trim()) ? [` ${attribute[1]}="`, expr(`${this.helper.escapeHtml}(String(${value}))`), `"`] : [this.attributeCode(attribute[1], value)] });
+    }
+    let at = 0;
+    for (const place of places.sort((a, b) => a.at - b.at)) {
+      if (place.at > at) out.push(html.slice(at, place.at));
+      out.push(...place.part);
+      at = place.at + place.length;
+    }
+    if (at < html.length) out.push(html.slice(at));
+  }
+
+  /** Whether `Fragment` / `React.Fragment` is React's (imported from it, or a namespace import of it). */
+  private isReactFragment(tag: string): boolean {
+    const root = tag.split(".")[0];
+    return this.file.statements.some((s) => {
+      if (!ts.isImportDeclaration(s) || !ts.isStringLiteral(s.moduleSpecifier) || s.moduleSpecifier.text !== "react") return false;
+      const clause = s.importClause;
+      if (tag.includes(".")) return clause?.name?.text === root || (!!clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings) && clause.namedBindings.name.text === root);
+      return !!clause?.namedBindings && ts.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.some((e) => e.name.text === root && (e.propertyName ?? e.name).text === "Fragment");
+    });
+  }
+
+  /** `htmlAttribute(name, code)`: React leaves an attribute out when its value is missing. */
+  private attributeCode(name: string, code: string): Expr {
+    this.needsAttribute = true;
+    this.needsEscape = true;
+    return expr(`${this.helper.htmlAttribute}(${JSON.stringify(name)}, ${code})`);
+  }
+
+  // ============================================
+  // Holes
+  // ============================================
+
+  /**
+   * Code with JSX inside: each outermost JSX element is converted with
+   * `convert` into a slot (SLOT_OPEN n SLOT_CLOSE); the code around it stays. A fragment becomes
+   * an array (`<>{a}<B/></>` → `[a, slot 0]`), as Elements walks arrays but not
+   * fragments. Undefined when part of it can't be converted safely (text in
+   * a fragment): the caller then keeps the whole expression as HTML, so
+   * nothing is dropped.
+   */
+  private holeParts<T>(expression: ts.Expression, convert: (jsx: ts.JsxElement | ts.JsxSelfClosingElement, key?: Expr) => T[]): { code: string; slots: T[][] } | undefined {
+    const source = this.file.getFullText();
+    const slots: T[][] = [];
+    const keyOf = (node: ts.JsxElement | ts.JsxSelfClosingElement) => {
+      const key = this.read(node).attrs.get("key");
+      return key ? expr(key.getText()) : undefined;
+    };
+    const slot = (node: ts.JsxElement | ts.JsxSelfClosingElement, key?: Expr) => {
+      slots.push(convert(node, keyOf(node) ?? key));
+      return `${SLOT_OPEN}${slots.length - 1}${SLOT_CLOSE}`;
+    };
+    const codeOf = (node: ts.Node, key?: Expr): string | undefined => {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) return slot(node, key);
+      if (ts.isJsxFragment(node)) {
+        const items: string[] = [];
+        for (const [i, child] of this.flatten(node.children).filter((c) => !this.isBlank(c)).entries()) {
+          const itemKey = expr(String(i));
+          if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) items.push(slot(child, itemKey));
+          else if (ts.isJsxExpression(child) && child.expression && containsJsx(child.expression)) {
+            const code = codeOf(child.expression, itemKey);
+            if (code === undefined) return undefined;
+            items.push(code);
+          } else return undefined; // text, or code that could hold React Email elements
+        }
+        return `[${items.join(", ")}]`;
+      }
+      // What a condition renders must be JSX we convert, or nothing: any other
+      // value (a prop, a variable) could hold React Email elements.
+      if (ts.isConditionalExpression(node) && ![node.whenTrue, node.whenFalse].every(rendersSafely)) return undefined;
+      if (ts.isBinaryExpression(node) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind) && !rendersSafely(node.right)) return undefined;
+      // Any other code: its text, with the JSX inside it converted.
+      let text = "";
+      let at = node.getStart();
+      let failed = false;
+      ts.forEachChild(node, (child) => {
+        if (failed || !containsJsx(child)) return;
+        const code = codeOf(child, ts.isConditionalExpression(node) || ts.isBinaryExpression(node) || ts.isParenthesizedExpression(node) ? key : undefined);
+        if (code === undefined) {
+          failed = true;
+          return;
+        }
+        text += source.slice(at, child.getStart()) + code;
+        at = child.getEnd();
+      });
+      if (failed) return undefined;
+      return text + source.slice(at, node.getEnd());
+    };
+    const code = codeOf(expression);
+    return code === undefined ? undefined : { code, slots };
+  }
+
+  /** Code kept as it is, its JSX rendered to HTML at run time (`cells`: inside a table row). */
+  private codeFallback(expression: ts.Expression, cells = false, ctx?: Ctx): ElementNode {
+    this.refuseTailwind(expression);
+    this.fallbackRanges.push({ from: expression.getStart(), to: expression.getEnd() });
+    this.noteKeptUse([expression], ctx);
+    const color = this.keptColor(ctx);
+    const code = `{${this.keptText(expression, color)}}`;
+    if (!cells) return this.keep(code, ctx, "code that couldn't be converted", false);
+    const table = { borderCollapse: "separate", ...(color ? { color } : {}) };
+    return this.keep(`<table width="100%" cellPadding={0} cellSpacing={0} role="presentation" style={${JSON.stringify(table)}}><tbody><tr>${code}</tr></tbody></table>`, ctx, "code that couldn't be converted", true);
+  }
+
+
+  // ============================================
+  // Output
+  // ============================================
+
+  /**
+   * `tree` with each computed background's stand-in (see `computedBackground`) as its code, in any prop it went to:
+   * `x || "#ffffff"` on the Email (no background shows white), `x || undefined` on a box, or `x` where it's always a
+   * color. `written`: the stand-ins found.
+   */
+  private withComputedBackgrounds(node: ElementNode, written: Set<string>): ElementNode {
+    if (!this.computedBackgrounds.size) return node;
+    const value = (v: unknown): unknown => {
+      if (typeof v === "string") {
+        const found = this.computedBackgrounds.get(v.trim().toLowerCase());
+        if (!found) return v;
+        written.add(v.trim().toLowerCase());
+        const code = /^[\w$.]+$/.test(found.code) ? found.code : `(${found.code})`;
+        return expr(found.always ? found.code : `${code} || ${node.type === "Email" ? '"#ffffff"' : "undefined"}`);
+      }
+      if (Array.isArray(v)) return v.map(value);
+      if (v && typeof v === "object" && !isExpr(v)) return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, value(inner)]));
+      return v;
+    };
+    const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.withComputedBackgrounds(child, written) as T));
+    return {
+      ...node,
+      ...(node.props ? { props: value(node.props) as Record<string, unknown> } : {}),
+      ...(node.children ? { children: node.children.map(each) } : {}),
+      ...(node.slots ? { slots: node.slots.map((slot) => slot.map(each)) } : {}),
+    };
+  }
+
+  /**
+   * `tree` with each kept block (see `keep`) as a KeptHtml holding its JSX's place: the props Elements reads from it for
+   * the Html block (its padding, where it hides) are kept.
+   */
+  private withKeptHtml(node: ElementNode): ElementNode {
+    const html = node.props?.html;
+    if (node.type === "Html" && isExpr(html) && html.$expr.startsWith(KEPT_OPEN)) {
+      const props = Object.fromEntries(Object.entries(node.props ?? {}).filter(([key]) => KEPT_PROPS.has(key)));
+      return { type: this.helper.KeptHtml, props, children: [html], fallback: node.fallback };
+    }
+    const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.withKeptHtml(child) as T));
+    // A block written both ways (see `switched`): `holdsElements(…) ? <KeptHtml>…</KeptHtml> : <Paragraph … />`.
+    const either = (child: ElementNode, key?: number): ElementNode => {
+      const choice = this.switchOf(child, key);
+      return choice ? { type: "#expr", code: `${choice.test} ? ${SLOT_OPEN}0${SLOT_CLOSE} : ${choice.shown}${SLOT_OPEN}1${SLOT_CLOSE}${choice.shown ? " : null" : ""}`, slots: [[choice.kept], [choice.text]] } : child;
+    };
+    let code = node.code;
+    let slots = node.slots?.map((slot) => slot.map(each));
+    if (slots && code !== undefined) {
+      // As a slot's only node, the choice goes in the code around it (a node there prints as an expression, not `{…}`).
+      const replaced = new Map<number, string>();
+      slots = slots.map((slot, i) => {
+        if (slot.length === 1 && typeof slot[0] !== "string") {
+          const choice = this.switchOf(slot[0]);
+          if (!choice) return slot;
+          slots!.push([choice.kept]);
+          replaced.set(i, `(${choice.test} ? ${SLOT_OPEN}${slots!.length - 1}${SLOT_CLOSE} : ${choice.shown}${SLOT_OPEN}${i}${SLOT_CLOSE}${choice.shown ? " : null" : ""})`);
+          return [choice.text];
+        }
+        let n = 0;
+        return slot.map((child) => (typeof child === "string" ? child : either(child, n++)));
+      });
+      code = code.replace(SLOT, (marker, i: string) => replaced.get(Number(i)) ?? marker);
+    }
+    return {
+      ...node,
+      ...(node.children ? { children: node.children.map((child) => (typeof child === "string" || isExpr(child) ? child : either(this.withKeptHtml(child)))) } : {}),
+      ...(slots ? { slots, code } : {}),
+    };
+  }
+
+  /** A block written both ways (see `switched`): its test, the block for text, and the KeptHtml for elements. */
+  private switchOf(node: ElementNode, key?: number): { test: string; shown: string; text: ElementNode; kept: ElementNode } | undefined {
+    const choice = node.props?.[SWITCH] as { test: string[]; kept: string; alone: boolean } | undefined;
+    if (!choice) return undefined;
+    const { [SWITCH]: _, ...props } = node.props!;
+    const withKey = (p: Record<string, unknown>) => (key === undefined ? p : { key, ...p });
+    const keptProps = Object.fromEntries(Object.entries(props).filter(([name]) => KEPT_PROPS.has(name)));
+    return {
+      test: `${this.helper.holdsElements}(${choice.test.join(", ")})`,
+      // Values alone show nothing for null, false or "": the text block only when they show text.
+      shown: choice.alone ? `${choice.test.map((value) => `${this.helper.htmlText}(${value})`).join(" || ")} ? ` : "",
+      text: { ...node, props: withKey(props) },
+      kept: { type: this.helper.KeptHtml, props: withKey(keptProps), children: [expr(choice.kept)] },
+    };
+  }
+
+  /** The file's statements that declare what it exports (`export function …`, and what `export { … }` names). */
+  private exportedStatements(): ts.Statement[] {
+    const names = new Set<string>();
+    for (const statement of this.file.statements) {
+      if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        for (const element of statement.exportClause.elements) names.add((element.propertyName ?? element.name).text);
+      }
+      if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) names.add(statement.expression.text);
+    }
+    return this.file.statements.filter((statement) => {
+      if (hasModifier(statement, ts.SyntaxKind.ExportKeyword)) return true;
+      if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) return names.has(statement.name.text);
+      return ts.isVariableStatement(statement) && statement.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && names.has(d.name.text));
+    });
+  }
+
+  /** The template's value import of React: a namespace or default name (`React`), or its named imports to add to. */
+  private reactImport(): { namespace?: string; named?: ts.NamedImports } {
+    for (const statement of this.file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const clause = statement.importClause;
+      if (!clause || clause.isTypeOnly) continue;
+      if (clause.name) return { namespace: clause.name.text };
+      if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) return { namespace: clause.namedBindings.name.text };
+    }
+    for (const statement of this.file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!statement.importClause?.isTypeOnly && bindings && ts.isNamedImports(bindings)) return { named: bindings };
+    }
+    return {};
+  }
+
+  /** Top-level names the file declares itself (not React Email imports). */
+  private localNames(): string[] {
+    const names: string[] = [];
+    // Every name the file declares, at any depth (a `Paragraph` inside the component, a prop named `Button`).
+    const bind = (name: ts.BindingName) => {
+      if (ts.isIdentifier(name)) names.push(name.text);
+      else for (const element of name.elements) if (!ts.isOmittedExpression(element)) bind(element.name);
+    };
+    const visit = (node: ts.Node) => {
+      if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isFunctionExpression(node) || ts.isClassExpression(node)) && node.name) names.push(node.name.text);
+      if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) bind(node.name);
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    for (const statement of this.file.statements) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && !isReactEmailModule(statement.moduleSpecifier.text)) {
+        const clause = statement.importClause;
+        if (clause?.name) names.push(clause.name.text);
+        const bindings = clause?.namedBindings;
+        // (React Email's components passed on by a file of the project's are React Email's.)
+        if (bindings && ts.isNamedImports(bindings)) bindings.elements.forEach((e) => this.componentSources.get(e.name.text)?.barrel || names.push(e.name.text));
+        if (bindings && ts.isNamespaceImport(bindings)) names.push(bindings.name.text);
+      }
+    }
+    return names;
+  }
+
+  /** React Email imports referenced outside `returned`, or by fallbacks copied from inside it. */
+  private reactEmailNamesUsedOutside(returned: ts.Expression[]): Set<string> {
+    const names = new Set<string>();
+    const inside = (node: ts.Node) =>
+      returned.some(
+        (r) => node.getStart() >= r.getStart() && node.getEnd() <= r.getEnd(),
+      );
+    const kept = (node: ts.Node) => [...this.fallbackRanges, ...this.switchRanges].some((r) => node.getStart() >= r.from && node.getEnd() <= r.to);
+    const visit = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node)) return;
+      if (ts.isIdentifier(node) && this.components.has(node.text) && (!inside(node) || kept(node))) names.add(node.text);
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return names;
+  }
+
+  private async emit(
+    conversions: Array<{ expression: ts.Expression; tree: ElementNode }>,
+  ): Promise<string> {
+    // React Email names still used outside the converted JSX (helper
+    // components, fallbacks) keep their import; Elements names that clash
+    // with them get an alias.
+    const returned = conversions.map((c) => c.expression);
+    const used_ = this.reactEmailNamesUsedOutside(returned);
+    // Those from a file of the project's keep the template's own import of them (what it doesn't read any more goes).
+    const stillUsed = new Set([...used_].filter((name) => !this.componentSources.get(name)?.barrel));
+    const rename: Record<string, string> = {};
+    // Names the file already uses for something else (React Email imports it
+    // keeps, its own components) get an alias on the Elements import.
+    for (const name of [...used_, ...this.localNames()]) rename[name] = `Unlayer${name}`;
+    const keptHtml = this.helper.KeptHtml;
+    const written = new Set<string>();
+    const printed = conversions.map((c) => {
+      const { jsx, used } = printJsx(this.withKeptHtml(this.withComputedBackgrounds(c.tree, written)), rename);
+      // Each kept block's JSX in its KeptHtml.
+      return { ...c, jsx: jsx.replace(KEPT, (_, i: string) => this.kept[Number(i)]), used };
+    });
+    const used = new Set(printed.flatMap((c) => [...c.used]).filter((name) => name !== keptHtml));
+
+    const source = this.file.getFullText();
+    const imports = this.file.statements.filter(
+      (s): s is ts.ImportDeclaration =>
+        ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && isReactEmailModule(s.moduleSpecifier.text)
+    );
+    const elementNames = [...used].sort().map((name) => (rename[name] ? `${name} as ${rename[name]}` : name));
+    // holdsElements reads React's isValidElement: through the template's own React import where it has one.
+    const react = this.reactImport();
+    const elementImport = `isValidElement${this.helper.isValidElement === "isValidElement" ? "" : ` as ${this.helper.isValidElement}`}`;
+    const isElement = react.namespace ? `${react.namespace}.isValidElement` : this.helper.isValidElement;
+    const newImports = [
+      // Each kept React Email name comes from the package the template imported it from.
+      ...[...new Set([...stillUsed].map((local) => this.componentSources.get(local)?.from ?? "@react-email/components"))].sort().map((from) => {
+        const names = [...stillUsed]
+          .filter((local) => (this.componentSources.get(local)?.from ?? "@react-email/components") === from)
+          .sort()
+          .map((local) => {
+            const imported = this.components.get(local);
+            return `${this.componentSources.get(local)?.type ? "type " : ""}${imported === local ? local : `${imported} as ${local}`}`;
+          });
+        return `import { ${names.join(", ")} } from "${from}";`;
+      }),
+      `import { ${elementNames.join(", ")} } from "${TODAYS_COMPONENTS}";`,
+      ...(this.needsHoldsElements && !react.namespace && !react.named ? [`import { ${elementImport} } from "react";`] : []),
+    ].join("\n");
+
+    // Rebuild the file: imports out, the converted JSX in.
+    const edits: Array<{ from: number; to: number; text: string }> = imports.map((imp, i) => ({
+      from: imp.getStart(),
+      to: imp.getEnd(),
+      text: i === 0 ? newImports : "",
+    }));
+    if (this.needsHoldsElements && !react.namespace && react.named) {
+      const last = react.named.elements[react.named.elements.length - 1];
+      const at = last ? last.getEnd() : react.named.getStart() + 1;
+      edits.push({ from: at, to: at, text: last ? `, ${elementImport}` : ` ${elementImport} ` });
+    }
+    // React Email's components from a file of the project's: those the converted JSX replaced go from its import.
+    for (const statement of this.file.statements) {
+      const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : undefined;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      const gone = bindings.elements.filter((e) => this.componentSources.get(e.name.text)?.barrel && !used_.has(e.name.text));
+      if (!gone.length) continue;
+      const kept = bindings.elements.filter((e) => !gone.includes(e));
+      const clause = (statement as ts.ImportDeclaration).importClause!;
+      if (!kept.length && !clause.name) edits.push({ from: statement.getStart(), to: statement.getEnd(), text: "" });
+      else if (kept.length) edits.push({ from: bindings.getStart(), to: bindings.getEnd(), text: `{ ${kept.map((e) => e.getText()).join(", ")} }` });
+      else edits.push({ from: clause.name!.getEnd(), to: bindings.getEnd(), text: "" });
+    }
+    for (const { expression, jsx } of printed)
+      edits.push({
+        from: expression.getStart(),
+        to: expression.getEnd(),
+        text: `(${jsx})`,
+      });
+    // JSX left outside the converted part (same-file components kept as HTML,
+    // JSX constants) no longer renders inside <Tailwind>: its classes become styles.
+    const inside = (e: { from: number }) =>
+      returned.some((r) => e.from >= r.getStart() && e.from < r.getEnd());
+    // It renders only where it's kept as HTML: the browser's defaults the email's head styles change are stated too,
+    // except in what else the file exports, which other templates may render in other emails.
+    const template = this.findComponent();
+    const exported = this.exportedStatements().filter((st) => !template || template.getStart() < st.getStart() || template.getEnd() > st.getEnd());
+    const colorAt = (node: ts.Node) => [...this.componentColors].find(([declaration]) => node.getStart() >= declaration.getStart() && node.getEnd() <= declaration.getEnd())?.[1];
+    edits.push(...this.styleEdits(this.file, { except: (node) => exported.some((st) => node.getStart() >= st.getStart() && node.getEnd() <= st.getEnd()), colorAt }).filter((e) => !inside(e)));
+    edits.push(...this.hoisted.map(({ at, text }) => ({ from: at, to: at, text })));
+    edits.sort((a, b) => b.from - a.from);
+    let body = source;
+    for (const edit of edits) body = body.slice(0, edit.from) + edit.text + body.slice(edit.to);
+    if (imports.length === 0) body = `${newImports}\n${body}`;
+
+    const javascript = this.javascript;
+    let helpers = this.needsEscape
+      ? `\n\nfunction escapeHtml(text${javascript ? "" : ": string"})${javascript ? "" : ": string"} {\n  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");\n}\n`
+      : "";
+    if (this.needsHtmlText) {
+      helpers +=
+        `\n/** A value in text as React shows it: text and numbers escaped, lists one item after another (at any depth), nothing for null, undefined or a boolean. */\n` +
+        `function htmlText(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
+        `  const text = (item${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} =>\n` +
+        `    Array.isArray(item) ? item.map(text).join("") : typeof item === "string" || typeof item === "number" ? escapeHtml(String(item)) : "";\n` +
+        `  return text(value);\n` +
+        `}\n`;
+    }
+    if (this.needsHoldsElements) {
+      helpers +=
+        `\n/** Whether values shown in text hold React elements (a link given for a note): those blocks are kept as they render. */\n` +
+        `function holdsElements(...values${javascript ? "" : ": unknown[]"})${javascript ? "" : ": boolean"} {\n` +
+        `  return values.some((value) => \u0000isElement(value) || (Array.isArray(value) ? holdsElements(...value) : typeof value === "object" && value !== null && "$$typeof" in value));\n` +
+        `}\n`;
+    }
+    if (this.needsTailwindStyle) {
+      const table = [...this.classTable].map(([name, style]) => `  ${JSON.stringify(name)}: { ${Object.entries(style).filter(([k]) => !k.startsWith("_")).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`).join(", ")} },`);
+      helpers +=
+        `\n/** The styles the template's Tailwind classes gave, for classes markup kept as React works out at render time. */\n` +
+        `const TAILWIND_CLASSES${javascript ? "" : ": Record<string, React.CSSProperties>"} = {\n${table.join("\n")}\n};\n` +
+        `\n/** The styles of a class list worked out at render time (\`rounded \${tone}\`), from the template's Tailwind classes. */\n` +
+        `function tailwindStyle(classes${javascript ? "" : ": unknown"})${javascript ? "" : ": React.CSSProperties"} {\n` +
+        `  return Object.assign({}, ...String(classes ?? "").split(/\\s+/).map((name) => TAILWIND_CLASSES[name]));\n` +
+        `}\n`;
+    }
+    if (this.kept.length) {
+      helpers +=
+        `\n/**\n` +
+        ` * Markup the migration keeps as the template rendered it (marked TODO(convert)): in a Column, Elements renders\n` +
+        ` * what a component of the template's own renders as an Html block, in the email and in the design (named\n` +
+        ` * after the component: an Html block's).\n` +
+        ` */\n` +
+        (javascript
+          ? `function KeptHtml({ children }) {\n`
+          : `function KeptHtml({ children }: { children: React.ReactNode; containerPadding?: string; hideOnMobile?: boolean; hideOnDesktop?: boolean }) {\n`) +
+        `  return <>{children}</>;\n` +
+        `}\n` +
+        `KeptHtml.displayName = "Html";\n`;
+    }
+    if (this.needsAttribute) {
+      helpers +=
+        `\n/** An attribute as React renders it: left out when its value is missing. */\n` +
+        `function htmlAttribute(name${javascript ? "" : ": string"}, value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
+        `  return value === null || value === undefined || value === false ? "" : \` \${name}="\${escapeHtml(String(value))}"\`;\n` +
+        `}\n`;
+    }
+    // The helpers by the names chosen for them (the template may use these names already).
+    for (const [name, chosen] of Object.entries(this.helper)) if (name !== chosen) helpers = helpers.replace(new RegExp(`\\b${name}\\b`, "g"), chosen);
+    helpers = helpers.split("\u0000isElement").join(isElement);
+    if (this.needsPlainText) {
+      helpers +=
+        `\nfunction ${this.plainTextName}(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
+        `  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);\n` +
+        `}\n`;
+    }
+    const header = [
+      "/** @jsxRuntime automatic */",
+      "// Migrated from React Email by @unlayer/migrate (codemod mode).",
+      ...(this.fallbackRanges.length ? ["// Blocks marked TODO(convert) still render their React Email markup as HTML."] : []),
+    ].join("\n");
+    // Copied constants the converted JSX no longer reads (their values were written in).
+    for (const name of this.copied) {
+      const statement = this.file.statements.find(
+        (st) => ts.isVariableStatement(st) && st.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && d.name.text === name)
+      );
+      if (statement && (body.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length === 1) body = body.replace(statement.getText(), "");
+    }
+    const generated = (this.generatedHelpers = new Set([
+      ...(this.needsEscape ? [this.helper.escapeHtml] : []),
+      ...(this.needsHtmlText ? [this.helper.htmlText] : []),
+      ...(this.kept.length ? [this.helper.KeptHtml] : []),
+      ...(this.needsHoldsElements ? [this.helper.holdsElements] : []),
+      ...(this.needsTailwindStyle ? [this.helper.tailwindStyle, this.helper.TAILWIND_CLASSES] : []),
+      ...(this.needsAttribute ? [this.helper.htmlAttribute] : []),
+      ...(this.needsPlainText ? [this.plainTextName] : []),
+    ]));
+    const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    // (The template's React import, read by holdsElements, counts as read there.)
+    const read = react.namespace && this.needsHoldsElements ? new Set([...generated, react.namespace]) : generated;
+    const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, read, new Set(this.copied));
+    // A computed background left out (its box flattened) or in a place it can't be code (HTML text): see convertSource.
+    for (const [stand, { at }] of this.computedBackgrounds) if (!written.has(stand) || raw.toLowerCase().includes(stand)) this.unwrittenBackgrounds.add(at);
+    try {
+      return await formatTsx(raw);
+    } catch (error) {
+      throw Object.assign(new Error(`Generated code doesn't parse: ${(error as Error).message.split("\n")[0]}`), { raw });
+    }
+  }
+}
+
+// ============================================
+// Helpers
+// ============================================
+
+/**
+ * Each line of `changed` (a template with its components inlined) → the line
+ * of `original` it comes from, by a line diff: an unchanged line keeps its
+ * own, a line the inlining wrote takes the first line it replaced (where the
+ * component is used).
+ */
+function lineMap(original: string, changed: string): number[] {
+  const a = original.split("\n");
+  const b = changed.split("\n");
+  // Longest common subsequence of lines, from the end.
+  const common = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) common[i][j] = a[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+  }
+  const map: number[] = [];
+  let i = 0;
+  let replaced = 0; // where the current run of changes starts in `original`
+  for (let j = 0; j < b.length; ) {
+    if (i < a.length && a[i] === b[j]) {
+      map[j++] = ++i;
+      replaced = i;
+    } else if (i < a.length && common[i + 1][j] >= common[i][j + 1]) {
+      i++;
+    } else {
+      map[j++] = Math.min(replaced, a.length - 1) + 1;
+    }
+  }
+  return map;
+}
+
+/**
+ * Constants, functions and imports the template read but the migrated file no
+ * longer does (their values were written into the props, components inlined),
+ * and what this codemod added but didn't use (its helpers, constants copied
+ * with imported components): removed, so a build with `noUnusedLocals` passes.
+ * Only declarations with no side effects, so removing one can't change what
+ * the file does.
+ */
+function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, helpers: Set<string>, copied: Set<string>): string {
+  const usedBefore = references(original, new Set());
+  for (;;) {
+    const file = ts.createSourceFile("migrated.tsx", code, ts.ScriptTarget.Latest, true, javascript ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
+    const uses = references(file, helpers);
+    const computes = computing(file);
+    // Read before (or added here), declared once and not read now.
+    const unused = (name: ts.Identifier) => ((usedBefore.get(name.text) ?? 0) > 1 || helpers.has(name.text) || copied.has(name.text)) && uses.get(name.text) === 1;
+    const cuts: Array<{ from: number; to: number; text: string }> = [];
+    // A statement's comments go with it; the file's first (the header) stays.
+    const cut = (statement: ts.Statement) =>
+      cuts.push({ from: statement === file.statements[0] ? statement.getStart() : statement.getFullStart(), to: statement.getEnd(), text: "" });
+    const visit = (statements: readonly ts.Statement[]) => {
+      for (const statement of statements) {
+        if (ts.isVariableStatement(statement)) {
+          const declarations = statement.declarationList.declarations;
+          if (hasModifier(statement, ts.SyntaxKind.ExportKeyword) || hasModifier(statement, ts.SyntaxKind.DeclareKeyword)) continue;
+          // The names a declaration binds: a name, or those of a flat `{ a, b: c = 1 }` (not one with `...rest`,
+          // which taking a name out would change).
+          const flat = (name: ts.BindingName): ts.BindingElement[] | undefined =>
+            ts.isObjectBindingPattern(name) && name.elements.every((e) => ts.isIdentifier(e.name) && !e.dotDotDotToken && (!e.initializer || pure(e.initializer))) ? [...name.elements] : undefined;
+          const allUnused = (d: ts.VariableDeclaration) => (ts.isIdentifier(d.name) ? unused(d.name) : !!flat(d.name)?.every((e) => unused(e.name as ts.Identifier)));
+          // (A value worked out by a function of the file's own that only computes, `hexToRgba(brand, 0.25)`, too.)
+          if (declarations.every((d) => allUnused(d) && (!d.initializer || computes(d.initializer)))) {
+            cut(statement);
+            continue;
+          }
+          // One that may do something besides (`track(name)`, a hook): it still runs, as a statement of its own.
+          const [only] = declarations;
+          if (declarations.length === 1 && ts.isIdentifier(only.name) && unused(only.name) && only.initializer) {
+            const value = unwrap(only.initializer);
+            const text = only.initializer.getText();
+            cuts.push({ from: statement.getStart(), to: statement.getEnd(), text: ts.isObjectLiteralExpression(value) || ts.isClassExpression(value) ? `(${text});` : `${text};` });
+            continue;
+          }
+          // `const { text, muted } = theme.colors` where only `text` is still read: `muted` goes (noUnusedLocals).
+          for (const d of declarations) {
+            const elements = flat(d.name);
+            if (!elements || !d.initializer || !pure(d.initializer)) continue;
+            const kept = elements.filter((e) => !unused(e.name as ts.Identifier));
+            if (kept.length && kept.length < elements.length) cuts.push({ from: d.name.getStart(), to: d.name.getEnd(), text: `{ ${kept.map((e) => e.getText()).join(", ")} }` });
+          }
+        } else if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
+          cut(statement);
+        } else if ((ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
+          // A type only what was written in read (`Record<Size, number>`).
+          cut(statement);
+        } else if (ts.isImportDeclaration(statement) && statement.importClause) {
+          const clause = statement.importClause;
+          const bindings = clause.namedBindings;
+          const named = bindings && ts.isNamedImports(bindings) ? bindings.elements : [];
+          // Read before and not now, counting only reads of the import itself: a parameter of the same name
+          // (`({ Tailwind }) => <Tailwind>`, passed the import by the default export the migration rewrote) isn't.
+          const gone = (name: ts.Identifier) => unused(name) || ((usedBefore.get(name.text) ?? 0) > 1 && !readsImport(file, name));
+          const keptNamed = named.filter((e) => !gone(e.name));
+          const keepDefault = clause.name && !gone(clause.name);
+          const keepNamespace = bindings && ts.isNamespaceImport(bindings) && !gone(bindings.name);
+          if (keptNamed.length === named.length && (!clause.name || keepDefault) && (!bindings || ts.isNamedImports(bindings) || keepNamespace)) continue;
+          if (!keepDefault && !keepNamespace && keptNamed.length === 0) {
+            // TypeScript drops an import none of whose names are read, too.
+            cut(statement);
+            continue;
+          }
+          const parts = [
+            ...(keepDefault ? [clause.name!.getText()] : []),
+            ...(keepNamespace ? [bindings!.getText()] : []),
+            ...(keptNamed.length ? [`{ ${keptNamed.map((e) => e.getText()).join(", ")} }`] : []),
+          ];
+          cuts.push({ from: clause.getStart(), to: clause.getEnd(), text: `${clause.isTypeOnly ? "type " : ""}${parts.join(", ")}` });
+        }
+      }
+    };
+    // Statements at the top and inside functions (a loop's `const isLeft = …`), not inside the helpers this
+    // codemod adds: their names aren't counted, so their own `const css` would pass for the template's.
+    const walk = (node: ts.Node) => {
+      if (ts.isFunctionDeclaration(node) && node.name && helpers.has(node.name.text)) return;
+      if (ts.isSourceFile(node) || ts.isBlock(node)) visit(node.statements);
+      // A prop destructured in the parameters that only a dropped style read (`{ accent, name }` with
+      // `color: accent === "red" ? …` lost): it goes, or noUnusedLocals fails the build (not with `...rest`).
+      if (ts.isFunctionLike(node))
+        for (const param of node.parameters) {
+          const pattern = param.name;
+          if (!ts.isObjectBindingPattern(pattern) || pattern.elements.some((e) => e.dotDotDotToken || !ts.isIdentifier(e.name))) continue;
+          const kept = pattern.elements.filter((e) => !unused(e.name as ts.Identifier));
+          if (kept.length < pattern.elements.length) cuts.push({ from: pattern.getStart(), to: pattern.getEnd(), text: kept.length ? `{ ${kept.map((e) => e.getText()).join(", ")} }` : "{}" });
+        }
+      // A parameter only what was dropped read (`(row, i) =>` with `id={`row-${i}`}` gone), or noUnusedParameters
+      // fails the build: the last ones of a callback go (its caller can always pass more), an earlier one is `_i`.
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        const params = node.parameters;
+        const drops = (p: ts.ParameterDeclaration) => ts.isIdentifier(p.name) && !p.dotDotDotToken && unused(p.name) && (!p.initializer || pure(p.initializer));
+        let end = params.length;
+        if (ts.isCallExpression(node.parent) && node.parent.arguments.includes(node)) while (end > 0 && drops(params[end - 1])) end--;
+        if (end < params.length) {
+          const parenthesized = node.getText().replace(/^async\s*/, "").startsWith("(");
+          cuts.push(end ? { from: params[end - 1].getEnd(), to: params[params.length - 1].getEnd(), text: "" } : { from: params[0].getStart(), to: params[params.length - 1].getEnd(), text: parenthesized ? "" : "()" });
+        }
+        for (const p of params.slice(0, end)) if (drops(p)) cuts.push({ from: p.name.getStart(), to: p.name.getEnd(), text: `_${(p.name as ts.Identifier).text}` });
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(file);
+    if (cuts.length === 0) return code;
+    // A cut inside another (a constant in a removed function) goes with it.
+    const ordered = cuts.sort((x, y) => y.from - x.from).filter((c, i, all) => !all.some((o, j) => j !== i && o.from <= c.from && c.to <= o.to && (o.from !== c.from || o.to !== c.to)));
+    for (const c of ordered) code = code.slice(0, c.from) + c.text + code.slice(c.to);
+  }
+}
+
+/** Whether `file` reads the import `binding` somewhere a declaration of the same name doesn't shadow it. */
+function readsImport(file: ts.SourceFile, binding: ts.Identifier): boolean {
+  const name = binding.text;
+  const binds = (node: ts.BindingName): boolean =>
+    ts.isIdentifier(node) ? node.text === name : node.elements.some((e) => !ts.isOmittedExpression(e) && binds(e.name));
+  const declares = (statements: readonly ts.Statement[]) =>
+    statements.some(
+      (st) =>
+        (ts.isVariableStatement(st) && st.declarationList.declarations.some((d) => binds(d.name))) ||
+        ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name)
+    );
+  const shadowed = (node: ts.Node): boolean => {
+    for (let p = node.parent; p && !ts.isSourceFile(p); p = p.parent) {
+      if (ts.isFunctionLike(p) && p.parameters.some((param) => binds(param.name))) return true;
+      if (ts.isBlock(p) && declares(p.statements)) return true;
+      if ((ts.isForStatement(p) || ts.isForOfStatement(p) || ts.isForInStatement(p)) && p.initializer && ts.isVariableDeclarationList(p.initializer) && p.initializer.declarations.some((d) => binds(d.name))) return true;
+      if (ts.isCatchClause(p) && p.variableDeclaration && binds(p.variableDeclaration.name)) return true;
+    }
+    return false;
+  };
+  const reads = (node: ts.Node): boolean => {
+    if (ts.isImportDeclaration(node)) return false;
+    if (ts.isIdentifier(node) && node.text === name) {
+      const parent = node.parent;
+      const notARead =
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        ((ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent) || ts.isBindingElement(parent) || ts.isParameter(parent) || ts.isVariableDeclaration(parent)) && parent.name === node) ||
+        (ts.isBindingElement(parent) && parent.propertyName === node) ||
+        (ts.isJsxAttribute(parent) && parent.name === node) ||
+        (ts.isQualifiedName(parent) && parent.right === node);
+      if (!notARead && !shadowed(node)) return true;
+    }
+    return !!ts.forEachChild(node, (child) => (reads(child) ? true : undefined));
+  };
+  return reads(file);
+}
+
+/**
+ * How many times each name appears in a file as a binding (declared or read).
+ * Property names (`a.text`, `{ text: 1 }`, `<X text="" />`), the imported name
+ * in `import { A as B }`, and the inside of the helpers this codemod adds
+ * (`helpers`) don't count: they never read the file's own `text` or `A`.
+ */
+function references(file: ts.SourceFile, helpers: Set<string>): Map<string, number> {
+  const counts = new Map<string, number>();
+  const visit = (node: ts.Node, helper: boolean) => {
+    if (ts.isIdentifier(node)) {
+      const parent = node.parent;
+      const property =
+        (ts.isImportSpecifier(parent) && parent.propertyName === node) ||
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        ((ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent)) && parent.name === node) ||
+        (ts.isJsxAttribute(parent) && parent.name === node) ||
+        (ts.isQualifiedName(parent) && parent.right === node);
+      if (!property && (!helper || helpers.has(node.text))) counts.set(node.text, (counts.get(node.text) ?? 0) + 1);
+    }
+    const inHelper = helper || (ts.isFunctionDeclaration(node) && !!node.name && helpers.has(node.name.text));
+    ts.forEachChild(node, (child) => visit(child, inHelper));
+  };
+  visit(file, false);
+  return counts;
+}
+
+/** Methods of strings and numbers that only compute a value. */
+const COMPUTING_METHODS = new Set(
+  "at charAt charCodeAt codePointAt concat endsWith includes indexOf lastIndexOf localeCompare match normalize padEnd padStart repeat replace replaceAll search slice split startsWith substring toExponential toFixed toLocaleLowerCase toLocaleString toLocaleUpperCase toLowerCase toPrecision toString toUpperCase trim trimEnd trimStart".split(" ")
+);
+
+/** Global functions that only compute a value from what they're given. */
+const COMPUTING_GLOBALS = new Set(["parseInt", "parseFloat", "isNaN", "isFinite", "Number", "String", "Boolean"]);
+
+/**
+ * `pure`, and calls that only compute: to a function of the file's own whose body is declarations, conditions and
+ * returns of such values (`hexToRgba`, `formatPrice`), to `Math`, `Number` and `String`, and to the methods of
+ * strings and numbers that do.
+ */
+function computing(file: ts.SourceFile): (node: ts.Node) => boolean {
+  // The file's functions by name, at any depth (`const round = (x) => …` inside another), where a name is declared once.
+  const functions = new Map<string, ts.SignatureDeclaration & { body?: ts.Node }>();
+  const declared = new Map<string, number>();
+  const collect = (node: ts.Node) => {
+    const name = (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) && node.name && ts.isIdentifier(node.name) ? node.name.text : undefined;
+    if (name) declared.set(name, (declared.get(name) ?? 0) + 1);
+    if (ts.isFunctionDeclaration(node) && node.name && node.body && !node.asteriskToken) functions.set(node.name.text, node);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && ts.isVariableDeclarationList(node.parent) && node.parent.flags & ts.NodeFlags.Const) {
+      const init = node.initializer && unwrap(node.initializer);
+      if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) && !init.asteriskToken) functions.set(node.name.text, init);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  for (const [name, count] of declared) if (count > 1) functions.delete(name);
+  const asyncFunction = (f: ts.Node) => !!ts.getModifiers(f as ts.FunctionDeclaration)?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
+  const body = (f: ts.SignatureDeclaration & { body?: ts.Node }, seen: Set<ts.Node>): boolean => {
+    if (asyncFunction(f) || !f.parameters.every((p) => !p.initializer || value(p.initializer, seen))) return false;
+    const statements = (list: readonly ts.Statement[]): boolean =>
+      list.every((st) =>
+        ts.isVariableStatement(st)
+          ? st.declarationList.declarations.every((d) => !d.initializer || value(d.initializer, seen))
+          : ts.isReturnStatement(st)
+            ? !st.expression || value(st.expression, seen)
+            : ts.isIfStatement(st)
+              ? value(st.expression, seen) && statements([st.thenStatement]) && (!st.elseStatement || statements([st.elseStatement]))
+              : ts.isBlock(st) && statements(st.statements)
+      );
+    return !!f.body && (ts.isBlock(f.body) ? statements(f.body.statements) : value(f.body, seen));
+  };
+  const value = (node: ts.Node, seen: Set<ts.Node>): boolean => {
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+    if (ts.isCallExpression(node) && !node.questionDotToken) {
+      const callee = unwrap(node.expression);
+      const own = ts.isIdentifier(callee) ? functions.get(callee.text) : undefined;
+      const computes =
+        (own !== undefined && !seen.has(own) && body(own, new Set([...seen, own]))) ||
+        (ts.isIdentifier(callee) && own === undefined && COMPUTING_GLOBALS.has(callee.text) && !declared.has(callee.text)) ||
+        (ts.isPropertyAccessExpression(callee) &&
+          ((ts.isIdentifier(callee.expression) && ["Math", "Number", "String"].includes(callee.expression.text)) || (COMPUTING_METHODS.has(callee.name.text) && value(callee.expression, seen))));
+      return computes && node.arguments.every((a) => value(a, seen));
+    }
+    if (ts.isCallExpression(node) || !pureShallow(node)) return false;
+    return !ts.forEachChild(node, (child) => (value(child, seen) ? undefined : true));
+  };
+  return (node) => value(node, new Set());
+}
+
+/** `pure` for the node itself, not what's in it. */
+function pureShallow(node: ts.Node): boolean {
+  return !(
+    ts.isNewExpression(node) ||
+    ts.isTaggedTemplateExpression(node) ||
+    ts.isAwaitExpression(node) ||
+    ts.isYieldExpression(node) ||
+    ts.isDeleteExpression(node) ||
+    ts.isClassExpression(node) ||
+    ts.isPostfixUnaryExpression(node) ||
+    (ts.isPrefixUnaryExpression(node) && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)) ||
+    (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment)
+  );
+}
+
+/** A value whose evaluation has no side effects: literals, objects, arrays, functions, JSX. */
+function pure(node: ts.Node): boolean {
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+  if (ts.isCallExpression(node) || !pureShallow(node)) return false;
+  return !ts.forEachChild(node, (child) => (pure(child) ? undefined : true));
+}
+
+function unwrap(node: ts.Expression): ts.Expression {
+  while (
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isNonNullExpression(node)
+  ) {
+    node = node.expression;
+  }
+  return node;
+}
+
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+  return (ts.canHaveModifiers(node) ? (ts.getModifiers(node) ?? []) : []).some(
+    (m) => m.kind === kind,
+  );
+}
+
+/** Code that renders a list: `items.map(…)` (not a map inside the JSX it renders). */
+function isLoop(node: ts.Node): boolean {
+  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return false;
+  if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ["map", "flatMap"].includes(node.expression.name.text)) return true;
+  return ts.forEachChild(node, (child) => (isLoop(child) ? true : undefined)) ?? false;
+}
+
+/** null, undefined, false or "": a return or branch that renders nothing. */
+function rendersNothing(value: ts.Expression): boolean {
+  if (value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.FalseKeyword) return true;
+  // An empty fragment (`<></>`) renders nothing too: it stays as written, not an empty email.
+  if (ts.isJsxFragment(value) && value.children.every((child) => ts.isJsxText(child) && !child.text.trim())) return true;
+  if (ts.isIdentifier(value) && value.text === "undefined") return true;
+  return (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) && value.text === "";
+}
+
+/** A value React shows nothing for, written as one: `undefined`, `null`, a boolean, `""`, `[]`. */
+function showsNothing(expression: ts.Expression): boolean {
+  const value = unwrap(expression);
+  return (
+    rendersNothing(value) ||
+    value.kind === ts.SyntaxKind.TrueKeyword ||
+    (ts.isArrayLiteralExpression(value) && value.elements.length === 0)
+  );
+}
+
+/** JSX (converted) or an empty value: what a branch of a hole may render. */
+function rendersSafely(node: ts.Expression): boolean {
+  const value = unwrap(node);
+  if (containsJsx(value)) return true;
+  if (value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.FalseKeyword) return true;
+  if (ts.isIdentifier(value) && value.text === "undefined") return true;
+  return (
+    (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) &&
+    value.text === ""
+  );
+}
+
+function containsJsx(node: ts.Node): boolean {
+  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return true;
+  return (
+    ts.forEachChild(node, (child) => (containsJsx(child) ? true : undefined)) ??
+    false
+  );
+}
+
+function inlineDisplay(style: Style): boolean {
+  return /^inline(-block)?$/.test(String(style.display ?? "").replace(/\s*!important$/, "").trim());
+}
+
+function needsHtml(style: Style): boolean {
+  const decoration = style.textDecoration ?? style.textDecorationLine;
+  return Boolean(style.textTransform || (style.fontStyle && style.fontStyle !== "normal") || (decoration && decoration !== "none"));
+}
+
+/**
+ * The React Email component an HTML tag reads as. A capitalised tag that isn't
+ * React Email's (a project's own `Button`) is never read by its name: it's kept.
+ */
+/** Whether `node` has a JSX element with this tag in it (`<style>` inside a condition). */
+function containsTag(node: ts.Node, tag: string): boolean {
+  let found = false;
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText() === tag) found = true;
+    else ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
+function hostAlias(tag: string): string {
+  if (tag === "p") return "Text";
+  if (tag === "ul" || tag === "ol") return "List";
+  if (/^h[1-6]$/.test(tag)) return "Heading";
+  if (tag === "img") return "Img";
+  if (tag === "hr") return "Hr";
+  if (tag === "a") return "Link";
+  return /^[a-z]/.test(tag) ? tag : "";
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** A value for a double-quoted attribute: a quote in it (`font-family:"Inter"`) can't end the attribute. */
+function escapeAttribute(text: string): string {
+  return escapeHtml(text).replace(/"/g, "&quot;");
+}
+
+/** Whether code is one template literal (`` `a${b}c` ``), whose text can go inside another. */
+function oneTemplate(code: string): boolean {
+  const statement = ts.createSourceFile("value.ts", `(${code});`, ts.ScriptTarget.Latest, true).statements[0];
+  if (!statement || !ts.isExpressionStatement(statement) || !ts.isParenthesizedExpression(statement.expression)) return false;
+  const node = statement.expression.expression;
+  return (ts.isTemplateExpression(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.getText().length === code.trim().length;
+}
+
+/** HTML with its first element's margins set to 0 (its block's padding holds them, as a Paragraph's does). */
+function withoutMargins(html: string): string {
+  return html.replace(/^<([a-z][\w-]*)\b([^>]*)>/, (tag, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    const css = (style?.[1] ?? "").split(";").filter((d) => d.trim() && !/^\s*margin(-[a-z-]+)?\s*:/i.test(d));
+    const value = [...css, "margin:0"].join(";");
+    return style ? tag.replace(style[0], ` style="${value}"`) : `<${name} style="${value}"${tag.slice(name.length + 1)}`;
+  });
+}
+
+/** HTML in parts (fixed HTML, and code giving HTML) as a string expression: a template literal, or `""`. */
+function templateCode(parts: Array<string | Expr>): string {
+  if (!parts.length) return '""';
+  return `\`${parts.map((p) => (typeof p === "string" ? escapeTemplate(p) : p.$expr.startsWith("`") ? p.$expr.slice(1, -1) : `\${${p.$expr}}`)).join("")}\``;
+}
+
+function escapeTemplate(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+}
+
+function cssText(style: Style): string {
+  return Object.entries(style)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => `${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${typeof v === "number" && !/^(lineHeight|fontWeight|opacity|zIndex)$/.test(k) ? `${v}px` : v}`)
+    .join(";");
+}

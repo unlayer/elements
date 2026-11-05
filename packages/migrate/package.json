@@ -22,7 +22,10 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "bench": "tsx bench/run.ts",
+    "test:fidelity": "tsx bench/smoke.ts",
+    "test:differential": "tsx bench/differential.ts"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
@@ -33,10 +36,14 @@
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
+    "@types/pngjs": "6.0.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@unlayer/convert-core": "workspace:*",
-    "@unlayer/from-react-email": "workspace:*",
+    "entities": "7.0.1",
+    "parse5": "7.3.0",
+    "pixelmatch": "7.2.0",
+    "playwright": "1.60.0",
+    "pngjs": "7.0.0",
     "react-dom19": "npm:react-dom@19.1.0",
     "react19": "npm:react@19.1.0",
     "tsup": "^8.0.1",

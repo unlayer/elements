@@ -7,7 +7,7 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import type { Args } from "../args";
-import { migrateElements } from "@unlayer/convert-core";
+import { migrateElements } from "../convert";
 import { todaysImports } from "./imports";
 
 export interface LegacyIo {

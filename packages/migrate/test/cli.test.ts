@@ -3,7 +3,7 @@ import React from "react";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import * as lib from "@unlayer/from-react-email";
+import * as lib from "../src/react-email/index";
 import { main, type Io } from "../src/cli";
 
 const run = main;

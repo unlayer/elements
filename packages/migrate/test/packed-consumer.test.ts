@@ -28,8 +28,9 @@ describe("published migration library", () => {
       expect(declarations).toContain("react-email.d.ts");
       expect(declarations).toContain("react-email.d.cts");
       for (const name of declarations) {
-        expect(fs.readFileSync(path.join(target, "dist", name), "utf8"), name)
-          .not.toMatch(/@unlayer\/(from-react-email|convert-core)/);
+        // Self-contained: they import only what a consumer installs, never one of the converters' own modules.
+        const imported = [...fs.readFileSync(path.join(target, "dist", name), "utf8").matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((match) => match[1]);
+        expect(imported.filter((specifier) => !/^(react|react-dom|@react-email\/components|@unlayer\/react-elements(\/builder)?)$/.test(specifier)), name).toEqual([]);
       }
       expect(declarations).toContain("elements.d.ts");
       for (const extension of ["mts", "cts"]) {

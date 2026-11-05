@@ -15,7 +15,7 @@ import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { normalizeWord, StyledDocument } from "@unlayer/convert-core";
+import { normalizeWord, StyledDocument } from "./convert";
 import { parseArgs, type Args } from "./args";
 import { resolutionOrder, type Origin } from "./resolution";
 
@@ -189,7 +189,7 @@ interface Options {
   allowDirty: boolean;
 }
 
-type Library = typeof import("@unlayer/from-react-email");
+type Library = typeof import("./react-email/index");
 
 export async function main(argv: string[], io: Io, library?: Library): Promise<number> {
   // Ctrl-C (or a kill) is heard for the whole run: once it comes, nothing more is written.
@@ -336,7 +336,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr(`${copies}\n`);
     return 1;
   }
-  const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
+  const lib = library ?? ((await import("./react-email/index")) as Library);
   const results: FileResult[] = [...inputs.unreadable, ...listed];
   // Templates another one renders are left for now. With --write, a pass that writes the templates using one may
   // free it (the migrated ones render their own markup): it's tried again, until a pass writes nothing more.
@@ -1070,7 +1070,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     );
     return 1;
   }
-  const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
+  const lib = library ?? ((await import("./react-email/index")) as Library);
   const release: Array<() => void> = [];
   try {
     // Each file loads with its imports resolved from where it is: one that fails is named, with what to do (null).

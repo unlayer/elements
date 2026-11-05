@@ -3,4 +3,4 @@
  * (its main entry from 0.3.0): `migrateElements(source)` returns the migrated module and what may draw a little
  * differently.
  */
-export { migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "@unlayer/convert-core";
+export { migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "./convert";

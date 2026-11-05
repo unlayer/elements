@@ -4,7 +4,8 @@
     "jsx": "react-jsx",
     "types": ["react", "node"]
   },
-  "include": ["src/**/*", "test/**/*"],
+  // .corpus/ is the benchmark's templates, local only: typecheck leaves them out (tsconfig.check.json).
+  "include": ["src/**/*", "test/**/*", "bench/**/*", ".corpus/**/*"],
   // Elements 0.2's templates, the codemod's input as text: written for a package that no longer has them.
   "exclude": ["test/fixtures/**/*"]
 }

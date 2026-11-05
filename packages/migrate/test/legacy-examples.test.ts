@@ -6,7 +6,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { formatTsx, migrateElements } from "@unlayer/convert-core";
+import { formatTsx, migrateElements } from "../src/convert";
 import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
 

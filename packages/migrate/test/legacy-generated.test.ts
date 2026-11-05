@@ -7,7 +7,7 @@
  *   MIGRATE_SEEDS=2000 pnpm vitest run test/legacy-generated.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { migrateElements } from "@unlayer/convert-core";
+import { migrateElements } from "../src/convert";
 import { errors } from "./migrated";
 
 const SEEDS = Number(process.env.MIGRATE_SEEDS ?? 150);
