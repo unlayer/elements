@@ -1,6 +1,9 @@
 /**
  * Print an Elements tree as a TSX module, formatted with Prettier so the
- * same tree always gives the same file.
+ * same tree always gives the same file. The tree is in Elements 0.2's
+ * components ("today's"), which 0.3.0 doesn't have: the module is the
+ * converters' intermediate source, which `migrateElements` rewrites in the
+ * new components at once (see new-components.ts). It's never run.
  */
 
 import * as prettier from "prettier";
@@ -14,6 +17,12 @@ export interface PrintOptions {
 }
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+/**
+ * Where the intermediate source imports today's components from. No package exports it, and nothing resolves it:
+ * `migrateElements` reads an import of it as today's components, and rewrites it.
+ */
+export const TODAYS_COMPONENTS = "@unlayer/react-elements/legacy";
 
 /**
  * The JSX for a tree, and the Elements components it uses. `rename` prints a
@@ -32,7 +41,7 @@ export async function treeToTsx(tree: ElementNode, options: PrintOptions = {}): 
     // Lets tools without JSX config (plain `tsx`, esbuild) run the file.
     "/** @jsxRuntime automatic */",
     ...header,
-    `import { ${imports.join(", ")} } from "@unlayer/react-elements/legacy";`,
+    `import { ${imports.join(", ")} } from "${TODAYS_COMPONENTS}";`,
     "",
     `export default function ${options.componentName ?? "Template"}() {`,
     `  return (${body});`,

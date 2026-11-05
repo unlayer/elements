@@ -1,10 +1,9 @@
 /**
- * The Elements tree: what every converter produces and every output reads.
- *
- * Same shape as the tree the Unlayer MCP server's `render_elements` takes —
- * `{ type, props, children }` with @unlayer/react-elements component names and
- * a Row `layout` given by name ("TwoEqual") — so a converted template can go
- * straight to the MCP server too.
+ * The Elements tree: what every converter produces. It's in Elements 0.2's
+ * components (`{ type, props, children }` with their names and a Row `layout`
+ * given by name, "TwoEqual"), the converters' intermediate form: it's printed
+ * as source (print.ts) and rewritten in the new components (new-components.ts),
+ * never rendered as it is.
  */
 
 /**

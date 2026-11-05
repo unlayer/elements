@@ -1,6 +1,8 @@
 /**
- * Codemod: today's components (@unlayer/react-elements's main entry, or /legacy) rewritten as the new ones
- * (/primitives), keeping the template's props, loops, conditions and helpers (RFC 0001, step 7).
+ * Codemod: Elements 0.2's components ("today's": @unlayer/react-elements's main entry before 0.3.0) rewritten as the
+ * new ones (its main entry from 0.3.0), keeping the template's props, loops, conditions and helpers (RFC 0001, step 7).
+ * The React Email converter writes a template in today's components as source text first and moves it to the new ones
+ * here at once: today's are never run.
  *
  * Only the import and the JSX of today's components change; JSX inside expressions is rewritten in place. The new
  * template draws what today's draws: where today's components fill in a default the new ones don't share (a block's
@@ -12,7 +14,7 @@
  */
 import * as prettier from "prettier";
 import ts from "typescript";
-import { formatTsx } from "../print";
+import { formatTsx, TODAYS_COMPONENTS } from "../print";
 import { hole, inlineHtml, inPx, plain } from "./html";
 
 /** Stands for React's Fragment in what's written, until it's known what the template can call it. */
@@ -128,7 +130,7 @@ function SharedRow({ shares, children, ...row }${types}) {
 const NOT_A_RUN = /^(image |<hr>|<ul>|<ol>|<dl>|<table>|style display: inline-(block|flex))/;
 
 export interface MigrateElementsOptions {
-  /** Module specifiers today's components are imported from (default: the package and its /legacy entry). */
+  /** Module specifiers today's components are imported from (default: the package, and the converter's intermediate one). */
   from?: string[];
   /** Where the new components are imported from (default "@unlayer/react-elements"). */
   to?: string;
@@ -152,18 +154,16 @@ export interface MigrateElementsResult {
   report: string[];
   /** The template is one of today's that can't be migrated, and comes back as it was (to rewrite by hand: 0.3.0 doesn't have today's). */
   stayed?: boolean;
+  /** The lines of `report` about Rows whose Columns are written one under another (their layout can't be read): they move. */
+  stacked?: string[];
   /** The module already uses the new components: it comes back as it was. */
   current?: boolean;
 }
 
 /** The package: Elements 0.2's components until 0.3.0, the new ones from it (0.2's aren't in it). */
 const ROOT = "@unlayer/react-elements";
-/**
- * Today's components where the converter writes a React Email template in them first: migrate's own copy, which no
- * package exports (todays-path.ts). An import of it is always today's.
- */
-const TODAYS = "@unlayer/react-elements/legacy";
-export const DEFAULT_FROM = [ROOT, TODAYS];
+/** The package, and where the React Email converter's intermediate source imports today's components from (never resolved). */
+export const DEFAULT_FROM = [ROOT, TODAYS_COMPONENTS];
 const DEFAULT_TO = ROOT;
 /** Names only the new components' entry exports: a module importing one from the main entry already uses them. */
 const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
@@ -257,6 +257,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const typescript = options.typescript ?? true;
   const file = ts.createSourceFile("template.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const report: string[] = [];
+  const stacked: string[] = [];
   const used = new Set<string>();
   const where = (node: ts.Node) => `line ${file.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
 
@@ -738,7 +739,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function row(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props, body: number | undefined) {
     const layout = props.get("layout");
-    if (layout && !isLiteral(layout)) report.push(`${where(node)}: this Row's layout can't be read (${layout.code}): its Columns are written one under another (give it as ColumnLayouts.TwoEqual or the like)`);
+    if (layout && !isLiteral(layout)) {
+      stacked.push(`${where(node)}: this Row's layout can't be read (${layout.code}): its Columns are written one under another (give it as ColumnLayouts.TwoEqual or the like)`);
+      report.push(stacked[stacked.length - 1]);
+    }
     const computed = props.get("cells");
     // Shares only known when it renders: the Row's Columns take them then (see `sharedRow`).
     const shares = computed && !isLiteral(computed) ? code(computed) : undefined;
@@ -1453,7 +1457,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   const lineOf = (entry: string) => Number(/^line (\d+):/.exec(entry)?.[1] ?? 0);
   report.sort((a, b) => lineOf(a) - lineOf(b));
   // None of today's JSX or layouts in it (today's other API, a name passed on): nothing to migrate, so it's left as it is.
-  if (!edits.length) return { code: source, report };
+  if (!edits.length) return { code: source, report, ...(stacked.length ? { stacked } : {}) };
 
   const to = options.to ?? DEFAULT_TO;
   // Its own component, for a Row whose shares are worked out when it renders.
@@ -1494,5 +1498,5 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
   if (rowHelpers) out += `\n${sharedRowSource(nameOf("Row"), typescript, rowHelpers)}`;
   // JavaScript is formatted as JavaScript: TypeScript written into it would be an error here, not in the project.
-  return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report };
+  return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report, ...(stacked.length ? { stacked } : {}) };
 }

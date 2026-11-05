@@ -15,8 +15,9 @@ export {
   type Expr,
 } from "./tree";
 export { ReportBuilder, type ConversionReport, type ReportEntry } from "./report";
-export { treeToElement, treeToDesign, treeToHtml, pinImageWidths } from "./render";
-export { treeToTsx, printJsx, formatTsx, type PrintOptions } from "./print";
+export { pinImageWidths } from "./design";
+export { treeToTsx, printJsx, formatTsx, TODAYS_COMPONENTS, type PrintOptions } from "./print";
+export { NewComponentsError, readTemplate, toNewComponents, treeToNewComponents, type NewComponents } from "./new-components";
 export { parseStyle, toPx, boxSides, ownFontSize, type BoxSides } from "./css";
 export { checkFails, phoneDiffers, PHONE_WIDTH, compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords, imagePreloads, type TextCheck } from "./verify";
 export { compareLayout, MOVED_PX, placements, type LayoutDifference, type Placement } from "./geometry";
