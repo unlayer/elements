@@ -19,6 +19,7 @@ import { Button } from "./Button";
 import { Column } from "./Column";
 import { Divider } from "./Divider";
 import { Heading } from "./Heading";
+import { HtmlBlock } from "./Html";
 import { Image } from "./Image";
 import { LineBreak } from "./LineBreak";
 import { Link } from "./Link";
@@ -27,7 +28,6 @@ import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Page } from "./Page";
 import { Paragraph } from "./Paragraph";
-import { Raw } from "./Raw";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Document, documentCss } from "./Document";
@@ -88,9 +88,7 @@ const COMPONENTS: Record<string, Component> = {
   TableRow,
   TableCell,
   Video,
-  Raw,
-  // The authorable twin of Raw: the same markup, written the same way.
-  Html: Raw,
+  Html: HtmlBlock,
 };
 
 /** What a node's component gets. */

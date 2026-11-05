@@ -303,7 +303,7 @@ export const Button = defineComponent({
     borderRadius: 4,
   },
   hover: ["color", "backgroundColor"],
-  children: { text: true, types: ["Span", "MergeTag", "LineBreak", "Raw"] },
+  children: { text: true, types: ["Span", "MergeTag", "LineBreak"] },
   sizing: "shrink",
   targets: { email: {}, web: {} },
   editor: {
@@ -432,7 +432,7 @@ export const Table = defineComponent({
     borderCollapse: { kind: enumOf(["separate", "collapse"]), label: "Cell borders", description: "Whether cells side by side draw a border each (separate) or share one (collapse).", support: { email: { level: "full", source: "caniemail" }, web: css } },
     ...placementStyle,
   },
-  children: { types: ["TableRow", "Raw"] },
+  children: { types: ["TableRow"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
   editor: { groups: [{ title: "Table", paths: ["style.cellPadding", "style.rowBorder", "style.border", "style.backgroundColor"] }, TEXT_EDITOR] },
@@ -470,7 +470,7 @@ export const TableCell = defineComponent({
     width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column).", support: { email: { level: "full", source: "writer" }, web: css } },
     verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment", support: { email: { level: "full", source: "caniemail" }, web: css } },
   },
-  children: { text: true, categories: ["inline"], types: ["Image", "Raw"] },
+  children: { text: true, categories: ["inline"], types: ["Image"] },
   sizing: "none",
   targets: { email: {}, web: {} },
   editor: { groups: [{ title: "Cell", paths: ["props.colSpan", "style.width", "style.verticalAlign"] }, TEXT_EDITOR, { title: "Box", paths: ["style.padding", "style.backgroundColor", "style.border"] }] },
@@ -497,27 +497,9 @@ export const Video = defineComponent({
   editor: { groups: [{ title: "Video", paths: ["props.src", "props.thumbnail", "props.title", "style.width", "style.maxWidth"] }] },
 });
 
-export const Raw = defineComponent({
-  type: "Raw",
-  label: "Raw HTML",
-  description:
-    "Markup another format holds that Elements has no component for (a builder block), written as it is, with the rules it needs in the stylesheet and what it reads as in plain text.",
-  categories: ["block"],
-  props: {
-    html: prop(text(), { support: WRITTEN, label: "HTML", required: true, description: "The markup, written as it is." }),
-    css: prop(text(), { support: WRITTEN, label: "CSS", description: "Rules for the stylesheet, written once however many nodes carry them." }),
-    text: prop(text(), { support: WRITTEN, label: "Plain text", description: "What it reads as in the plain-text version." }),
-  },
-  style: {},
-  children: {},
-  sizing: "stretch",
-  targets: { email: {}, web: {} },
-  imported: true,
-});
-
 /**
- * Raw's authorable twin: markup no component says (the builder's HTML block), written as it is by the same writers.
- * A PDF and an image can't draw markup: they draw its plain text, and say so.
+ * Markup no component says (the builder's HTML block), written as it is. A PDF and an image can't draw markup: they
+ * draw its plain text, and say so.
  */
 export const Html = defineComponent({
   type: "Html",
@@ -538,7 +520,7 @@ export const Html = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html, Raw].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

@@ -31,10 +31,8 @@ describe("property discovery", () => {
     expect(describeComponent("Nope")).toBeUndefined();
   });
 
-  it("leaves imported nodes (Raw) out of what a template can use, and has Html, their authorable twin, in it", () => {
-    expect(describeComponents().map((d) => d.type)).not.toContain("Raw");
-    expect(describeComponents().length).toBe(Object.keys(COMPONENTS).length - 1);
-    expect(describeComponent("Raw")?.type).toBe("Raw");
+  it("describes every component a template can use, Html among them", () => {
+    expect(describeComponents().length).toBe(Object.keys(COMPONENTS).length);
     const html = describeComponent("Html")!;
     expect(describeComponents().map((d) => d.type)).toContain("Html");
     expect(html.properties.map((p) => [p.path, p.required])).toEqual([

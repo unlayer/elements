@@ -84,8 +84,6 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
         case "PageHeader":
         case "PageFooter":
           return [];
-        case "Raw":
-          return typeof child.props.text === "string" && child.props.text.trim() ? [child.props.text.trim()] : [];
         case "Html": {
           const words = htmlText(child);
           return words ? [words] : [];

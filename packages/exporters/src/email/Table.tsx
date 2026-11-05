@@ -26,7 +26,7 @@ export const Table: Component = ({ node, style, fill, render }) => {
           ))}
         </colgroup>
         {header.length > 0 && <thead>{header.map((row) => render(row))}</thead>}
-        {body.length > 0 && <tbody>{body.map((row) => render(row, { inline: row.type === "Raw" }))}</tbody>}
+        {body.length > 0 && <tbody>{body.map((row) => render(row))}</tbody>}
         {footer.length > 0 && <tfoot>{footer.map((row) => render(row))}</tfoot>}
       </table>
     </Box>

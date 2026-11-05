@@ -135,8 +135,6 @@ export interface ComponentDefinition<P extends PropSpecs = PropSpecs, S extends 
   /** Why a target it doesn't render can't, and what to do instead (in the diagnostic). */
   unsupported?: Partial<Record<Target, string>>;
   editor?: { groups: readonly EditorGroup[] };
-  /** Made by an importer from another format (a builder design's blocks), never written in a template: not a JSX component, and not described. */
-  imported?: boolean;
 }
 
 /** Keeps the literal types of a definition's props and styles, for the derived TypeScript types. */

@@ -176,10 +176,6 @@ describe("render()", () => {
     expect(validate(<Canvas><Svg width={10} height={10}><Circle r="big" /></Svg></Canvas>).valid).toBe(false);
   });
 
-  it("has no component for Raw, the node importers make for markup they bring in", () => {
-    expect(Object.keys(primitives)).not.toContain("Raw");
-  });
-
   it("takes JSX only", async () => {
     await expect(render({ root: { type: "Page" } } as never)).rejects.toThrow(TypeError);
   });

@@ -45,13 +45,6 @@ export function rule(media: Media, text: string, level: Level = "own"): string {
   return sheet.classFor(media, text, level);
 }
 
-/** Puts an imported node's CSS in the render's stylesheet (see `Stylesheet.addImported`). */
-export function importedCss(css: string): void {
-  const sheet = sheets[sheets.length - 1];
-  if (!sheet) throw new Error("[Elements] Markup with imported CSS is written inside withStylesheet()");
-  sheet.addImported(css);
-}
-
 type Kind = "outlook" | "notOutlook";
 
 /** Markup: an element, a list of pieces (a fragment), or what's inside a conditional comment. */

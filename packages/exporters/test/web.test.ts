@@ -267,7 +267,7 @@ describe("web HTML", () => {
     expect(body).toContain('<colgroup><col style="width:40%"><col style="width:auto"><col style="width:120px"></colgroup>');
   });
 
-  it("writes a table whose cells share their borders, a row's height and footer rows in tfoot; markup among its rows and in a cell as it is", () => {
+  it("writes a table whose cells share their borders, a row's height and footer rows in tfoot", () => {
     const { body } = web(
       page([
         {
@@ -275,8 +275,7 @@ describe("web HTML", () => {
           style: { borderCollapse: "collapse" },
           children: [
             { type: "TableRow", style: { height: 40 }, children: [{ type: "TableCell", children: ["A"] }] },
-            { type: "Raw", props: { html: "{{#each}}" } },
-            { type: "TableRow", children: [{ type: "TableCell", children: [{ type: "Raw", props: { html: "<ul><li>B</li></ul>" } }] }] },
+            { type: "TableRow", children: [{ type: "TableCell", children: ["B"] }] },
             { type: "TableRow", props: { footer: true }, children: [{ type: "TableCell", children: ["C"] }] },
           ],
         },
@@ -284,15 +283,13 @@ describe("web HTML", () => {
     );
     expect(body).toContain('style="border-collapse:collapse;');
     expect(body).toContain('<tbody><tr style="height:40px">');
-    expect(body).toContain("{{#each}}<tr>");
-    expect(body).toContain("<ul><li>B</li></ul></td>");
     expect(body).toMatch(/<\/tbody><tfoot><tr><td[^>]*>C<\/td><\/tr><\/tfoot><\/table>/);
   });
 
-  it("writes a Button's width with its padding on top where it says, a place of its own (on phones too), its link's other attributes, a link to nothing and markup in its label", () => {
+  it("writes a Button's width with its padding on top where it says, a place of its own (on phones too), its link's other attributes and a link to nothing", () => {
     const { head, body } = web(
       page([
-        { type: "Button", props: { href: { href: "", target: "_blank" }, attrs: { class: "cta", "data-x": "1", target: "_top" } }, style: { width: 300, boxSizing: "content-box", alignSelf: "end" }, mobile: { alignSelf: "start", fontSize: 20 }, children: [{ type: "Raw", props: { html: "<b>Go</b>" } }] },
+        { type: "Button", props: { href: { href: "", target: "_blank" }, attrs: { class: "cta", "data-x": "1", target: "_top" } }, style: { width: 300, boxSizing: "content-box", alignSelf: "end" }, mobile: { alignSelf: "start", fontSize: 20 }, children: ["Go"] },
       ])
     );
     const anchor = /<a [^>]*>/.exec(body)![0];
@@ -304,7 +301,7 @@ describe("web HTML", () => {
     expect(anchor).toContain("align-self:flex-end;align-self:safe flex-end");
     expect(anchor).toMatch(/box-sizing:content-box/);
     expect(anchor).not.toMatch(/box-sizing:border-box/);
-    expect(body).toContain("<b>Go</b></a>");
+    expect(body).toContain(">Go</a>");
     expect(head).toContain("align-self:flex-start!important");
   });
 
@@ -457,16 +454,14 @@ describe("web HTML", () => {
     expect(web(page([{ type: "Video", props: { src: "https://player.vimeo.com/video/76979871" } }])).body).toContain('src="https://player.vimeo.com/video/76979871"');
   });
 
-  it("writes imported markup (Raw) as it is, its CSS once, in a div only where it needs one", () => {
-    const raw = (extra: Record<string, unknown> = {}) => ({ type: "Raw", props: { html: "<p>Sale</p>", css: ".sale{color:red}", text: "Sale" }, ...extra });
-    const { head, body, text } = web(page([raw(), raw({ id: "again", hidden: { mobile: true } }), { type: "Row", children: [raw()] }]));
-    expect(head.split(".sale{color:red}").length).toBe(2);
-    expect(body).toMatch(/<p>Sale<\/p><div id="again" class="[^"]+"><p>Sale<\/p><\/div>/);
+  it("writes an Html block's markup as it is, in a div only where it needs one: an id, classes, a place in a Row", () => {
+    const html = (extra: Record<string, unknown> = {}) => ({ type: "Html", props: { html: "<p>Sale</p>" }, ...extra });
+    const { body } = web(page([html(), html({ id: "again", hidden: { mobile: true } }), { type: "Row", children: [html()] }]));
+    expect(body).toMatch(/<main[^>]*><p>Sale<\/p><div id="again" class="[^"]+"><p>Sale<\/p><\/div>/);
     expect(body).toMatch(/<div style="[^"]*flex[^"]*"><p>Sale<\/p><\/div>/);
-    expect(text).toBe("Sale\n\nSale\n\nSale");
   });
 
-  it("writes an Html block's markup as Raw's is, and its text (or its markup's words) in the plain text", () => {
+  it("writes an Html block's markup as it is, and its text (or its markup's words) in the plain text", () => {
     const { body, text } = web(page([{ type: "Html", props: { html: "<p>Sale <b>now</b></p>" } }, { type: "Html", id: "own", props: { html: "<hr>", text: "Our own words" } }]));
     expect(body).toContain('<p>Sale <b>now</b></p><div id="own"><hr></div>');
     expect(text).toBe("Sale now\n\nOur own words");

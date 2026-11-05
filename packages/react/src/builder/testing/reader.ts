@@ -29,9 +29,9 @@ export interface Seen {
 const ZERO: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 const pad = (node: ResolvedNode): Insets => (node.style.padding as Insets | undefined) ?? ZERO;
 const line = (node: ResolvedNode, side: "top" | "right" | "bottom" | "left") => ((node.style.border as Record<string, { width: number } | undefined> | undefined)?.[side]?.width ?? 0);
-const LEAVES = new Set(["Text", "Paragraph", "Heading", "Button", "Image", "Divider", "Video", "List", "Table", "Html", "Raw", "Svg", "Layer"]);
+const LEAVES = new Set(["Text", "Paragraph", "Heading", "Button", "Image", "Divider", "Video", "List", "Table", "Html", "Svg", "Layer"]);
 /** What the builder holds as markup (an HTML block): its box is read, not what's in it. */
-const MARKUP = new Set(["Table", "Html", "Raw", "Svg", "Layer"]);
+const MARKUP = new Set(["Table", "Html", "Svg", "Layer"]);
 /** A link as a reader follows it: where it goes, and whether it opens a new window. */
 const follow = (value: Json | undefined): Json | undefined => {
   if (value === undefined) return undefined;

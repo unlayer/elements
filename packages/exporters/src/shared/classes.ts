@@ -37,7 +37,6 @@ export class Stylesheet {
   private readonly names = new Map<string, string>();
   private readonly keys = new Map<string, string>();
   private readonly rules: Record<Media, Array<{ level: Level; text: string }>> = { all: [], phone: [], desktop: [], hiding: [] };
-  private readonly imported = new Set<string>();
 
   constructor(private readonly prefix = "e") {
     if (!CLASS_PREFIX.test(prefix)) throw new Error(`[Elements] A class prefix starts with a letter and holds letters, digits, "_" and "-", not ${JSON.stringify(prefix)}`);
@@ -62,17 +61,9 @@ export class Stylesheet {
   }
 
   /**
-   * CSS an imported node carries (a builder block's rules), written as it is, once however many nodes carry it,
-   * before the stylesheet's own rules. A `</style` in it would end the element: CSS escapes the slash.
-   */
-  addImported(css: string): void {
-    if (css) this.imported.add(css.replace(/<\/(style)/gi, "<\\/$1"));
-  }
-
-  /**
-   * The rules, with the queries that say what a phone and a desktop are: imported CSS first, then by media, then by
-   * level, then in the order they were made. Without queries (`null`), what's of a fixed size (a Canvas, a Document)
-   * has no phone: its phone rules are left out, and its desktop rules always apply.
+   * The rules, with the queries that say what a phone and a desktop are: by media, then by level, then in the order
+   * they were made. Without queries (`null`), what's of a fixed size (a Canvas, a Document) has no phone: its phone
+   * rules are left out, and its desktop rules always apply.
    */
   css(phone: string | null, desktop: string | null, hiding: string | null = phone): string {
     const ordered = (media: Media) =>
@@ -80,7 +71,6 @@ export class Stylesheet {
         .map((rule) => rule.text)
         .join("");
     return [
-      ...this.imported,
       ordered("all"),
       ...(this.rules.desktop.length ? [desktop === null ? ordered("desktop") : `${desktop}{${ordered("desktop")}}`] : []),
       ...(this.rules.phone.length && phone !== null ? [`${phone}{${ordered("phone")}}`] : []),

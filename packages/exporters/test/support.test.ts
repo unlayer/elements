@@ -168,7 +168,6 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
       return node({ props: { items: [{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }], separator: "|" } });
     case "Social":
       return node({ props: { icons: [{ name: "Instagram", href: "https://instagram.com/acme" }, { name: "X", href: "https://x.com/acme" }] } });
-    case "Raw":
     case "Html":
       return node({ props: { html: "<p>raw</p>" } });
     default:
@@ -252,7 +251,7 @@ for (const { target, root } of OUTPUTS) {
           const subject = type === root ? "root" : undefined;
           const reported = result.diagnostics.some((d) => d.path.endsWith(`.${where}.${key}`) || d.nodeId === "subject" || d.path === subject);
           if (declaredOtherwise(spec.support![target]!, value, where === "props" ? { [key]: value } : {}) && !reported) unreported.push(label);
-          // The output is the HTML and the plain text (a Raw node's text shows only there).
+          // The output is the HTML and the plain text (an Html block's text shows only there).
           else if (result.html === base.html && result.text === base.text && !reported) silent.push(label);
         }
       }

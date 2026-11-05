@@ -42,10 +42,7 @@ export function describeComponent(type: string, options?: ComponentsOption): Com
 
 /** Every built-in component a template can use, and the custom ones given. */
 export function describeComponents(options?: ComponentsOption): ComponentDescription[] {
-  return registryOf(options)
-    .all()
-    .filter((definition) => !definition.imported)
-    .map(describe);
+  return registryOf(options).all().map(describe);
 }
 
 function describe(definition: ComponentDefinition): ComponentDescription {
@@ -90,7 +87,7 @@ function describe(definition: ComponentDefinition): ComponentDescription {
     description: definition.description,
     categories: definition.categories,
     properties,
-    children: { text: !!definition.children.text, categories: definition.children.categories ?? [], types: (definition.children.types ?? []).filter((type) => type !== "Raw") },
+    children: { text: !!definition.children.text, categories: definition.children.categories ?? [], types: definition.children.types ?? [] },
     targets: Object.keys(definition.targets) as Target[],
     groups: (definition.editor?.groups ?? []).map((group) =>
       "composite" in group ? { title: group.title, paths: group.composite.covers, composite: group.composite.editor } : { title: group.title, paths: group.paths }

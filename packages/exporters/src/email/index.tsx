@@ -40,6 +40,7 @@ import { Column } from "./Column";
 import { Divider } from "./Divider";
 import { Email } from "./Email";
 import { Heading } from "./Heading";
+import { HtmlBlock } from "./Html";
 import { Image } from "./Image";
 import { LineBreak } from "./LineBreak";
 import { Link } from "./Link";
@@ -47,7 +48,6 @@ import { List } from "./List";
 import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Paragraph } from "./Paragraph";
-import { Raw } from "./Raw";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Section } from "./Section";
@@ -80,9 +80,7 @@ const BLOCKS: Record<string, Component> = {
   TableRow,
   TableCell,
   Video,
-  Raw,
-  // The authorable twin of Raw: the same markup, written the same way.
-  Html: Raw,
+  Html: HtmlBlock,
 };
 const INLINES: Record<string, Component> = {
   Span,
@@ -125,8 +123,6 @@ function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props
 function write(node: ResolvedNode, place: Place, options: EmailOptions): Html {
   if (place.inline) {
     if (!shown(node)) return raw("");
-    // Markup an importer brought in, among text: only what it is.
-    if (node.type === "Raw") return raw(String(node.props.html));
     const component = INLINES[node.type];
     if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} inside text`);
     return component(propsOf(node, place, options));
