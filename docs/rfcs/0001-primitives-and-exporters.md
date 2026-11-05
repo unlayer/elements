@@ -1,5 +1,7 @@
 # RFC 0001: Elements primitives and exporters
 
+> **Note (0.3.0):** Elements 0.2's components ("today's components" below) have been deleted from the repository; the history below is kept as written.
+
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
 every step below is done. Built so far: the API, 39 components, the layout resolver, the email, page
 and print writers, PDF and image output, plain text, custom components, web fonts, validation, support

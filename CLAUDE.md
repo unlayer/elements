@@ -8,7 +8,7 @@ A monorepo providing React components that render to email-safe HTML (tables for
 
 ```bash
 pnpm install          # Install all dependencies
-pnpm build            # Build all packages (shared → react)
+pnpm build            # Build all packages (core → exporters → react → the rest)
 pnpm test             # Run all tests (vitest)
 pnpm test:coverage    # Run tests with coverage
 ```
@@ -25,118 +25,85 @@ cd packages/react && pnpm storybook         # Storybook dev server
 
 | Package | Path | Published | Purpose |
 |---------|------|-----------|---------|
-| `@unlayer/react-elements` | `packages/react` | Yes (npm) | React components, renderers, context |
-| `@unlayer-internal/shared-elements` | `packages/shared` | No (private, bundled into react) | Framework-agnostic types, config, utils |
+| `@unlayer/react-elements` | `packages/react` | Yes (npm) | The components and `render()` (main entry), the builder adapter (`/builder`) |
 | `@unlayer/elements-demo` | `packages/demo` | No | Demo/showcase app |
 | `@unlayer/from-react-email` | `packages/from-react-email` | No (private, bundled into migrate; API at `@unlayer/migrate/react-email`) | React Email → Elements converter (codemod, runtime with merge tags, check against the original); fidelity benchmark in `bench/`, results in `FIDELITY.md` |
 | `@unlayer/migrate` | `packages/migrate` | Yes (npm) | React Email converter API at `@unlayer/migrate/react-email`; `npx @unlayer/migrate` CLI: migrate React Email templates, check them, write a report; `compare` for templates migrated by hand |
 | `@unlayer-internal/elements-core` | `packages/core` | No (private, bundled into react) | The new API's internals (RFC 0001): the template tree (internal, never public), component definitions, value kinds, validation, custom components, layout resolution. Framework-neutral; used by `@unlayer/react-elements` |
-| `@unlayer-internal/elements-exporters` | `packages/exporters` | No (private, bundled into react) | Elements' own writers, for the new components and today's alike: a laid-out template as web HTML, email HTML (tables, px widths from the resolver, Outlook's markup in conditional comments) and plain text, with the stylesheet under short rule-named classes |
+| `@unlayer-internal/elements-exporters` | `packages/exporters` | No (private, bundled into react) | Elements' own writers: a laid-out template as web HTML, email HTML (tables, px widths from the resolver, Outlook's markup in conditional comments) and plain text, with the stylesheet under short rule-named classes |
 | `@unlayer/convert-core` | `packages/convert-core` | No (private, bundled into the converters) | Elements tree, conversion report, TSX printer and content check that converters share |
 
-### Component Hierarchy (strict)
+### Template structure
 
 ```
-Email/Page/Document (sets render mode)
-  └─ Row (layout container, uses ColumnLayouts or cells prop)
-      └─ Column (must match layout column count)
-          └─ Button/Paragraph/Image/... (content items, no nesting)
+Email/Page/Document/Canvas (the root: which output render() writes)
+  └─ Section (a band across the window, optional)
+      └─ Row (its Columns side by side, stacked on phones)
+          └─ Column (its children stacked)
+              └─ Heading/Paragraph/Text/Button/Image/... (text runs inside: Span, Link, LineBreak, MergeTag)
 ```
 
-### Factory Pattern
+A root, a `Section` and a `Column` stack what they hold. Styles go in `style` (typed, a number is px), phone styles in
+`mobile`, hover styles in `hover`; there are no margins (a parent's `gap`). Every component and prop:
+`packages/react/PRIMITIVES.md` and `PRIMITIVES-REFERENCE.md`, written from the definitions by
+`src/primitives/reference.ts`.
 
-Most content components are NOT hand-written. They're created by `createItemComponent()` in `packages/react/src/utils/create-component.tsx`:
+### Components
 
-```typescript
-const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
-  name: "Button",
-  defaultValues: DEFAULT_VALUES, // from builder/tool-defaults.ts
-  propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Button"),
-  draw: onItsOwn, // rendered straight through React: compat/render.ts
-});
-```
-
-This factory:
-1. Takes a component name, default values, and a semantic prop mapper
-2. Returns a React component that maps flat props → nested `@unlayer/types` values
-3. Attaches a `[UNLAYER_RENDER_KEY]` static for `renderToJson()` to use
-
-**When adding a new component, use the factory.**
+The components aren't hand-written: each is a definition in `packages/core/src/components.ts` (props, styles,
+children, targets, support per output, editors), and `packages/react/src/primitives/components.tsx` makes a React
+component of each, whose props' types come from the same definition that validates them. `component()`
+(`src/primitives/custom.tsx`) makes a template's own component of them.
 
 ### Rendering Pipeline
 
 ```
-JSX flat props
-  → one React render collects the template (utils/normalize.tsx): Row, Column and blocks record their props
-    and render markers, React renders everything else (the user's components, hooks, Context, Fragments);
-    the result is the template as Elements components only (Email > Row > Column > blocks)
-  → the HTML, the head and the design are all made from that collected tree, so they can't disagree
-  → mapSemanticProps() converts to nested values matching @unlayer/types (the design renderToJson() returns)
-  → packages/react/src/compat lowers the design into the new engine's tree: each block into its new components
-    (compat/blocks/); an Html block, a custom tool, the user's own markup and text the run parser can't hold into Raw nodes
-  → packages/exporters lays it out and writes the final HTML per mode
+JSX
+  → one React render collects the template (src/primitives/collect.tsx): each component records its props and renders
+    markers around its children, and React renders everything else (the user's components, hooks, Context, Fragments)
+  → packages/core checks it (validation, custom components expanded) and lays it out (each block's width)
+  → packages/exporters writes the root's output: email HTML, page HTML, print HTML (a Document), and plain text
 ```
 
-What can't be drawn is said (a `[Unlayer]` console warning, `warnOnce` in `compat/render.ts`), never dropped silently. What isn't a template throws: `templateRoot` in `compat/template.ts` and `htmlRoot` in `utils/unwrap-root.ts`.
-
-A component that throws, suspends or is async is left out at the nearest Row, Column or root child (a
-Suspense boundary), with a message naming it; the rest renders. The collector is a module-level stack shared
-by every copy of Elements in a process (`Symbol.for`), not React context, so it works in Server Components.
-
-Three render modes: `email` (table-based), `web` (div+flexbox), `document` (print).
-
-### Semantic Props System
-
-Components expose flat, ergonomic props (`fontSize`, `backgroundColor`) that get mapped to the deeply nested values of the builder's design, which `renderToJson` writes and `packages/react/src/compat` reads. The mapping logic lives in `packages/shared/src/utils/semantic-props.ts`.
-
-Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the nested values.
+`render()` is async and rejects with an `ElementsError` listing the template's problems; `validate()` checks without
+rendering, `outline()` prints the laid-out template. A component that is async or suspends is an error (`jsx/async`).
+The collecting render runs with a module of react-dom's that isn't rendering (`src/utils/server-renderer.ts`), so
+an app's server render can work out a design or HTML while it renders and call hooks after. The stack of collecting
+renders and the render count behind each render's nonce are shared by every copy of Elements in a process
+(`Symbol.for`, `src/utils/collect.ts`), not React context, so it works in Server Components.
 
 ### Key External Dependencies
 
-- **`@unlayer/types`** — TypeScript type definitions for all component value shapes. The package's only dependency, and types only: it stays because the published type definitions import it. Pinned version in `pnpm-workspace.yaml` catalog, updated automatically by the `update-deps.yml` GitHub workflow.
-- The closed `@unlayer/exporters` is gone. Don't add it back: HTML comes from `packages/exporters`, and each tool's default values from `packages/react/src/builder/tool-defaults.ts`. It's in the lockfile only through the dev alias `@unlayer/react-elements-previous` (the published 0.2.1), and CI fails if a bundle imports it.
+- The published package has no dependencies: React and react-dom are peers, and `packages/core` and `packages/exporters` are bundled in (tsup's `noExternal`).
+- The closed `@unlayer/exporters` is gone. Don't add it back: HTML comes from `packages/exporters`, and each builder tool's default values from `packages/react/src/builder/tool-defaults.ts`. CI fails if a bundle imports it.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `packages/react/src/index.ts` | Main barrel export |
-| `packages/react/src/primitives/index.ts` | The new API until it replaces the main entry in the next major: the primitive components, `component()`, async `render()` (output from the root) and `validate()`; JSX only |
+| `packages/react/src/primitives/index.ts` | The main entry: the components, `component()`, async `render()` (output from the root), `validate()`, `outline()` and `prepare()`; JSX only |
 | `packages/core/src/components.ts` | Primitive component definitions (props, styles, children, targets, each style's and prop's support per output, editors) |
 | `packages/exporters/src/{email,page}/` | The new writers, one file per component (`Button.tsx`, `Row.tsx`, …) per output, in JSX that writes strings (`packages/exporters/src/jsx.ts`, no React), each output's document shell in its `index.tsx`; `packages/exporters/README.md` explains the layout, the JSX and how to add a component |
-| `packages/react/src/compat/` | Today's components through the new engine: `template.ts` (a template to the tree, and what isn't one), `lower.ts` (rows, columns, the frame), `blocks/` (each tool), `quirks.ts` (where 0.2.1 drew something other than its design asks), `render.ts` (the render functions and their warnings) |
+| `packages/react/src/utils/` | The render that collects a template: `collect.ts` (the stack every copy of Elements shares, each render's nonce), `server-renderer.ts` (which module of react-dom's a render runs with), `render-scope.ts` |
 | `docs/rfcs/0001-primitives-and-exporters.md` | The new engine's design: decisions (dated), components, styles, layout, support per output, the writers, the builder adapter, status and order of work |
-| `packages/react/src/builder/` | The builder adapter (`/builder`): `toDesign()` writes a template as the Unlayer builder's design JSON (`raise.ts` and `tools.ts` make its rows, columns and blocks; `design.ts` writes them over each tool's defaults, numbered as the builder numbers them, key for key as today's `renderToJson` wrote them), `fromDesign()` reads one back (`read.ts`, `rows.ts`, `blocks.ts`), its values and text as today's components read them (`read-values.ts`, `read-runs.ts`, `lexical.ts`). Neither imports anything of today's components or the shared package (`imports.test.ts`). `manifest.ts` lists every hidden property (a style or prop a tool has no field for, kept in its values) and the builder's own keys; a test holds `toDesign()` to it |
-| `packages/react/src/utils/create-component.tsx` | Component factory |
-| `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
+| `packages/react/src/builder/` | The builder adapter (`/builder`): `toDesign()` writes a template as the Unlayer builder's design JSON (`raise.ts` and `tools.ts` make its rows, columns and blocks; `design.ts` writes them over each tool's defaults, numbered as the builder numbers them, key for key as Elements 0.2's `renderToJson` wrote them), `fromDesign()` reads one back (`read.ts`, `rows.ts`, `blocks.ts`), its values and text as Elements 0.2's components read them (`read-values.ts`, `read-runs.ts`, `lexical.ts`). It imports only its own files, the main entry's and React (`imports.test.ts`). `manifest.ts` lists every hidden property (a style or prop a tool has no field for, kept in its values) and the builder's own keys; a test holds `toDesign()` to it |
 | `packages/react/src/builder/tool-defaults.ts` | Each tool's default values and the design's schema version, plain data in the editor's key order |
-| `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
-| `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
-| `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |
-| `packages/react/src/components/Row.tsx` | Row layout with column management |
-| `packages/shared/src/config.ts` | `UnlayerConfig` interface and defaults |
-| `packages/shared/src/types.ts` | Shared type definitions |
-| `packages/shared/src/utils/merge-values.ts` | Deep merge utility |
 
 ## Testing
 
-- **Unit tests**: Vitest + Testing Library, co-located as `Component.test.tsx`
-- **Golden template test**: `packages/react/src/golden-template.test.tsx` — full realistic email through all 4 render pipelines, read by what it draws
-- **Node environment test**: `packages/react/src/node-import.test.ts` — verifies no browser API dependency
+- **Unit tests**: Vitest, co-located as `name.test.ts(x)`; the new components' own in `src/primitives` (`template.test.tsx`, `custom.test.tsx`, `content.test.tsx`, `reference.test.tsx`; `types.test-d.tsx` is the type contract `pnpm typecheck` checks) and the builder adapter's in `src/builder`
+- **Node environment test**: `packages/react/src/node-import.test.ts` — the main entry and `/builder` import and render with no browser API, and each entry's types resolve under every `moduleResolution`
 - **Next.js integration**: `tests/nextjs-integration/` — real Next.js 15 app build (Turbopack) that renders an email in a route handler, a Server Component and an edge route (`verify.mjs`); `tests/next14-integration/` the same on Next.js 14 with React 18; `tests/next16-integration/` on Next.js 16 with Cache Components (create-next-app's default), where the route handler, Server Component and Client Component are prerendered when the app builds, which fails if a render reads a random number or the date (`src/regression/render-isolation.test.tsx` checks that too); `tests/jest-integration/` the packed package in Jest 30's jsdom environment with React 19
 - **Storybook smoke test**: `packages/react/.storybook/test-runner.ts` — opens every story in headless Chromium and asserts each component paints visible content with no console / page errors. Runs against both the dev server (`pnpm test-storybook`) and the production static build (`pnpm test-storybook:ci`). Note: Storybook bundles from `src/` via Vite — the published `dist/` artifact is covered by the Next.js integration and the CSP gate.
-- **CSP safety gate**: `packages/react/scripts/csp-probe.mjs` (`pnpm test:csp`) — imports + renders the built `dist/` bundle under V8's `--disallow-code-generation-from-strings` (a Content-Security-Policy without `'unsafe-eval'`). **Hard gate**: fails if the built package evaluates a string (`eval` / `new Function`) at import or render — a green check must mean the package is genuinely CSP-safe.
+- **CSP safety gate**: `packages/react/scripts/csp-probe.mjs` (`pnpm test:csp`) — imports + renders the built main entry and `/builder` (`dist/primitives.js`, `dist/builder.js`) under V8's `--disallow-code-generation-from-strings` (a Content-Security-Policy without `'unsafe-eval'`). **Hard gate**: fails if the built package evaluates a string (`eval` / `new Function`) at import or render — a green check must mean the package is genuinely CSP-safe.
 - **Storybook visual-drift gate**: `packages/react/scripts/storybook-visual.mjs` (`pnpm test:visual`, needs `pnpm build-storybook` first) — fingerprints the computed styles and the visible text of every story at desktop + mobile widths in headless Chromium and diffs against the committed `scripts/storybook-visual-baseline.json` (dictionary-encoded; regenerate intentional changes with `UPDATE_VISUAL_BASELINE=1 pnpm test:visual`). Fails naming the exact stories and property-level diffs. Computed styles, not pixel screenshots — deterministic across macOS/Linux; blind only to pure rasterization differences.
-- **Browser E2E gate**: `packages/react/scripts/browser-e2e.mjs` (`pnpm test:e2e`, needs `pnpm build` + `playwright install chromium` once) — renders full documents with the built `dist/` for all three modes and asserts in headless Chromium across eleven sections: (1) document contract — every `<p>` computes to 0px margins (the inline reset beats the UA default), exactly one `<body>`, title/styles/links applied, no console/page errors; (2) responsive — three columns side-by-side at desktop width, stacked full-width below the mobile breakpoint (480px web, contentWidth+20 email; document/print never stacks), and a `noStackMobile` row kept side by side in proportion on phones even when a stacking row follows it; (3) interaction — button `:hover` applies the configured hover colors; (4) RTL — `textDirection` reaches the computed direction; (5) style baseline — computed colors/fonts/radii/padding/column-widths diffed against the committed `scripts/browser-e2e-baseline.json` (regenerate intentional changes with `UPDATE_E2E_BASELINE=1 pnpm test:e2e`; computed values instead of pixel screenshots so the baseline is deterministic across macOS/Linux); (6) no horizontal overflow at mobile width; (7) preheader — `previewText` present but invisible/zero-size; (8) accessibility — img alt, link names, `role="presentation"` on layout tables; (9) image width pinning holds and stays inside its column; (10) every non-empty `<style>` parses into CSS rules; (11) document mode stays visible under print media emulation. Includes a negative control (a document with a bare `<p>`) that must fail the checks — a green run proves the gate can detect the regression it guards, not just that selectors matched nothing.
+- **Browser E2E gate**: `packages/react/scripts/browser-e2e.mjs` (`pnpm test:e2e`, needs `pnpm build` + `playwright install chromium` once) — renders an Email, a Page and a Document of the same content with the built main entry (`dist/primitives.js`) and asserts in headless Chromium across thirteen sections: (1) document contract — every `<p>` computes to 0px margins (the inline reset beats the UA default), exactly one `<body>`, title/styles/links applied, no console/page errors; (2) responsive — three columns side-by-side at desktop width, stacked full-width below the phone breakpoint (480px for a Page, an Email's width + 20px; a Document never stacks), and a Row with `stackOnMobile={false}` kept side by side in proportion on phones even when a stacking row follows it; (3) interaction — button `:hover` applies the configured hover colors; (4) RTL — the root's `dir` reaches the computed direction; (5) style baseline — computed colors/fonts/radii/padding/column-widths diffed against the committed `scripts/browser-e2e-baseline.json` (regenerate intentional changes with `UPDATE_E2E_BASELINE=1 pnpm test:e2e`; computed values instead of pixel screenshots so the baseline is deterministic across macOS/Linux); (6) no horizontal overflow at mobile width; (7) preheader — `previewText` present but invisible/zero-size; (8) accessibility — img alt, link names, `role="presentation"` on layout tables; (9) an image's width holds and stays inside its column; (10) every non-empty `<style>` parses into CSS rules; (11) a Document stays visible under print media emulation; (12) an email Row's side padding stays inside the email, centred, with no sideways scroll; (13) phone settings (a Column's `mobile` padding, an Image's `mobile` width, `hidden`) apply at 375px and leave desktop as it was, with a negative control. Includes a negative control (a document with a bare `<p>`) that must fail the checks — a green run proves the gate can detect the regression it guards, not just that selectors matched nothing.
 
 - **Primitives layout gate**: `packages/exporters/test/browser/` (`pnpm --filter @unlayer-internal/elements-exporters test:browser`, needs `playwright install chromium`) — renders one template (`fixture.ts`: nested Rows, Columns, a Section, images, maxWidth boxes, hidden columns) as a Page (`layout.test.ts`) and as an Email (`email-layout.test.ts`), and asserts every box's width in Chromium equals the width the resolver (`packages/core/src/resolve.ts`) worked out, on desktop, and that Rows stack and hidden content hides at phone width. The email is also measured with its `<style>` removed (Gmail drops it for some accounts): desktop widths must still match, and Rows must still stack on phones by their fluid-hybrid columns. The resolver's widths are what every target reads, so a difference here is a difference between targets.
 - **Primitives support per output**: `packages/exporters/test/support.test.ts` — every style and prop of every primitive declares how each output with a writer (email, web) shows it; each, at every enum value and a sample of others, must change the output or give a diagnostic (nothing dropped silently), and every limit declared is reported by `validate()`.
-- **Previous-release parity**: `packages/react/src/regression/previous-release.test.tsx` — the realistic examples (`src/examples`) rendered with this build and with the last published Elements (`@unlayer/react-elements-previous`, an npm alias in devDependencies): designs, plain text and the HTML's words, links and images must be identical; the HTML itself is compared with reviewed file snapshots (`src/regression/__snapshots__`), so any change fails until updated with `vitest -u` and reviewed. `previous-release-patterns.test.tsx` does the same for the ways users write their own components (hooks, context, `useId`, Fragments, memo/forwardRef, a template component, entities in text): each states what React shows, and must match the previous release where it showed that. **After each release, move the alias to it.**
-- **Today's components against 0.2.1**: `src/compat/differential.test.tsx`, `src/compat/blocks.test.tsx` and `src/compat/render.test.tsx` compare what a reader gets through this build and the published 0.2.1. There's no comparison gate for the drawing in CI: it was checked against the published 0.2.1 in Chromium, and the visual-drift baseline and the reviewed HTML snapshots pin it from there. A difference from 0.2.1 is a decision: list it, with its reason, in `packages/react/README.md` ("The rendering engine") and the changelog.
-- **Generated templates**: `src/regression/generated.test.tsx` — 600 seeded templates put together at random from the ways users combine things (conditions, Fragments, components with hooks, memo/forwardRef, arrays, components that render nothing, Rows with a layout, a template in a Fragment), rendered with this build and with the last published Elements. Each knows what React shows for it; where the previous release showed that and this build doesn't (HTML, plain text or design), the test fails with the seed and the template. The hand-written patterns cover known shapes; this finds the ones no one wrote down (`GENERATED_SEEDS=5000` for a longer run).
-- **Template patterns**: `src/regression/patterns.test.tsx` — the ways templates are put together that broke before (Fragments, components returning arrays or null, hooks, memo/forwardRef, a reused element, HTML from a component, text in Rows/Columns, RTL, device hiding) rendered to HTML and designs against reviewed snapshots.
-- **Hostile inputs**: `src/regression/hostile-input.test.tsx` — every value that often comes from users (text, links, image sources and text, menu items, social links and names, preview text, direction, language, font URLs, title) given markup in every mode; the parsed output must have no element or attribute it adds.
-- **Render isolation**: `src/regression/render-isolation.test.tsx` — a render never leaks into the next (data, kept elements, order), and the same input always gives the same output.
+- **Hostile inputs**: `src/regression/hostile-input.test.tsx` — every value that often comes from users (text, links, image sources and text, menu items, social icons, video titles, table cells, merge tag names, the root's title, language, preview text, description and fonts) given markup in every root; the parsed HTML must have no element or attribute it adds (nor what Outlook reads in its conditional comments), and the builder's design no markup where the builder reads HTML.
+- **Render isolation**: `src/regression/render-isolation.test.tsx` — a render never leaks into the next (data, kept elements, order, `useId`), the same input always gives the same output, and a render reads no random numbers or the date (Next.js's Cache Components fail a build on one).
+- **Renders inside renders**: `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` and `src/regression/client-render.test.tsx` — an app's server render (react-dom/server or its browser build) or client render working out a design, a layout or the HTML and calling hooks after; React's hooks and wrappers in a template; a template's own errors and undefined components failing every render. `src/utils/react-server-react.test.tsx`: React Server Components' React says to render in Node.js. `src/regression/node-exit.test.ts`: the built entries exit Node on React 18 and 19, load only react-dom/server, and use no `import.meta` or computed `require`.
 - **Migration fidelity smoke test**: `packages/from-react-email/bench/smoke.ts` (`pnpm --filter @unlayer/from-react-email test:fidelity`, needs `playwright install chromium` once) — converts the templates in `packages/from-react-email/test/fixtures` both ways (codemod and runtime) and renders them next to their React Email originals in Chromium at 700px and 375px, with the network off. Fails on lost or added words, links or images, on any word shown at another font size on desktop, or on words moved on desktop (and on phones for the fixtures that match there, listed in `PHONE_EXACT`); a 2% tolerance absorbs font rendering differences between macOS and Linux. The full benchmark (`pnpm --filter @unlayer/from-react-email bench`, results in `FIDELITY.md`) runs the 106-template corpus locally.
 - **The migration check's styles**: `packages/convert-core/src/cascade.ts` (tests in `packages/convert-core/test/cascade.test.ts`) — the content check reads both documents with a small CSS cascade (inline styles, the `<style>` rules that apply at a desktop width, the browser's defaults, inheritance) and compares each word's size, bold, italics, letter case, underline, color, the background behind it and a link's target; a gradient of written-out opaque colors counts as its first stop, and a `url()` image behind the original's text that the migration lost is a difference unless the box set a color under it that the migration shows (as where images don't load); `<html>`'s background and text styles count. The same cascade decides what's hidden (display:none, the `hidden` attribute, `max-height:0;overflow:hidden`, visibility, opacity, text only screen readers get: `sr-only` clipping or placed far off the page, by position, `text-indent` or a `transform`, compound selectors), and reads the text `::before` and `::after` draw as words. It reads what React Email writes: Tailwind's `sm:` as `@media` nested in the rule (range syntax), custom properties (an unset one drops the declaration, as in the browser), `:not()` and the structural pseudo-classes, and drops a selector the browser can't read (`&gt;`); `initial`/`revert` take the property's initial value or the browser's style for the element, a box's `opacity` fades the text in it (compared as its color), and text that's the inbox preview on one side and in the email on the other differs. It also reads both documents at a phone's width (375px), where the same words, links and images must show (and the same styles, a difference listed as a look), at each wider width where a rule for wider screens applies on either side (Tailwind's `md:`, `lg:`), where the words, links, images and styles must match (`widerScreens`), in dark mode where either side has a `prefers-color-scheme: dark` rule (a logo or text swapped for dark mode), where the words, links and images must match, and places each word across the page at desktop width without a browser (`packages/convert-core/src/geometry.ts`: table cells, `display: table-cell`, inline-blocks, flex rows, widths, padding, auto margins, `align`; cells without a width beside others are as wide as the browser's automatic table layout makes them, from their text's estimated widths, so a word must stay in place at a low and a high estimate and at any size of an image without a px width (none, or wider than the row), and a cell whose content can't be measured — a flex box, a box sized in % — leaves its words unverified. The converter sizes such columns the same way, from the text the preview props give): a word whose line sits more than 120px elsewhere (a column stacked or moved, a block on the other side) fails the check. On the 106 benchmark templates the model reads at most 100px apart where Chromium shows no move; images aren't compared (their place often depends on sizes inferred from content). **It fails closed**: a property, whether words show (on desktop or on phones), or where a word sits, unknown on one side only (a selector, condition or value it can't evaluate; a rule it can't read counts at the highest weight it could have), is `unverified` with the rule that caused it, and the check fails; unknown on both sides for the same reason (the same rule: markup kept as it was) isn't, for different reasons (another condition on each side) is, and where a word sits unknown on both sides is too. It fails closed on CSS it doesn't model too: each word carries the declarations around it that can change how it shows (`StyledDocument.look`: any property not in `MODELED` or `INERT`, at a value that changes something — `white-space`, `letter-spacing`, `transform`, `filter`, `text-shadow`, an inset `box-shadow`, `position` with offsets, `overflow` with a set height or unwrapped lines, `display: grid`, a reversed row, `order`, `direction`/`dir`, `::before`/`::after` content, a list item's marker, `<q>`, and the HTML attributes that set styles: `<font size>`, `<sup>`, `nowrap`), and both sides must carry the same (lengths within a third of a pixel), or the word is unverified (`what: "look"`). `INERT` lists, with why, what can't change the words (borders, corners, outer shadows, heights, line wrapping, Outlook's `mso-*`, rendering hints); a property in neither list is in doubt by default. A `<style media>` applies as its query does (a print stylesheet never), in the check and in both converter modes. Geometry is default-closed too: it places only what it models (block and inline flow, floats, tables with automatic or fixed layout and their cell spacing, nowrap flex rows with gap/justify-content/place-content, stretched flex columns, boxes that shrink to their content, logical inline sides, `box-sizing`, right-to-left rows from the right), and `unmodeled()` in `geometry.ts` makes everything else unknown (a grid, multicol, absolute/fixed/sticky, wrapping flex, non-stretch flex columns, vertical writing, size containment, an aspect-ratio width, a display it doesn't know); unknown on both sides is unverified, so the same CSS kept on both sides still fails there. An image's `srcset` isn't compared. `checkFails` in `verify.ts` says whether the check found anything (what the differential tests); what the CLI does with it is its own policy, the same for the run, `compare` and each flipped boolean prop: `contentProblems()` (words, links and images lost or added, on desktop or phones, whether they show where that can't be told, preview text shown in the email, a block the editor wouldn't get, a flipped prop that fails to render, content the original shows or hides by its props that the codemod drops — `lostShown` — and words CSS the check doesn't read adds or hides: `::before` content, an ellipsis, a line clamp, a clipping `overflow`) flags a template `✗` and exits 2, and `lookProblems()` (styles, where words sit, the look, what it can't read, styles computed from props, and phone styles the original applies up to another width than Elements' 480px, which the check doesn't read between the two) lists it under `looks` ("looks different"). Every template is written either way (content that differs is a converter bug, since anything it can't map is kept as HTML); `--strict` fails and doesn't write a template with any difference (`--force` writes it anyway). On the 106-template benchmark no conversion has a style difference on desktop (three have one on phones: text the converter makes smaller so its words fit a phone), and two have something unverified, both `white-space` the converter can't carry (a comment shown with `pre-wrap`, a price kept on one line with `nowrap`): they're written, listed as looking different (and fail with `--strict`). No conversion's content differs; any other difference or doubt is a regression to look at.
 
@@ -145,7 +112,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - TypeScript strict compilation
 - All unit tests pass
 - Bundle sizes within their budgets (`.github/workflows/test.yml`), and no bundle imports `@unlayer/exporters`
-- Elements output matches the previous release (designs, plain text, the HTML's words, links and images) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
+- Hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
 - Migration fidelity smoke test passes (fixture templates keep their content, text sizes and desktop layout)
@@ -167,9 +134,8 @@ Not blockers: how a migration looks. A look difference (a style, where words sit
 
 ## Common Gotchas
 
-- `fontFamily` must be `{ label: string, value: string }`, NOT a plain string
-- `fontWeight` must be a number (400, 700), NOT a string
-- Column count in a Row must match the layout (e.g., `TwoEqual` needs exactly 2 `<Column>` children)
-- The shared package is private and bundled into react via tsup's `noExternal` — it's never installed separately
-- `renderToHtml()` returns a complete HTML document (`<!DOCTYPE html>` to `</html>`) with a per-mode shell from the writers; `renderToHtmlParts()` returns the embeddable `{ head, body }` chunks. Neither has hydration markers
-- A `<div>` as the root, a root inside markup, two roots, more than 20 wrappers and a root from a copy older than 0.3 throw; a Row, Column or block on its own gets a root around it
+- Styles go in `style={{ … }}`, never as props, and a number is px; there are no margins (space between blocks is the parent's `gap`)
+- An `Image` takes its file's size: `src={{ src, width, height }}`; `style.width` is the size shown
+- `render()` is async (`await render(element)`); `validate()`, `outline()`, `toDesign()` and `fromDesign()` aren't
+- Text goes in `Heading`, `Paragraph` or `Text`; markup outside an `Html` block is an error (`jsx/markup`), and so is a component that's async or suspends (`jsx/async`)
+- `packages/core` and `packages/exporters` are private and bundled into react via tsup's `noExternal` — they're never installed separately

@@ -261,7 +261,8 @@ For the full API reference, component props, design patterns, and common mistake
 | [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
 | [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
 | [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
-| [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
+| [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation and layout | Internal (bundled into `@unlayer/react-elements`) |
+| [`@unlayer-internal/elements-exporters`](./packages/exporters) | The writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
 | [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
 
 ## Examples
