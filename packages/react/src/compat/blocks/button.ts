@@ -8,7 +8,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { buttonHover, fontOfValues } from "../quirks";
-import { parseRuns } from "../runs";
+import { parseRuns } from "../../builder/read-runs";
 import { ALIGN, color, deviceValues, drawnBorder, drawnLink, drawnWeight, letterSpacing, lineHeight, px, sides, some, webLink, type Values } from "../values";
 
 /** A width legacy's button reads: px or a share of its place; else what's said, and none. */

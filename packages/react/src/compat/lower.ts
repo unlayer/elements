@@ -14,6 +14,9 @@ import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../builder/image-si
 import { bodyLinkCss } from "./links";
 import { documentBodyPicture, ownMarkupCss, PAGE_BASE_CSS, pageBodyColor, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
 import { ALIGN, attribute, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";
+import { givenId, hidden } from "../builder/read-values";
+
+export { givenId, hidden };
 
 /** A block of the design: its tool and values. */
 export interface DesignBlock {
@@ -102,16 +105,6 @@ export interface LowerOptions {
   wide?: boolean;
   /** Of the frame's class names, so that another render's on the same page can't be taken for them. */
   names?: string;
-}
-
-/**
- * Where a block, column or row is hidden: on desktop, or on phones, by its overrides (legacy reads only these: a flat
- * `hideDesktop` or `hideMobile` in its values hides nothing).
- */
-export function hidden(values: Values): TreeNode["hidden"] {
-  const desktop = !!values._override?.desktop?.hideDesktop;
-  const mobile = !!values._override?.mobile?.hideMobile;
-  return desktop || mobile ? { ...(desktop ? { desktop } : {}), ...(mobile ? { mobile } : {}) } : undefined;
 }
 
 /** What lowering a template's frame (its body, rows and columns) gathers beside the tree. */
@@ -238,12 +231,6 @@ function deviceClass(values: Values, collection: "rows" | "columns", frame: Fram
   const what = collection === "rows" ? "A row" : "A column";
   collectDeviceStyles(values, collection, frame.mode, frame.device, name, (key, value, on) => say(frame, "warning", `${what}'s ${key} on ${on === "mobile" ? "phones" : "desktop"} ${JSON.stringify(value)} can't be written in CSS, so it isn't drawn`, `${path}.values._override.${on}.${key}`));
   return name;
-}
-
-/** An id its author gave a row, column or block (legacy writes it; the ids it numbers itself aren't written). */
-export function givenId(values: Values): string | undefined {
-  const id = values._meta?.htmlID;
-  return typeof id === "string" && id && !/^u_(row|column|body|content_[a-z0-9_]+)_?\d*$/.test(id) ? safeName(id) || undefined : undefined;
 }
 
 /** A node with the id its author gave it, whatever it holds (`compat.anyId`): legacy writes any id. */

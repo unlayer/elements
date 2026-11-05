@@ -7,8 +7,7 @@
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
 import { ColumnDefaults, RowDefaults } from "./tool-defaults";
-import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { color, sides, some, type Sides, type Values } from "../compat/values";
+import { color, givenId, hidden as hiddenOn, sides, some, type Sides, type Values } from "./read-values";
 import { readRadius } from "./reading";
 import { readBlock, type Context, type Slot } from "./blocks";
 import { readHidden } from "./hide";
@@ -98,7 +97,7 @@ function columnOf(columnValues: Values, children: Node[], share: string | undefi
  * What the builder draws as tall as its row, a Row's: its columns are stretched to the row's height, so a background
  * every column has, and a line along the top or the bottom of each, are one across the row (the new email's columns
  * end with their content), taken off the columns. Where the columns stack on phones, each draws the lines again
- * there, as the builder's do, and the Row none (as compat lowers today's rows).
+ * there, as the builder's do, and the Row none (as today's rows were drawn).
  */
 function stretched(columns: Node[], stacks: boolean): { style: Record<string, Json>; mobile?: Record<string, Json> } {
   if (columns.length < 2) return { style: {} };

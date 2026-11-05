@@ -6,7 +6,7 @@
  * by the same kind, and one that doesn't parse is left out and said.
  */
 import { definitionOf, linkParts, type Border, type Insets, type Json, type LinkValue } from "@unlayer-internal/elements-core";
-import { border as legacyBorder, px, sides, type Values } from "../compat/values";
+import { border as legacyBorder, px, sides, type Values } from "./read-values";
 
 export type { Values };
 

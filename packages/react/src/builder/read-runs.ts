@@ -7,10 +7,18 @@
  * target or an attribute a run doesn't take) is said in `left`, and the block keeps its legacy HTML.
  */
 import type { Json } from "@unlayer-internal/elements-core";
-import type { TreeNode } from "./lower";
-import { holdsKept } from "./values";
+import { holdsKept } from "./read-values";
 
-export type Run = TreeNode | string;
+/** A run that isn't words: a Span, a Link or a LineBreak, as the new engine's node. */
+export interface RunNode {
+  type: string;
+  props?: Record<string, Json>;
+  style?: Record<string, Json>;
+  hover?: Record<string, Json>;
+  children?: Run[];
+}
+
+export type Run = RunNode | string;
 
 /** A tag as the browser reads one: `<` straight before its name or its `/`. (Before anything else `<` is text: `a < b`.) */
 const TAG = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*?)\/?\s*>/g;
@@ -125,7 +133,7 @@ function tagStyle(tag: string, weight: number, raised = false): Record<string, J
   return undefined;
 }
 
-type Frame = { tag: string; node: TreeNode | null; children: Run[]; weight: number };
+type Frame = { tag: string; node: RunNode | null; children: Run[]; weight: number };
 
 /**
  * The HTML as runs, and what in it no run holds. `weight` is the block's font weight, which a `<b>` makes bolder;

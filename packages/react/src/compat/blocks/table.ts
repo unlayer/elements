@@ -7,7 +7,7 @@ import type { Json } from "@unlayer-internal/elements-core";
 import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import type { DesignBlock, Place, TreeNode } from "../lower";
 import { linesInHeaderAndFooter, spaceBeforeTag } from "../quirks";
-import { parseRuns } from "../runs";
+import { parseRuns } from "../../builder/read-runs";
 import { bodyLinks, styled } from "../links";
 import { deviceValues, drawnBorder, font, fontWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 

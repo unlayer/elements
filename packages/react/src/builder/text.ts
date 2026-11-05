@@ -1,13 +1,13 @@
 /**
- * A text tool's HTML read back as blocks of runs, as the builder draws it. Runs are compat's run parser's (it fails
- * closed), with merge tags as MergeTags. A `<p>` is a block of its own: the builder's export resets a paragraph's
- * margins (`p { margin: 0 }`, and its editor writes `margin: 0px` on each), so one has none unless its own style gives
- * it some, which are its padding. A `<ul>` or `<ol>` is a List, its padding its indent and its items' margin its gap.
+ * A text tool's HTML read back as blocks of runs, as the builder draws it. Runs are today's components' run parser's
+ * (read-runs.ts: it fails closed), with merge tags as MergeTags. A `<p>` is a block of its own: the builder's export
+ * resets a paragraph's margins (`p { margin: 0 }`, and its editor writes `margin: 0px` on each), so one has none unless
+ * its own style gives it some, which are its padding. A `<ul>` or `<ol>` is a List, its padding its indent and its items' margin its gap.
  * What isn't read exactly is said in `left`, and the block is kept as its markup.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
-import { parseRuns, type Run } from "../compat/runs";
-import { color, fontWeight, px } from "../compat/values";
+import { parseRuns, type Run } from "./read-runs";
+import { color, fontWeight, px } from "./read-values";
 import { textJsonHtml } from "./text-json";
 
 export interface TextPart {

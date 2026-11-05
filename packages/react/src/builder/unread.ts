@@ -1,11 +1,11 @@
 /**
- * What of an item's values fromDesign() doesn't read, said, as compat fails closed on a value it doesn't read: one that
+ * What of an item's values fromDesign() doesn't read, said, as today's components' lowering failed closed on a value it doesn't read: one that
  * isn't empty, isn't its tool's default (what the builder fills in), and is neither read nor one that draws nothing (the
  * editor's own flags, a popup's settings) draws something the template won't (a row's background image, an anchor, a
  * display condition, a phone value Elements has no place for).
  */
 import { BodyDefaults, ColumnDefaults, RowDefaults } from "./tool-defaults";
-import type { Values } from "../compat/values";
+import type { Values } from "./read-values";
 import { HIDDEN } from "./manifest";
 import { same } from "./reading";
 

@@ -2,7 +2,7 @@
  * Designs from outside the adapter: ones the real builder saved, read as expected; malformed JSON, read without
  * throwing into a template that renders; and a design's size, against what the builder itself saves.
  */
-import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
+import { generateHtmlFromTextJson } from "./lexical";
 import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

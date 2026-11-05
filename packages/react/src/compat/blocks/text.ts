@@ -9,7 +9,7 @@ import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 import { collectDeviceStyles, cssIdent, deviceStylesCss } from "../../utils/device-overrides";
 import { contentBox, givenId, type DesignBlock, type Place, type TreeNode } from "../lower";
 import { blockLinks, bodyLinks, declared, linkHoverOf, linkStyleOf, styled } from "../links";
-import { parseRuns } from "../runs";
+import { parseRuns } from "../../builder/read-runs";
 import { fontOfValues, spaceBeforeTag, textTransformOfText } from "../quirks";
 import { deviceValues, drawnWeight, letterSpacing, lineHeight, px, sides, some, TEXT_ALIGNS, type Values } from "../values";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRuns } from "./runs";
+import { parseRuns } from "./read-runs";
 
 const BR = { type: "LineBreak" };
 

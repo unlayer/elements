@@ -1,6 +1,6 @@
 /**
- * A tool's rich text (its editor's Lexical JSON, `textJson`) as HTML, for reading it back: the shared generator's (as
- * compat writes it), with each node the builder's editor saves written as the editor's own export writes it. The
+ * A tool's rich text (its editor's Lexical JSON, `textJson`) as HTML, for reading it back: the generator's
+ * (lexical.ts, as today's components write it), with each node the builder's editor saves written as the editor's own export writes it. The
  * generator knows Lexical's nodes (text, paragraph, heading, list, list item, link, line break); the editor saves
  * its own, which it writes as their words only, or not at all. Each is turned into the generator's node, and what the
  * generator doesn't write of it but the editor does is added to its tag:
@@ -17,7 +17,7 @@
  *
  * Any other node is said in `unread`. Pure: the JSON isn't changed.
  */
-import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
+import { generateHtmlFromTextJson } from "./lexical";
 
 /** What isn't Lexical's JSON or an HTML passthrough, as `unread` says it. */
 const NOT_RICH_TEXT = "rich text that isn't the editor's";

@@ -5,9 +5,7 @@
  * Html block of its markup.
  */
 import { Heading as HeadingDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
-import { linkStyleOf, styled } from "../compat/links";
-import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { color, fontWeight, font, serviceTag, sides, some, type Sides, type Values } from "../compat/values";
+import { color, fontWeight, font, givenId, hidden as hiddenOn, linkStyleOf, serviceTag, sides, some, styled, type Sides, type Values } from "./read-values";
 import { readHidden } from "./hide";
 import { boxOf, defined, make, obj, phoneText, placed, str, textStyle, ZERO, type Context } from "./reading";
 import { readText, richText, type TextToolName, withParagraphMargin } from "./text";
@@ -36,7 +34,7 @@ export function textTool(tool: "text" | "heading", given: Values, context: Conte
   const id = givenId(values);
   const props = defined({ ...(level && level !== 1 ? { level } : {}), dir: str(values.textDirection), ...hidden.props });
   const visibility = { ...hiddenOn(values), ...hidden.hidden };
-  // Its links' style where it's its own (the builder's link style), as compat reads it; a hover style a page draws, said.
+  // Its links' style where it's its own (the builder's link style), as today's components read it; a hover style a page draws, said.
   const linkStyle = linkStyleOf(values, context.mode);
   if (linkStyle === null) context.say("its links' hover style, which a page draws, has no place: left out");
   const links = linkStyle ?? linkStyleOf(values, "email");

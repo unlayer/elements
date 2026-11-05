@@ -2,14 +2,13 @@
  * Each of the builder's tools read back from its values alone, as the codemod writes today's components: its
  * component with the styles its fields give, but those equal to what it would take anyway (its defaults, what it
  * inherits from the root), and its hidden properties; a block whose spacing or alignment is its place's in a `Column`
- * around it with that padding and `alignItems`. Values are read as compat reads them (what legacy, and so the builder,
- * draws), and a tool that isn't one of Elements' is left out, and said.
+ * around it with that padding and `alignItems`. Values are read as today's components read them (read-values.ts: what
+ * they, and so the builder, draw), and a tool that isn't one of Elements' is left out, and said.
  */
 import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type Node } from "@unlayer-internal/elements-core";
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "./tool-defaults";
-import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { parseRuns } from "../compat/runs";
-import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "../compat/values";
+import { parseRuns } from "./read-runs";
+import { color, fontWeight, font, givenId, hidden as hiddenOn, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "./read-values";
 import { contentSlotWidth } from "./image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, readRadius, str, textStyle, unless, type Context, type Slot } from "./reading";
@@ -21,7 +20,7 @@ import { readBorder } from "./values";
 export type { Context, Slot };
 
 /**
- * A link as Elements', read as compat reads today's (every shape today's writers read: a URL, the builder's
+ * A link as Elements', read as today's components read one (every shape their writers read: a URL, the builder's
  * `{ name, values, attrs }`, an email's or a phone's link with its URL in `attrs`, `{ url, target }`): its target
  * where it says a new window, the URL alone otherwise. None where it has no URL; where it holds what a link here
  * can't (a class, attributes of its own, a click handler, another target), that's said and it's left out.

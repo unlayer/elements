@@ -1,6 +1,6 @@
 /** What every tool's reader shares (blocks.ts, text-tool.ts): where a block is, how its values are read, and how it's placed. */
 import type { Json, Node } from "@unlayer-internal/elements-core";
-import { ALIGN, color, fontWeight, font, letterSpacing, lineHeight as legacyLineHeight, px, some, type Sides, type Values } from "../compat/values";
+import { ALIGN, color, fontWeight, font, letterSpacing, lineHeight as legacyLineHeight, px, some, type Sides, type Values } from "./read-values";
 import type { HiddenParts } from "./hide";
 
 /** Where a block is, as today's image writer works out its room: the body, its row and column, the column's share. */
