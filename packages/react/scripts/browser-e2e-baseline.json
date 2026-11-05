@@ -3,21 +3,21 @@
     "heading": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "22px",
-      "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontSize": "32px",
+      "fontWeight": "700",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "30.8px",
+      "lineHeight": "40px",
       "direction": "ltr"
     },
     "firstParagraph": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "14px",
+      "fontSize": "16px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "19.6px",
+      "lineHeight": "24px",
       "direction": "ltr"
     },
     "button": {
@@ -25,7 +25,7 @@
       "backgroundColor": "rgb(59, 130, 246)",
       "fontSize": "14px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "center",
       "lineHeight": "16.8px",
       "direction": "ltr",
@@ -45,21 +45,21 @@
     "heading": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "22px",
-      "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontSize": "32px",
+      "fontWeight": "700",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "30.8px",
+      "lineHeight": "40px",
       "direction": "ltr"
     },
     "firstParagraph": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "14px",
+      "fontSize": "16px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "19.6px",
+      "lineHeight": "24px",
       "direction": "ltr"
     },
     "button": {
@@ -67,7 +67,7 @@
       "backgroundColor": "rgb(59, 130, 246)",
       "fontSize": "14px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "center",
       "lineHeight": "16.8px",
       "direction": "ltr",
@@ -87,21 +87,21 @@
     "heading": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "22px",
-      "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontSize": "32px",
+      "fontWeight": "700",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "30.8px",
+      "lineHeight": "40px",
       "direction": "ltr"
     },
     "firstParagraph": {
       "color": "rgb(0, 0, 0)",
       "backgroundColor": "rgba(0, 0, 0, 0)",
-      "fontSize": "14px",
+      "fontSize": "16px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "left",
-      "lineHeight": "19.6px",
+      "lineHeight": "24px",
       "direction": "ltr"
     },
     "button": {
@@ -109,7 +109,7 @@
       "backgroundColor": "rgb(59, 130, 246)",
       "fontSize": "14px",
       "fontWeight": "400",
-      "fontFamily": "arial, helvetica, sans-serif",
+      "fontFamily": "Arial, Helvetica, sans-serif",
       "textAlign": "center",
       "lineHeight": "16.8px",
       "direction": "ltr",
@@ -120,9 +120,9 @@
       "paddingRight": "20px"
     },
     "columnWidths": [
-      200,
-      200,
-      200
+      233,
+      233,
+      233
     ]
   }
 }
