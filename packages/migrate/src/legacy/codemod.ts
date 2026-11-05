@@ -150,6 +150,8 @@ export interface MigrateElementsResult {
   code: string;
   /** What couldn't be migrated as it was, or what it may change: one line each, with where. */
   report: string[];
+  /** The template is one of today's that can't be migrated, and comes back as it was. */
+  stayed?: boolean;
 }
 
 export const DEFAULT_FROM = ["@unlayer/react-elements", "@unlayer/react-elements/legacy"];
@@ -160,6 +162,8 @@ const COMPONENTS = new Set(["Email", "Page", "Document", "PageBreak", "Row", "Co
 /** What the codemod migrates of today's exports: its components and its layouts. */
 export const MIGRATED = new Set([...COMPONENTS, "ColumnLayouts"]);
 const ROOTS = new Set(["Email", "Page", "Document"]);
+/** A color the new components take, as it's written: a hex, rgb(), rgba() or a name (not CSS's own words, such as currentColor). */
+const WRITTEN_COLOR = /^(#[\da-f]{3,8}|rgba?\([^)]*\)|(?!(?:currentcolor|inherit|initial|unset|revert)$)[a-z]+)$/i;
 /** A record's own value for a key (never one from Object.prototype, as `constructor` would be). */
 const own = <T>(record: Record<string, T> | undefined, key: string): T | undefined => (record && Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined);
 const LAYOUTS: Record<string, number[]> = {
@@ -363,7 +367,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   };
   findRootValue(file);
   if (rootAsValue) {
-    return { code: source, report: [`${where(rootAsValue)}: its root is chosen at run time (${rootAsValue.parent.getText(file).slice(0, 60)}), which isn't migrated: this template stays as it was. Write it with one root, or by hand in the new components`] };
+    return { code: source, stayed: true, report: [`${where(rootAsValue)}: its root is chosen at run time (${rootAsValue.parent.getText(file).slice(0, 60)}), which isn't migrated: this template stays as it was. Write it with one root, or by hand in the new components`] };
   }
 
   // The names the module declares itself (a component of its own called Section, Next's Link): a new component whose
@@ -500,7 +504,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** A non-empty color, or nothing ("" and "transparent" are none). */
   const color = (props: Props, name: string): Value | undefined => {
     const value = props.get(name);
-    return isLiteral(value) && (value.literal === "" || value.literal === "transparent") ? undefined : value;
+    if (isLiteral(value) && (value.literal === "" || value.literal === "transparent")) return undefined;
+    if (isLiteral(value) && typeof value.literal === "string" && value.code === undefined && !WRITTEN_COLOR.test(value.literal.trim())) {
+      report.push(`its ${name} ${JSON.stringify(value.literal)} isn't a color the new components take (a hex, rgb(), rgba() or a name): left out`);
+      return undefined;
+    }
+    return value;
   };
   const hidden = (props: Props) => {
     const mobile = props.get("hideOnMobile");
@@ -1116,7 +1125,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   }
 
   function divider(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
-    const border = line(props.get("borderTopWidth") ?? lit("1px"), props.get("borderTopStyle"), props.get("borderTopColor") ?? lit("#BBBBBB"));
+    const lineStyle = props.get("borderTopStyle");
+    const drawable = !isLiteral(lineStyle) || lineStyle.code !== undefined || /^(solid|dashed|dotted|none)$/.test(String(lineStyle.literal));
+    if (!drawable) report.push(`${where(node)}: its borderTopStyle ${JSON.stringify((lineStyle as { literal: unknown }).literal)} isn't one the new components draw (solid, dashed, dotted or none): it's solid`);
+    const border = line(props.get("borderTopWidth") ?? lit("1px"), drawable ? lineStyle : undefined, props.get("borderTopColor") ?? lit("#BBBBBB"));
     const width = props.get("width");
     const m = phone(props, node);
     const block = element("Divider", [
@@ -1138,7 +1150,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
     if (icons && !literal) report.push(`${where(node)}: this Social's icons are computed (${code(icons)}): each one's url is its href, and a target it has is left out`);
     const list: Value | undefined = literal
-      ? { literal: literal.map((icon) => ({ name: icon.name, href: target(icon) ? { href: icon.url, target: target(icon) } : icon.url })), code: icons!.code && !literal.some(target) ? rename(icons!.code) : undefined }
+      ? { literal: literal.map((icon) => ({ name: icon.name, href: target(icon) ? { href: icon.url, target: target(icon) } : icon.url || { href: "" } })), code: icons!.code && !literal.some(target) ? rename(icons!.code) : undefined }
       : icons && { code: rename(code(icons)) };
     const block = element("Social", [
       attr("icons", list ?? lit([])),
@@ -1221,7 +1233,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const linkColor = color(props, "linkColor") ?? lit("#0068A5");
     const children = links.flatMap((item, index) => [
       ...(index && separator ? [element("Text", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
-      element("Text", box(), [element("Link", [attr("href", lit(item.href ?? "")), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
+      element("Text", box(), [element("Link", [attr("href", lit(item.href || { href: "" })), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
     ]);
     return element(
       "Row",
@@ -1248,6 +1260,10 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       props.forEach((_, prop) => props.used.add(prop));
       report.push(`${where(node)}: this Video's link can't be read (give it videoUrl): it's left out`);
       return "";
+    }
+    if (isLiteral(src) && src.code === undefined && !/^https:\/\/([\w-]+\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(String(src.literal))) {
+      report.push(`${where(node)}: this Video's link isn't YouTube or Vimeo, which the new Video takes: it's written as a Link`);
+      return wrapped(props, element("Paragraph", [], [element("Link", [attr("href", src)], [plain(String(src.literal))])]), undefined, node);
     }
     return wrapped(props, element("Video", [attr("src", src)]), undefined, node);
   }

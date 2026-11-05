@@ -48,7 +48,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     if (!resolvers.has(dir)) resolvers.set(dir, helpers.resolver(fromFile));
     return (await resolvers.get(dir)!)(specifier, fromFile);
   });
-  const results: Array<{ file: string; code?: string; report: string[]; error?: string }> = [];
+  const results: Array<{ file: string; code?: string; report: string[]; error?: string; stayed?: boolean }> = [];
   for (const file of files) {
     const source = await readFile(file, "utf8");
     try {
@@ -61,9 +61,9 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
         results.push({ file, report: [], error: `it imports today's components ${how}, a namespace of them, which the codemod doesn't follow: import them by name` });
         continue;
       }
-      const { code, report } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
+      const { code, report, stayed } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
       // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was: not listed.
-      if (code !== source) results.push({ file, code, report });
+      if (code !== source || stayed) results.push({ file, code, report, stayed });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });
     }
@@ -95,7 +95,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     for (const r of migrated) await writeFile(r.file, r.code!);
   }
   for (const r of migrated) {
-    io.stdout(`${name(r.file)}: ${args.flag("write") ? "migrated" : "would be migrated"}${r.report.length ? `, with ${r.report.length} note${r.report.length === 1 ? "" : "s"}` : ""}\n`);
+    io.stdout(`${name(r.file)}: ${r.stayed ? "stays as it was" : args.flag("write") ? "migrated" : "would be migrated"}${r.report.length ? `, with ${r.report.length} note${r.report.length === 1 ? "" : "s"}` : ""}\n`);
     for (const line of r.report) io.stdout(`  - ${line}\n`);
   }
   if (!args.flag("write")) io.stdout("Nothing was written: pass --write to replace them (or one template to print it).\n");

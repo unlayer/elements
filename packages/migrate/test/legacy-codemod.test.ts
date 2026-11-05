@@ -468,6 +468,23 @@ export const Other = (Row: () => null) => <Row />;`);
     ]);
   });
 
+  it("writes values today's components draw and the new ones refuse as what the new ones take, and says so", async () => {
+    const empty = await migrate(`export const T = () => <Email><Row><Column><Menu items={[{ text: "Home", href: "" }]} /></Column></Row></Email>;`, "Email, Row, Column, Menu");
+    expect(squash(empty.code)).toContain('href={{href:""}}');
+    const icon = await migrate(`export const T = () => <Email><Row><Column><Social icons={[{ name: "X", url: "" }]} /></Column></Row></Email>;`, "Email, Row, Column, Social");
+    expect(squash(icon.code)).toContain('href:{href:""}');
+    const video = await migrate(`export const T = () => <Email><Row><Column><Video videoUrl="https://wistia.com/medias/abc" /></Column></Row></Email>;`, "Email, Row, Column, Video");
+    expect(video.code).not.toContain("<Video");
+    expect(video.code).toContain("<Link");
+    expect(video.report.join("\n")).toMatch(/isn't YouTube or Vimeo/);
+    const line = await migrate(`export const T = () => <Email><Row><Column><Divider borderTopStyle="double" /></Column></Row></Email>;`, "Email, Row, Column, Divider");
+    expect(line.code).not.toContain("double");
+    expect(line.report.join("\n")).toMatch(/isn't one the new components draw/);
+    const color = await migrate(`export const T = () => <Email><Row><Column><Heading color="currentColor" text="x" /></Column></Row></Email>;`, "Email, Row, Column, Heading");
+    expect(color.code).not.toContain("currentColor");
+    expect(color.report.join("\n")).toMatch(/isn't a color the new components take/);
+  });
+
   it("leaves a template as it was where its root is chosen at run time, as today's root doesn't draw the new components", async () => {
     const source = `import { Email, Page, Row, Column } from "@unlayer/react-elements";
 export const T = ({ web }: { web: boolean }) => {
