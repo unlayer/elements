@@ -29,7 +29,7 @@
  * wrapped inside the shape's fixed size.
  */
 import { Diagnostics, type Diagnostic, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, raw, withPhoneAtHiding, withStylesheet, type Html } from "../jsx";
+import { Fragment, h, raw, withStylesheet, type Html } from "../jsx";
 import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
@@ -133,8 +133,7 @@ function write(node: ResolvedNode, place: Place, options: EmailOptions): Html {
   }
   const component = BLOCKS[node.type];
   if (!component) throw new Error(`[Elements] The email exporter can't render a ${node.type} here (in a ${place.parent.type})`);
-  // A block of a template of today's components: its phone styles start where what's hidden does (`hideBelow`).
-  return node.compat?.ownPhone ? withPhoneAtHiding(() => component(propsOf(node, place, options))) : component(propsOf(node, place, options));
+  return component(propsOf(node, place, options));
 }
 
 export interface EmailHtml {
@@ -195,7 +194,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   // clients from adding the email's first words after it. `data-skip-in-text` marks it as the preview for tools that
   // read the HTML (React Email's and today's components mark theirs so; plain text made from the HTML leaves it out).
   const preheader = preview
-    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">${typeof root.compat?.previewHtml === "string" ? root.compat.previewHtml : escapeText(preview)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all" aria-hidden="true" data-skip-in-text="true">${escapeText(preview)}${"&#847;&zwnj;&nbsp;".repeat(30)}</div>`
     : "";
   // Gmail drops <html>'s attributes and <body>: the language, direction and background are kept on the email too. A word
   // too long for its line (a long link) breaks onto the next rather than widening the email past a phone's screen: in a

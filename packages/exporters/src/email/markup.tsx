@@ -22,12 +22,12 @@ export function Table({ children, style, ...attributes }: TableProps) {
  */
 export const ownBorders = (...styles: Array<Record<string, unknown> | undefined>) => (styles.some((style) => style?.border !== undefined || style?.borderTop !== undefined || style?.borderRadius !== undefined) ? "separate" : undefined);
 
-/** The content's width and alignment for classic Outlook, in a table of that width around it, as the editor's email has it. */
-export function OutlookWidth({ width, align = "center", children }: { width: number; align?: string; children?: Child }) {
+/** The content's width for classic Outlook, in a table of that width around it, centered, as the editor's email has it. */
+export function OutlookWidth({ width, children }: { width: number; children?: Child }) {
   return (
     <>
       <Outlook>
-        {open(<table {...TABLE} width={width} align={align} />)}
+        {open(<table {...TABLE} width={width} align="center" />)}
         {open(<tr />)}
         {open(<td />)}
       </Outlook>
@@ -51,7 +51,7 @@ export const bgcolor = (value: Json | undefined) => (typeof value === "string" &
  */
 export function pictureCell(
   src: string,
-  { width, height, color, alt, tile = false, repeat, position, size }: { width: number; height?: number; color?: string; alt?: string; tile?: boolean; repeat?: string; position?: string; size?: string }
+  { width, height, color, alt, repeat, position, size }: { width: number; height?: number; color?: string; alt?: string; repeat?: string; position?: string; size?: string }
 ): { background: string; style: Style; open: Html; close: Html } {
   return {
     background: src,
@@ -59,7 +59,7 @@ export function pictureCell(
     open: (
       <Outlook>
         {open(h("v:rect", { "xmlns:v": "urn:schemas-microsoft-com:vml", fill: "true", stroke: "false", alt, style: { width, height } }))}
-        {h("v:fill", { type: tile ? "tile" : "frame", src, color })}
+        {h("v:fill", { type: "frame", src, color })}
         {open(h("v:textbox", { inset: "0,0,0,0", style: height === undefined ? { msoFitShapeToText: "true" } : undefined }))}
       </Outlook>
     ),
@@ -70,10 +70,4 @@ export function pictureCell(
       </Outlook>
     ),
   };
-}
-
-/** A background picture of today's components (`compat.background`) on a cell of this width. */
-export function compatPicture(compat: Record<string, Json> | undefined, width: number) {
-  const picture = compat?.background as { url: string; repeat?: string; position?: string; tile?: boolean } | undefined;
-  return picture && pictureCell(picture.url, { width, repeat: picture.repeat, position: picture.position, tile: picture.tile });
 }

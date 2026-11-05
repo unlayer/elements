@@ -10,14 +10,11 @@
  * Menu's) is the same inline-blocks, onto another line where they don't fit
  * (classic Outlook's table keeps them on one). Where they wrap as words do,
  * they're a space of the text's font apart, on lines at least as tall as its.
- * Today's components' columns (`compat.stretch`) are the cells of a table row,
- * their boxes on the cells, as tall as the row; those that stack are blocks on
- * phones.
  */
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
 import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, toNumber, valignOf } from "./layout";
-import { bgcolor, compatPicture, ownBorders, Table, TABLE } from "./markup";
+import { bgcolor, ownBorders, Table, TABLE } from "./markup";
 import { gapCell, spacer } from "./spacers";
 import { hiding } from "./styles";
 import { fontFamily } from "../shared/css";
@@ -31,81 +28,37 @@ export const Row: Component = (props) => {
   const words = !stacks && style.flexWrap === "words";
   const wraps = (!stacks && style.flexWrap === "wrap") || words;
   const width = boxWidth(node, fill);
-  const stretched = !!node.compat?.stretch;
-  const picture = compatPicture(node.compat, node.width ?? 600);
   return (
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth, borderCollapse: ownBorders(style, mobile) }}>
       <tr>
         <td
           // On phones the children take the whole width, one under another (inline-blocks of 100%: each on a line of its own).
-          class={stacks && !stretched ? rule("phone", "&>div{width:100%!important;max-width:100%!important}", "layout") : undefined}
+          class={stacks ? rule("phone", "&>div{width:100%!important;max-width:100%!important}", "layout") : undefined}
           phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
           align={JUSTIFY[style.justifyContent as string]}
           dir={node.props.dir as string | undefined}
-          background={picture?.background}
           bgcolor={bgcolor(style.backgroundColor)}
           height={style.height !== undefined ? toNumber(style.height) : undefined}
           style={{
             // No line boxes between the children: their inline-blocks touch. (Words have this font's spaces between them.)
             fontFamily: words ? fontFamily(node.text.fontFamily) : undefined,
-            fontSize: words ? node.text.fontSize : !stretched && (stacks || wraps) ? 0 : undefined,
+            fontSize: words ? node.text.fontSize : stacks || wraps ? 0 : undefined,
             letterSpacing: words ? node.text.letterSpacing || undefined : undefined,
             textAlign: wraps ? (JUSTIFY[style.justifyContent as string] ?? "left") : undefined,
             padding: style.padding,
             backgroundColor: style.backgroundColor,
-            ...picture?.style,
             border: style.border,
             borderRadius: style.borderRadius,
             height: style.height !== undefined ? toNumber(style.height) : undefined,
             overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
-          {picture?.open}
-          {stretched ? boxedCells(props, stacks) : stacks || wraps ? fluidHybrid(props, stacks, words) : sideBySide(props)}
-          {picture?.close}
+          {stacks || wraps ? fluidHybrid(props, stacks, words) : sideBySide(props)}
         </td>
       </tr>
     </Table>
   );
 };
-
-/**
- * Each child a cell with its box on it, so its background and lines are as tall as the row; at least its share wide,
- * however much of the row's width its neighbours' content takes (a table shares it out by their content), or its
- * `compat.minWidth` (on phones its `phoneMinWidth`). Markup among them (`Raw`) is as wide as its content lets it be.
- */
-function boxedCells(props: Props, stacks: boolean): Html {
-  const { node, render } = props;
-  const valign = valignOf(props);
-  const stack = stacks ? rule("phone", "&{display:block!important;width:100%!important;min-width:0!important}", "layout") : undefined;
-  return (
-    <Table width="100%" style={{ borderCollapse: ownBorders(...node.children.filter(isNode).map((child) => child.style)) }}>
-      <tr>
-        {node.children
-          .filter(isNode)
-          .filter(shown)
-          .map((child) => {
-            const { padding, border, borderRadius, backgroundColor, ...style } = child.style;
-            const width = child.type === "Raw" || child.width === null ? undefined : child.width;
-            return (
-              <td
-                id={child.id}
-                class={[stack, child.compat?.className as string | undefined]}
-                width={width}
-                valign={valign}
-                bgcolor={bgcolor(backgroundColor)}
-                // (Stacked, what it holds can still run past the window: a node's rule comes after the stacking's.)
-                phone={stacks ? { minWidth: child.compat?.phoneMinWidth as number | undefined } : { width: child.style.width, minWidth: (child.compat?.phoneMinWidth as number | undefined) ?? 0 }}
-                style={{ width, minWidth: Math.max(width ?? 0, (child.compat?.minWidth as number | undefined) ?? 0) || undefined, boxSizing: "border-box", padding, backgroundColor, border, borderRadius }}
-              >
-                {render({ ...child, id: undefined, style, mobile: undefined, compat: undefined }, { fill: true })}
-              </td>
-            );
-          })}
-      </tr>
-    </Table>
-  );
-}
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
 function fluidHybrid(props: Props, stacks: boolean, words: boolean): Html {

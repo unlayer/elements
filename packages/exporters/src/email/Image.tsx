@@ -7,7 +7,7 @@ import { assetParts, type Asset, type Json } from "@unlayer-internal/elements-co
 import { h, type Style } from "../jsx";
 import type { Component } from "./context";
 import { toNumber } from "./layout";
-import { fillsOnPhones, hiding } from "./styles";
+import { hiding } from "./styles";
 
 /** Where it sits in its cell on phones: its margins (the cell's `align` is for desktop). */
 const PLACE: Record<string, Style> = { start: { marginLeft: 0, marginRight: "auto" }, center: { marginLeft: "auto", marginRight: "auto" }, end: { marginLeft: "auto", marginRight: 0 } };
@@ -25,8 +25,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
   const given = typeof style.maxWidth === "number" || /^\d*\.?\d+px$/.test(String(style.maxWidth)) ? toNumber(style.maxWidth as Json) : undefined;
   const cap = given !== undefined && width !== undefined && Math.round(given) === width ? given : width;
   // In a stack or a Row its cell hides it; in a link, its own style.
-  const own = parent.type === "Link" ? hiding(node, "block") : { style: {} };
-  const hidden = { ...own, class: [own.class, fillsOnPhones(node)] };
+  const hidden: { class?: string; style: Style } = parent.type === "Link" ? hiding(node, "block") : { style: {} };
   return (
     <img
       id={node.id}
@@ -35,7 +34,6 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
       phone={[{ width: mobile.maxWidth !== undefined || capped ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]]}
       src={src}
       alt={(node.props.alt as string) ?? ""}
-      aria-label={node.compat?.ariaLabel as string | undefined}
       title={node.props.title as string | undefined}
       width={width}
       // Its height in proportion, for Word, when the file's size is known.

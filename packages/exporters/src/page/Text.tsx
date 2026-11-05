@@ -10,15 +10,14 @@ import { box } from "./layout";
 
 /**
  * A block of text as `Tag`; `always`: the text styles written even where inherited (a heading's size and weight: the
- * browser has its own; a color a template of today's components says over what's around it: `compat.ownColor`).
+ * browser has its own).
  */
 export const textBlock = ({ node, style, parent, placement, classes, children }: Props, Tag: string, always: ReadonlyArray<keyof ResolvedText> = []): Html => (
   <Tag
     id={node.id}
     class={classes()}
-    aria-label={node.compat?.ariaLabel as string | undefined}
     dir={node.props.dir as string | undefined}
-    style={[placement, Tag === "div" ? null : { margin: 0 }, textDeclarations(node.text, parent.text, node.compat?.ownColor ? [...always, "color"] : always), { textDecoration: style.textDecoration }, box(node, parent.type !== "Row")]}
+    style={[placement, Tag === "div" ? null : { margin: 0 }, textDeclarations(node.text, parent.text, always), { textDecoration: style.textDecoration }, box(node, parent.type !== "Row")]}
   >
     {children()}
   </Tag>

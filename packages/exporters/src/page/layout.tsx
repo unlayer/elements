@@ -25,8 +25,8 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declaration
   // A box that fills the width up to a maximum still fills it: placed, not shrunk to its content.
   const fill: Declarations = child.definition.sizing === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
   const place = align ? FLEX_ALIGN[align] : TEXT_ALIGN[stack.text.textAlign];
-  // With its padding on top of its width, or at its file's width, it may be wider than its place: it runs past the end, as a line of text does.
-  const safe: Declarations = (child.style.boxSizing === "content-box" || child.compat?.ownWidth) && place !== "flex-start" ? [["align-self", `safe ${place}`]] : [];
+  // With its padding on top of its width, it may be wider than its place: it runs past the end, as a line of text does.
+  const safe: Declarations = child.style.boxSizing === "content-box" && place !== "flex-start" ? [["align-self", `safe ${place}`]] : [];
   return [["align-self", place], ...safe, ...fill];
 }
 
@@ -68,9 +68,6 @@ export function box(node: ResolvedNode, withWidth = true): Style {
     border: style.border,
     borderRadius: style.borderRadius,
     overflow: style.overflow === "hidden" ? "hidden" : undefined,
-    // (A page break of today's components, in a printed document.)
-    breakAfter: node.compat?.breakAfter === "page" ? "page" : undefined,
-    pageBreakAfter: node.compat?.breakAfter === "page" ? "always" : undefined,
   };
 }
 

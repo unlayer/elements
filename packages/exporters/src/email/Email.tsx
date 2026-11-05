@@ -4,7 +4,7 @@
  * window between runs of content.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { Fragment, h, importedCss } from "../jsx";
+import { Fragment, h } from "../jsx";
 import { gapsBefore, gapShown, runHidden } from "../shared/gaps";
 import { isNode, shown, type Component } from "./context";
 import { Stack } from "./layout";
@@ -15,13 +15,12 @@ export const Email: Component = ({ node: root, style, mobile, render }) => {
   const width = root.width ?? 600;
   const gap = typeof style.gap === "number" ? style.gap : 0;
   const phoneGap = typeof mobile.gap === "number" ? mobile.gap : gap;
-  if (typeof root.compat?.css === "string") importedCss(root.compat.css);
 
-  // Runs of content between Sections. (Markup among today's components' rows, `compat.wide`, is across the window too.)
+  // Runs of content between Sections.
   const parts: Array<ResolvedNode | ResolvedNode[]> = [];
   for (const node of root.children.filter(isNode).filter(shown)) {
     const last = parts[parts.length - 1];
-    if (node.type === "Section" || node.compat?.wide) parts.push(node);
+    if (node.type === "Section") parts.push(node);
     else if (Array.isArray(last)) last.push(node);
     else parts.push([node]);
   }

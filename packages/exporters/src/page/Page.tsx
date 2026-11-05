@@ -4,7 +4,7 @@
  * between them is kept to the content width.
  */
 import type { ResolvedNode } from "@unlayer-internal/elements-core";
-import { h, importedCss, type Style } from "../jsx";
+import { h, type Style } from "../jsx";
 import { textDeclarations } from "../shared/css";
 import { runHidden } from "../shared/gaps";
 import { isNode, type Component } from "./context";
@@ -13,7 +13,6 @@ import { hidingClasses } from "./styles";
 
 export const Page: Component = ({ node: root, style, render }) => {
   const width = root.width ?? 0;
-  if (typeof root.compat?.css === "string") importedCss(root.compat.css);
   // A word too long for its line (a long link) breaks onto the next rather than widening the page past a phone's screen.
   const stack: Style = { display: "flex", flexDirection: "column", gap: style.gap };
   const wrap: Style = { overflowWrap: "break-word" };

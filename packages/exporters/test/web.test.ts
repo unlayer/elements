@@ -6,12 +6,6 @@ const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ ro
 const web = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
 
 describe("web HTML", () => {
-  it("draws a Divider marked `inLine` (today's components) as a line in a line of no height, as the editor's", () => {
-    const { body } = web(page([{ type: "Divider", compat: { inLine: true }, style: { borderTop: "2px solid #ccc", width: "50%", padding: 10 } }]));
-    expect(body).toContain('<div style="box-sizing:border-box;padding:10px"><div style="text-align:left;line-height:0"><div style="border-top:2px solid #ccc;width:50%;display:inline-block;line-height:1px;height:0;vertical-align:middle">&nbsp;</div></div></div>');
-    expect(web(page([{ type: "Divider" }])).body).toContain("<hr");
-  });
-
   it("writes a whole document: shell, title, language, the window's background", () => {
     const { html, head, body, bodyStyle } = web(page([{ type: "Text", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", description: 'Say "hi"' }, style: { backgroundColor: "#eee" } }));
     expect(html.startsWith('<!DOCTYPE html><html lang="ar" dir="rtl"><head>')).toBe(true);
@@ -478,37 +472,23 @@ describe("web HTML", () => {
     expect(text).toBe("Sale now\n\nOur own words");
   });
 
-  it("writes a Row's direction, a page break after a Column, and a line height of the font's own", () => {
+  it("writes a Row's direction and a line height of the font's own", () => {
     const { body } = web(page([
       { type: "Row", props: { dir: "ltr" }, children: [{ type: "Text", children: ["A"] }] },
-      { type: "Column", compat: { breakAfter: "page" }, children: [] },
       { type: "Text", style: { lineHeight: "normal" }, children: ["B"] },
     ]));
     expect(body).toMatch(/<div class="\w+" dir="ltr" style="display:flex/);
-    expect(body).toContain("break-after:page;page-break-after:always");
     expect(body).toContain("line-height:normal");
   });
 
-  it("writes a text's color where it's the same as what's around it, where a template of today's components says it's its own", () => {
-    const words = (compat?: Record<string, boolean>) => web(page([{ type: "Text", style: { color: "#000000" }, ...(compat ? { compat } : {}), children: ["A"] }], { style: { color: "#000000" } } as never)).body;
-    expect(words({ ownColor: true })).toMatch(/<div[^>]*style="[^"]*color:#000/);
-    expect(words()).not.toMatch(/<div[^>]*style="[^"]*[;"]color:#000[^>]*>A/);
+  it("leaves out a text's color where it's the same as what's around it", () => {
+    const words = (color: string) => web(page([{ type: "Text", style: { color }, children: ["A"] }], { style: { color: "#000000" } } as never)).body;
+    expect(words("#000000")).toContain("<div>A</div>");
+    expect(words("#ff0000")).toContain('<div style="color:#f00">A</div>');
   });
 
   it("places an Image on phones", () => {
     const { head } = web(page([{ type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100 }, mobile: { alignSelf: "end" } }]));
     expect(head).toContain("align-self:flex-end!important");
-  });
-
-  it("writes a label for a screen reader that today's components give a Column or a Text", () => {
-    const { body } = web(page([{ type: "Column", compat: { ariaLabel: 'a "menu"' }, children: [{ type: "Text", compat: { ariaLabel: "item" }, children: ["Hi"] }] }]));
-    expect(body).toMatch(/<div aria-label="a &quot;menu&quot;" style="[^"]*"><div aria-label="item"/);
-  });
-
-  it("writes what today's components draw that no style holds: a node's class names, and a root's rules", () => {
-    const { head, body } = web(page([{ type: "Column", compat: { className: "mine" }, mobile: { maxWidth: "100%" }, children: [{ type: "Raw", compat: { className: "theirs" }, props: { html: "Hi" } }] }], { compat: { css: ".mine{color:red}" } }));
-    expect(head).toContain(".mine{color:red}");
-    expect(body).toMatch(/<div class="mine \w+"/);
-    expect(body).toContain('<div class="theirs"');
   });
 });

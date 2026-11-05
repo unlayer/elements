@@ -43,14 +43,6 @@ export function phoneText(node: ResolvedNode, mobile: MobileText): Declarations 
 }
 
 /**
- * An Image that fills its place from where its Row's columns stack (a template of today's components:
- * `compat.fillsOnPhones`), as the editor's does, wherever the image's own phone styles start.
- */
-export function fillsOnPhones(node: ResolvedNode): string | undefined {
-  return node.compat?.fillsOnPhones ? rule("phone", "&{width:100%!important;max-width:100%!important}", "layout") : undefined;
-}
-
-/**
  * All of a node's text styles: every client gets them on the element with the
  * text, as Outlook doesn't carry styles down through tables. The line height
  * in px, exactly.
