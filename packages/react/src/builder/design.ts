@@ -151,7 +151,7 @@ export function writeParts(body: Body): Design {
 /** A row, its columns and their blocks, numbered in that order, each part's values from the template over its own. */
 function designRow(row: Row, htmlID: string, htmlClassNames: string, next: (key: string) => number): DesignRow {
   const { hideOnMobile, hideOnDesktop, noStackMobile, ...fields } = row.fields;
-  const override = hiddenOn({ hideOnMobile, hideOnDesktop });
+  const override = hidingOverride({ hideOnMobile, hideOnDesktop });
   // Whether its columns stay side by side on phones is a phone value, as the builder saves it.
   if (noStackMobile) override.mobile = { ...override.mobile, noStackMobile: true };
   const values = {
@@ -171,7 +171,7 @@ function designRow(row: Row, htmlID: string, htmlClassNames: string, next: (key:
 /** A block as the builder's item: its tool's defaults, where it's hidden, its id and class. */
 function content(block: Block, next: (key: string) => number): { type: string; values: Values } {
   const base = `u_content_${block.tool}`;
-  const override = hiddenOn(block.hiding);
+  const override = hidingOverride(block.hiding);
   const values = {
     containerPadding: "10px",
     ...copy(TOOLS[block.tool]),
@@ -184,7 +184,7 @@ function content(block: Block, next: (key: string) => number): { type: string; v
 
 /** The body's values: its fields over the builder's defaults, an Email's preview text, its id. */
 function bodyValues(body: Body): Values {
-  const values = withFields(BODY, { ...body.fields, textColor: body.fields.textColor === undefined ? undefined : color(body.fields.textColor), fontFamily: font(body.fields.fontFamily) });
+  const values = withFields(BODY, { ...body.fields, textColor: body.fields.textColor === undefined ? undefined : exportedColor(body.fields.textColor), fontFamily: font(body.fields.fontFamily) });
   // Only ltr, rtl or auto, as in the HTML.
   if ("textDirection" in values) {
     const direction = typeof values.textDirection === "string" ? values.textDirection.trim().toLowerCase() : "";
@@ -204,13 +204,13 @@ function withFields(defaults: Values, fields: Values): Values {
 }
 
 /** Where a part is hidden, as the builder's phone and desktop values. */
-function hiddenOn({ hideOnMobile, hideOnDesktop }: Hiding): Values {
+function hidingOverride({ hideOnMobile, hideOnDesktop }: Hiding): Values {
   return { ...(hideOnMobile !== undefined ? { mobile: { hideMobile: hideOnMobile } } : {}), ...(hideOnDesktop !== undefined ? { desktop: { hideDesktop: hideOnDesktop } } : {}) };
 }
 
-/** Values with each color (`color`, `…Color`) as the builder's exporters read one (see `color`). */
+/** Values with each color (`color`, `…Color`) as the builder's exporters read one (see `exportedColor`). */
 function colored(values: Values): Values {
-  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, typeof value === "string" && (key === "color" || key.endsWith("Color")) ? color(value) : value]));
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, typeof value === "string" && (key === "color" || key.endsWith("Color")) ? exportedColor(value) : value]));
 }
 
 /** One digit's reading in a color's channel, which can't backtrack on a long value. */
@@ -220,7 +220,7 @@ const CHANNEL = /^-?(?:\d+(?:\.\d*)?|\.\d+)%?$/;
  * A color as the builder's exporters read one: rgb() and rgba() in any CSS syntax as "#rrggbb", or "rgba(r, g, b, a)"
  * where it's translucent (they write Outlook's `bgcolor` from hex or that form only); any other as it is.
  */
-export function color(value: string): string {
+function exportedColor(value: string): string {
   const text = value.trim();
   const open = text.indexOf("(");
   if (!/^rgba?$/i.test(text.slice(0, open)) || !text.endsWith(")")) return value;
