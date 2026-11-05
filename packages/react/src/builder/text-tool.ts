@@ -10,10 +10,12 @@ import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, fontWeight, font, serviceTag, sides, some, type Sides, type Values } from "../compat/values";
 import { readHidden } from "./hide";
 import { boxOf, defined, make, obj, phoneText, placed, str, textStyle, ZERO, type Context } from "./reading";
-import { readText, richText, type TextToolName } from "./text";
+import { readText, richText, type TextToolName, withParagraphMargin } from "./text";
 
 /** A text or heading tool: a Paragraph or Heading (a `<p>`, or a list, each a block of its own). */
-export function textTool(tool: "text" | "heading", values: Values, context: Context, builderTool: TextToolName = tool): Node[] {
+export function textTool(tool: "text" | "heading", given: Values, context: Context, builderTool: TextToolName = tool): Node[] {
+  // A heading the builder saved with no weight of its own, it draws at 400, not as a heading's bold.
+  const values = tool === "heading" && !given.fontWeight ? { ...given, fontWeight: 400 } : given;
   const level = tool === "heading" ? Number(/^h([1-6])$/.exec(String(values.headingType ?? "h1"))?.[1] ?? 1) : undefined;
   const type = tool === "heading" ? "Heading" : "Paragraph";
   const hidden = readHidden(tool, type, values, context.say);
@@ -99,5 +101,5 @@ function markup(html: string, values: Values, level: number | undefined): string
   const declarations = Object.entries(css).filter(([, v]) => v !== "").map(([k, v]) => `${k}:${String(v).replace(/"/g, "'")}`).join(";");
   const tag = level ? `h${level}` : "div";
   const dir = ["ltr", "rtl", "auto"].includes(values.textDirection) ? ` dir="${values.textDirection}"` : "";
-  return `<${tag}${dir} style="${declarations}">${html}</${tag}>`;
+  return `<${tag}${dir} style="${declarations}">${withParagraphMargin(html, "0")}</${tag}>`;
 }

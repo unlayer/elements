@@ -208,6 +208,68 @@ describe("text as the builder's editors write it", () => {
   });
 });
 
+describe("what the builder draws around a design's rows", () => {
+  const row = (text: string) => ({ cells: [1], columns: [{ contents: [{ type: "text", values: { text: `<p>${text}</p>` } }], values: {} }], values: {} });
+  const body = { rows: [row("Middle")], headers: [row("Top")], footers: [row("Bottom")], values: {} };
+
+  it("draws a header and a footer as rows in an Email and a Page, as the builder does", async () => {
+    for (const displayMode of ["email", "web"] as const) {
+      const { element, report } = fromDesign({ body }, { displayMode });
+      const { html } = await render(element);
+      const at = ["Top", "Middle", "Bottom"].map((word) => html.indexOf(word));
+      expect(at.every((place) => place >= 0)).toBe(true);
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect(report).toEqual([]);
+    }
+  });
+
+  it("draws one with a background of its own as a Section, as a row is", () => {
+    const banded = { ...row("Top"), values: { backgroundColor: "#ff0000" } };
+    const types = tree(fromDesign({ body: { rows: [banded], headers: [banded], values: {} } }, { displayMode: "email" }).element).children!.map((child) => (child as Node).type);
+    expect(types).toEqual(["Section", "Section"]);
+  });
+
+  it("keeps a Document's in its PageHeader and PageFooter", () => {
+    const types = tree(fromDesign({ body }, { displayMode: "document" }).element).children!.map((child) => (child as Node).type);
+    expect(types[0]).toBe("PageHeader");
+    expect(types[types.length - 1]).toBe("PageFooter");
+  });
+
+  it("gives text it keeps as markup no margins, as the builder's stylesheet does", async () => {
+    const text = '<p style="font-size: 14px; line-height: 140%;">One</p><p style="font-size: 14px; margin-top: 8px;">Two</p>';
+    const { element, report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "text", values: { text } }], values: {} }], values: {} }], values: {} } });
+    expect(report.join()).toContain("it's an Html block of its markup");
+    const { html } = await render(element);
+    expect(html).toContain('<p style="margin:0;font-size: 14px; line-height: 140%;">One</p>');
+    expect(html).toContain('<p style="margin:0;font-size: 14px; margin-top: 8px;">Two</p>');
+  });
+
+  it("says a design tag, which the builder fills in, is written as it is", () => {
+    const { report } = fromDesign({ body: { rows: [row("Hi [[name]], [[name]] and [[ city ]]")], values: {} } });
+    expect(report).toEqual(["body: [[name]], [[ city ]]: design tags are filled in by the builder, from what it's given: written as they are"]);
+  });
+
+  it("says what an older design hides is left out, which the builder moves when it opens one", () => {
+    const hiding = (values: Record<string, unknown>) => fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "text", values: { text: "<p>x</p>", ...values } }], values: {} }], values: {} }], values: {} } }).report;
+    const said = expect.stringContaining("written as an older design's");
+    expect(hiding({ hideMobile: true })).toEqual([said]);
+    expect(hiding({ hideDesktop: true })).toEqual([said]);
+    expect(hiding({ hideMobile: false, _override: { mobile: { hideMobile: true } } })).toEqual([]);
+    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [], values: { hideMobile: true } }], values: {} } }).report).toContainEqual(said);
+  });
+
+  it("says a web font the builder loads from a stylesheet is left out", () => {
+    const font = (label: string) => ({ label, value: `'${label}',sans-serif`, url: `https://fonts.googleapis.com/css?family=${label}:400,700` });
+    const { report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "heading", values: { text: "x", fontFamily: font("Montserrat") } }, { type: "text", values: { text: "<p>y</p>", fontFamily: { label: "Arial", value: "arial,helvetica,sans-serif" } } }], values: {} }], values: {} }], values: { fontFamily: font("Rubik") } } });
+    expect(report).toEqual(["body: Rubik, Montserrat: web fonts the builder loads from a stylesheet, which a root doesn't take (its fonts are font files): left out, so text shows in the next font of its stack"]);
+  });
+
+  it("says a table isn't read, which Elements has a component for", () => {
+    const { report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "table", values: {} }], values: {} }], values: {} }], values: {} } });
+    expect(report).toEqual(["rows[0].columns[0].contents[0]: a table of the builder's isn't read into a Table yet: left out"]);
+  });
+});
+
 describe("malformed design JSON", () => {
   /** A seeded random number generator (mulberry32). */
   const random = (seed: number) => {

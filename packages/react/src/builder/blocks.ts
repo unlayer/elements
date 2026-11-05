@@ -13,7 +13,7 @@ import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, we
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, readRadius, str, textStyle, unless, type Context, type Slot } from "./reading";
-import { DEEPEST, mergeTags, richText, tooDeep } from "./text";
+import { DEEPEST, mergeTags, richText, tooDeep, withParagraphMargin } from "./text";
 import { textTool } from "./text-tool";
 import { sayUnread } from "./unread";
 import { readBorder } from "./values";
@@ -229,7 +229,7 @@ function withoutDefaultLine(html: string): string {
 
 function html(values: Values, context: Context): Node[] {
   const hidden = readHidden("html", "Html", values, context.say);
-  const node = make("Html", { id: givenId(values), props: { html: context.safe(typeof values.html === "string" ? withoutDefaultLine(values.html) : ""), ...hidden.props } });
+  const node = make("Html", { id: givenId(values), props: { html: withParagraphMargin(context.safe(typeof values.html === "string" ? withoutDefaultLine(values.html) : ""), "0"), ...hidden.props } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 
@@ -265,7 +265,7 @@ const DEFAULTS = new Map<string, Values>([
 export function readBlock(type: unknown, values: Values, context: Context, slot?: Slot): Node[] {
   const read = typeof type === "string" ? READERS.get(type) : undefined;
   if (!read) {
-    context.say(`a ${typeof type === "string" ? type : "block"} of the builder's has no component in Elements: left out`);
+    context.say(type === "table" ? "a table of the builder's isn't read into a Table yet: left out" : `a ${typeof type === "string" ? type : "block"} of the builder's has no component in Elements: left out`);
     return [];
   }
   sayUnread(type as string, values, DEFAULTS.get(type as string), context.say);

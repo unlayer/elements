@@ -81,8 +81,8 @@ describe("an edit in the builder", () => {
     // Its size is its own field, which a level doesn't change.
     headingType: ["h3", title({ fontSize: 32 }, { level: 3 }), "h1", title(), title()],
     text: ["New <em>title</em>", [{ type: "Heading", children: ["New ", { type: "Span", style: { fontStyle: "italic" }, children: ["title"] }] }], "Heading", [{ type: "Heading", children: ["Heading"] }], [{ type: "Heading" }]],
-    // A heading is in bold where it says no weight; 22px and 140% are the builder's, not a heading's own.
-    fontWeight: [400, title({ fontWeight: 400 }), 700, title(), title()],
+    // A heading's bold where it says 700; with no weight the builder draws it at 400. 22px and 140% are the builder's, not a heading's own.
+    fontWeight: [400, title({ fontWeight: 400 }), 700, title(), title({ fontWeight: 400 })],
     fontSize: ["40px", title({ fontSize: 40 }), "22px", title({ fontSize: 22 }), title({ fontSize: 22 })],
     lineHeight: ["100%", title({ lineHeight: 1 }), "140%", title({ lineHeight: 1.4 }), title({ lineHeight: 1.4 })],
     color: ["#333333", title({ color: "#333333" }), "#000000", title(), title()],

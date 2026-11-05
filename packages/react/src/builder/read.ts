@@ -17,6 +17,8 @@ export type DisplayMode = "email" | "web" | "document";
 const obj = (value: unknown): Values => (value && typeof value === "object" && !Array.isArray(value) ? (value as Values) : {});
 const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
+/** The strings in a design's value, so many levels down at most: malformed JSON can be any depth. */
+const wordsIn = (value: unknown, depth: number): string[] => (typeof value === "string" ? [value] : depth > 0 && value && typeof value === "object" ? Object.values(value).flatMap((held) => wordsIn(held, depth - 1)) : []);
 const ROOTS: Record<DisplayMode, string> = { email: "Email", web: "Page", document: "Document" };
 /** The page sizes a Document takes. */
 const SIZES = new Set(["A3", "A4", "A5", "Letter", "Legal", "Tabloid"]);
@@ -48,7 +50,7 @@ export function readDesign(given: unknown, displayMode: DisplayMode | undefined,
     say: (message) => report.push(`${where}: ${message}`),
   });
   const children: Child[] = [];
-  const place = (list: unknown[], part: string) => list.flatMap((row, r) => readRow(obj(row), `${part}[${r}]`, { context, body: values, document: mode === "document", part: part !== "rows" }));
+  const place = (list: unknown[], part: string) => list.flatMap((row, r) => readRow(obj(row), `${part}[${r}]`, { context, body: values, document: mode === "document", part: mode === "document" && part !== "rows" }));
   if (mode === "document") {
     const header = place(headers, "headers");
     if (header.length) children.push({ type: "PageHeader", children: header.filter((c) => c.type !== "PageBreak") });
@@ -56,9 +58,18 @@ export function readDesign(given: unknown, displayMode: DisplayMode | undefined,
     const footer = place(footers, "footers");
     if (footer.length) children.push({ type: "PageFooter", children: footer.filter((c) => c.type !== "PageBreak") });
   } else {
-    if (headers.length || footers.length) report.push(`body: a header and a footer are a Document's: left out of a${mode === "email" ? "n Email" : " Page"}`);
-    children.push(...place(rows, "rows"));
+    // Elsewhere the builder draws them as rows, above and below the others.
+    children.push(...place(headers, "headers"), ...place(rows, "rows"), ...place(footers, "footers"));
   }
+  const all = [...rows, ...headers, ...footers];
+  // An older design says it here, which the builder moves to its phone and desktop values when it opens one.
+  const items = all.flatMap((row) => [row, ...arr(obj(row).columns).flatMap((column) => [column, ...arr(obj(column).contents)])]).map((item) => obj(obj(item).values));
+  if (items.some((held) => held.hideMobile === true || held.hideDesktop === true)) report.push("body: what it hides on phones or on desktop is written as an older design's, which the builder moves when it opens one: left out, so it shows. Open it in the builder and save it first");
+  // A web font the builder loads from a stylesheet (a Google Fonts URL); a root's fonts are font files.
+  const webFonts = [...new Set([values, ...items].map((held) => obj(held.fontFamily)).filter((family) => typeof family.url === "string" && family.url).map((family) => String(family.label ?? family.value)))];
+  if (webFonts.length) report.push(`body: ${webFonts.join(", ")}: web fonts the builder loads from a stylesheet, which a root doesn't take (its fonts are font files): left out, so text shows in the next font of its stack`);
+  const tags = [...new Set(wordsIn(all, 12).flatMap((text) => [...text.matchAll(/\[\[\s*[\w.-]+\s*\]\]/g)].map((match) => match[0])))];
+  if (tags.length) report.push(`body: ${tags.join(", ")}: design tags are filled in by the builder, from what it's given: written as they are`);
   return { ...root, children };
 }
 

@@ -22,6 +22,21 @@ export interface TextPart {
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*?)(\/?)\s*>/g;
 const style = (attrs: string) => /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs)?.slice(1).find((v) => v !== undefined) ?? "";
 const declarations = (css: string) => Object.fromEntries(css.split(";").map((d) => d.split(":")).filter((p) => p.length >= 2 && p[0].trim()).map(([name, ...rest]) => [name.trim().toLowerCase(), rest.join(":").trim()]));
+/**
+ * Markup's paragraphs with the margin they draw with, where markup crosses between the builder and an Html block: the
+ * builder's stylesheet has `p{margin:0}`, a browser's own is 1em above and below. Declarations after it in a paragraph's
+ * style still win over it, as they do over a stylesheet; a `margin` of its own needs nothing.
+ */
+export function withParagraphMargin(html: string, margin: string): string {
+  return html.replace(/<p(?=[\s/>])((?:[^>"']|"[^"]*"|'[^']*')*)>/gi, (tag, attrs: string) => {
+    if (declarations(style(attrs)).margin !== undefined || /\bstyle\s*=\s*[^\s"']/i.test(attrs)) return tag;
+    const opened = /\bstyle\s*=\s*["']/i.exec(attrs);
+    if (!opened) return `<p style="margin:${margin}"${attrs}>`;
+    const at = opened.index + opened[0].length;
+    return `<p${attrs.slice(0, at)}margin:${margin};${attrs.slice(at)}>`;
+  });
+}
+
 /** The attributes of a tag (their names), but its style. */
 const attributeNames = (attrs: string) => [...attrs.matchAll(/([a-zA-Z][\w-]*)\s*=/g)].map((m) => m[1].toLowerCase()).filter((name) => name !== "style");
 

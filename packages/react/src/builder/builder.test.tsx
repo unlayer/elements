@@ -291,6 +291,17 @@ describe("an Html block", () => {
     expect(JSON.stringify(back)).toContain('"html":"<b>x</b>"');
   });
 
+  it("says a paragraph's margins going to the builder, whose stylesheet takes them away, and none coming from it", () => {
+    const written = (html: string) => blocks(toDesign(<Email><Html html={html} /></Email>).design).find((block) => block.type === "html")!.values.html;
+    expect(written('<p>a</p><p class="x">b</p>')).toContain('<p style="margin:1em 0">a</p><p style="margin:1em 0" class="x">b</p>');
+    expect(written('<p style="color:red">a</p>')).toContain('<p style="margin:1em 0;color:red">a</p>');
+    expect(written('<p style="margin:5px">a</p><pre>b</pre><picture></picture>')).toContain('<p style="margin:5px">a</p><pre>b</pre><picture></picture>');
+    const read = (html: string) => JSON.stringify(collectTemplate(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "html", values: { html } }], values: {} }], values: {} }], values: {} } }, { displayMode: "email" }).element).document!.root);
+    expect(read("<p>a</p>")).toContain('<p style=\\"margin:0\\">a</p>');
+    expect(read("<p style=\"margin-top:4px\">a</p>")).toContain('<p style=\\"margin:0;margin-top:4px\\">a</p>');
+    expect(read("<p style=color:red>a</p>")).toContain("<p style=color:red>a</p>");
+  });
+
   it("keeps markup that only starts and ends like that wrapper", () => {
     const markup = '<div style="line-height:1.5">a</div><div>b</div>';
     const design = { body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "html", values: { html: markup } }], values: {} }], values: {} }], values: {} } };
