@@ -1,11 +1,10 @@
 /**
- * A block as the builder's tool for it: its fields written exactly as the builder stores them (after today's
- * component writes its defaults), what the tool has no field for as hidden properties, its place's spacing in its
+ * A block as the builder's tool for it: its fields written exactly as the builder stores them (over the tool's
+ * defaults, design.ts), what the tool has no field for as hidden properties, its place's spacing in its
  * `containerPadding` and its place's alignment in its `textAlign`.
  */
 import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type LinkValue, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
-import type React from "react";
-import { Button, Divider, Heading, Html, Image, Menu, Paragraph, PageBreak, Social, Video } from "../index";
+import { block, type Block } from "./design";
 import { hiddenOf, merge } from "./hide";
 import { listHtml, runsHtml } from "./runs";
 import { withParagraphMargin } from "./text";
@@ -18,10 +17,10 @@ type TextAlign = "left" | "center" | "right" | "justify";
 export interface Place {
   at(path: string): ResolvedNode;
   report: string[];
-  put(made: React.ReactElement, values?: Values): React.ReactElement;
+  put<T extends { values: Values }>(made: T, values?: Values): T;
   sayLeftOut(tool: string, node: Node, path: string, fields: readonly string[]): void;
-  locked(node: Node, path: string, why: string, around: Sides): React.ReactElement;
-  stack(node: Node, path: string, around: Sides): React.ReactElement[];
+  locked(node: Node, path: string, why: string, around: Sides): Block;
+  stack(node: Node, path: string, around: Sides): Block[];
   /** The text styles a block takes from its parents that the root's don't give it. */
   textAround(path: string): Record<string, Json>;
 }
@@ -73,7 +72,7 @@ function inheritedHidden(own: ResolvedNode): Record<string, Json> {
 const TEXT_FIELDS = ["fontFamily", "fontSize", "fontWeight", "color", "textAlign", "lineHeight", "letterSpacing"].flatMap((key) => [`style.${key}`, `mobile.${key}`]);
 
 /** The tool a block is in the builder, with `around` its space in its column (its stack's gap, padding). */
-export function blockTool(node: Node, path: string, parent: ResolvedNode, around: Sides, place: Place): React.ReactElement | React.ReactElement[] {
+export function blockTool(node: Node, path: string, parent: ResolvedNode, around: Sides, place: Place): Block | Block[] {
   const own = place.at(path);
   const id = meta(node.id, TOOLS[node.type]);
   const hiding = { hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined };
@@ -103,8 +102,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       };
       const phonePadding = !box && node.mobile?.padding ? add(node.mobile.padding as Sides, around) : undefined;
       const extra = merge(phoneText(node, phonePadding), hiddenOf(tool, node, box ? [] : ["style.padding"], inheritedHidden(own)));
-      const made = node.type === "Heading" ? <Heading key={path} {...hiding} /> : <Paragraph key={path} {...hiding} />;
-      return place.put(made, merge(values, extra));
+      return place.put(block(tool, hiding), merge(values, extra));
     }
     case "Button": {
       const style = own.style;
@@ -134,7 +132,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       const phone = merge(phoneText({ ...node, mobile: { ...node.mobile, textAlign: undefined } as never }), Object.keys(phoneBox).length ? { _override: { mobile: phoneBox } } : {});
       // Its label's alignment, where it isn't a button's own (centered).
       const inner = own.style.textAlign !== undefined && own.style.textAlign !== "center" ? { buttonTextAlign: own.style.textAlign } : {};
-      return place.put(<Button key={path} {...hiding} />, merge(merge(values, phone), { ...hiddenOf("button", node, ["style.textAlign"], inheritedHidden(own)), ...inner }));
+      return place.put(block("button", hiding), merge(merge(values, phone), { ...hiddenOf("button", node, ["style.textAlign"], inheritedHidden(own)), ...inner }));
     }
     case "Image":
     case "Link": {
@@ -148,7 +146,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         const html = runsHtml(holder, lost);
         said();
         const hiddenHolder = { hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined };
-        return place.put(<Paragraph key={path} {...hiddenHolder} />, { ...textFields(parent), textAlign: alignIn(parent), text: html, containerPadding: cssSides(around) });
+        return place.put(block("text", hiddenHolder), { ...textFields(parent), textAlign: alignIn(parent), text: html, containerPadding: cssSides(around) });
       }
       if (linked && (images.length !== 1 || (node.children ?? []).some((c) => typeof c === "string" && c.trim()))) {
         return place.locked(node, path, "a Link around more than an Image isn't a tool of the builder's", around);
@@ -175,7 +173,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       };
       const phone = phoneImage(imageNode);
       const imageHiding = { hideOnMobile: (node.hidden?.mobile || imageNode.hidden?.mobile) || undefined, hideOnDesktop: (node.hidden?.desktop || imageNode.hidden?.desktop) || undefined };
-      return place.put(<Image key={path} {...imageHiding} />, merge(merge(values, phone ? { _override: { mobile: { src: phone } } } : {}), hiddenOf("image", imageNode)));
+      return place.put(block("image", imageHiding), merge(merge(values, phone ? { _override: { mobile: { src: phone } } } : {}), hiddenOf("image", imageNode)));
     }
     case "Divider": {
       const line = own.style.borderTop as Record<string, Json> | undefined;
@@ -190,7 +188,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       const phone: Values = {};
       if (node.mobile?.width !== undefined) phone.width = length(node.mobile.width);
       if (node.mobile?.padding) phone.containerPadding = cssSides(add(node.mobile.padding as Sides, around));
-      return place.put(<Divider key={path} {...hiding} />, merge(merge(values, Object.keys(phone).length ? { _override: { mobile: phone } } : {}), hiddenOf("divider", node)));
+      return place.put(block("divider", hiding), merge(merge(values, Object.keys(phone).length ? { _override: { mobile: phone } } : {}), hiddenOf("divider", node)));
     }
     case "Menu": {
       // A Menu's own style over its definition's.
@@ -213,7 +211,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         containerPadding: cssSides(around),
         ...id,
       };
-      return place.put(<Menu key={path} {...hiding} />, merge(values, hiddenOf("menu", node)));
+      return place.put(block("menu", hiding), merge(values, hiddenOf("menu", node)));
     }
     case "Social": {
       const style = { ...(SocialDefinition.defaultStyle as Record<string, Json>), ...node.style };
@@ -228,7 +226,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         containerPadding: cssSides(around),
         ...id,
       };
-      return place.put(<Social key={path} {...hiding} />, merge(values, hiddenOf("social", node)));
+      return place.put(block("social", hiding), merge(values, hiddenOf("social", node)));
     }
     case "Video": {
       const url = String(node.props?.src);
@@ -241,13 +239,13 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         containerPadding: cssSides(around),
         ...id,
       };
-      return place.put(<Video key={path} {...hiding} />, merge(values, hiddenOf("video", node)));
+      return place.put(block("video", hiding), merge(values, hiddenOf("video", node)));
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
-      return place.put(<Html key={path} {...hiding} />, merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "margin-top:1em;margin-bottom:1em"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
+      return place.put(block("html", hiding), merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "margin-top:1em;margin-bottom:1em"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
     case "PageBreak":
-      return place.put(<PageBreak key={path} />);
+      return place.put(block("page_break"));
     default:
       // A plain stack (a Column without a box of its own) is its blocks, in the same column.
       if ((node.type === "Column" || node.type === "Section") && !Object.keys(node.style ?? {}).some((key) => !["padding", "gap", "alignItems", ...TEXT_STYLES].includes(key)) && !node.hidden) {

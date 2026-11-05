@@ -2,11 +2,9 @@
 import { describe, expect, it } from "vitest";
 import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
-import { renderToHtml } from "../index";
 import { collectTemplate } from "../primitives/collect";
 import { withParagraphMargin } from "./text";
 import { fromDesign, toDesign } from "./index";
-import { raise } from "./raise";
 import { invoice } from "./testing/templates";
 
 type Values = Record<string, any>;
@@ -14,9 +12,7 @@ const blocks = (design: any): Array<{ type: string; values: Values }> => design.
 
 describe("toDesign", () => {
   for (const [name, template] of [["StripeReceipt", <stripe.StripeReceipt key="s" />], ["AirbnbConfirmation", <airbnb.AirbnbConfirmation key="a" />]] as const) {
-    it(`writes ${name} as the builder's design, today's components drawing it, every block a tool`, () => {
-      const { element } = raise(template);
-      expect(renderToHtml(element!)).toContain("<!DOCTYPE");
+    it(`writes ${name} as the builder's design, every block a tool`, () => {
       const types = blocks(toDesign(template).design).map((content) => content.type);
       expect(types.length).toBeGreaterThan(3);
       expect(types).not.toContain("html");

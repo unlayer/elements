@@ -4,8 +4,7 @@
  * directly in the root or a Section as a row of its own column.
  */
 import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
-import React from "react";
-import { Column, Row } from "../index";
+import { columnWith, rowWith, type Block, type Row, type RowFields } from "./design";
 import { hiddenOf, merge } from "./hide";
 import { blockTool, type Place } from "./tools";
 import { builderBorder, cssPx, cssSides, encode, type Values } from "./values";
@@ -26,18 +25,18 @@ export const hiding = (node: Node) => ({ hideOnMobile: node.hidden?.mobile || un
 /** What a row needs from the template it's in (raise.tsx). */
 export interface Writer {
   at(path: string): ResolvedNode;
-  put(made: React.ReactElement, values?: Values): React.ReactElement;
+  put<T extends { values: Values }>(made: T, values?: Values): T;
   sayLeftOut(tool: string, node: Node, path: string, fields: readonly string[]): void;
   place: Place;
   childrenOf(node: Node, path: string): Child[];
-  stack(node: Node, path: string, own: ResolvedNode, around: Sides): React.ReactElement[];
+  stack(node: Node, path: string, own: ResolvedNode, around: Sides): Block[];
 }
 
 /** An id the template gives a row or a column, as the builder's. */
 export const builderId = (id: string | undefined, htmlClassNames: string): Values => (id ? { _meta: { htmlID: id, htmlClassNames } } : {});
 
 /** A row of the builder's for a Row: each child a column, its width and its share of the gap its column's. */
-export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode): React.ReactElement {
+export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode): Row {
   const own = arranged ?? at(path);
   const gap = gapOf(own);
   const rowPad = add(padding(node), outer);
@@ -67,61 +66,54 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
     const phonePadding = stacks && n > 1 ? add(ownPhone, { left: rowPad.left, right: rowPad.right, top: i > 0 ? phoneGap : 0 }) : isColumn ? (child.mobile?.padding as Sides | undefined) : undefined;
     if (isColumn && !arranged) sayLeftOut("column", child, childPath, ["style.padding", "mobile.padding", "style.backgroundColor", "style.border", "mobile.border", "style.borderRadius", "style.width", "style.flex", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
     const columnOwn = isColumn ? at(childPath) : own;
-    const contents = isColumn ? stack(withoutPadding(child), childPath, columnOwn, ZERO) : ([] as React.ReactElement[]).concat(blockTool(child, childPath, own, ZERO, place));
-    const element = (
-      <Column
-        key={childPath}
-        padding={cssSides(columnPadding)}
-        backgroundColor={isColumn ? (style.backgroundColor as string | undefined) : undefined}
-        border={builderBorder(lines as never)}
-        borderRadius={isColumn && style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined}
-      >
-        {contents}
-      </Column>
+    const contents = isColumn ? stack(withoutPadding(child), childPath, columnOwn, ZERO) : ([] as Block[]).concat(blockTool(child, childPath, own, ZERO, place));
+    const element = columnWith(
+      {
+        padding: cssSides(columnPadding),
+        backgroundColor: isColumn ? (style.backgroundColor as string | undefined) : undefined,
+        border: builderBorder(lines as never),
+        borderRadius: isColumn && style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined,
+      },
+      contents
     );
     // Its phone padding (where the columns stack, the Row's sides and gap in it) and border, as the builder's phone values.
     const phone = { ...(phonePadding && cssSides(phonePadding) !== cssSides(columnPadding) ? { padding: cssSides(phonePadding) } : {}), ...(isColumn && child.mobile?.border ? { border: builderBorder(child.mobile.border as never) } : {}) };
     return { share, element: put(element, merge(merge(isColumn ? hiddenOf("column", child) : {}, isColumn ? builderId(child.id, "u_column") : {}), Object.keys(phone).length ? { _override: { mobile: phone } } : {})) };
   });
   const alignItems = own.style.alignItems as string | undefined;
-  const made = (
-    <Row
-      key={path}
-      cells={columns.map((c) => Math.max(1, Math.round(c.share)))}
-      padding={`${cssPx(rowPad.top)} 0px ${cssPx(rowPad.bottom)} 0px`}
-      noStackMobile={node.props?.stackOnMobile === false || undefined}
-      columnsBackgroundColor={own.style.backgroundColor as string | undefined}
-      {...hiding(node)}
-      {...band}
-    >
-      {columns.map((c) => c.element)}
-    </Row>
+  // The band's (a Section's background and hiding) over the Row's own.
+  const fields: RowFields = {
+    padding: `${cssPx(rowPad.top)} 0px ${cssPx(rowPad.bottom)} 0px`,
+    noStackMobile: node.props?.stackOnMobile === false || undefined,
+    columnsBackgroundColor: own.style.backgroundColor as string | undefined,
+    ...hiding(node),
+    ...band,
+  };
+  const made = rowWith(
+    columns.map((c) => Math.max(1, Math.round(c.share))),
+    fields,
+    columns.map((c) => c.element)
   );
   const values: Values = { ...(alignItems && alignItems !== "start" ? { alignItems: ALIGN_ITEMS[alignItems] } : {}), ...builderId(node.id, "u_row") };
   return put(made, merge(merge(values, arranged ? {} : hiddenOf("row", node, ["style.border"])), bandHidden));
 }
 
 /** A row of its own for a box directly in the root or a Section: one column, the box's. */
-export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values): React.ReactElement {
+export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values): Row {
   const own = at(path);
   sayLeftOut("column", node, path, ["style.padding", "mobile.padding", "style.backgroundColor", "style.border", "mobile.border", "style.borderRadius", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
   const style = node.style ?? {};
-  const column = (
-    <Column
-      padding={cssSides(padding(node))}
-      backgroundColor={style.backgroundColor as string | undefined}
-      border={builderBorder(style.border as never)}
-      borderRadius={style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined}
-    >
-      {stack(withoutPadding(node), path, own, ZERO)}
-    </Column>
+  const column = columnWith(
+    {
+      padding: cssSides(padding(node)),
+      backgroundColor: style.backgroundColor as string | undefined,
+      border: builderBorder(style.border as never),
+      borderRadius: style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined,
+    },
+    stack(withoutPadding(node), path, own, ZERO)
   );
   const { hidden: _, ...visible } = node;
-  const made = (
-    <Row key={path} cells={[1]} padding={cssSides(outer)} {...hiding(node)} {...band}>
-      {put(column, merge(merge(hiddenOf("column", visible as Node), builderId(node.id, "u_column")), phoneBox(node)))}
-    </Row>
-  );
+  const made = rowWith([1], { padding: cssSides(outer), ...hiding(node), ...band }, [put(column, merge(merge(hiddenOf("column", visible as Node), builderId(node.id, "u_column")), phoneBox(node)))]);
   return put(made, bandHidden);
 }
 

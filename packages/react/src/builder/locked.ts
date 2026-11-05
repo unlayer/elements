@@ -5,8 +5,7 @@
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
 import { renderTemplate } from "@unlayer-internal/elements-exporters";
-import React from "react";
-import { Html } from "../index";
+import { block, type Block } from "./design";
 import { withParagraphMargin } from "./text";
 import { cssSides } from "./values";
 
@@ -16,8 +15,8 @@ type Sides = { top: number; right: number; bottom: number; left: number };
  * An HTML block of the node's own markup, drawn at its width, with `around` its place's spacing and `inherited` the
  * text styles its ancestors give it (beyond the root's).
  */
-export function lockedHtml(node: Node, path: string, width: number, root: Node, components: unknown, around: Sides, inherited: Record<string, Json> = {}): React.ReactElement {
-  return <Html key={path} values={{ html: renderSubtree(node, width, root, components, inherited), containerPadding: cssSides(around) } as never} />;
+export function lockedHtml(node: Node, width: number, root: Node, components: unknown, around: Sides, inherited: Record<string, Json> = {}): Block {
+  return { ...block("html"), values: { html: renderSubtree(node, width, root, components, inherited), containerPadding: cssSides(around) } };
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */

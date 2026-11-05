@@ -523,9 +523,9 @@ Part of 0.3.0, at `@unlayer/react-elements/builder`. It converts templates to th
 JSON for Email, Page and Document (`toDesign(element)`), and designs back (`fromDesign(design, { displayMode
 })`), as an element to render and as JSX source. The builder's design holds no Elements data (decision 12).
 
-- **To the builder:** through today's components, whose design JSON the builder has opened for years: they and
-  `renderToJson` write each item with its defaults, and each item's fields are written exactly as the builder
-  stores them over those. A `Section` is a full-width row (its band), a `Row` a row with its children as
+- **To the builder:** as today's components wrote it, a design JSON the builder has opened for years: each item
+  its tool's defaults, numbered as the builder numbers them, and its fields written exactly as the builder stores
+  them over those (`src/builder/design.ts` writes what today's `renderToJson` wrote, key for key). A `Section` is a full-width row (its band), a `Row` a row with its children as
   columns (their gap and side padding the columns' padding, their widths and shares the columns' `cells`), a
   box directly in the root or a Section a one-column row of its own, content directly under the root a
   one-column row, and each component the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text,

@@ -1,6 +1,7 @@
 /**
- * A template in the new components as today's (the builder's), the codemod's mapping the other way. Each component
- * becomes the tool the builder edits it with, with the values that draw it as the new engine does: a Section a
+ * A template in the new components as the builder's rows, columns and blocks (written as its design JSON by
+ * design.ts), the codemod's mapping the other way. Each component becomes the tool the builder edits it with, with the
+ * values that draw it as the new engine does: a Section a
  * full-width row, a Row a row of its children as columns (their shares and gap as the columns' widths and padding), a
  * box directly in the root or a Section a row of its own, content directly in the root a one-column row, a text block
  * its HTML. What a tool has no field for is a hidden property of it (hide.ts); what no tool shows (a Layer, an Svg, a
@@ -8,25 +9,20 @@
  */
 import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
 import { prepareTemplate } from "@unlayer-internal/elements-exporters";
-import React from "react";
-import { Column, Document, Email, Page, PageBreak, Row } from "../index";
+import type React from "react";
 import { collectTemplate } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
+import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
 import { blockTool, type Place } from "./tools";
 import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
 
 export interface Raised {
-  /** The template in today's components. */
-  element: React.ReactElement | null;
+  /** The template as the builder's parts, each with its hidden properties in its values. */
+  body: Body | null;
   /** What the builder can't hold as it is: one line each, with where. */
   report: string[];
-  /** Each element's hidden properties, merged into its values once written. */
-  hidden: WeakMap<object, Values>;
-  /** A Document's header and footer, as rows of their own (the builder's `headers` and `footers`). */
-  headers?: React.ReactElement[];
-  footers?: React.ReactElement[];
 }
 
 type Child = { child: Node; path: string };
@@ -38,16 +34,15 @@ const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal
 
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
-  const hidden = new WeakMap<object, Values>();
   const { document, diagnostics, components } = collectTemplate(element);
-  if (!document || diagnostics.some((d) => d.severity === "error")) return { element: null, report: diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), hidden };
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { body: null, report: diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
   const root = document.root;
   if (root.type !== "Email" && root.type !== "Page" && root.type !== "Document") {
-    return { element: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`], hidden };
+    return { body: null, report: [`root: the builder edits an Email, a Page or a Document, not a ${root.type}`] };
   }
   if (holdsPageNumber(root)) report.push("root: a PageNumber goes to the builder as its token ({{page_number}}), which the editor's PDF prints as it is: the builder has no page numbers yet");
   const prepared = prepareTemplate(document, { components });
-  if (!prepared.resolved) return { element: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`), hidden };
+  if (!prepared.resolved) return { body: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
   const resolvedRoot = prepared.resolved.root;
   const resolved = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
@@ -57,9 +52,9 @@ export function raise(element: React.ReactElement): Raised {
   index(resolvedRoot);
   const at = (path: string) => resolved.get(path)!;
 
-  /** The element, with its hidden properties. */
-  const put = (made: React.ReactElement, values: Values = {}): React.ReactElement => {
-    hidden.set(made, merge(hidden.get(made) ?? {}, values));
+  /** A part, with its hidden properties. */
+  const put = <T extends { values: Values }>(made: T, values: Values = {}): T => {
+    made.values = merge(made.values, values);
     return made;
   };
   const sayLeftOut = (tool: string, node: Node, path: string, fields: readonly string[]) => {
@@ -94,14 +89,14 @@ export function raise(element: React.ReactElement): Raised {
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`);
       const own = at(path);
-      return put(lockedHtml(node, path, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path)));
+      return put(lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path)));
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
     textAround,
   };
 
   /** A stack's blocks, its gap above each but the first, its padding around them. */
-  const stack = (node: Node, path: string, own: ResolvedNode, around: Sides): React.ReactElement[] => {
+  const stack = (node: Node, path: string, own: ResolvedNode, around: Sides): Block[] => {
     const gap = gapOf(own);
     const pad = add(padding(node), around);
     // An empty stack in it (a plain Column with nothing in it) is only space: it goes to the block after it.
@@ -120,7 +115,7 @@ export function raise(element: React.ReactElement): Raised {
     return children.flatMap(({ child, path: childPath }, i) => {
       const last = i === children.length - 1;
       const space: Sides = { top: (i === 0 ? pad.top : gap) + carried[i], right: pad.right, bottom: last ? pad.bottom + carry : 0, left: pad.left };
-      return ([] as React.ReactElement[]).concat(blockTool(child, childPath, own, space, place));
+      return ([] as Block[]).concat(blockTool(child, childPath, own, space, place));
     });
   };
 
@@ -129,25 +124,20 @@ export function raise(element: React.ReactElement): Raised {
   const boxRow = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values) => boxRowOf(writer, node, path, band, outer, bandHidden);
 
   /** A one-column row of the builder's holding blocks (content directly in the root, or a Section's). */
-  const oneColumn = (blocks: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, key: string, bandHidden: Values, sectionHiding: Values = {}): React.ReactElement => {
+  const oneColumn = (blocks: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, bandHidden: Values, sectionHiding: Values = {}): Row => {
     const gap = gapOf(stackNode);
     const contents = blocks.flatMap(({ child, path }, i) => {
       const space: Sides = { top: i === 0 ? pad.top : gap, right: pad.right, bottom: i === blocks.length - 1 ? pad.bottom : 0, left: pad.left };
-      return ([] as React.ReactElement[]).concat(child.type === "Row" ? place.locked(child, path, "a Row whose children take their own width (a line of links)", space) : blockTool(child, path, stackNode, space, place));
+      return ([] as Block[]).concat(child.type === "Row" ? place.locked(child, path, "a Row whose children take their own width (a line of links)", space) : blockTool(child, path, stackNode, space, place));
     });
     // A run with nothing in it but space (an empty Section): its space as the row's padding.
     const empty = !contents.length;
-    return put(
-      <Row key={key} cells={[1]} padding={empty ? cssSides({ ...pad, left: 0, right: 0 }) : "0px"} {...sectionHiding} {...band}>
-        <Column padding="0px">{contents}</Column>
-      </Row>,
-      bandHidden
-    );
+    return put(rowWith([1], { padding: empty ? cssSides({ ...pad, left: 0, right: 0 }) : "0px", ...sectionHiding, ...band }, [columnWith({ padding: "0px" }, contents)]), bandHidden);
   };
 
   /** The root's children, or a Section's: Rows, Grids and boxes as rows of their own, runs of blocks as one-column rows. */
-  const rows = (children: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, keyBase: string, section?: Node): React.ReactElement[] => {
-    const out: React.ReactElement[] = [];
+  const rows = (children: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, section?: Node): Row[] => {
+    const out: Row[] = [];
     let run: Child[] = [];
     const gap = gapOf(stackNode);
     // A Section's border, as the part of it around each of its rows; its hiding, each row's.
@@ -162,7 +152,7 @@ export function raise(element: React.ReactElement): Raised {
     const flush = (last: boolean) => {
       if (!run.length) return;
       const top = out.length === 0 ? pad.top : gap;
-      out.push(oneColumn(run, stackNode, band, { ...pad, top, bottom: last ? pad.bottom : 0 }, `${keyBase}.run${out.length}`, bandHidden(out.length), sectionHiding));
+      out.push(oneColumn(run, stackNode, band, { ...pad, top, bottom: last ? pad.bottom : 0 }, bandHidden(out.length), sectionHiding));
       run = [];
     };
     children.forEach(({ child, path }, i) => {
@@ -172,7 +162,7 @@ export function raise(element: React.ReactElement): Raised {
         // A plain stack holding Rows: its children are rows of their own, its padding around them.
         flush(false);
         const o = outer();
-        out.push(...rows(childrenOf(child, path), at(path), band, add(o, padding(child)), path, section));
+        out.push(...rows(childrenOf(child, path), at(path), band, add(o, padding(child)), section));
       } else if (child.type === "Row" && unsized(child, path)) {
         // Children that take their own width (a line of links) have no share a builder column can hold.
         run.push({ child, path });
@@ -206,59 +196,53 @@ export function raise(element: React.ReactElement): Raised {
   };
 
   const top = childrenOf(root, "root");
-  const body: React.ReactElement[] = [];
-  const headers: React.ReactElement[] = [];
-  const footers: React.ReactElement[] = [];
+  const body: Row[] = [];
+  const headers: Row[] = [];
+  const footers: Row[] = [];
   let loose: Child[] = [];
   const flushLoose = () => {
-    if (loose.length) body.push(...rows(loose, resolvedRoot, {}, ZERO, `root.loose${body.length}`));
+    if (loose.length) body.push(...rows(loose, resolvedRoot, {}, ZERO));
     loose = [];
   };
   /** A page break of the builder's, in a row of its own. */
-  const pageBreak = (path: string) => (
-    <Row key={`${path}.break`} cells={[1]} padding="0px">
-      <Column padding="0px">
-        <PageBreak key={path} />
-      </Column>
-    </Row>
-  );
+  const pageBreak = () => rowWith([1], { padding: "0px" }, [columnWith({ padding: "0px" }, [block("page_break")])]);
   // In a Document, a page break goes where a page starts or ends (the builder breaks at each).
   let last: "page" | "break" | "other" | null = null;
-  const breakBefore = (path: string) => {
-    if (last && last !== "break") body.push(pageBreak(`${path}.before`));
+  const breakBefore = () => {
+    if (last && last !== "break") body.push(pageBreak());
   };
   for (const [i, { child, path }] of top.entries()) {
     if (child.type === "Section") {
       flushLoose();
-      if (last === "page") breakBefore(path);
+      if (last === "page") breakBefore();
       last = "other";
       const own = at(path);
       sayLeftOut("row", child, path, ["style.backgroundColor", "style.padding", "style.border", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
       const band = own.style.backgroundColor !== undefined ? { backgroundColor: own.style.backgroundColor as string } : {};
       if (child.mobile?.border !== undefined) report.push(`${path}: the builder's row has no border on phones: left out`);
-      const sectionRows = rows(childrenOf(child, path), own, band, padding(child), path, child);
+      const sectionRows = rows(childrenOf(child, path), own, band, padding(child), child);
       if (child.id && sectionRows[0]) put(sectionRows[0], builderId(child.id, "u_row"));
       // An empty Section (a band of space) is a row with nothing in it.
-      body.push(...(sectionRows.length ? sectionRows : [oneColumn([], own, band, padding(child), `${path}.empty`, {}, hiding(child))]));
+      body.push(...(sectionRows.length ? sectionRows : [oneColumn([], own, band, padding(child), {}, hiding(child))]));
     } else if (child.type === "DocumentPage") {
       flushLoose();
-      breakBefore(path);
+      breakBefore();
       last = "page";
       sayLeftOut("row", child, path, ["style.gap", "style.alignItems", ...TEXT_FOLDED]);
-      const pageRows = rows(childrenOf(child, path), at(path), {}, ZERO, path);
-      body.push(...(pageRows.length ? pageRows : [oneColumn([], at(path), {}, ZERO, `${path}.blank`, {})]));
+      const pageRows = rows(childrenOf(child, path), at(path), {}, ZERO);
+      body.push(...(pageRows.length ? pageRows : [oneColumn([], at(path), {}, ZERO, {})]));
     } else if (child.type === "PageBreak") {
       flushLoose();
       const content = top.slice(i + 1).some((c) => !["PageHeader", "PageFooter", "PageBreak"].includes(c.child.type));
       if (last === null || !content) report.push(`${path}: a page break with nothing before or after it is no page in Elements, and a blank page in the builder`);
-      body.push(pageBreak(path));
+      body.push(pageBreak());
       last = "break";
     } else if (child.type === "PageHeader" || child.type === "PageFooter") {
       sayLeftOut("row", child, path, ["style.gap", "style.alignItems", "style.padding", "style.backgroundColor", "style.border", ...TEXT_FOLDED]);
       const bandOf = at(path).style.backgroundColor !== undefined ? { backgroundColor: at(path).style.backgroundColor as string } : {};
-      (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), bandOf, padding(child), path, child));
+      (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), bandOf, padding(child), child));
     } else {
-      if (last === "page") breakBefore(path);
+      if (last === "page") breakBefore();
       last = "other";
       loose.push({ child, path });
     }
@@ -271,30 +255,25 @@ export function raise(element: React.ReactElement): Raised {
     "props.width", "props.previewText", "props.dir", "props.title", "props.size", "props.orientation",
     "style.backgroundColor", "style.color", "style.fontFamily", "style.fontWeight", "style.gap", "style.alignItems", ...TEXT_FOLDED,
   ]);
-  const common = {
-    contentWidth: cssPx(Number(resolvedRoot.width)) as never,
+  const common: BodyFields = {
+    contentWidth: cssPx(Number(resolvedRoot.width)),
     textColor: text.color,
     fontFamily: builderFont(String(text.fontFamily)),
     ...(text.fontWeight !== 400 ? { fontWeight: text.fontWeight } : {}),
-    ...(root.props?.dir ? { textDirection: root.props.dir as never } : {}),
+    ...(root.props?.dir ? { textDirection: root.props.dir as string } : {}),
   };
   // Its title, the builder's accessibility title (which its export writes as the page's <title>).
   const title = typeof root.props?.title === "string" && root.props.title ? { accessibilityTitle: root.props.title } : {};
-  // A Document's margin: the builder has one for every side (write.ts), the template's sides kept where they differ.
+  // A Document's margin: the builder has one for every side (design.ts), the template's sides kept where they differ.
   const margin = root.type === "Document" ? { margin: cssSides((root.props?.margin as Sides | undefined) ?? { top: 48, right: 48, bottom: 48, left: 48 }) } : {};
   // No background is none (the builder's own default is a grey).
   const bodyHidden = { ...hiddenOf("body", root, ["props.margin"]), ...margin, ...title, backgroundColor: (style.backgroundColor as string | undefined) ?? "" };
-  const raised =
-    root.type === "Document"
-      ? put(
-          <Document {...common} documentSize={(root.props?.size as never) ?? "A4"} documentOrientation={(root.props?.orientation as never) ?? "portrait"}>
-            {body}
-          </Document>,
-          bodyHidden
-        )
-      : put(React.createElement(root.type === "Email" ? Email : Page, { ...common, ...(root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {}) }, body), bodyHidden);
-  if (root.type === "Document") return { element: raised, report, hidden, headers, footers };
-  return { element: raised, report, hidden };
+  if (root.type === "Document") {
+    const paper = { documentSize: (root.props?.size as string | undefined) ?? "A4", documentOrientation: (root.props?.orientation as string | undefined) ?? "portrait" };
+    return { body: { root: root.type, fields: { ...common, ...paper }, values: bodyHidden, rows: body, headers, footers }, report };
+  }
+  const previewText = root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {};
+  return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };
 }
 
 /** How many rows of the builder's children make (a Grid's rows each, runs of blocks one). */
