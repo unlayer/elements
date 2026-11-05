@@ -158,7 +158,12 @@ export interface MigrateElementsResult {
 
 /** The package: Elements 0.2's components until 0.3.0, the new ones from it (0.2's aren't in it). */
 const ROOT = "@unlayer/react-elements";
-export const DEFAULT_FROM = [ROOT];
+/**
+ * Today's components where the converter writes a React Email template in them first: migrate's own copy, which no
+ * package exports (todays-path.ts). An import of it is always today's.
+ */
+const TODAYS = "@unlayer/react-elements/legacy";
+export const DEFAULT_FROM = [ROOT, TODAYS];
 const DEFAULT_TO = ROOT;
 /** Names only the new components' entry exports: a module importing one from the main entry already uses them. */
 const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
