@@ -145,6 +145,13 @@ export interface MigrateElementsOptions {
    * no TypeScript in it.
    */
   typescript?: boolean;
+  /**
+   * The version of @unlayer/react-elements the project has, where it's known. The package has been both: below 0.3.0,
+   * a module importing it that has nothing of either in it is on today's components, and it's migrated; otherwise
+   * (0.3.0 on, or not known) that module is left as it is. A module with something only one of the two has is that
+   * one's whatever is installed: the migration's own output is never migrated again.
+   */
+  installed?: string;
 }
 
 export interface MigrateElementsResult {
@@ -158,6 +165,10 @@ export interface MigrateElementsResult {
   stacked?: string[];
   /** The module already uses the new components: it comes back as it was. */
   current?: boolean;
+  /** Nothing in the module is only today's or only the new components', and 0.2 isn't known to be installed: it comes back as it was. */
+  undecided?: boolean;
+  /** The module has what only today's components have and what only the new ones have: it comes back as it was, and this says which. */
+  refused?: string;
 }
 
 /** The package: Elements 0.2's components until 0.3.0, the new ones from it (0.2's aren't in it). */
@@ -165,8 +176,64 @@ const ROOT = "@unlayer/react-elements";
 /** The package, and where the React Email converter's intermediate source imports today's components from (never resolved). */
 export const DEFAULT_FROM = [ROOT, TODAYS_COMPONENTS];
 const DEFAULT_TO = ROOT;
-/** Names only the new components' entry exports: a module importing one from the main entry already uses them. */
-const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
+// What says which of the two a module importing the package uses (it has been both). These come from the two versions
+// themselves: names and props one of them has and the other doesn't, by 0.2.1's typings and 0.3.0's definitions.
+/** Names only the new components' entry exports (0.2's has no Text): a module importing one from the package uses them. */
+const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "Text", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
+/** Names only Elements 0.2's entry exported: a module importing one from the package uses today's components. */
+const TODAYS_ONLY = new Set(["Body", "ColumnLayouts", "DEFAULT_CONFIG", "UnlayerProvider", "htmlToTextJson", "registerElementsTool", "registerTool", "renderRowToJson", "renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText", "useUnlayerConfig", "validateColumnLayout"]);
+/** What every new component takes besides its own props (and React's key). */
+const NEW_EXTRAS = new Set(["id", "style", "mobile", "hover", "hidden", "children", "key"]);
+/** The new components' own props, by component (the others take none). */
+const NEW_PROPS: Record<string, string[]> = {
+  Email: ["width", "previewText", "title", "lang", "dir", "fonts"],
+  Page: ["width", "description", "title", "lang", "dir", "fonts"],
+  Document: ["size", "orientation", "margin", "title", "lang", "dir", "fonts"],
+  Row: ["stackOnMobile", "dir"],
+  Heading: ["level", "dir"],
+  Paragraph: ["dir"],
+  Text: ["dir"],
+  Button: ["href", "title", "aria-label", "attrs"],
+  Image: ["src", "alt", "title"],
+  Social: ["icons", "iconType", "size"],
+  Menu: ["items", "separator", "layout"],
+  Video: ["src", "thumbnail", "title"],
+  Html: ["html", "text"],
+};
+/**
+ * Props of a new component that today's by its name didn't take, by component, and `hover` and `hidden` on any of them.
+ * Today's took a `style` too (put on a wrapper), but nothing in main's templates gives one, the migration leaves it
+ * out, and what it writes has one on nearly every block: it counts as the new components'.
+ */
+const NEW_ONLY_PROPS: Record<string, string[]> = {
+  Email: ["dir", "title", "width"],
+  Page: ["dir", "title", "width"],
+  Document: ["dir", "title", "margin", "orientation", "size"],
+  Row: ["dir", "stackOnMobile"],
+  Heading: ["dir"],
+  Paragraph: ["dir"],
+  Text: ["dir"],
+  Button: ["aria-label", "title"],
+  Image: ["title"],
+  Social: ["size"],
+  Html: ["text"],
+  Video: ["src", "title"],
+};
+/** Props only the new components take, on any of them. */
+const NEW_ONLY_EVERYWHERE = new Set(["style", "hover", "hidden"]);
+/**
+ * The props of today's components the migration reads. One a component has where the new one by its name has no such
+ * prop (a Row's layout, a Paragraph's html, a Button's padding; not a Menu's layout or an Html's html) is today's.
+ */
+const TODAYS_PROPS = new Set([
+  ...["action", "align", "alt", "altText", "autoWidth", "backgroundColor", "border", "borderRadius", "buttonColors", "cells", "color", "columns", "columnsBackgroundColor", "containerPadding", "contentWidth", "data"],
+  ...["documentMargin", "documentOrientation", "documentSize", "fontFamily", "fontSize", "fontWeight", "headers", "headingType", "hideOnDesktop", "hideOnMobile", "href", "html", "iconSize", "iconType", "icons", "items"],
+  ...["lang", "layout", "letterSpacing", "lineHeight", "linkColor", "maxWidth", "noStackMobile", "padding", "previewText", "repeatFooterOnEachPage", "repeatHeaderOnEachPage", "rows", "separator", "spacing", "src"],
+  ...["target", "text", "textAlign", "textColor", "textDirection", "textTransform", "url", "values", "videoUrl", "width"],
+  ...["Top", "Right", "Bottom", "Left"].flatMap((side) => [`border${side}Width`, `border${side}Style`, `border${side}Color`]),
+  ...["header", "content", "footer"].flatMap((part) => ["BackgroundColor", "Color", "FontSize", "FontWeight", "Padding", "TextAlign", "VerticalAlign"].map((what) => `${part}${what}`)),
+  "contentLineHeight",
+]);
 
 /** Today's components that have a new one (by the same name, or the one they become). */
 const COMPONENTS = new Set(["Email", "Page", "Document", "PageBreak", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
@@ -307,30 +374,102 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** Whether an expression is followed by one of today's layout names (`ColumnLayouts.TwoEqual`). */
   const beforeLayout = (expression: ts.Node) => ts.isPropertyAccessExpression(expression.parent) && expression.parent.expression === expression && isLayout(expression.parent.name.text);
 
-  // The package is the new components from 0.3.0. A module importing a name only they have from it already uses them,
-  // so a second run changes nothing; otherwise its import of the package is today's (a project on 0.2).
-  const rootImports = file.statements.filter((statement): statement is ts.ImportDeclaration => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === ROOT);
-  const newOnly = (statement: ts.ImportDeclaration) => {
-    const clause = statement.importClause;
-    const named = clause?.namedBindings;
-    if (named && ts.isNamedImports(named)) return named.elements.some((element) => !element.isTypeOnly && NEW_ONLY.has((element.propertyName ?? element.name).text));
-    // A namespace: a name only the new components have, read from it.
-    if (named && ts.isNamespaceImport(named)) {
-      let found = false;
-      const visit = (n: ts.Node): void => {
-        if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === named.name.text && NEW_ONLY.has(n.name.text)) found = true;
-        if (!found) ts.forEachChild(n, visit);
-      };
-      visit(file);
-      return found;
-    }
-    return false;
+  /** An expression without its parentheses and type assertions. */
+  const bare = (expression: ts.Expression): ts.Expression => {
+    while (ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isSatisfiesExpression(expression)) expression = expression.expression;
+    return expression;
   };
-  if (from.has(ROOT) && options.from === undefined && rootImports.some(newOnly)) {
-    from.delete(ROOT);
-    if (!file.statements.some((statement) => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && (from.has(statement.moduleSpecifier.text) || !!own(options.through, statement.moduleSpecifier.text)))) {
-      return { code: source, report: [], current: true };
+
+  // The package has been both: today's components until 0.3.0, the new ones from it. Its import (or one through the
+  // project's modules that pass its components on) is migrated only where something in the module is only today's,
+  // and never where something is only the new ones': the migration's own output comes back as it is.
+  let through = options.through;
+  if (from.has(ROOT) && options.from === undefined) {
+    const { todays, current } = whichComponents();
+    const listed = (found: Map<string, string>) => {
+      const all = [...found].map(([what, at]) => `${what} on ${at}`);
+      return all.length > 3 ? `${all.slice(0, 3).join(", ")} and ${all.length - 3} more` : all.join(", ");
+    };
+    if (todays.size && current.size) {
+      const why = `it has what only Elements 0.2's components have (${listed(todays)}) and what only the new ones have (${listed(current)}), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again`;
+      return { code: source, report: [why], refused: why };
     }
+    // Nothing either way: with 0.2 installed, the package is today's components; otherwise it isn't known to be.
+    const installedTodays = options.installed !== undefined && /^0\.[0-2]\./.test(options.installed);
+    if (current.size || (!todays.size && !installedTodays)) {
+      from.delete(ROOT);
+      through = undefined;
+      if (!file.statements.some((statement) => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && from.has(statement.moduleSpecifier.text))) {
+        return { code: source, report: [], ...(current.size ? { current: true } : { undecided: true }) };
+      }
+    }
+  }
+
+  /**
+   * What in the module only today's components have (a name from the package, a prop on one of its components, a
+   * value's shape), and what only the new ones have: each with the line it's first on.
+   */
+  function whichComponents() {
+    const todays = new Map<string, string>();
+    const current = new Map<string, string>();
+    const name = (imported: string, at: ts.Node) => {
+      const found = TODAYS_ONLY.has(imported) ? todays : NEW_ONLY.has(imported) ? current : undefined;
+      if (found && !found.has(imported)) found.set(imported, where(at));
+    };
+    /** The package's components by the name the module has for each (or a module's passing them on). */
+    const components = new Map<string, string>();
+    /** Namespaces of the package (undefined), or of a module passing its components on (what it passes on). */
+    const namespaces = new Map<string, Record<string, string> | undefined>();
+    for (const statement of file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      const passed = specifier === ROOT ? undefined : own(through, specifier);
+      const clause = statement.importClause;
+      if ((specifier !== ROOT && !passed) || !clause || clause.isTypeOnly) continue;
+      const named = clause.namedBindings;
+      if (named && ts.isNamespaceImport(named)) namespaces.set(named.name.text, passed);
+      for (const element of named && ts.isNamedImports(named) ? named.elements : []) {
+        if (element.isTypeOnly) continue;
+        const imported = (element.propertyName ?? element.name).text;
+        if (!passed) name(imported, element);
+        const component = passed ? own(passed, imported) : imported;
+        if (component && COMPONENTS.has(component)) components.set(element.name.text, component);
+      }
+    }
+    const namespaceOf = (expression: ts.Expression) => (ts.isIdentifier(expression) && namespaces.has(expression.text) && !shadowed(expression) ? expression : undefined);
+    const componentOf = (tag: ts.JsxTagNameExpression): string | undefined => {
+      if (ts.isIdentifier(tag)) return shadowed(tag) ? undefined : components.get(tag.text);
+      const namespace = ts.isPropertyAccessExpression(tag) && namespaceOf(tag.expression);
+      if (!namespace || !ts.isPropertyAccessExpression(tag)) return undefined;
+      const passed = namespaces.get(namespace.text);
+      const component = passed ? own(passed, tag.name.text) : tag.name.text;
+      return component && COMPONENTS.has(component) ? component : undefined;
+    };
+    const note = (found: Map<string, string>, what: string, at: ts.Node) => found.has(what) || found.set(what, where(at));
+    const visit = (n: ts.Node): void => {
+      // A name read from a namespace of the package (`E.Body`), not of a module passing its components on.
+      const namespace = ts.isPropertyAccessExpression(n) && namespaceOf(n.expression);
+      if (namespace && !namespaces.get(namespace.text)) name((n as ts.PropertyAccessExpression).name.text, n);
+      const component = ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n) ? componentOf(n.tagName) : undefined;
+      for (const attribute of component ? (n as ts.JsxOpeningLikeElement).attributes.properties : []) {
+        if (!ts.isJsxAttribute(attribute)) continue;
+        const prop = attribute.name.getText(file);
+        const itsOwn = NEW_PROPS[component!] ?? [];
+        if (NEW_ONLY_EVERYWHERE.has(prop) || NEW_ONLY_PROPS[component!]?.includes(prop)) note(current, `<${component} ${prop}>`, attribute);
+        else if (TODAYS_PROPS.has(prop) && !NEW_EXTRAS.has(prop) && !itsOwn.includes(prop)) note(todays, `<${component} ${prop}>`, attribute);
+        // A link or an image source written as an object: today's action (`{ name: "web", values }`) or image
+        // (`{ url }`), or the new components' (`{ href, target }`, `{ src }`).
+        const value = attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression ? bare(attribute.initializer.expression) : undefined;
+        if (!value || !ts.isObjectLiteralExpression(value) || !((component === "Button" && prop === "href") || (component === "Image" && prop === "src"))) continue;
+        const keys = new Set(value.properties.map((property) => property.name && ts.isIdentifier(property.name) ? property.name.text : property.name && ts.isStringLiteral(property.name) ? property.name.text : ""));
+        const [todaysKey, newKey] = prop === "href" ? ["name", "href"] : ["url", "src"];
+        if (keys.has(todaysKey)) note(todays, `<${component} ${prop}={{ ${todaysKey} }}>`, attribute);
+        else if (keys.has(newKey)) note(current, `<${component} ${prop}={{ ${newKey} }}>`, attribute);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(file);
+    return { todays, current };
   }
 
   // Today's components and layouts, by the name they're imported as (through a namespace, `E.Button`); the imports of
@@ -341,20 +480,20 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** Names the migrated module no longer declares: today's components, its layouts and their namespace where only they used it. */
   const freed: string[] = [];
   const todaysImport = (statement: ts.Statement): statement is ts.ImportDeclaration & { moduleSpecifier: ts.StringLiteral } =>
-    ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && (from.has(statement.moduleSpecifier.text) || !!own(options.through, statement.moduleSpecifier.text));
+    ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && (from.has(statement.moduleSpecifier.text) || !!own(through, statement.moduleSpecifier.text));
   for (const statement of file.statements) {
     if (!todaysImport(statement)) continue;
     const clause = statement.importClause;
     // `import type` stays as it is: today's types are still exported.
     if (!clause || clause.isTypeOnly) continue;
     const specifier = statement.moduleSpecifier.text;
-    const through = from.has(specifier) ? undefined : own(options.through, specifier);
+    const passed = from.has(specifier) ? undefined : own(through, specifier);
     /** Today's component (or ColumnLayouts) a name exported here is, or undefined (today's other API, the module's own). */
-    const todays = (name: string) => (through ? own(through, name) : MIGRATED.has(name) ? name : undefined);
+    const todays = (name: string) => (passed ? own(passed, name) : MIGRATED.has(name) ? name : undefined);
     const named = clause.namedBindings;
     if (named && ts.isNamespaceImport(named)) {
       const ns = named.name.text;
-      for (const name of through ? Object.keys(through) : MIGRATED) local.set(`${ns}.${name}`, todays(name)!);
+      for (const name of passed ? Object.keys(passed) : MIGRATED) local.set(`${ns}.${name}`, todays(name)!);
       // The namespace goes where it's only used for today's components and layouts, which are rewritten.
       const migrated = onlyUsedAs(named.name, (use) => {
         const name = ts.isPropertyAccessExpression(use.parent) && use.parent.expression === use ? todays(use.parent.name.text) : undefined;
@@ -363,7 +502,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
       if (migrated && !clause.name) {
         imports.push({ statement, kept: [] });
         freed.push(ns);
-      } else report.push(`${where(statement)}: ${ns} stays imported from ${specifier} for ${through ? "the rest it passes on" : "today's API used through it"}; its components are migrated`);
+      } else report.push(`${where(statement)}: ${ns} stays imported from ${specifier} for ${passed ? "the rest it passes on" : "today's API used through it"}; its components are migrated`);
       continue;
     }
     const kept: string[] = clause.name ? [clause.name.text] : [];
@@ -371,7 +510,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     for (const element of named && ts.isNamedImports(named) ? named.elements : []) {
       const name = todays((element.propertyName ?? element.name).text);
       if (element.isTypeOnly) specifiers.push(element.getText());
-      else if (through && !name) specifiers.push(element.getText());
+      else if (passed && !name) specifiers.push(element.getText());
       else if (name && COMPONENTS.has(name)) {
         local.set(element.name.text, name);
         if (onlyUsedAs(element.name, isTag)) freed.push(element.name.text);
@@ -435,10 +574,6 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return name;
   };
 
-  const bare = (expression: ts.Expression): ts.Expression => {
-    while (ts.isAsExpression(expression) || ts.isParenthesizedExpression(expression) || ts.isSatisfiesExpression(expression)) expression = expression.expression;
-    return expression;
-  };
   /** The value a name is a constant for where it's used (the nearest `const` in scope), or undefined (a parameter, a `let`). */
   const constant = (name: ts.Identifier): ts.Expression | undefined => {
     for (let scope: ts.Node | undefined = name.parent; scope; scope = scope.parent) {

@@ -228,7 +228,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (from === "elements" && args.positional.length) {
     const { migrateLegacy } = await import("./legacy/command");
-    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver });
+    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver, installed: installedElements });
   }
   if (!args.positional.length) {
     // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
@@ -2452,12 +2452,8 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
   const minimum = parseVersion(/^\^(.+)$/.exec(range ?? "")?.[1]); // a workspace link in development: nothing to check
   if (!minimum) return {};
   for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@unlayer/migrate came with"]] as const) {
-    let version: string;
-    try {
-      version = JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version;
-    } catch {
-      continue; // not installed there
-    }
+    const version = elementsVersion(from);
+    if (version === undefined) continue; // not installed there
     const found = parseVersion(version);
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
@@ -2465,6 +2461,20 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@unlayer/react-elements", range!)}${newer}` };
   }
   return {};
+}
+
+/** The version of @unlayer/react-elements a module at `from` loads ("" where its package.json has none), or undefined where it has none. */
+function elementsVersion(from: string): string | undefined {
+  try {
+    return String(JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version ?? "");
+  } catch {
+    return undefined;
+  }
+}
+
+/** The version of @unlayer/react-elements the project a folder is in has installed, or undefined where it has none. */
+export function installedElements(folder: string): string | undefined {
+  return elementsVersion(join(folder, "noop.js"));
 }
 
 /**

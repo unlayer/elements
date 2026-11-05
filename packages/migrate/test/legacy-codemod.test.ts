@@ -7,12 +7,29 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
-import { inlineHtml, migrateElements } from "../src/convert";
+import { inlineHtml, migrateElements as migrateOnce, type MigrateElementsOptions } from "../src/convert";
 import { main, type Io } from "../src/cli";
 import { errors } from "./migrated";
 
+/**
+ * The codemod, which every case here also runs a second time on what it wrote: that comes back as it is, whichever
+ * version of the package is installed (0.2 still, 0.3.0, or none known), as the module already uses the new components.
+ */
+async function migrateElements(source: string, options: MigrateElementsOptions = {}) {
+  const result = await migrateOnce(source, options);
+  if (result.code !== source) {
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const again = await migrateOnce(result.code, { ...options, installed });
+      expect(again.code, `a second run (${installed ?? "no version known"}) of what it wrote changed it`).toBe(result.code);
+    }
+  }
+  return result;
+}
+
+/** As in a project on Elements 0.2: the package's import is today's components, where nothing in the module says otherwise. */
+const TODAYS = { installed: "0.2.1" };
 const migrate = (body: string, imports = "Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button, Image, Divider, Social, Menu, Html") =>
-  migrateElements(`import { ${imports} } from "@unlayer/react-elements";\n${body}`);
+  migrateElements(`import { ${imports} } from "@unlayer/react-elements";\n${body}`, TODAYS);
 /** The code without its spacing, to look for a piece of it whatever the formatting. */
 const squash = (code: string) => code.replace(/\s+/g, "");
 /** What a module's syntax holds that its file can't (TypeScript in a .jsx file, for one). */
@@ -432,7 +449,7 @@ export default function Card({ align }) {
 import { type RowProps, Email } from "@unlayer/react-elements";
 import * as E from "@unlayer/react-elements/legacy";
 export const html = E.renderToHtml;
-export const T = (_: EmailProps & RowProps) => <Email><E.Row><E.Column><E.Paragraph>Hi</E.Paragraph></E.Column></E.Row></Email>;`);
+export const T = (_: EmailProps & RowProps) => <Email><E.Row><E.Column><E.Paragraph>Hi</E.Paragraph></E.Column></E.Row></Email>;`, TODAYS);
     expect(code).toContain('import type { EmailProps } from "@unlayer/react-elements";');
     expect(code).toContain('import { type RowProps } from "@unlayer/react-elements";');
     expect(code).toContain('import * as E from "@unlayer/react-elements/legacy";');
@@ -451,7 +468,7 @@ const Alias = E.Row;
 const Plain = Row;
 export const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
 export const Mine = ({ E }: { E: { Row: () => null } }) => <E.Row />;
-export const Other = (Row: () => null) => <Row />;`);
+export const Other = (Row: () => null) => <Row />;`, TODAYS);
     expect(code).toContain('import * as E from "@unlayer/react-elements";');
     expect(code).toContain('import { Row } from "@unlayer/react-elements/legacy";');
     expect(code).toContain("const Alias = E.Row;");
@@ -489,14 +506,14 @@ export const T = ({ web }: { web: boolean }) => {
   const Root = web ? Page : Email;
   return <Root><Row><Column /></Row></Root>;
 };`;
-    const { code, report } = await migrateElements(source);
+    const { code, report } = await migrateElements(source, TODAYS);
     expect(code).toBe(source);
     expect(report.join("\n")).toMatch(/line 3: its root is chosen at run time/);
     // Through a namespace too.
     const namespaced = `import * as E from "@unlayer/react-elements";\nexport const T = ({ web }: { web: boolean }) => { const Root = web ? E.Page : E.Email; return <Root><E.Row /></Root>; };`;
-    expect((await migrateElements(namespaced)).code).toBe(namespaced);
+    expect((await migrateElements(namespaced, TODAYS)).code).toBe(namespaced);
     // Its type alone doesn't stop it.
-    const typed = await migrateElements(`import { Email, Row } from "@unlayer/react-elements";\ntype P = React.ComponentProps<typeof Email>;\nexport const T = (p: P) => <Email><Row /></Email>;`);
+    const typed = await migrateElements(`import { Email, Row } from "@unlayer/react-elements";\ntype P = React.ComponentProps<typeof Email>;\nexport const T = (p: P) => <Email><Row /></Email>;`, TODAYS);
     expect(typed.code).toContain("@unlayer/react-elements");
   });
 
@@ -691,6 +708,105 @@ export const T = ({ rows }: { rows: Row[] }) => <Email>{rows.map((row) => <Row k
   });
 });
 
+describe("migrateElements, on a module importing the package (today's components until 0.3.0, the new ones from it)", () => {
+  /** A module on the new components with only names Elements 0.2 had too, and a style, two Columns and a link object. */
+  const NEW = `import { Email, Row, Column, Heading, Paragraph, Button, Image, Divider } from "@unlayer/react-elements";
+export const T = () => (
+  <Email width={600} style={{ backgroundColor: "#FFFFFF", fontFamily: "Georgia, serif" }}>
+    <Row>
+      <Column style={{ padding: 24 }}>
+        <Heading level={1} style={{ fontSize: 32 }}>Welcome</Heading>
+        <Paragraph mobile={{ fontSize: 14 }}>Thanks for joining.</Paragraph>
+      </Column>
+      <Column>
+        <Image src="https://example.com/logo.png" alt="Logo" />
+        <Divider />
+        <Button href={{ href: "https://example.com/start", target: "_self" }}>Start</Button>
+      </Column>
+    </Row>
+  </Email>
+);
+`;
+  /** Codex's: nothing in it that only one of the two has. */
+  const NEITHER = `import { Email, Button } from "@unlayer/react-elements";
+export const T = () => <Email><Button href="https://example.com/confirm">Confirm</Button></Email>;
+`;
+
+  it("leaves one on the new components as it is, whatever is installed, though it imports only names 0.2 had too", async () => {
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const result = await migrateOnce(NEW, { installed });
+      expect(result.code, installed).toBe(NEW);
+      expect(result.current, installed).toBe(true);
+    }
+    // Each thing only the new components have is enough on its own.
+    const one = (jsx: string) => `import { Email, Row, Column, Paragraph, Button, Image } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    for (const jsx of ['<Paragraph style={{ color: "#111111" }}>x</Paragraph>', "<Paragraph hidden={{ mobile: true }}>x</Paragraph>", "<Row stackOnMobile={false}><Column /></Row>", '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Paragraph dir="rtl">x</Paragraph>']) {
+      expect((await migrateOnce(one(jsx))).current, jsx).toBe(true);
+    }
+    const text = `import { Email, Text } from "@unlayer/react-elements";\nexport const T = () => <Email><Text>Hi</Text></Email>;\n`;
+    expect(await migrateOnce(text)).toEqual({ code: text, report: [], current: true });
+  });
+
+  it("migrates one with what only Elements 0.2's components have, whatever is installed", async () => {
+    const one = (jsx: string, imports = "Email, Row, Column, Paragraph, Button, Image") => `import { ${imports} } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    for (const [jsx, imports] of [['<Row layout="TwoEqual"><Column /><Column /></Row>'], ['<Paragraph html="<b>Hi</b>" />'], ['<Button padding="10px 20px">Go</Button>'], ['<Paragraph containerPadding="4px">x</Paragraph>'], ['<Button href={{ name: "web", values: { href: "https://example.com" } }}>Go</Button>'], ['<Image src={{ url: "https://example.com/a.png" }} />'], ["<Body />", "Email, Body"]]) {
+      for (const installed of [undefined, "0.3.0"]) {
+        const source = one(jsx, imports);
+        const result = await migrateOnce(source, { installed });
+        expect(result.code, jsx).not.toBe(source);
+        expect(result.current ?? result.undecided ?? result.refused, jsx).toBeUndefined();
+      }
+    }
+    // Through a namespace: today's ColumnLayouts read from it.
+    const namespaced = `import * as E from "@unlayer/react-elements";\nexport const T = () => <E.Email><E.Row layout={E.ColumnLayouts.TwoEqual}><E.Column /><E.Column /></E.Row></E.Email>;\n`;
+    expect((await migrateOnce(namespaced)).code).toContain("<Section>");
+  });
+
+  it("migrates one with nothing either way only where Elements 0.2 is installed, and says it's left otherwise", async () => {
+    const todays = await migrateOnce(NEITHER, { installed: "0.2.1" });
+    expect(squash(todays.code)).toContain('<Buttonhref={{href:"https://example.com/confirm",target:"_blank"}}>Confirm</Button>');
+    for (const installed of [undefined, "0.3.0", "1.0.0"]) expect(await migrateOnce(NEITHER, { installed }), installed).toEqual({ code: NEITHER, report: [], undecided: true });
+  });
+
+  it("migrates its own output again to nothing: Codex's twice keeps its link", async () => {
+    const once = await migrateOnce(NEITHER, { installed: "0.2.1" });
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const twice = await migrateOnce(once.code, { installed });
+      expect(twice.code, installed).toBe(once.code);
+      expect(twice.code).toContain('"https://example.com/confirm"');
+    }
+  });
+
+  it("refuses one with what only each of the two has, naming both, whatever is installed", async () => {
+    const source = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export const T = () => (
+  <Email>
+    <Row layout="TwoEqual"><Column /><Column><Paragraph style={{ color: "#111111" }}>x</Paragraph></Column></Row>
+  </Email>
+);
+`;
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const result = await migrateOnce(source, { installed });
+      expect(result.code).toBe(source);
+      expect(result.refused).toBe(result.report[0]);
+      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Paragraph style> on line 4\)/);
+    }
+  });
+
+  it("decides a module importing them through the project's own modules as one importing the package", async () => {
+    const through = { "./ui": { Email: "Email", Action: "Button" } };
+    const source = `import { Email, Action } from "./ui";\nexport const T = () => <Email><Action href={{ href: "https://example.com" }}>Go</Action></Email>;\n`;
+    expect(await migrateOnce(source, { through, installed: "0.2.1" })).toEqual({ code: source, report: [], current: true });
+    const todays = source.replace('{{ href: "https://example.com" }}', '"https://example.com" textAlign="left"');
+    expect((await migrateOnce(todays, { through })).code).toContain("<Button");
+  });
+
+  it("always migrates the converter's entry for today's components", async () => {
+    const source = NEITHER.replace('"@unlayer/react-elements"', '"@unlayer/react-elements/legacy"');
+    expect((await migrateOnce(source, { installed: "0.3.0" })).code).toContain('target: "_blank"');
+  });
+});
+
 describe("inlineHtml", () => {
   it("decodes entities and keeps the spaces between runs", () => {
     const parsed = inlineHtml("Tom &amp; Jerry <i>and</i> friends");
@@ -743,9 +859,11 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
-function project(files: Record<string, string>): string {
+/** A project with these files, on Elements 0.2 (@unlayer/react-elements 0.2.1 installed) unless it's given another version. */
+function project(files: Record<string, string>, elements = "0.2.1"): string {
   const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
   dirs.push(dir);
+  files = { "node_modules/@unlayer/react-elements/package.json": JSON.stringify({ name: "@unlayer/react-elements", version: elements }), ...files };
   for (const [file, text] of Object.entries(files)) {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
     fs.writeFileSync(path.join(dir, file), text);
@@ -847,6 +965,43 @@ describe("unlayer-migrate --from elements", () => {
     // The project's own Paragraph stays imported from its module, and as it was written.
     expect(welcome).toMatch(/import \{ Paragraph \} from "\.\/ui";/);
     expect(welcome).toContain("<Paragraph />");
+  });
+
+  it("leaves its own output as it is on a second run, with Elements 0.2 still installed", async () => {
+    // What it writes of this imports no name only the new components have: a Button and the Column it's put in.
+    const TEMPLATE = `import { Email, Button } from "@unlayer/react-elements";\nexport default function T() { return <Email><Button href="https://example.com/confirm">Confirm</Button></Email>; }\n`;
+    const dir = project({ "emails/welcome.tsx": TEMPLATE });
+    commit(dir);
+    expect(await main(["emails", "--from", "elements", "--write"], io(dir))).toBe(0);
+    const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    expect(migrated).not.toBe(TEMPLATE);
+    commit(dir);
+    const again = io(dir);
+    expect(await main(["emails", "--from", "elements", "--write"], again)).toBe(0);
+    expect(again.out).toBe("emails/welcome.tsx: already uses the new components: left as it is\n");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
+    expect(migrated).toContain('"https://example.com/confirm"');
+  });
+
+  it("decides by what's in each template where the new components are installed: it says which it leaves, and fails one with both", async () => {
+    const dir = project(
+      {
+        "emails/ui.ts": `export { Email, Button } from "@unlayer/react-elements";\n`,
+        "emails/plain.tsx": TEMPLATE,
+        "emails/current.tsx": `import { Email, Button } from "./ui";\nexport default function T() { return <Email><Button href={{ href: "https://example.com" }}>Go</Button></Email>; }\n`,
+        "emails/todays.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px">'),
+        "emails/both.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px" style={{ color: "#111111" }}>'),
+      },
+      "0.3.0"
+    );
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
+    expect(sink.err).toBe(
+      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Paragraph containerPadding> on line 2) and what only the new ones have (<Paragraph style> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
+    );
+    expect(sink.out).toContain("emails/current.tsx: already uses the new components: left as it is\n");
+    expect(sink.out).toContain("emails/plain.tsx: nothing in it is Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n");
+    expect(sink.out).toContain("emails/todays.tsx: would be migrated");
   });
 
   it("fails a template that imports today's components through a namespace another module passes on, naming both, instead of skipping it", async () => {

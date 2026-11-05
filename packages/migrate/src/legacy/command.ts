@@ -22,6 +22,8 @@ export interface LegacyHelpers {
   notRestorable(files: string[]): Promise<Array<{ file: string; why: string }>>;
   /** Where an import leads among the project's files, as the project's tsconfig (or Node) resolves it from a file. */
   resolver(file: string): Promise<(specifier: string, fromFile: string) => string | undefined>;
+  /** The version of @unlayer/react-elements the project a folder is in has installed, or undefined where it has none. */
+  installed(folder: string): string | undefined;
 }
 
 export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, helpers: LegacyHelpers): Promise<number> {
@@ -49,7 +51,15 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     if (!resolvers.has(dir)) resolvers.set(dir, helpers.resolver(fromFile));
     return (await resolvers.get(dir)!)(specifier, fromFile);
   });
-  const results: Array<{ file: string; code?: string; report: string[]; error?: string; stayed?: boolean; current?: boolean }> = [];
+  // The package has been both today's components and the new ones: which the project has installed settles a template
+  // with nothing in it that only one of them has. One look per folder: an app in a monorepo has its own.
+  const versions = new Map<string, string | undefined>();
+  const installed = (file: string) => {
+    const dir = dirname(file);
+    if (!versions.has(dir)) versions.set(dir, helpers.installed(dir));
+    return versions.get(dir);
+  };
+  const results: Array<{ file: string; code?: string; report: string[]; error?: string; stayed?: boolean; current?: boolean; undecided?: boolean }> = [];
   for (const file of files) {
     const source = await readFile(file, "utf8");
     try {
@@ -62,10 +72,11 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
         results.push({ file, report: [], error: `it imports today's components ${how}, a namespace of them, which the codemod doesn't follow: import them by name` });
         continue;
       }
-      const { code, report, stayed, current } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
+      const { code, report, stayed, current, undecided, refused } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through, installed: installed(file) });
       // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was, not listed;
-      // one already on the new components is listed as it is.
-      if (code !== source || stayed || current) results.push({ file, code, report, stayed, current });
+      // one already on the new components, or with nothing in it only today's have, is listed as it is.
+      if (refused) results.push({ file, report: [], error: refused });
+      else if (code !== source || stayed || current || undecided) results.push({ file, code, report, stayed, current, undecided });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });
     }
@@ -77,7 +88,8 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
   const failed = results.filter((r) => r.error);
   for (const r of failed) io.stderr(`${name(r.file)}: couldn't be migrated: ${r.error}\n`);
   const current = results.filter((r) => r.current);
-  const migrated = results.filter((r) => !r.error && !r.current);
+  const undecided = results.filter((r) => r.undecided);
+  const migrated = results.filter((r) => !r.error && !r.current && !r.undecided);
 
   // One template, not written: the migrated template itself, on stdout (what the codemod reported, on stderr).
   if (!args.flag("write") && paths.length === 1 && files.length === 1 && migrated.length === 1) {
@@ -98,6 +110,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     for (const r of migrated) await writeFile(r.file, r.code!);
   }
   for (const r of current) io.stdout(`${name(r.file)}: already uses the new components: left as it is\n`);
+  for (const r of undecided) io.stdout(`${name(r.file)}: nothing in it is Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n`);
   for (const r of migrated) {
     io.stdout(`${name(r.file)}: ${r.stayed ? "stays as it was" : args.flag("write") ? "migrated" : "would be migrated"}${r.report.length ? `, with ${r.report.length} note${r.report.length === 1 ? "" : "s"}` : ""}\n`);
     for (const line of r.report) io.stdout(`  - ${line}\n`);

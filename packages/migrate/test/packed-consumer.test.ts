@@ -45,8 +45,11 @@ async function check(Template: () => null) {
   const design: Record<string, unknown> = conversion.design();
   const missing: string[] | undefined = conversion.report.missingText;
   const intermediate: string = new NewComponentsError("why", "source").intermediate;
-  const notes: string[] = (await migrateElements("source")).report;
-  console.log(types, code, html, design, missing, intermediate, notes);
+  const migrated = await migrateElements("source", { installed: "0.2.1" });
+  const notes: string[] = migrated.report;
+  const left: boolean | undefined = migrated.current ?? migrated.undecided;
+  const refused: string | undefined = migrated.refused;
+  console.log(types, code, html, design, missing, intermediate, notes, left, refused);
 }
 void check;
 `);
@@ -65,7 +68,8 @@ async function main() {
   // A link the new components don't write: a typed error, with the template as it was written first.
   const Refused = () => h(Html, null, h(Body, null, h(Button, { href: "javascript:void(0)" }, "Go")));
   const error = await api.convertReactEmail(Refused).catch((e) => e);
-  const migrated = await elements.migrateElements('import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\\nexport const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;');
+  // As in a project on Elements 0.2: nothing in the template is only either's.
+  const migrated = await elements.migrateElements('import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\\nexport const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;', { installed: "0.2.1" });
   console.log(JSON.stringify({
     exports: Object.keys(api).sort(),
     elements: Object.keys(elements).sort(),

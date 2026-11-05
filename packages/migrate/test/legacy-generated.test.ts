@@ -7,7 +7,7 @@
  *   MIGRATE_SEEDS=2000 pnpm vitest run test/legacy-generated.test.ts
  */
 import { describe, expect, it } from "vitest";
-import { migrateElements } from "../src/convert";
+import { migrateElements, TODAYS_COMPONENTS } from "../src/convert";
 import { errors } from "./migrated";
 
 const SEEDS = Number(process.env.MIGRATE_SEEDS ?? 150);
@@ -153,7 +153,9 @@ function template(seed: number): string {
   const root = r.pick(["Email", "Page"]);
   const rootAttributes = attributes({ contentWidth: ["600", '"600px"'], backgroundColor: color.slice(0, 2), textColor: color.slice(0, 2), fontFamily }, 2);
   const rows = Array.from({ length: r.int(1, 3) }, row).join("\n    ");
-  return `import { ${root}, Row, Column, ColumnLayouts, ${Object.keys(BLOCKS).join(", ")} } from "@unlayer/react-elements";
+  // From the converter's entry for today's components, which has the Text and Spacer the package never exported (the
+  // package's import would have those, only the new components', beside ColumnLayouts, only today's: it's refused).
+  return `import { ${root}, Row, Column, ColumnLayouts, ${Object.keys(BLOCKS).join(", ")} } from "${TODAYS_COMPONENTS}";
 export const T = () => (
   <${root} ${rootAttributes.join(" ")}>
     ${rows}
@@ -162,13 +164,18 @@ export const T = () => (
 }
 
 describe("templates in today's components, migrated", () => {
-  it(`are valid in the new components (${SEEDS} templates)`, async () => {
+  it(`are valid in the new components, and come back as they are from a second run (${SEEDS} templates)`, async () => {
     const failures: string[] = [];
     for (let seed = 1; seed <= SEEDS; seed++) {
       const source = template(seed);
       const { code } = await migrateElements(source);
       const found = errors(code);
       if (found.length) failures.push(`seed ${seed}: ${found.join("; ")}\n${source}`);
+      // What it wrote comes back as it is from a second run, whichever version of the package is installed.
+      for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+        const again = await migrateElements(code, { installed });
+        if (again.code !== code) failures.push(`seed ${seed}: a second run (${installed ?? "no version known"}) changed it\n${code}`);
+      }
     }
     expect(failures.slice(0, 6)).toEqual([]);
   }, 120_000);

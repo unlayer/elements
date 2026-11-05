@@ -131,4 +131,18 @@ describe("main's examples, migrated", () => {
   it("the generated file is the codemod's output of them all, their imports merged", () => {
     expect(written()).toBe(code);
   });
+
+  it("come back as they are from a second run, whichever version of the package is installed", async () => {
+    // Each example as the codemod writes it in a project (importing the package), and the generated file as one.
+    const outputs = await Promise.all(EXAMPLES.map(async (name) => (await migrateElements(template(fs.readFileSync(sourceOf(name), "utf8")), { from: ["../index", "./index"] })).code));
+    outputs.push(written().replace('from "../index"', 'from "@unlayer/react-elements"'));
+    for (const output of outputs) {
+      expect(output).toContain('from "@unlayer/react-elements"');
+      for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+        const again = await migrateElements(output, { installed });
+        expect(again.code, installed).toBe(output);
+        expect(again.current, installed).toBe(true);
+      }
+    }
+  }, 60000);
 });

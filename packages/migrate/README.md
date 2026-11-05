@@ -120,7 +120,9 @@ Templates are the files that import 0.2's components, from the package or throug
 npx @unlayer/migrate src/emails --from elements --write
 ```
 
-From code: `migrateElements(source)` from `@unlayer/migrate/elements` returns `{ code, report }`; a module that already uses the new components comes back as it was (`current`). The [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) lists what changes.
+`@unlayer/react-elements` has been both, so a template is migrated only where something in it is only Elements 0.2's: a name such as `Body`, `ColumnLayouts` or `renderToHtml`, or a prop only a 0.2 component has (a Row's `layout`, a Paragraph's `html`, a Button's `padding`). One with something only the new components have (a name such as `Section` or `Text`, a `style`, `hover` or `hidden`, a Button's `href={{ href }}`) already uses them and is left as it is, so a second run changes nothing. One with neither is migrated where 0.2 is installed (`@unlayer/react-elements` below 0.3.0) and left as it is otherwise, saying so; one with both fails, naming what it found. Run it before upgrading the package, or remove what's left of the other version.
+
+From code: `migrateElements(source, { installed })` from `@unlayer/migrate/elements` returns `{ code, report }`, where `installed` is the version of `@unlayer/react-elements` the project has, where it's known. A module that comes back as it was says why: `current` (it uses the new components), `undecided` (nothing in it is only either's) or `refused` (it has both; the reason). The [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) lists what changes.
 
 ## What changes
 
