@@ -6,9 +6,12 @@ import {
   Email,
   Heading,
   Image,
+  Link,
   Paragraph,
   Row,
-} from "@unlayer/react-elements/legacy";
+  Section,
+  Span,
+} from "@unlayer/react-elements";
 import * as React from "react";
 
 interface Article {
@@ -37,147 +40,241 @@ export const WeeklyDigestEmail = ({
 }: WeeklyDigestEmailProps) => {
   return (
     <Email
-      backgroundColor="#f5f5f5"
-      contentWidth="600px"
-      fontFamily={{
-        label: "ui-sans-serif",
-        value:
-          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
-      }}
+      width={600}
       previewText={plainText(
         `${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`,
       )}
+      style={{
+        backgroundColor: "#f5f5f5",
+        color: "#000000",
+        fontFamily:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
     >
-      <Row columnsBackgroundColor="#171717" padding="24px 0px 0px 0px">
-        <Column padding="28px 32px 28px 32px">
+      <Section style={{ padding: [24, 0, 0, 0] }}>
+        <Column style={{ padding: "28px 32px 28px 32px", backgroundColor: "#171717" }}>
           <Paragraph
-            color="#a1a1a1"
-            fontSize="12px"
-            lineHeight="24px"
-            fontWeight={600}
-            letterSpacing="2px"
-            html={`<span style="text-transform:uppercase">The Weekly Dispatch</span>`}
-            containerPadding="0px 0px 0px 0px"
-          />
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#a1a1a1",
+              lineHeight: "24px",
+              letterSpacing: "2px",
+            }}
+          >
+            <Span style={{ textTransform: "uppercase" }}>The Weekly Dispatch</Span>
+          </Paragraph>
           <Heading
-            headingType="h1"
-            color="#ffffff"
-            fontSize="26px"
-            lineHeight="32px"
-            fontWeight={700}
-            containerPadding="6px 0px 0px 0px"
+            style={{
+              padding: "6px 0px 0px 0px",
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#ffffff",
+              lineHeight: "32px",
+            }}
           >
             Your week in review
           </Heading>
           <Paragraph
-            color="#a1a1a1"
-            fontSize="14px"
-            lineHeight="24px"
-            containerPadding="6px 0px 0px 0px"
+            style={{
+              padding: "6px 0px 0px 0px",
+              fontSize: 14,
+              color: "#a1a1a1",
+              lineHeight: "24px",
+            }}
           >
             Week of {weekOf}
           </Paragraph>
         </Column>
-      </Row>
-      <Row columnsBackgroundColor="#ffffff">
-        <Column padding="28px 32px 0px 32px">
+      </Section>
+      <Section>
+        <Column style={{ padding: "28px 32px 0px 32px", backgroundColor: "#ffffff" }}>
           <Paragraph
-            color="#404040"
-            fontSize="15px"
-            lineHeight="24px"
-            containerPadding="0px 0px 0px 0px"
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 15,
+              color: "#404040",
+              lineHeight: "24px",
+            }}
           >
             Hi {subscriberName}, here are the {articles.length} stories our editors picked for you
             this week.
           </Paragraph>
         </Column>
-      </Row>
+      </Section>
       {articles.map((article, index) => [
-        <Row key={0} cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
-          <Column padding="24px 0px 0px 32px">
-            <Image
-              src={article.thumbnailUrl || ""}
-              width="112px"
-              alt={article.title}
-              textAlign="left"
-              containerPadding="0px 0px 0px 0px"
-            />
-          </Column>
-          <Column padding="24px 32px 0px 0px">
-            <Paragraph
-              color="#4f39f6"
-              fontSize="11px"
-              lineHeight="24px"
-              fontWeight={600}
-              letterSpacing="1px"
-              html={`<span style="text-transform:uppercase">${`${htmlText(article.author)} · ${htmlText(article.readTime)}`}</span>`}
-              containerPadding="0px 0px 0px 0px"
-            />
-            <Paragraph
-              color="#000000"
-              fontSize="14px"
-              lineHeight="24px"
-              html={`<a${htmlAttribute("href", article.url)} style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">${htmlText(article.title)}</a>`}
-              containerPadding="0px 0px 0px 0px"
-            />
-            <Paragraph
-              color="#525252"
-              fontSize="14px"
-              lineHeight="21px"
-              containerPadding="6px 0px 0px 0px"
-            >
-              {article.excerpt}
-            </Paragraph>
-            <Paragraph
-              color="#000000"
-              fontSize="14px"
-              lineHeight="24px"
-              html={`<a${htmlAttribute("href", article.url)} style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
-              containerPadding="0px 0px 0px 0px"
-            />
-          </Column>
-        </Row>,
-        <Row key={1} columnsBackgroundColor="#ffffff">
-          <Column padding="0px 32px 0px 32px">
+        <Section key={0}>
+          <Row stackOnMobile={false} style={{ backgroundColor: "#ffffff" }}>
+            <Column style={{ width: "27.33%", padding: "24px 0px 0px 32px" }}>
+              <Column style={{ padding: "0px 0px 0px 0px", alignItems: "start" }}>
+                {article.thumbnailUrl || "" ? (
+                  <Image
+                    src={article.thumbnailUrl || ""}
+                    alt={article.title}
+                    style={{ width: "84.85%", maxWidth: 139.15 }}
+                  />
+                ) : null}
+              </Column>
+            </Column>
+            <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#4f39f6",
+                  lineHeight: "24px",
+                  letterSpacing: "1px",
+                }}
+              >
+                <Span
+                  style={{ textTransform: "uppercase" }}
+                >{`${article.author} · ${article.readTime}`}</Span>
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#000000",
+                  lineHeight: "24px",
+                }}
+              >
+                {article.url ? (
+                  <Link
+                    href={{ href: article.url, target: "_blank" }}
+                    style={{
+                      color: "rgb(23,23,23)",
+                      textDecoration: "none",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {article.title}
+                  </Link>
+                ) : (
+                  <Span
+                    style={{
+                      color: "rgb(23,23,23)",
+                      textDecoration: "none",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {article.title}
+                  </Span>
+                )}
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "6px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#525252",
+                  lineHeight: "21px",
+                }}
+              >
+                {article.excerpt}
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#000000",
+                  lineHeight: "24px",
+                }}
+              >
+                {article.url ? (
+                  <Link
+                    href={{ href: article.url, target: "_blank" }}
+                    style={{
+                      color: "rgb(79,57,246)",
+                      textDecoration: "underline",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Read more
+                  </Link>
+                ) : (
+                  <Span
+                    style={{
+                      color: "rgb(79,57,246)",
+                      textDecoration: "underline",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Read more
+                  </Span>
+                )}
+              </Paragraph>
+            </Column>
+          </Row>
+        </Section>,
+        <Section key={1}>
+          <Column style={{ padding: "0px 32px 0px 32px", backgroundColor: "#ffffff" }}>
             {index < articles.length - 1 ? (
-              <Divider
-                borderTopWidth="1px"
-                borderTopStyle="solid"
-                borderTopColor="#e5e5e5"
-                width="100%"
-                containerPadding="24px 0px 0px 0px"
-              />
+              <Divider style={{ borderTop: "1px solid #e5e5e5", padding: "24px 0px 0px 0px" }} />
             ) : null}
-            <Divider borderTopWidth="0px" containerPadding="0px" />
+            <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
           </Column>
-        </Row>,
+        </Section>,
       ])}
-      <Row columnsBackgroundColor="#ffffff">
-        <Column padding="32px 0px 0px 0px">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
+      <Section>
+        <Column style={{ padding: "32px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
         </Column>
-      </Row>
-      <Row columnsBackgroundColor="#fafafa" padding="0px 0px 24px 0px">
-        <Column padding="24px 32px 24px 32px">
+      </Section>
+      <Section style={{ padding: [0, 0, 24, 0] }}>
+        <Column style={{ padding: "24px 32px 24px 32px", backgroundColor: "#fafafa" }}>
           <Paragraph
-            color="#737373"
-            fontSize="12px"
-            lineHeight="20px"
-            textAlign="center"
-            containerPadding="0px 0px 0px 0px"
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 12,
+              color: "#737373",
+              textAlign: "center",
+              lineHeight: "20px",
+            }}
           >
             You're receiving this because you subscribed to The Weekly Dispatch.
           </Paragraph>
           <Paragraph
-            color="#737373"
-            fontSize="12px"
-            lineHeight="20px"
-            textAlign="center"
-            html={`<a${htmlAttribute("href", preferencesUrl)} style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Email preferences</a> · <a${htmlAttribute("href", unsubscribeUrl)} style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Unsubscribe</a>`}
-            containerPadding="8px 0px 0px 0px"
-          />
+            style={{
+              padding: "8px 0px 0px 0px",
+              fontSize: 12,
+              color: "#737373",
+              textAlign: "center",
+              lineHeight: "20px",
+            }}
+          >
+            {preferencesUrl ? (
+              <Link
+                href={{ href: preferencesUrl, target: "_blank" }}
+                style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}
+              >
+                Email preferences
+              </Link>
+            ) : (
+              <Span style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}>
+                Email preferences
+              </Span>
+            )}
+            {" · "}
+            {unsubscribeUrl ? (
+              <Link
+                href={{ href: unsubscribeUrl, target: "_blank" }}
+                style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}
+              >
+                Unsubscribe
+              </Link>
+            ) : (
+              <Span style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}>
+                Unsubscribe
+              </Span>
+            )}
+          </Paragraph>
         </Column>
-      </Row>
+      </Section>
     </Email>
   );
 };
@@ -228,32 +325,6 @@ WeeklyDigestEmail.PreviewProps = {
 } as WeeklyDigestEmailProps;
 
 export default WeeklyDigestEmail;
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/** A value in text as React shows it: text and numbers escaped, lists one item after another (at any depth), nothing for null, undefined or a boolean. */
-function htmlText(value: unknown): string {
-  const text = (item: unknown): string =>
-    Array.isArray(item)
-      ? item.map(text).join("")
-      : typeof item === "string" || typeof item === "number"
-        ? escapeHtml(String(item))
-        : "";
-  return text(value);
-}
-
-/** An attribute as React renders it: left out when its value is missing. */
-function htmlAttribute(name: string, value: unknown): string {
-  return value === null || value === undefined || value === false
-    ? ""
-    : ` ${name}="${escapeHtml(String(value))}"`;
-}
 
 function plainText(value: unknown): string {
   return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);

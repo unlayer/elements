@@ -6,6 +6,10 @@
  * (`{items.map(…)}`, `{cond && …}`) is converted in place, so the logic stays.
  * Styles are read statically (object literals, module constants, Tailwind
  * classes); what can't be read is reported.
+ *
+ * The template is written in Elements 0.2's components first, as source
+ * text, and moved to the new components at once (convert-core's
+ * `toNewComponents`): today's components are never run.
  */
 
 import ts from "typescript";
@@ -25,6 +29,8 @@ import {
   isExpr,
   printJsx,
   ReportBuilder,
+  TODAYS_COMPONENTS,
+  toNewComponents,
   type ConversionReport,
   type ElementNode,
   type Expr,
@@ -158,11 +164,26 @@ const MARKS = [
 ];
 
 export interface CodemodResult {
+  /** The template in the new components. */
   code: string;
+  /**
+   * The template as the converter wrote it first, in Elements 0.2's components (source text, never run): what the
+   * codemod moved to the new components.
+   */
+  intermediate: string;
   report: ConversionReport;
   /** The functions the codemod added to `code` (escaping, a component's HTML): they show what they're given as it is. */
   helpers: string[];
+  /** The web fonts' stylesheets the template loads (its head's links and imports, its `<Font>`s), for the editor. */
+  fonts: Array<{ url: string }>;
+  /** What moving it to the new components may change, or left out: one line each, with where. */
+  notes: string[];
+  /** Of those, the Rows whose Columns are written one under another (their layout comes from code): they move. */
+  stacked: string[];
 }
+
+/** The template in today's components, before it moves to the new ones (see `convertSource`). */
+type TodaysResult = Pick<CodemodResult, "code" | "report" | "helpers" | "fonts">;
 
 type Ctx = MapCtx;
 
@@ -245,12 +266,38 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   // one that couldn't be (the box flattened, its color in HTML) is converted again as before: lost, with the colors
   // computed under it (see `computedColors`).
   const unwritten = new Set<number>();
+  let todays: TodaysResult;
   for (;;) {
     const run = converter(unwritten);
     const result = await run.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
     const failed = [...run.unwrittenBackgrounds].filter((at) => !unwritten.has(at));
-    if (!failed.length) return result;
+    if (!failed.length) {
+      todays = result;
+      break;
+    }
     for (const at of failed) unwritten.add(at);
+  }
+  // In the new components (a NewComponentsError where it can't be), without the helpers only today's markup needed,
+  // and without what only a prop the new components don't take read (a constant for a background image), so a build
+  // with noUnusedLocals still passes.
+  const moved = await toNewComponents(todays.code, { typescript: !javascript });
+  let code = await withoutUnusedHelpers(moved.code);
+  const tidy = dropUnused(code, ts.createSourceFile(fileName, todays.code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), javascript, new Set(), new Set());
+  if (tidy !== code) code = await formatTsx(tidy);
+  return { ...todays, code, intermediate: todays.code, helpers: todays.helpers.filter((name) => new RegExp(`\\b${name}\\b`).test(code)), notes: moved.notes, stacked: moved.stacked };
+}
+
+/** The module without the helpers the conversion wrote for today's components' markup, where nothing uses them now. */
+async function withoutUnusedHelpers(code: string): Promise<string> {
+  for (;;) {
+    const file = ts.createSourceFile("template.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const unused = file.statements.find((statement): statement is ts.FunctionDeclaration & { name: ts.Identifier } => {
+      if (!ts.isFunctionDeclaration(statement) || !statement.name || !/^_*(escapeHtml|htmlText|htmlAttribute|KeptHtml|tailwindStyle|holdsElements|plainText)\d*$/.test(statement.name.text)) return false;
+      // (KeptHtml also names itself, in the line after it.)
+      return (code.match(new RegExp(`\\b${statement.name.text}\\b`, "g")) ?? []).length === (/KeptHtml/.test(statement.name.text) ? 2 : 1);
+    });
+    if (!unused) return code;
+    code = (code.slice(0, unused.getFullStart()) + code.slice(unused.getEnd())).replace(new RegExp(`\\n[ \\t]*${unused.name.text}\\.displayName = "Html";`), "");
   }
 }
 
@@ -378,6 +425,14 @@ class Converter {
   /** Style values computed at render time, by where they are in the source. */
   private readonly droppedStyles: Array<{ from: number; to: number; detail: string; text: string }> = [];
   private generatedHelpers = new Set<string>();
+  /** The web fonts' stylesheets the template's returns load. */
+  private readonly stylesheets: string[] = [];
+
+  /** Stylesheets a return loads, kept for the result's `fonts`. */
+  private loads(stylesheets: Array<{ url: string }>): Array<{ url: string }> {
+    this.stylesheets.push(...stylesheets.map((s) => s.url));
+    return stylesheets;
+  }
 
 
   constructor(
@@ -414,7 +469,7 @@ class Converter {
     copied: string[];
     /** The template as written, before its components were inlined (React Email components by name). */
     original?: string;
-  }): Promise<CodemodResult> {
+  }): Promise<TodaysResult> {
     this.copied = prepared.copied;
     this.original = prepared.original;
     for (const name of prepared.components) this.report.info("local component inlined where it's used", name);
@@ -447,7 +502,7 @@ class Converter {
       ),
     );
     const code = await this.emit(conversions);
-    return { code, report, helpers: [...this.generatedHelpers] };
+    return { code, report, helpers: [...this.generatedHelpers], fonts: [...new Set(this.stylesheets)].map((url) => ({ url })) };
   }
 
   // ============================================
@@ -1373,6 +1428,18 @@ class Converter {
     return evaluated !== undefined ? evaluated : expr(value.getText());
   }
 
+  /**
+   * An attribute that's text (an image's alt): code whose value may not be text (an element, a number, untyped) as the
+   * text React writes for it (`plainText`), as the new components take only text there.
+   */
+  private textAttr(jsx: Jsx, name: string): unknown {
+    const value = this.attr(jsx, name);
+    const expression = jsx.attrs.get(name);
+    if (!isExpr(value) || !expression || this.provablyText(expression)) return value;
+    this.needsPlainText = true;
+    return expr(`${this.plainTextName}(${value.$expr})`);
+  }
+
   // ============================================
   // JSX
   // ============================================
@@ -1609,7 +1676,7 @@ class Converter {
         fontFamily: rootFont ? fontFamilyProp(rootFont) : undefined,
         textColor: color(bodyStyle.color),
         previewText: previewText === "" ? undefined : previewText,
-        fonts: fonts.length || linked.length ? fontStylesheets(fonts, linked) : undefined,
+        fonts: fonts.length || linked.length ? this.loads(fontStylesheets(fonts, linked)) : undefined,
         textDirection: dir,
         lang: document && this.attr(document, "lang"),
       },
@@ -2537,7 +2604,7 @@ class Converter {
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
         // Elements images have no border: one with a border is kept as HTML, as it renders.
         if (borders(style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
-        return [imageBlock({ src: this.attr(jsx, "src"), alt: this.attr(jsx, "alt"), width: this.attr(jsx, "width"), height: this.attr(jsx, "height") }, style, ctx)];
+        return [imageBlock({ src: this.attr(jsx, "src"), alt: this.textAttr(jsx, "alt"), width: this.attr(jsx, "width"), height: this.attr(jsx, "height") }, style, ctx)];
       case "Hr":
         return [dividerBlock(style, ctx)];
       case "List": {
@@ -2557,7 +2624,7 @@ class Converter {
           this.computed(only, "width");
           // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
           const target = this.target(jsx, jsx.name === "Link" ? "_blank" : "_self");
-          return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href"), target }, only.style, ctx)];
+          return [imageBlock({ src: this.attr(only, "src"), alt: this.textAttr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href"), target }, only.style, ctx)];
         }
         if (fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
           return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.target(jsx, jsx.name === "Link" ? "_blank" : "_self"))];
@@ -3754,7 +3821,7 @@ class Converter {
           });
         return `import { ${names.join(", ")} } from "${from}";`;
       }),
-      `import { ${elementNames.join(", ")} } from "@unlayer/react-elements/legacy";`,
+      `import { ${elementNames.join(", ")} } from "${TODAYS_COMPONENTS}";`,
       ...(this.needsHoldsElements && !react.namespace && !react.named ? [`import { ${elementImport} } from "react";`] : []),
     ].join("\n");
 

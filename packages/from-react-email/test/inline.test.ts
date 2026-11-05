@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertSource, verifyConversion } from "../src/index";
+import { convertSource, verifyNewComponents } from "../src/index";
 import { inlineLocalJsx } from "../src/inline";
 
 describe("JSX value capture", () => {
@@ -23,7 +23,7 @@ Receipt.PreviewProps = { tax: 10 };`;
       const migrated = path.join(dir, "migrated.tsx");
       fs.writeFileSync(migrated, converted.code);
       const { default: Migrated } = await import(migrated);
-      const check = await verifyConversion(Original, Migrated);
+      const check = await verifyNewComponents(Original, Migrated);
       expect(check.missing).toEqual([]);
       expect(check.added).toEqual([]);
       expect(check.convertedHtml).toContain("Subtotal: 100");

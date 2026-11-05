@@ -1,14 +1,12 @@
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertReactEmail, convertSource, htmlWords, mergeTagDesign, verifyConversion } from "../src/index";
+import { convertReactEmail, convertSource, htmlWords, mergeTagDesign, verifyNewComponents } from "../src/index";
 import { replaceMarkers } from "../src/merge-tags";
 import ts from "typescript";
 import React from "react";
+import { designOf, htmlOf } from "./elements";
 
-/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
-const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -42,7 +40,7 @@ describe("lexical bindings", () => {
       }
       T.PreviewProps = { name: "Alex", url: "https://example.com/alex", items: ["Alex"] };`);
     for (const props of [Original.PreviewProps, { name: "Jordan", url: "https://example.com/jordan", items: ["Sam", "Taylor"] }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect(check.missing).toEqual([]);
       expect(check.added).toEqual([]);
       expect(check.missingAttributes).toEqual([]);
@@ -54,7 +52,8 @@ describe("lexical bindings", () => {
     const { conversion } = await templates(`${imports}
       const look = { color: "#123456" };
       export default function T() { return <Html><Body><Text style={look}>Hello</Text></Body></Html>; }`);
-    expect(conversion.code).toContain('color="#123456"');
+    expect(conversion.intermediate).toContain('color="#123456"');
+    expect(conversion.code).toContain('color: "#123456"');
   });
 });
 
@@ -69,7 +68,7 @@ describe("spread props", () => {
           <Button {...staticProps}>Static</Button><Button href={url}>Help</Button></Body></Html>;
       }
       T.PreviewProps = { url: "https://example.com/profile" };`);
-    const check = await verifyConversion(Original, Migrated, { props: { url: "https://example.com/jordan" } });
+    const check = await verifyNewComponents(Original, Migrated, { props: { url: "https://example.com/jordan" } });
     expect(check.missingAttributes).toEqual([]);
     const links = [...check.convertedHtml.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     expect(links.map(([, attrs]) => /href="([^"]*)"/.exec(attrs)?.[1])).toEqual([
@@ -84,7 +83,7 @@ describe("spread props", () => {
         return <Html><Body><Button {...props}/></Body></Html>;
       }
       T.PreviewProps = { props: { href: "https://example.com/profile", children: "Profile" } };`);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.missing).toEqual([]);
     expect(check.missingAttributes).toEqual([]);
     expect(conversion.report.fallbacks).not.toEqual([]);
@@ -98,7 +97,7 @@ describe("spread props", () => {
           <Row><Column {...cell}/><Column><Text>Help</Text></Column></Row></Body></Html>;
       }
       T.PreviewProps = { link: { href: "https://example.com/profile" }, cell: { children: "Kept cell" } };`);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.missing).toEqual([]);
     expect(check.missingAttributes).toEqual([]);
   });
@@ -120,11 +119,11 @@ describe("merge tags in HTML image sources", () => {
       }
       T.PreviewProps = { avatar: "https://example.com/avatar.png?a=1&b=2", name: "Alex", url: "https://example.com/profile" };`);
     const result = await convertReactEmail(Original);
-    expect(result.html()).toContain('src="https://example.com/avatar.png?a=1&amp;b=2"');
-    expect(result.html()).not.toContain("{{avatar}}");
+    expect(await result.html()).toContain('src="https://example.com/avatar.png?a=1&amp;b=2"');
+    expect(await result.html()).not.toContain("{{avatar}}");
     expect(JSON.stringify(result.design())).not.toContain("{{avatar}}");
-    expect(result.html()).toContain("Hello {{name}}");
-    expect(result.html()).toContain('href="{{url}}"');
+    expect(await result.html()).toContain("Hello {{name}}");
+    expect(await result.html()).toContain('href="{{url}}"');
   });
 
   it("protects HTML source sets, background attributes and CSS URLs, with safe escaping", () => {
@@ -153,19 +152,17 @@ describe("an image whose src is false (`vip && badgeUrl`)", () => {
       }
       T.PreviewProps = { tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } };`);
     expect(conversion.code).toContain('(tier.vip && tier.badgeUrl) || ""');
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    const html = renderToHtml(Migrated({ tier: { vip: false, badgeUrl: "https://acme.com/gold.png" } }));
+    const html = await htmlOf(Migrated({ tier: { vip: false, badgeUrl: "https://acme.com/gold.png" } }));
     expect(html).toContain("Hi there");
     expect(html).not.toMatch(/<img/);
-    expect(renderToHtml(Migrated({ tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } }))).toContain('src="https://acme.com/gold.png"');
+    expect(await htmlOf(Migrated({ tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } }))).toContain('src="https://acme.com/gold.png"');
   });
 });
 
 describe("buttons", () => {
   const html = async (Template: any) => {
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const React = (await import("react")).default;
-    return renderToHtml(React.createElement(Template, Template.PreviewProps ?? {}));
+    return await htmlOf(React.createElement(Template, Template.PreviewProps ?? {}));
   };
 
   it.each([
@@ -199,7 +196,7 @@ T.PreviewProps = { url: "https://example.com/track" };`;
     expect(out).toContain("Track your order");
     // The link the original renders, with its colors (not a transparent, link-blue Elements button).
     expect(out).toMatch(/<a[^>]*background-color:#5b21b6[^>]*>(?:(?!<\/a>)[\s\S])*Track your order/);
-    expect((await verifyConversion(Original, Migrated, { props: Original.PreviewProps })).missing).toEqual([]);
+    expect((await verifyNewComponents(Original, Migrated, { props: Original.PreviewProps })).missing).toEqual([]);
   });
 
   it("keeps an uppercase button's text-transform, in both converters", async () => {
@@ -208,7 +205,7 @@ T.PreviewProps = { url: "https://example.com/track" };`;
         return <Html><Body><Button href="https://example.com" style={{ textTransform: "uppercase", fontStyle: "italic", backgroundColor: "#000000", color: "#ffffff", padding: "12px 20px" }}>Track it</Button></Body></Html>;
       }`;
     const { Original, Migrated } = await templates(source);
-    for (const out of [await html(Migrated), (await convertReactEmail(Original)).html()]) {
+    for (const out of [await html(Migrated), await (await convertReactEmail(Original)).html()]) {
       // (In either order: the new engine writes the italic first.)
       expect(out).toMatch(/<span style="(?:text-transform:uppercase;font-style:italic|font-style:italic;text-transform:uppercase)">Track it<\/span>/);
     }
@@ -217,8 +214,7 @@ T.PreviewProps = { url: "https://example.com/track" };`;
 
 describe("links in text", () => {
   const html = async (Template: any, props: Record<string, unknown> = Template.PreviewProps ?? {}) => {
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    return renderToHtml(Template(props));
+    return await htmlOf(Template(props));
   };
 
   it("keep a plain <a>'s target (none), while React Email's Link opens in a new tab", async () => {
@@ -232,7 +228,7 @@ describe("links in text", () => {
     expect(out).toMatch(/<a href="https:\/\/example\.com\/a"(?:\s+style="[^"]*")?>the guide<\/a>/);
     expect(out).toMatch(/<a href="https:\/\/example\.com\/b"[^>]*target="_blank"/);
     expect(out).toMatch(/<a href="https:\/\/example\.com\/c"[^>]*target="_self"/);
-    expect((await verifyConversion(Original, Migrated)).styles).toEqual([]);
+    expect((await verifyNewComponents(Original, Migrated)).styles).toEqual([]);
   });
 
   it("leave out an href whose URL prop is missing, as React does (not href=\"undefined\")", async () => {
@@ -242,9 +238,11 @@ describe("links in text", () => {
       }
       T.PreviewProps = { url: "https://example.com", label: "there" };`);
     expect(await html(Migrated, { label: "there" })).not.toContain('href="undefined"');
-    expect(await html(Migrated, { label: "there" })).toMatch(/<a\s[^>]*>there<\/a>|<a>there<\/a>/);
+    // Its text, with no link (React writes `<a>` without an href: no link either).
+    expect(await html(Migrated, { label: "there" })).toMatch(/Go there/);
+    expect(await html(Migrated, { label: "there" })).not.toMatch(/<a\b/);
     expect(await html(Migrated)).toContain('href="https://example.com"');
-    expect((await verifyConversion(Original, Migrated, { props: { label: "there" } })).missingAttributes).toEqual([]);
+    expect((await verifyNewComponents(Original, Migrated, { props: { label: "there" } })).missingAttributes).toEqual([]);
   });
 });
 
@@ -252,12 +250,12 @@ describe("styles the check now compares", () => {
   /** Both conversions of a template, each with the check's style differences. */
   const both = async (source: string) => {
     const { Original, Migrated } = await templates(source);
-    const codemod = await verifyConversion(Original, Migrated);
+    const codemod = await verifyNewComponents(Original, Migrated);
     const runtime = await convertReactEmail(Original, { mergeTags: false });
     const { compareText } = await import("@unlayer/convert-core");
     const { render } = await import("@react-email/components");
     const React = (await import("react")).default;
-    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), runtime.html());
+    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), await runtime.html());
     return { codemod, runtime: runtimeCheck };
   };
 
@@ -296,16 +294,16 @@ describe("text styles from what's around", () => {
   /** The check's differences for both conversions of a template, with its preview props and each boolean flipped. */
   const differences = async (source: string) => {
     const { Original, Migrated } = await templates(source);
-    const codemod = await verifyConversion(Original, Migrated);
+    const codemod = await verifyNewComponents(Original, Migrated);
     const runtime = await convertReactEmail(Original, { mergeTags: false });
     const { compareText } = await import("@unlayer/convert-core");
     const { render } = await import("@react-email/components");
     const React = (await import("react")).default;
-    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), runtime.html());
+    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), await runtime.html());
     return {
       codemod: [...codemod.missing, ...codemod.added, ...codemod.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`), ...codemod.variants.map((v) => `${v.change}: ${[...v.missing, ...v.added].join(" ")}${v.error ?? ""}`)],
       runtime: [...runtimeCheck.missing, ...runtimeCheck.added, ...runtimeCheck.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`)],
-      code: (await convertSource(source, { fileName: "t.tsx" })).code,
+      ...(await convertSource(source, { fileName: "t.tsx" }).then(({ code, intermediate }) => ({ code, intermediate }))),
     };
   };
 
@@ -331,7 +329,8 @@ describe("text styles from what's around", () => {
     expect([result.codemod, result.runtime]).toEqual([[], []]);
     const container = await differences(`import { Html, Body, Container, Text } from "@react-email/components";
       export default function T() { return <Html><Body style={{ fontSize: "14px" }}><Container><Text>Hi</Text></Container></Body></Html>; }`);
-    expect(container.code).toContain('contentWidth="525px"');
+    expect(container.intermediate).toContain('contentWidth="525px"');
+    expect(container.code).toContain("width={525}");
   });
 
   it("reads !important lengths (an inline style, Tailwind's !p-6) instead of dropping them", async () => {
@@ -342,7 +341,7 @@ describe("text styles from what's around", () => {
       export default function T() { return <Tailwind><Html><Body><Section className="!p-6"><Text className="!mt-10">Spaced</Text></Section></Body></Html></Tailwind>; }`,
     ]) {
       // The section's 24px on every side, and the text's 40px above it.
-      expect((await convertSource(source, { fileName: "t.tsx" })).code).toContain('<Column padding="64px 24px 40px 24px">');
+      expect((await convertSource(source, { fileName: "t.tsx" })).intermediate).toContain('<Column padding="64px 24px 40px 24px">');
     }
   });
 
@@ -361,16 +360,16 @@ describe("images, links and backgrounds", () => {
   /** The migrated template's HTML and both converters' check differences. */
   const convert = async (source: string) => {
     const { Original, Migrated } = await templates(source);
-    const codemod = await verifyConversion(Original, Migrated);
+    const codemod = await verifyNewComponents(Original, Migrated);
     const runtime = await convertReactEmail(Original, { mergeTags: false });
     const { compareText } = await import("@unlayer/convert-core");
     const { render } = await import("@react-email/components");
     const React = (await import("react")).default;
     const original = await render(React.createElement(Original, Original.PreviewProps ?? {}));
-    const runtimeCheck = compareText(original, runtime.html());
+    const runtimeCheck = compareText(original, await runtime.html());
     const issues = (c: { missing: string[]; added: string[]; missingAttributes: string[]; styles: Array<{ property: string; original: string; converted: string }> }) =>
       [...c.missing, ...c.added, ...c.missingAttributes, ...c.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`)];
-    return { html: [codemod.convertedHtml, runtime.html()], issues: [issues(codemod), issues(runtimeCheck)] };
+    return { html: [codemod.convertedHtml, await runtime.html()], issues: [issues(codemod), issues(runtimeCheck)] };
   };
 
   it("keeps an image with a border as HTML (Elements images have none)", async () => {
@@ -415,7 +414,7 @@ describe("images, links and backgrounds", () => {
   it("reads the color, repeat and position of a background shorthand", async () => {
     const source = `import { Html, Body, Section, Text } from "@react-email/components";
       export default function T() { return <Html><Body><Section style={{ background: "#f4f4f4 url(https://example.com/bg.png) no-repeat center", padding: "24px" }}><Text>Over the image</Text></Section></Body></Html>; }`;
-    const code = (await convertSource(source, { fileName: "t.tsx" })).code;
+    const code = (await convertSource(source, { fileName: "t.tsx" })).intermediate;
     expect(code).toContain('"#f4f4f4"');
     expect(code).toMatch(/repeat: "no-repeat"/);
     expect(code).toMatch(/position: "center"/);
@@ -436,7 +435,7 @@ T.PreviewProps = { plan: "free", vip: false };`);
     expect(conversion.report.lostStyles ?? []).toEqual([]);
     expect(conversion.code).toContain('plan === "pro" ?');
     for (const props of [{ plan: "pro", vip: true }, { plan: "free", vip: false }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect(check.styles).toEqual([]);
     }
     const lookup = await templates(`import { Html, Body, Text, Tailwind } from "@react-email/components";
@@ -449,14 +448,14 @@ T.PreviewProps = { level: "unknown" };`);
   /** Both converters' check issues for a template (styles included), with its preview props and each boolean flipped. */
   const issues = async (source: string, props?: Record<string, unknown>) => {
     const { Original, Migrated, conversion } = await templates(source);
-    const codemod = await verifyConversion(Original, Migrated, props ? { props } : {});
+    const codemod = await verifyNewComponents(Original, Migrated, props ? { props } : {});
     const runtime = await convertReactEmail(Original, { mergeTags: false, ...(props ? { props } : {}) });
     const { compareText } = await import("@unlayer/convert-core");
     const { render } = await import("@react-email/components");
     const React = (await import("react")).default;
-    const runtimeCheck = compareText(await render(React.createElement(Original, props ?? Original.PreviewProps ?? {})), runtime.html());
+    const runtimeCheck = compareText(await render(React.createElement(Original, props ?? Original.PreviewProps ?? {})), await runtime.html());
     const list = (c: { missing: string[]; added: string[]; styles?: Array<{ property: string; original: string; converted: string }> }) => [...c.missing, ...c.added, ...(c.styles ?? []).map((s) => `${s.property}: ${s.original} → ${s.converted}`)];
-    return { codemod: [...list(codemod), ...codemod.variants.flatMap((v) => list(v).map((i) => `${v.change}: ${i}`)), ...(conversion.report.lostStyles ?? [])], runtime: list(runtimeCheck), code: conversion.code };
+    return { codemod: [...list(codemod), ...codemod.variants.flatMap((v) => list(v).map((i) => `${v.change}: ${i}`)), ...(conversion.report.lostStyles ?? [])], runtime: list(runtimeCheck), code: conversion.code, intermediate: conversion.intermediate };
   };
   const head = (css: string, body: string, extra = "") => `import { Html, Head, Body, Text, Section, Row, Column } from "@react-email/components";
     ${extra}
@@ -470,7 +469,7 @@ T.PreviewProps = { level: "unknown" };`);
   it("reads each class rule in a phone media query, whatever else the block holds, and stacks columns a head class stacks", async () => {
     const result = await issues(head("@media (max-width: 600px){ u + .body .gmail{color:red} .big{font-size:24px !important} .stack{display:block !important;width:100% !important} }",
       '<Section><Row><Column className="stack"><Text className="big">Left</Text></Column><Column className="stack"><Text>Right</Text></Column></Row></Section>'));
-    expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "24px"/);
+    expect(result.intermediate).toMatch(/mobile=\{\{[^}]*fontSize: "24px"/);
     expect(result.code).not.toContain("noStackMobile");
   });
 
@@ -532,13 +531,13 @@ describe("text props with markup", () => {
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     fs.writeFileSync(path.join(dir, "original.tsx"), original);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements/legacy";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements";
 export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
   return <Email><Row><Column>${body}</Column></Row></Email>;
 }`);
     const { default: Original } = await import(path.join(dir, "original.tsx"));
     const { default: Migrated } = await import(path.join(dir, "migrated.tsx"));
-    return verifyConversion(Original, Migrated);
+    return verifyNewComponents(Original, Migrated);
   }
 
   it("go into strings nested in objects and arrays: one written into HTML as is fails", async () => {
@@ -561,9 +560,8 @@ export default function Card({ image, name = "Ada" }: { image?: string; name?: s
   </Row></Section></Container></Body></Html>;
 }
 Card.PreviewProps = { image: "https://example.com/a.png", name: "Ada" };`);
-    expect(conversion.code).toMatch(/cells=\{image \? \[120, 480\] : \[600\]\}/);
-    const { renderToJson } = await import("@unlayer/react-elements/legacy");
-    const cells = (props: Record<string, unknown>) => (renderToJson(React.createElement(Migrated, props)) as any).body.rows[0].cells;
+    expect(conversion.intermediate).toMatch(/cells=\{image \? \[120, 480\] : \[600\]\}/);
+    const cells = (props: Record<string, unknown>) => (designOf(React.createElement(Migrated, props)) as any).body.rows[0].cells;
     const shown = cells({ image: "https://example.com/a.png" });
     expect(shown.length).toBe(2);
     expect(shown[0] / (shown[0] + shown[1])).toBeCloseTo(0.2);
@@ -583,8 +581,8 @@ T.PreviewProps = { a: true, b: true };`);
 
   const check = async (source: string, props?: Record<string, unknown>) => {
     const { Original, Migrated, conversion } = await templates(source);
-    const result = await verifyConversion(Original, Migrated, props ? { props } : {});
-    return { result, code: conversion.code, report: conversion.report, Migrated };
+    const result = await verifyNewComponents(Original, Migrated, props ? { props } : {});
+    return { result, code: conversion.code, intermediate: conversion.intermediate, report: conversion.report, Migrated };
   };
   const clean = (r: Awaited<ReturnType<typeof check>>) => [...r.result.missing, ...r.result.added, ...r.result.missingAttributes, ...r.result.styles.map((s) => s.property), ...r.result.variants.map((v) => v.change), ...(r.report.lostStyles ?? [])];
 
@@ -625,8 +623,8 @@ T.PreviewProps = { a: true, b: true };`);
   it("asks Google Fonts for a keyword weight as a number (bold is 700)", async () => {
     const r = await check(`import { Html, Head, Body, Text, Font } from "@react-email/components";
       export default function T() { return <Html><Head><Font fontFamily="Roboto" fallbackFontFamily="Arial" webFont={{ url: "https://fonts.gstatic.com/s/roboto/v27/x.woff2", format: "woff2" }} fontWeight="bold" fontStyle="normal" /></Head><Body><Text>Hi</Text></Body></Html>; }`);
-    expect(r.code).toContain("wght@700");
-    expect(r.code).not.toContain("wght@bold");
+    expect(r.intermediate).toContain("wght@700");
+    expect(r.intermediate).not.toContain("wght@bold");
   });
 
   it("keeps an empty fragment return as nothing, not an empty email, and reports a heading margin from props", async () => {
@@ -683,7 +681,7 @@ export default function Welcome({ tone = "info" }: { tone?: "info" | "warn" }) {
     expect(code).toMatch(/import type \{ Tone \} from "\.\/types"/);
     expect(code).toContain("LABELS[tone]");
     expect(code).not.toMatch(/\bSIZES\b|\bSize\b/);
-    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noResolve: true, types: [] }, {
+    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noResolve: true, types: [] }, {
       ...ts.createCompilerHost({}),
       getSourceFile: (name, version) => (name === "/project/emails/welcome.tsx" ? ts.createSourceFile(name, code, version, true, ts.ScriptKind.TSX) : undefined),
       fileExists: (name) => name === "/project/emails/welcome.tsx",
@@ -704,12 +702,11 @@ describe("columns from a list in a Row", () => {
       }
       Timeline.PreviewProps = { events: [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }] };`);
     expect(conversion.code).not.toMatch(/cells=\{[^}]*reverse\(\)/);
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const events = () => [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }];
-    const html = renderToHtml(Migrated({ events: events() }));
+    const html = await htmlOf(Migrated({ events: events() }));
     expect(html.indexOf("Delivered")).toBeLessThan(html.indexOf("Shipped"));
     expect(html.indexOf("Shipped")).toBeLessThan(html.indexOf("Ordered"));
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 
@@ -724,14 +721,13 @@ describe("columns from a list in a Row", () => {
       Cart.PreviewProps = { recs: [{ id: "1", name: "Lamp" }, { id: "2", name: "Pad" }, { id: "3", name: "Arm" }, { id: "4", name: "Box" }] };`;
     const { Migrated, conversion } = await templates(source);
     expect(conversion.code).toContain("(recs?.slice(0, 3) ?? [])");
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    expect(renderToHtml(Migrated({}))).toContain("Your cart");
+    expect(await htmlOf(Migrated({}))).toContain("Your cart");
     // The migrated file compiles as the original does (strict).
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     const file = path.join(dir, "cart.tsx");
     fs.writeFileSync(file, conversion.code);
-    const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+    const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
     expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "))).toEqual([]);
   });
 });
@@ -747,9 +743,9 @@ describe("a list's numbering", () => {
       }
       T.PreviewProps = { from: 5, flip: true };`);
     expect(conversion.code).toContain('<ol start="3" type="a">');
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.unverified, check.styles, check.variants]).toEqual([[], [], []]);
-    for (const html of [check.convertedHtml, (await convertReactEmail(Original)).html()]) {
+    for (const html of [check.convertedHtml, await (await convertReactEmail(Original)).html()]) {
       expect(html).toMatch(/<ol start="3" type="a"[^>]*>/);
       expect(html).toMatch(/<li value="9"[^>]*>/);
       expect(html).toMatch(/<ol start="5" reversed(="[^"]*")?[ >]/);
@@ -769,8 +765,8 @@ describe("merge tags", () => {
         </Body></Html>;
       }
       T.PreviewProps = { name: "Alex", fullName: "Jordan", title: "Your order", city: "Lisbon" };`);
-    const check = await verifyConversion(Original, Migrated);
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    const check = await verifyNewComponents(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!);
     expect(tagged.used).toEqual(["city"]);
     const design = JSON.stringify(tagged.design);
     expect(design).toContain("{{city}}");
@@ -792,8 +788,8 @@ describe("merge tags", () => {
         </Body></Html>;
       }
       T.PreviewProps = { id: "1234567", slug: "news", title: "Your order", city: "Lisbon" };`);
-    const check = await verifyConversion(Original, Migrated);
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    const check = await verifyNewComponents(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!);
     expect(tagged.used).toEqual(["city"]);
     expect(tagged.kept.sort()).toEqual(["id", "slug", "title"]);
     const runtime = JSON.stringify((await convertReactEmail(Original)).design());
@@ -811,8 +807,8 @@ describe("merge tags", () => {
         </Body></Html>;
       }
       T.PreviewProps = { code: "AB12CD", name: "Ada" };`);
-    const check = await verifyConversion(Original, Migrated);
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    const check = await verifyNewComponents(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!);
     expect(tagged.used).toEqual(["name"]);
     expect(tagged.kept).toEqual(["code"]);
     for (const design of [JSON.stringify(tagged.design), JSON.stringify((await convertReactEmail(Original)).design())]) {
@@ -836,8 +832,8 @@ describe("merge tags", () => {
       }
       Cart.PreviewProps = { name: "Ada", count: "3", company: "Globex", plan: "basic" };`;
     const { Original, Migrated, conversion } = await templates(source);
-    const check = await verifyConversion(Original, Migrated);
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code });
+    const check = await verifyNewComponents(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!, { source: conversion.code });
     expect(tagged.used).toEqual(["name"]);
     expect(tagged.kept.sort()).toEqual(["company", "count", "plan"]);
     const design = JSON.stringify(tagged.design);
@@ -876,8 +872,8 @@ Shipped.PreviewProps = { name: "Ada", itemCount: "3", total: "84.00", city: "Lis
     const migrated = path.join(dir, "migrated.tsx");
     fs.writeFileSync(migrated, conversion.code);
     const { default: Migrated } = await import(migrated);
-    const check = await verifyConversion(Original, Migrated);
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code, helpers: conversion.helpers });
+    const check = await verifyNewComponents(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!, { source: conversion.code, helpers: conversion.helpers });
     expect(tagged.used).toEqual(["city"]);
     // `nick === undefined ? "Guest" : nick`, `greeting = "Hello"`: as tags, a reader without one would get an empty
     // name, not "Guest" or "Hello".
@@ -898,7 +894,7 @@ export default function T({ seats }: { seats: number }) {
 }
 T.PreviewProps = { seats: 5 };`);
     expect(conversion.code).not.toContain("includes {seats}");
-    const check = await verifyConversion(Original, Migrated, { props: { seats: 20 } });
+    const check = await verifyNewComponents(Original, Migrated, { props: { seats: 20 } });
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 
@@ -911,9 +907,11 @@ T.PreviewProps = { seats: 5 };`);
         return <Html><Body><Text>Hi {Button}, <Link href={url}>open</Link> {name}</Text></Body></Html>;
       }
       T.PreviewProps = { name: "Ana", url: "https://example.com" };`);
-    expect(conversion.code).toMatch(/function _escapeHtml\(/);
-    expect(conversion.code).toMatch(/Paragraph as UnlayerParagraph/);
-    const check = await verifyConversion(Original, Migrated);
+    expect(conversion.intermediate).toMatch(/function _escapeHtml\(/);
+    expect(conversion.intermediate).toMatch(/Paragraph as UnlayerParagraph/);
+    // In the new components too: the template's Paragraph stays its own.
+    expect(conversion.code).toMatch(/Paragraph as ElementsParagraph/);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles, check.variants]).toEqual([[], [], [], []]);
   });
 
@@ -928,7 +926,7 @@ T.PreviewProps = { seats: 5 };`);
         return <Html><Body>{rows}{label}</Body></Html>;
       }
       T.PreviewProps = { items: ["One", "Two"] };`);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 });
@@ -946,22 +944,22 @@ export default function T() {
   </Container></Body></Html>;
 }`);
     expect(conversion.code).toContain("#1e3a8a");
-    expect(conversion.code).toMatch(/<Button[^>]*backgroundColor="#be123c"/);
+    expect(conversion.intermediate).toMatch(/<Button[^>]*backgroundColor="#be123c"/);
     expect(conversion.report.notes).toContainEqual({ reason: "style not converted", detail: "background gradient (filled with #1e3a8a) (Section)" });
-    expect(styles(await verifyConversion(Original, Migrated))).toEqual([]);
+    expect(styles(await verifyNewComponents(Original, Migrated))).toEqual([]);
     const runtime = await convertReactEmail(Original);
     expect(runtime.report.styleDifferences).toEqual([]);
-    expect(runtime.html()).toContain("#1e3a8a");
+    expect(await runtime.html()).toContain("#1e3a8a");
   });
 
   it("fails the check when the image behind light text is lost with no color under it; passes when its color is kept", async () => {
     const page = (background: string) => `${head}
 export default function T() { return <Html><Body style={{ ${background}, color: "#ffffff" }}><Container><Text>Night mode newsletter</Text></Container></Body></Html>; }`;
     const bare = await templates(page(`backgroundImage: "url(https://example.com/night.jpg)"`));
-    expect(styles(await verifyConversion(bare.Original, bare.Migrated))).toEqual(["background: an image → #ffffff"]);
+    expect(styles(await verifyNewComponents(bare.Original, bare.Migrated))).toEqual(["background: an image → #ffffff"]);
     expect((await convertReactEmail(bare.Original)).report.styleDifferences?.map((d) => d.original)).toEqual(["an image"]);
     const kept = await templates(page(`background: "#0b1020 url(https://example.com/night.jpg) repeat"`));
-    expect(styles(await verifyConversion(kept.Original, kept.Migrated))).toEqual([]);
+    expect(styles(await verifyNewComponents(kept.Original, kept.Migrated))).toEqual([]);
     expect(kept.conversion.report.notes).toContainEqual({ reason: "style not converted", detail: "background image (Body, its color #0b1020 shows)" });
   });
 
@@ -981,8 +979,8 @@ export default function T() {
   it("puts the page on <Html>'s background when the Body sets none, in both modes", async () => {
     const { Original, Migrated, conversion } = await templates(`${head}
 export default function T() { return <Html style={{ backgroundColor: "#111111" }}><Body><Container><Text style={{ color: "#ffffff" }}>Dark html background</Text></Container></Body></Html>; }`);
-    expect(conversion.code).toContain('backgroundColor="#111111"');
-    expect(styles(await verifyConversion(Original, Migrated))).toEqual([]);
+    expect(conversion.intermediate).toContain('backgroundColor="#111111"');
+    expect(styles(await verifyNewComponents(Original, Migrated))).toEqual([]);
     expect((await convertReactEmail(Original)).design().body.values.backgroundColor).toBe("#111111");
   });
 
@@ -994,12 +992,12 @@ export default function T() { return <Html><Body><Container>
   <Text style={{ position: "absolute", left: "-9999px" }}>Offscreen filler</Text>
 </Container></Body></Html>; }`);
     expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*(Screen reader note|Offscreen filler)/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
     expect(htmlWords(check.convertedHtml)).toEqual(["Visible", "line"]);
     // Still in the HTML, for screen readers.
     expect(check.convertedHtml).toContain("Screen reader note");
-    const runtime = (await convertReactEmail(Original)).html();
+    const runtime = await (await convertReactEmail(Original)).html();
     expect(htmlWords(runtime)).toEqual(["Visible", "line"]);
     expect(runtime).toContain("Screen reader note");
   });
@@ -1024,10 +1022,10 @@ describe("style values from props", () => {
 export default function T({ look = "uppercase" }: { look?: string }) { return <Html><Body><Text style={{ textTransform: look as any }}>Hello there</Text></Body></Html>; }
 T.PreviewProps = { look: 'uppercase"><img src=x onerror=alert(1)>' };`);
     const conversion = await convertReactEmail(Original);
-    expect(conversion.html()).not.toMatch(/<img[^>]*onerror/);
+    expect(await conversion.html()).not.toMatch(/<img[^>]*onerror/);
     expect(JSON.stringify(conversion.design())).not.toContain("onerror");
     const safe = await convertReactEmail(Original, { props: { look: "uppercase" } });
-    expect(safe.html()).toContain("text-transform:uppercase");
+    expect(await safe.html()).toContain("text-transform:uppercase");
   });
 });
 
@@ -1041,18 +1039,17 @@ T.PreviewProps = { message: "Track it here" };`);
     // Its text can't be written as HTML without rendering it (no react-dom in the migration): the block is also written
     // as the HTML elements React Email renders, used when the value holds elements.
     expect(conversion.code).toMatch(/holdsElements\(message\) \?/);
-    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<p style=\{\{[^}]*\}\}>\s*\{message\}, soon.\s*<\/p>/);
+    expect(conversion.code).toMatch(/<Html>\s*<div[^>]*>\s*<p style=\{\{[^}]*\}\}>\s*\{message\}, soon.\s*<\/p>/);
     expect(conversion.code).not.toContain("@react-email");
     expect(conversion.code).not.toContain("react-dom");
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    const withLink = renderToHtml(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
+    const withLink = await htmlOf(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
     expect(withLink).toContain('<a href="https://example.com/track">here</a>');
-    expect(renderToHtml(React.createElement(Migrated, { message: "Tom & <b>Jerry</b>" }))).toContain("Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;");
+    expect(await htmlOf(React.createElement(Migrated, { message: "Tom & <b>Jerry</b>" }))).toContain("Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;");
   });
 });
 
 describe("blocks an align attribute places", () => {
-  it("centers a block link with a width of its own under <Column align=\"center\">, in both modes, and the check finds nothing moved", async () => {
+  it("centers a block link under <Column align=\"center\">, in both modes, and the check finds nothing moved", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Link, Text } from "@react-email/components";
 export default function T() {
   return <Html><Body><Section style={{ width: "600px" }}>
@@ -1060,11 +1057,12 @@ export default function T() {
     <Row><Column align="center"><Link href="https://example.com" style={{ display: "block", width: "220px", textAlign: "center", padding: "10px 0", border: "1px solid #929292" }}>Order Status</Link></Column></Row>
   </Section></Body></Html>;
 }`);
-    expect(conversion.code).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
-    const check = await verifyConversion(Original, Migrated);
+    expect(conversion.intermediate).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.layout).toEqual([]);
-    const runtime = (await convertReactEmail(Original)).html();
-    expect(runtime).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
+    // The new components' text has no box for a link: its width and border are left out, and said so, in both modes.
+    const runtime = await convertReactEmail(Original);
+    for (const notes of [conversion.notes, runtime.report.info.map((i) => i.detail)]) expect(notes).toContainEqual(expect.stringMatching(/style width: 220px \(on <a>\) is left out/));
   });
 });
 
@@ -1074,7 +1072,7 @@ describe("raw HTML in runtime mode", () => {
 export default function T() { return <Html><Body><Text dangerouslySetInnerHTML={{ __html: "Raw <b>bold</b> copy" }} /><Heading dangerouslySetInnerHTML={{ __html: "Raw heading" }} /><Text>Plain</Text></Body></Html>; }`);
     const conversion = await convertReactEmail(Original);
     expect(conversion.report.missingText).toEqual([]);
-    expect(conversion.html()).toContain("Raw <b>bold</b> copy");
+    expect(await conversion.html()).toContain("Raw <b>bold</b> copy");
   });
 });
 
@@ -1114,7 +1112,7 @@ export default function T() { return <Html><Body>
   <Img src="https://example.com/center.png" width="100" height="40" alt="Center" style={{ margin: "0 auto" }} />
 </Body></Html>; }`);
     const aligns = (code: string) => [...code.matchAll(/example\.com\/(\w+)\.png[\s\S]*?textAlign="(\w+)"/g)].map((m) => `${m[1]}:${m[2]}`);
-    expect(aligns(conversion.code)).toEqual(["right:right", "left:left", "center:center"]);
+    expect(aligns(conversion.intermediate)).toEqual(["right:right", "left:left", "center:center"]);
     const design = (await convertReactEmail(Original)).design();
     const images = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents)).filter((c: any) => c.type === "image");
     expect(images.map((i: any) => i.values.textAlign)).toEqual(["right", "left", "center"]);
@@ -1133,16 +1131,17 @@ export default function T({ url = "https://example.com", target }: { url?: strin
   </Body></Html>;
 }
 T.PreviewProps = { url: "https://example.com", target: "_self" };`);
-    expect(conversion.code).toContain('target: target ?? "_blank"');
-    expect(conversion.code).toContain('target: target ?? "_self"');
-    expect(conversion.code).toContain('htmlAttribute("target", target ?? "_blank")');
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    const targets = (props: Record<string, unknown>) => [...renderToHtml(React.createElement(Migrated, props)).matchAll(/<a\b[^>]*target="([^"]*)"/g)].map((m) => m[1]);
-    expect(targets({ target: "_self" })).toEqual(["_self", "_self", "_self", "_self"]);
-    expect(targets({})).toEqual(["_blank", "_blank", "_self", "_blank"]);
+    expect(conversion.intermediate).toContain('target: target ?? "_blank"');
+    expect(conversion.intermediate).toContain('target: target ?? "_self"');
+    expect(conversion.intermediate).toContain('htmlAttribute("target", target ?? "_blank")');
+    const targets = async (props: Record<string, unknown>) => [...(await htmlOf(React.createElement(Migrated, props))).matchAll(/<a\b[^>]*target="([^"]*)"/g)].map((m) => m[1]);
+    expect(await targets({ target: "_self" })).toEqual(["_self", "_self", "_self", "_self"]);
+    expect(await targets({})).toEqual(["_blank", "_blank", "_self", "_blank"]);
     for (const target of ["_self", undefined]) {
-      const check = await verifyConversion(Original, Migrated, { props: { url: "https://example.com", target } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { url: "https://example.com", target } });
       expect(check.styles).toEqual([]);
+      // A target with markup (the check's text props with markup) is one the new components refuse: not text, not content.
+      expect(check.variants).toEqual([]);
     }
   });
 });
@@ -1159,14 +1158,14 @@ export default function T({ compact = false }: { compact?: boolean }) {
   </Row></Section></Body></Html>;
 }
 T.PreviewProps = { compact: false };`);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
 export default function T({ compact = false }: { compact?: boolean }) {
   if (compact) return <Email><Row><Column><Paragraph>Short column words</Paragraph></Column></Row><Row><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
-  return <Email><Row cells={[1, 1]}><Column><Paragraph>Left column words</Paragraph></Column><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
+  return <Email><Row><Column style={{ width: "50%" }}><Paragraph>Left column words</Paragraph></Column><Column style={{ width: "50%" }}><Paragraph>Right column words</Paragraph></Column></Row></Email>;
 }`);
     const { default: Original } = await import(path.join(dir, "original.tsx"));
     const { default: Migrated } = await import(path.join(dir, "migrated.tsx"));
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.layout).toEqual([]);
     expect(check.variants).toEqual([expect.objectContaining({ change: "compact: true", layout: [expect.objectContaining({ items: ["Right", "column", "words"] })] })]);
   });
@@ -1181,7 +1180,7 @@ export default function T() { return <Html><Body><Section style={{ width: "600px
   <Button href="https://example.com/track" style={{ display: "block", width: "200px", backgroundColor: "#111111", color: "#ffffff", padding: "12px 0" }}>Track package</Button>
 </Column></Row></Section></Body></Html>; }`);
     expect(conversion.code).not.toMatch(/textAlign="center"/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.layout).toEqual([]);
     const design = (await convertReactEmail(Original)).design();
     const contents = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
@@ -1202,9 +1201,8 @@ export default function Receipt({ name, channel }: { name: string; channel: "tra
   return <Html><Body><Heading>Thanks, {name}</Heading><Text>Your order is confirmed.</Text>{channel === "marketing" && legalFooter}</Body></Html>;
 }
 Receipt.PreviewProps = { name: "Alex", channel: "transactional" } as const;`);
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    expect(renderToHtml(Migrated({ name: "Bo", channel: "marketing" }))).toContain('href="https://acme.com/unsubscribe"');
-    expect(renderToHtml(Migrated({ name: "Bo", channel: "transactional" }))).not.toContain("unsubscribe");
+    expect(await htmlOf(Migrated({ name: "Bo", channel: "marketing" }))).toContain('href="https://acme.com/unsubscribe"');
+    expect(await htmlOf(Migrated({ name: "Bo", channel: "transactional" }))).not.toContain("unsubscribe");
     expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*\{channel === "marketing" && legalFooter\}/);
   });
 
@@ -1231,7 +1229,7 @@ export default function T({ places }: { places: string[] }) {
 }
 T.PreviewProps = { places: ["United States", "United Kingdom", "Germany"] };`);
     expect(conversion.code).not.toMatch(/places\.map\([^]*?<Row/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.styles).toEqual([]);
     expect(check.layout).toEqual([]);
   });
@@ -1244,7 +1242,7 @@ export default function T() {
   </Body></Html>;
 }`);
     expect(conversion.code).toMatch(/Help Center/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.styles).toEqual([]);
   });
 });
@@ -1257,7 +1255,7 @@ export default function T() {
     <Button href="https://example.com/manage" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "12px 20px", backgroundColor: "#111827", color: "#ffffff" }}>Manage subscription</Button>
   </Body></Html>;
 }`);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.styles).toEqual([]);
     expect((await convertReactEmail(Original)).report.styleDifferences ?? []).toEqual([]);
   });
@@ -1272,9 +1270,9 @@ export default function T() {
     <Text>Visit our <Link href="https://example.com/help">Help Center</Link> any time.</Text>
   </Body></Html>;
 }`);
-    expect(conversion.code).toMatch(/fontFamily=\{\{ label: "Verdana"/);
+    expect(conversion.intermediate).toMatch(/fontFamily=\{\{ label: "Verdana"/);
     expect(conversion.code).not.toMatch(/Georgia/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.styles).toEqual([]);
   });
 });
@@ -1302,12 +1300,13 @@ export default function T({ name, note, stars, lines, plan }: { name: string; no
 T.PreviewProps = { name: "Ana", note: "Thanks!", stars: ["https://example.com/s1.png", "https://example.com/s2.png"], lines: ["Line one", "Line two"], plan: "pro" };`);
     expect(conversion.code).not.toContain("react-dom");
     expect(conversion.code).not.toContain("renderToStaticMarkup");
-    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<Stamp label=\{plan\} \/>/);
+    expect(conversion.code).toMatch(/<Html>\s*<div[^>]*>\s*<Stamp label=\{plan\} \/>/);
     for (const props of [Original.PreviewProps, { name: "Bo", stars: [], lines: ["Only"], plan: "team" }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.designWarnings]).toEqual([[], [], [], [], []]);
-      // The text stays editable text; the component of the template's own is an Html block.
-      expect(blockTypes(check.design)).toEqual(["text", "text", "text", "html"]);
+      // The text with images in it is an Html block of its markup (the new components' text holds no image), the text
+      // with lines stays editable text, and the component of the template's own is an Html block.
+      expect(blockTypes(check.design)).toEqual(["html", "html", "text", "html"]);
     }
   });
 
@@ -1325,7 +1324,7 @@ T.PreviewProps = { name: "Ana" };`;
     // \`greeting()\` runs once a render, as in the original (its declaration and its one use).
     expect(conversion.code.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").match(/greeting\(\)/g)).toHaveLength(source.match(/greeting\(\)/g)!.length);
     for (const props of [Original.PreviewProps, {}]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
       // A name that's only read stays editable text.
       expect(blockTypes(check.design)).toEqual(["html", "text"]);
@@ -1342,7 +1341,7 @@ export default function T({ second, note }: { second?: string; note?: string }) 
 }
 T.PreviewProps = {};`);
     for (const props of [{}, { second: "Billing", note: "Read me" }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
     }
   });
@@ -1362,7 +1361,7 @@ T.PreviewProps = { name: "Ana" };`;
     expect(code.match(/name\.includes\("@"\)/g)).toHaveLength(1);
     expect(code.match(/unread\(\)/g)).toHaveLength(source.match(/unread\(\)/g)!.length);
     for (const props of [Original.PreviewProps, { name: "ana@example.com" }, {}]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
       // The greeting stays editable text; a count that's 0 shows "0", as React shows it, in its kept block.
       expect(blockTypes(check.design)).toEqual(["text", "html"]);
@@ -1379,7 +1378,7 @@ export default function T({ rows }: { rows: string[][] }) {
 T.PreviewProps = { rows: [["Apples ", "Pears "], ["Plums"]] };`);
     expect(conversion.code).not.toContain("holdsElements");
     for (const props of [Original.PreviewProps, { rows: [["Figs ", ["Dates"]]] as unknown }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
     }
   });
@@ -1395,14 +1394,14 @@ export default function T({ items }: { items: Array<{ id: string; label: string 
 }
 T.PreviewProps = { items: [{ id: "a", label: "First" }, { id: "b", label: "Second" }] };`);
     expect(conversion.code).not.toContain("react-dom");
-    const check = await verifyConversion(Original, Migrated, { props: { items: [{ id: "c", label: "Third" }, { id: "d", label: "Fourth" }, { id: "e", label: "Fifth" }] } });
+    const check = await verifyNewComponents(Original, Migrated, { props: { items: [{ id: "c", label: "Third" }, { id: "d", label: "Fourth" }, { id: "e", label: "Fifth" }] } });
     expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
     expect(blockTypes(check.design).filter((type: string) => type === "html")).toHaveLength(3);
   });
 });
 
 describe("an inline SVG icon in a button", () => {
-  it("keeps the SVG's attributes, with their SVG names", async () => {
+  it("keeps the SVG's attributes, with their SVG names, where the button is written; the new Button holds no drawing, which the check finds", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Link } from "@react-email/components";
 export default function T({ url }: { url: string }) {
   return <Html><Body><Section>
@@ -1418,12 +1417,15 @@ export default function T({ url }: { url: string }) {
 }
 T.PreviewProps = { url: "https://example.com/next" };`);
     expect(conversion.code).not.toContain("react-dom");
-    const check = await verifyConversion(Original, Migrated);
-    expect([check.missing, check.added, check.missingAttributes]).toEqual([[], [], []]);
+    // As the converter writes the button's text, the SVG keeps its attributes by their SVG names.
     const svg = (html: string) => /<svg[\s\S]*?<\/svg>/.exec(html.replace(/&quot;/g, '"'))?.[0];
-    expect(svg(check.convertedHtml)).toBe(svg(check.originalHtml));
-    expect(svg(check.convertedHtml)).toMatch(/viewBox="0 0 24 24"[^>]*stroke-width="2"/);
-    expect(svg(check.convertedHtml)).toContain('<line x1="4" x2="4" y1="6" y2="18"></line>');
+    expect(svg(conversion.intermediate)).toMatch(/viewBox="0 0 24 24"[^>]*stroke-width="2"/);
+    expect(svg(conversion.intermediate)).toContain('<line x1="4" x2="4" y1="6" y2="18"></line>');
+    // The new Button's label is text: the drawing is left out, said so, and the check finds it lost (content).
+    expect(conversion.notes).toContainEqual(expect.stringMatching(/its text's <svg> is left out/));
+    const check = await verifyNewComponents(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.missingAttributes).toEqual([expect.stringMatching(/^svg path, polyline, line in viewBox 0 0 24 24/)]);
   });
 });
 
@@ -1441,7 +1443,7 @@ export default function T({ plan }: { plan: string }) {
 }
 T.PreviewProps = { plan: "Team" };`);
     for (const props of [Original.PreviewProps, { plan: "Enterprise" }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
   });
@@ -1462,46 +1464,8 @@ export default function T({ change }: { change: number }) {
 T.PreviewProps = { change: 12 };`);
     expect(conversion.code).toMatch(/tailwindStyle\(`rounded px-1 font-medium \$\{toneOf\(change\)\}`\)/);
     for (const props of [Original.PreviewProps, { change: -3 }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
-  });
-});
-
-describe("the image preloads React 19 adds to Elements' render", () => {
-  // Under React 19, an image a component renders makes React start Elements' render with
-  // `<link rel="preload" as="image" href="<src>">`, which Elements leaves among the rows: written here as it lands.
-  const source = `import { Html, Body, Section, Img, Text } from "@react-email/components";
-export default function Code({ logo, dark }: { logo: string; dark: boolean }) {
-  return <Html><Body><Section><Img src={logo} alt="Acme" width="120" /><Text>{dark ? "Dark" : "Light"} code 482913.</Text></Section></Body></Html>;
-}
-Code.PreviewProps = { logo: "https://example.com/logo.png", dark: false };
-`;
-  async function withLink(link: string) {
-    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
-    dirs.push(dir);
-    const original = path.join(dir, "original.tsx");
-    fs.writeFileSync(original, source);
-    const { code } = await convertSource(source, { fileName: original });
-    expect(code).toContain("      <Row>");
-    const migrated = path.join(dir, "migrated.tsx");
-    fs.writeFileSync(migrated, code.replace("      <Row>", `      ${link}\n      <Row>`));
-    return { Original: (await import(original)).default, Migrated: (await import(migrated)).default };
-  }
-
-  it("aren't content: the check passes and the editor gets every block, with each prop flipped too", async () => {
-    const { Original, Migrated } = await withLink(`<link rel="preload" as="image" href={logo} />`);
-    const check = await verifyConversion(Original, Migrated);
-    expect(check.convertedHtml).toContain('<link rel="preload" as="image" href="https://example.com/logo.png"');
-    expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.unverified, check.designWarnings, check.variants]).toEqual([[], [], [], [], [], [], []]);
-    expect(JSON.stringify(check.design)).toContain("482913");
-  });
-
-  it("are the only links left out: another image's preload is still what the editor wouldn't get", async () => {
-    const { Original, Migrated } = await withLink(`<link rel="preload" as="image" href="https://example.com/banner.png" />`);
-    const check = await verifyConversion(Original, Migrated);
-    expect(check.designWarnings).toEqual(["[Unlayer] renderToJson: <link> is not a valid Body child. Only <Row> is allowed."]);
-    expect(check.unverified).toEqual([expect.objectContaining({ what: "shown", side: "migrated" })]);
-    expect(check.variants).toEqual([expect.objectContaining({ change: "dark: true", error: expect.stringContaining("is not a valid Body child") })]);
   });
 });

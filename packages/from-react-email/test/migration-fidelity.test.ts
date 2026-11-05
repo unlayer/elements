@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertReactEmail, convertSource, verifyConversion } from "../src/index";
+import { convertReactEmail, convertSource, verifyNewComponents } from "../src/index";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -18,7 +18,7 @@ async function convertBoth(source: string, fileName = "template.tsx") {
   const migrated = path.join(directory, /\.(jsx?|mjs|cjs)$/.test(fileName) ? "migrated.jsx" : "migrated.tsx");
   fs.writeFileSync(migrated, conversion.code);
   const { default: Migrated } = await import(migrated);
-  const check = await verifyConversion(Original, Migrated);
+  const check = await verifyNewComponents(Original, Migrated);
   const runtime = await convertReactEmail(Original, { mergeTags: false });
   expect(check.missing).toEqual([]);
   expect(check.missingAttributes).toEqual([]);
@@ -37,7 +37,7 @@ describe("migration fidelity", () => {
     expect(result.check.added).toEqual([]);
     expect(result.runtime.report.fallbacks).not.toEqual([]);
     expect(result.conversion.report.fallbacks).not.toEqual([]);
-    for (const html of [result.check.convertedHtml, result.runtime.html()]) {
+    for (const html of [result.check.convertedHtml, await result.runtime.html()]) {
       expect(html).toMatch(/style="[^"]*display:\s*none/);
       expect(html).toContain("Current receipt");
     }
@@ -55,11 +55,11 @@ describe("migration fidelity", () => {
       export default function T({ direction = "rtl", language = "ar" }) { return <Html dir={direction} lang={language}><Body><Text>مرحبا</Text></Body></Html>; }
       T.PreviewProps = { direction: "rtl", language: "ar" };`);
     // (In either order: the new engine writes lang first.)
-    for (const html of [result.check.convertedHtml, result.runtime.html()]) expect(html).toMatch(/<html(?=[^>]*\sdir="rtl")(?=[^>]*\slang="ar")/);
-    expect(result.check.design.body).toMatchObject({ values: { textDirection: "rtl" } });
+    for (const html of [result.check.convertedHtml, await result.runtime.html()]) expect(html).toMatch(/<html(?=[^>]*\sdir="rtl")(?=[^>]*\slang="ar")/);
+    expect(result.check.design!.body).toMatchObject({ values: { textDirection: "rtl" } });
     expect(result.runtime.design().body.values.textDirection).toBe("rtl");
-    expect(result.runtime.design().body.values).not.toHaveProperty("lang");
-    expect(result.conversion.code).toContain("textDirection={direction}");
+    expect(result.conversion.intermediate).toContain("textDirection={direction}");
+    expect(result.conversion.code).toContain("dir={direction}");
     expect(result.conversion.code).toContain("lang={language}");
   });
 
@@ -67,8 +67,10 @@ describe("migration fidelity", () => {
     const result = await convertBoth(`${imports}
       export default function T({ name = "Alex", url = "https://example.com" }) { return <Html><Body><Text>Hello <b>{name}</b> <a href={url}>Profile</a></Text></Body></Html>; }`, fileName);
     expect(result.check.added).toEqual([]);
-    expect(result.conversion.code).toContain("function escapeHtml(text)");
-    expect(result.conversion.code).toContain("function htmlText(value)");
-    expect(result.conversion.code).not.toContain(" as Parameters");
+    expect(result.conversion.intermediate).toContain("function escapeHtml(text)");
+    expect(result.conversion.intermediate).toContain("function htmlText(value)");
+    // In the new components, the markup is JSX: the helpers go, and no TypeScript is written into JavaScript.
+    expect(result.conversion.code).not.toMatch(/function (escapeHtml|htmlText)\b|: string\b|: unknown\b| as [A-Z"]/);
+    expect(result.conversion.code).toContain("<Link href={url}>");
   });
 });

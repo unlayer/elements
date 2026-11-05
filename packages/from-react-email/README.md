@@ -2,70 +2,48 @@ Internal React Email converter, published as `@unlayer/migrate/react-email`.
 
 # @unlayer/migrate/react-email
 
-Convert React Email (`@react-email/components`) templates to [Unlayer Elements](https://github.com/unlayer/elements). The [`@unlayer/migrate`](../migrate) CLI is built on it; use the library directly from an agent, a build step or a server.
+Convert React Email (`@react-email/components`) templates to [Unlayer Elements](https://github.com/unlayer/elements)' components (`@unlayer/react-elements` 0.3.0, with their styles in `style={{ }}`). The [`@unlayer/migrate`](../migrate) CLI is built on it; use the library directly from an agent, a build step or a server.
 
 ```bash
 npm install @unlayer/migrate @unlayer/react-elements
 ```
 
-## Two ways to convert
+## Convert what a template renders
 
-**Codemod: migrate the source.** Rewrites the template's import and JSX into Elements, including early returns and conditional roots. Props, `.map()` loops (with keys), conditions, helper functions, types and `PreviewProps` stay. Use it to move templates to Elements.
-
-```ts
-import { convertSource } from "@unlayer/migrate/react-email";
-
-const { code, report } = await convertSource(source, { fileName: "emails/welcome.tsx" });
-```
-
-Module constants are evaluated only where their original binding is used; parameters, local variables and loop bindings that share a name stay dynamic. Literal object spreads preserve their values and override order. Opaque spread props and content props are kept as rendered HTML. Dynamic spreads on document components (`Html`, `Body`, `Head`, `Tailwind`, `Preview`, `Font`) fail conversion because their document settings cannot be preserved in an HTML content block.
-
-**Runtime: convert what a template renders.** Renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor.
+`convertReactEmail` renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor, or to get it as Elements code. To migrate a template's source (its props, loops and conditions stay), run the CLI: `npx @unlayer/migrate`.
 
 ```ts
 import { convertReactEmail } from "@unlayer/migrate/react-email";
+import { render } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);
-conversion.design(); // design JSON for the editor's loadDesign(), text props as merge tags ({{name}})
+conversion.code; // the template in Elements' components (TSX)
+await render(conversion.element); // render it: { html, text }
+await conversion.html(); // the same HTML
+conversion.design(); // design JSON for the editor's loadDesign() (toDesign), text props as merge tags ({{name}})
 conversion.editorFonts(); // its web fonts, for the editor's fonts.customFonts
-conversion.html(); // HTML (renderToHtml)
-await conversion.tsx(); // Elements TSX
 conversion.report.missingText; // [] when nothing was lost
 conversion.report.addedText; // [] when no words were added
 conversion.report.styleDifferences; // [] when every word shows in the same style
+conversion.report.designWarnings; // what the visual editor wouldn't get (undefined when it gets all of it)
 ```
 
-Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`, `id.padStart(6, "0")`) keep their sample value, as do props an image shows (a QR code of `code`: the text beside it says the code in the image), and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
+The conversion is checked against the original as it's made: both are rendered with the same props and compared (`report.missingText`, `addedText`, `missingAttributes`, `addedAttributes`, `styleDifferences`, `unverified`, `phoneDifferences`, `layoutDifferences`). Every word (including numeric separators, signs, currency symbols and percentages), link, image and alt text must be there, in order, with no new words.
 
-Both modes share one mapping and one layout engine, so they convert styles the same way.
+Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`, `id.padStart(6, "0")`) keep their sample value, as do props an image shows (a QR code of `code`: the text beside it says the code in the image), and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value.
 
-## Check a conversion
+The editor loads and exports a web font only when it's registered when the editor is created: `unlayer.createEditor({ ..., fonts: { showDefaultFonts: true, customFonts: conversion.editorFonts() } })`. Google Fonts and `<Font>` files are matched to the families the design uses; another stylesheet can't be without fetching it, so it isn't listed.
 
-```ts
-import { verifyConversion } from "@unlayer/migrate/react-email";
-import Original from "./emails/welcome";
-import Migrated from "./emails/welcome.migrated";
-
-const check = await verifyConversion(Original, Migrated); // renders both with PreviewProps
-check.missing; // words the original shows and the migrated template doesn't
-check.added; // words the migrated template shows and the original doesn't
-check.missingAttributes; // links (href), images (src) and alt text it lost
-check.variants; // problems with a boolean prop flipped (branches the preview doesn't take)
-check.designWarnings; // blocks the visual editor wouldn't get
-check.design; // the design JSON
-check.editorFonts; // its web fonts, for the editor's fonts.customFonts
-```
-
-The editor loads and exports a web font only when it's registered when the editor is created: `unlayer.createEditor({ ..., fonts: { showDefaultFonts: true, customFonts: check.editorFonts } })`. Google Fonts and `<Font>` files are matched to the families the design uses; another stylesheet can't be without fetching it, so it isn't listed. Pass `{ designProps: Migrated.PreviewProps }` to build the design from the migrated template's preview props (the CLI does), where JSX passed as a prop has styles instead of Tailwind classes.
-
-`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents, preserving numeric separators, signs, currency symbols and percentages. No new words may appear. Words must also stay in order: values that changed places count as missing. It counts repeated links and images and keeps destinations associated with link labels and image alt text; Outlook-only duplicates are excluded. Boolean variants are checked through both the HTML and design exporters. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
+Where the template can't be written in Elements' components, `convertReactEmail` throws a `NewComponentsError`: its `reason` says why, and its `intermediate` is the template as the converter wrote it first, in Elements 0.2's components.
 
 ## The report
 
 `report.nativeRatio` is the share of content that became editable Elements blocks. `report.fallbacks` lists what was kept as an `Html` block (it renders the same, but isn't editable), and why. `report.notes` lists every visual difference. `report.info` lists what the conversion did that doesn't change the look (a component inlined, a className split).
 
 ## Mapping
+
+The converter writes a template in Elements 0.2's components first (the names below), and moves it to the new ones at once (`report.info` lists what that changes, `report.notes` what it leaves out: a background image, say, which the new components don't have).
 
 | React Email | Elements |
 |---|---|

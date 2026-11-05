@@ -16,7 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import React from "react";
 import { render } from "@react-email/components";
-import { renderToHtml } from "@unlayer/react-elements/legacy";
+import { render as renderElements } from "@unlayer/react-elements";
 import { chromium, type BrowserContext } from "playwright";
 import { compareText, convertReactEmail, convertSource, findTailwind } from "../src/index";
 import { layoutScore, resizedWords, SETTLED, WORDS, type Word } from "./layout";
@@ -48,7 +48,7 @@ async function codemodHtml(file: string, Template: any, props: Record<string, un
   const target = path.join(work, path.basename(file));
   fs.writeFileSync(target, result.code);
   const { default: Migrated } = await import(pathToFileURL(target).href);
-  return renderToHtml(React.createElement(Migrated, props));
+  return (await renderElements(React.createElement(Migrated, props))).html;
 }
 
 async function main() {
@@ -64,7 +64,7 @@ async function main() {
     const original = await render(React.createElement(Template, props));
     const converted = {
       codemod: await codemodHtml(file, Template, props),
-      runtime: (await convertReactEmail(Template, { mergeTags: false })).html(),
+      runtime: await (await convertReactEmail(Template, { mergeTags: false })).html(),
     };
     for (const [mode, html] of Object.entries(converted)) {
       const label = `${name} (${mode})`;

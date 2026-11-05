@@ -29,7 +29,7 @@ function stats(rows: any[]) {
     typechecks: rows.filter((r) => r.typechecks).length,
     contentProblems: ok.filter((r) => r.missingText?.length || r.addedText?.length || r.missingAttributes?.length).length,
     variants: ok.filter((r) => r.variants?.length).length,
-    editor: ok.filter((r) => r.jsonWarnings).length,
+    editor: ok.filter((r) => r.designWarnings).length,
     nativeAvg: avg(ok.map((r) => r.nativeRatio)),
     fullyNative: ok.filter((r) => r.nativeRatio === 1).length,
     moved700Median: median(ok.map((r) => moved(r, 700))),

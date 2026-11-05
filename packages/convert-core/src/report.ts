@@ -48,6 +48,8 @@ export interface ConversionReport {
   phoneDifferences?: { missing: string[]; added: string[]; missingAttributes?: string[]; addedAttributes?: string[] };
   /** Text that sits elsewhere across the page at a desktop width (a column stacked, a block on the other side). */
   layoutDifferences?: LayoutDifference[];
+  /** What the visual editor wouldn't get: why the template can't go to its design JSON. */
+  designWarnings?: string[];
   /**
    * Style values computed from props or state that the conversion can't keep,
    * with where they were. They change how the email looks: the check fails on them.

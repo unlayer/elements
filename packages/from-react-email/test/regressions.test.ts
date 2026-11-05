@@ -7,14 +7,14 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { renderToJson } from "@unlayer/react-elements/legacy";
+import { designOf, htmlOf } from "./elements";
 import {
   compareText,
   convertReactEmail,
   convertSource,
   htmlWords,
   mergeTagDesign,
-  verifyConversion,
+  verifyNewComponents,
 } from "../src/index";
 
 const IMPORTS = `import { Body, Button, Column, Container, Html, Img, Preview, Row, Section, Text } from "@react-email/components";\n`;
@@ -31,7 +31,7 @@ async function convertBoth(source: string, name: string) {
     const migratedFile = path.join(dir, `${name}.migrated.tsx`);
     fs.writeFileSync(migratedFile, codemod.code);
     const { default: Migrated } = await import(migratedFile);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     return {
       Original,
       Migrated,
@@ -39,7 +39,7 @@ async function convertBoth(source: string, name: string) {
       runtimeDesign: runtime.design(),
       codemod,
       check,
-      codemodDesign: renderToJson(Migrated(Migrated.PreviewProps ?? {})) as any,
+      codemodDesign: designOf(Migrated(Migrated.PreviewProps ?? {})) as any,
     };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -139,7 +139,7 @@ describe("JSX kept in local constants and combined in fragments", () => {
     expect(check.missing).toEqual([]);
     expect(codemod.code).not.toContain("const image");
     // Each branch keeps its own column widths.
-    expect(codemod.code).toMatch(/cells=\{feature\.left \? \[\d+, \d+\] : \[\d+, \d+\]\}/);
+    expect(codemod.intermediate).toMatch(/cells=\{feature\.left \? \[\d+, \d+\] : \[\d+, \d+\]\}/);
     const rows = columnsText(codemodDesign);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual(["", "Serum description"]);
@@ -226,14 +226,31 @@ describe("Preview inside Body", () => {
   });
 });
 
-describe("verifyConversion", () => {
+describe("verifyNewComponents", () => {
+  it("lists what the visual editor wouldn't get (toDesign refuses the template), with a prop flipped too", async () => {
+    const { Body, Html, Text } = await import("@react-email/components");
+    const { Canvas, Email, Paragraph, Text: CanvasText } = await import("@unlayer/react-elements");
+    const { createElement: h } = await import("react");
+    const Original = Object.assign(({ big }: { big: boolean }) => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), { PreviewProps: { big: false } });
+    // Renders, but the builder edits an Email, a Page or a Document, not a Canvas.
+    const canvas = () => h(Canvas, { width: 600, height: 200 }, h(CanvasText, null, "Welcome"));
+    const InCanvas = () => canvas();
+    const check = await verifyNewComponents(Original, InCanvas as never);
+    expect(check.design).toBeUndefined();
+    expect(check.designWarnings).toEqual([expect.stringMatching(/can't go to the builder:.*not a Canvas/)]);
+    const Flips = ({ big }: { big: boolean }) => (big ? canvas() : h(Email, null, h(Paragraph, null, "Welcome")));
+    const flipped = await verifyNewComponents(Original, Flips as never);
+    expect(flipped.designWarnings).toEqual([]);
+    expect(flipped.variants).toEqual([expect.objectContaining({ change: "big: true", error: expect.stringMatching(/^the editor wouldn't get it: .*not a Canvas/) })]);
+  });
+
   it("includes added words when only a flipped prop exposes them", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
     const { createElement: h } = await import("react");
     const Original = Object.assign(() => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), {PreviewProps:{trial:false}});
     const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
-    const check = await verifyConversion(Original, Broken);
+    const check = await verifyNewComponents(Original, Broken);
     expect(check.added).toEqual([]);
     // On phones too: the variant lists every part of the check that fails.
     expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["Unexpected"],missingAttributes:[],phone:{missing:[],added:["Unexpected"]}}]);
@@ -241,7 +258,7 @@ describe("verifyConversion", () => {
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
     const { Body, Container, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
     const React = await import("react");
     const h = React.createElement;
     const Original = Object.assign(
@@ -250,7 +267,7 @@ describe("verifyConversion", () => {
     );
     // A migration that forgot the trial branch: the preview props alone can't tell.
     const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Welcome"))));
-    const check = await verifyConversion(Original, Broken);
+    const check = await verifyNewComponents(Original, Broken);
     expect(check.missing).toEqual([]);
     expect(check.variants).toEqual([{ change: "trial: true", missing: ["Your", "trial", "ends", "soon"], added: [], missingAttributes: [], phone: { missing: ["Your", "trial", "ends", "soon"], added: [] } }]);
   });
@@ -321,7 +338,8 @@ describe("buttons, nested one-column rows and imported fonts", () => {
       expect(contents.some((c: any) => c.type === "image")).toBe(true);
     }
     expect(runtime.fonts).toContainEqual({ url: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" });
-    expect(codemod.code).toContain("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
+    // The converter finds the stylesheet (the new components have no stylesheet to link: the editor registers it).
+    expect(codemod.fonts).toContainEqual({ url: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" });
   });
 });
 
@@ -334,9 +352,9 @@ describe("merge tags (runtime mode)", () => {
       }
       T.PreviewProps = { code: "${sample}", name: "Alex" };`;
     const { runtime } = await convertBoth(source, `merge-${method}`);
-    expect(runtime.html()).toContain(`https://example.com/coupon/${sample}`);
-    expect(runtime.html()).not.toContain("{{code}}");
-    expect(runtime.html()).toContain("{{name}}");
+    expect(await runtime.html()).toContain(`https://example.com/coupon/${sample}`);
+    expect(await runtime.html()).not.toContain("{{code}}");
+    expect(await runtime.html()).toContain("{{name}}");
     expect(runtime.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it, or an image shows it)", detail: "code" });
   });
 
@@ -360,7 +378,7 @@ describe("merge tags (runtime mode)", () => {
       fs.writeFileSync(path.join(dir, "t.tsx"), source);
       const { default: T } = await import(path.join(dir, "t.tsx"));
       const tagged = await convertReactEmail(T);
-      const html = tagged.html();
+      const html = await tagged.html();
       expect(html).toContain("Hi {{name}}, thanks for joining.");
       expect(html).toContain('href="{{url}}"');
       expect(html).toContain("Welcome, {{name}}");
@@ -369,7 +387,7 @@ describe("merge tags (runtime mode)", () => {
       expect(tagged.report.info).toContainEqual({ reason: "text props became merge tags", detail: "name, url" });
       expect(tagged.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it, or an image shows it)", detail: "plan" });
       expect(tagged.report.missingText).toEqual([]);
-      const plain = (await convertReactEmail(T, { mergeTags: false })).html();
+      const plain = await (await convertReactEmail(T, { mergeTags: false })).html();
       expect(plain).toContain("Hi Alex, thanks for joining.");
       expect(plain).not.toContain("{{");
     } finally {
@@ -388,7 +406,7 @@ describe("an email service's placeholders as sample values", () => {
         }
         T.PreviewProps = { firstName: "{{ first_name }}", unsubscribe: "*|UNSUB|*", plan: "Pro" };`);
       const { default: T } = await import(path.join(dir, "t.tsx"));
-      const html = (await convertReactEmail(T)).html();
+      const html = await (await convertReactEmail(T)).html();
       expect(html).toContain("Hi {{ first_name }}, you");
       // Other text props still become merge tags.
       expect(html).toContain("{{plan}}");
@@ -416,7 +434,7 @@ describe("returns that render nothing", () => {
     for (const [source, name] of [[early, "early-null"], [ternary, "ternary-null"]] as const) {
       const { codemod, check } = await convertBoth(source, name);
       expect(codemod.code).toContain("null");
-      expect(codemod.code).toContain('from "@unlayer/react-elements/legacy"');
+      expect(codemod.code).toContain('from "@unlayer/react-elements";');
       expect(check.missing).toEqual([]);
     }
   });
@@ -461,11 +479,11 @@ describe("the runtime converter and Context", () => {
       fs.writeFileSync(path.join(dir, "t.tsx"), source);
       const { default: T } = await import(path.join(dir, "t.tsx"));
       const conversion = await convertReactEmail(T, { mergeTags: false });
-      const words = htmlWords(conversion.html());
+      const words = htmlWords(await conversion.html());
       // <Tailwind> calls the components in it in its own render: they get the value around it (React Email shows the same).
       expect(words.join(" ")).toContain("Hello The Acme team Visit Acme Acme Inc all rights reserved Styled for Acme");
       expect(words).not.toContain("Default");
-      expect(conversion.html()).toContain('href="https://acme.example"');
+      expect(await conversion.html()).toContain('href="https://acme.example"');
       expect([conversion.report.missingText, conversion.report.addedText, conversion.report.missingAttributes]).toEqual([[], [], []]);
       // The Button and Text are blocks the editor gets, not HTML: in a Provider in <Tailwind> too.
       const design = JSON.stringify(conversion.design());
@@ -506,24 +524,24 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
       for (const wrapped of [module.Memo, module.Both]) {
         const conversion = await convertReactEmail(wrapped);
         expect(conversion.report.info).toContainEqual(kept);
-        expect(conversion.html()).toContain("Globex");
-        expect(conversion.html()).toContain("{{name}}");
+        expect(await conversion.html()).toContain("Globex");
+        expect(await conversion.html()).toContain("{{name}}");
       }
       // forwardRef around a call: what the arrow function's code passes on (to T) counts as tested.
-      expect((await convertReactEmail(module.Forwarded)).html()).not.toContain("{{company}}");
+      expect(await (await convertReactEmail(module.Forwarded)).html()).not.toContain("{{company}}");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it("reads a migrated template's code through memo() for its design JSON", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name, company }: { name: string; company: string }) =>
       h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}, welcome to ${company || "Acme"}.`))));
     const props = { name: "Alex", company: "Globex" };
-    const design = renderToJson(Migrated(props)) as unknown as Record<string, unknown>;
+    const design = designOf(Migrated(props)) as unknown as Record<string, unknown>;
     const tagged = await mergeTagDesign(React.memo(Migrated) as never, props, design);
     expect(tagged.used).toEqual(["name"]);
     expect(tagged.kept).toContain("company");
@@ -532,13 +550,13 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
 
 describe("merge tags in a migrated template's design JSON", () => {
   it("tags the preview text (preheaderText) as well as the body", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name }: { name: string }) =>
       h(Email, { previewText: `Welcome, ${name}` }, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}`))));
     const props = { name: "Alex" };
-    const { design } = await mergeTagDesign(Migrated, props, renderToJson(Migrated(props)) as unknown as Record<string, unknown>);
+    const { design } = await mergeTagDesign(Migrated, props, designOf(Migrated(props)) as unknown as Record<string, unknown>);
     const text = JSON.stringify(design);
     expect(text).toContain('"preheaderText":"Welcome, {{name}}"');
     expect(text).toContain("Hi {{name}}");
@@ -582,12 +600,12 @@ describe("migration review regressions", () => {
     );
     expect(codemod.code).toContain("const first = next()");
     expect(codemod.code.match(/next\(\)/g)).toHaveLength(2);
-    const same = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "A", "A"] } });
+    const same = await verifyNewComponents(Original, Migrated, { props: { sequence: ["A", "A", "A"] } });
     expect(same.missing).toEqual([]);
     expect(same.designWarnings).toEqual([]);
     // Label's render consumes the template's sequence, which React's purity rule forbids: the kept components
     // render when React renders them (in their KeptHtml), after the template made its elements, as in the original.
-    const distinct = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "B", "C"] } });
+    const distinct = await verifyNewComponents(Original, Migrated, { props: { sequence: ["A", "B", "C"] } });
     expect([distinct.missing, distinct.added]).toEqual([[], []]);
   });
 
@@ -610,7 +628,7 @@ describe("migration review regressions", () => {
       { special: true, other: false },
       { special: true, other: true },
     ]) {
-      const variant = await verifyConversion(Original, Migrated, { props });
+      const variant = await verifyNewComponents(Original, Migrated, { props });
       expect(variant.missing).toEqual([]);
       expect(variant.designWarnings).toEqual([]);
       expect(JSON.stringify(variant.design)).toContain("offer");
@@ -624,7 +642,7 @@ describe("migration review regressions", () => {
     const { Original, Migrated } = await convertBoth(source, "variant-design");
     const wrong = (props: any) =>
       props.special ? Original(props) : Migrated(props);
-    const check = await verifyConversion(Original, wrong);
+    const check = await verifyNewComponents(Original, wrong);
     expect(check.variants).toEqual([
       expect.objectContaining({
         change: "special: true",
@@ -657,9 +675,9 @@ describe("migration review regressions", () => {
     const tagged = await mergeTagDesign(
       Migrated,
       Migrated.PreviewProps,
-      check.design,
+      check.design!,
     );
-    for (const text of [runtime.html(), JSON.stringify(tagged.design)]) {
+    for (const text of [await runtime.html(), JSON.stringify(tagged.design)]) {
       expect(text).toContain("{{name}}");
       expect(text).toContain("{{url}}");
       expect(text).not.toContain("{{color}}");
@@ -667,7 +685,7 @@ describe("migration review regressions", () => {
       expect(text).toContain("https://example.com/logo.png");
     }
     // Red as #ff0000 (today's components) or #f00 (the new engine).
-    expect(runtime.html()).toMatch(/color:\s*#f(?:f0000|00)\b/);
+    expect(await runtime.html()).toMatch(/color:\s*#f(?:f0000|00)\b/);
   });
 });
 
@@ -717,9 +735,8 @@ describe("evaluation order and conditional roots", () => {
     const { codemod, check, Migrated } = await convertBoth(source, "default-kept");
     expect(codemod.code).not.toMatch(/<Greeting/);
     expect(check.missing).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    expect(renderToHtml(Migrated({ user: {} }))).toContain("Hi there, a kind welcome");
-    expect(renderToHtml(Migrated({ user: { name: "Bo" } }))).toContain("Hi Bo, a kind welcome");
+    expect(await htmlOf(Migrated({ user: {} }))).toContain("Hi there, a kind welcome");
+    expect(await htmlOf(Migrated({ user: { name: "Bo" } }))).toContain("Hi Bo, a kind welcome");
   });
 
   it("writes a comparison of a prop given as a literal as its result, so the migration type-checks", async () => {
@@ -752,8 +769,7 @@ describe("evaluation order and conditional roots", () => {
     expect(check.missing).toEqual([]);
     expect(check.added).toEqual([]);
     expect(check.missingAttributes).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    const html = renderToHtml(Migrated({}));
+    const html = await htmlOf(Migrated({}));
     expect(html).toContain("Verify &amp; continue");
     expect(html).toMatch(/href="https:\/\/example\.com\/\?a=1&(amp;)?b=2"/);
     expect(html).not.toContain("&amp;amp;");
@@ -769,8 +785,7 @@ describe("evaluation order and conditional roots", () => {
     const { codemod, check, Migrated } = await convertBoth(source, "optional-columns");
     expect(codemod.code).toContain("(logos ?? [])");
     expect(check.missing).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    expect(renderToHtml(Migrated({}))).toContain("Thanks for reading");
+    expect(await htmlOf(Migrated({}))).toContain("Thanks for reading");
   });
 
   it("converts a template exported as `export { Welcome as default }`", async () => {
@@ -846,12 +861,12 @@ describe("evaluation order and conditional roots", () => {
       "escaped-tags",
     );
     // Bold: a <strong> (today's components) or a span of weight 700 (the new engine).
-    expect(runtime.html()).toMatch(/<strong>\{\{name\}\}<\/strong>|<span style="font-weight:700">\{\{name\}\}<\/span>/);
-    expect(runtime.html()).not.toContain("{{color}}");
+    expect(await runtime.html()).toMatch(/<strong>\{\{name\}\}<\/strong>|<span style="font-weight:700">\{\{name\}\}<\/span>/);
+    expect(await runtime.html()).not.toContain("{{color}}");
     const tagged = await mergeTagDesign(
       Migrated,
       Migrated.PreviewProps,
-      check.design,
+      check.design!,
     );
     expect(JSON.stringify(tagged.design)).toContain("{{name}}");
     expect(JSON.stringify(tagged.design)).not.toContain("{{color}}");

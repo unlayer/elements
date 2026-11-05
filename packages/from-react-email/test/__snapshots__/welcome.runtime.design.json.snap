@@ -20,13 +20,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://placehold.co/120x40/4f46e5/ffffff?text=Acme",
                     "width": 120,
+                    "height": 40,
                     "autoWidth": false,
-                    "maxWidth": "24.19%",
-                    "height": 40
+                    "maxWidth": "24.19%"
                   },
                   "textAlign": "center",
                   "altText": "{{productName}}",
@@ -37,14 +37,6 @@
                       "target": "_blank"
                     }
                   },
-                  "_override": {
-                    "mobile": {
-                      "src": {
-                        "autoWidth": false,
-                        "maxWidth": "120px"
-                      }
-                    }
-                  },
                   "_meta": {
                     "htmlID": "u_content_image_1",
                     "htmlClassNames": "u_content_image"
@@ -53,13 +45,22 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "_override": {
+                    "mobile": {
+                      "src": {
+                        "autoWidth": false,
+                        "maxWidth": "120px"
+                      }
+                    }
+                  },
+                  "maxWidth": "135.46px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "40px 32px 0px 32px",
+              "padding": "40px 32px 0px",
               "border": {},
               "borderRadius": "8px 8px 0px 0px",
               "_meta": {
@@ -84,7 +85,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "40px 0px 0px 0px",
+          "padding": "40px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -112,11 +113,11 @@
               {
                 "type": "heading",
                 "values": {
-                  "containerPadding": "0px 0px 30px 0px",
+                  "containerPadding": "0px 0px 30px",
                   "headingType": "h1",
                   "fontSize": "24px",
                   "textAlign": "center",
-                  "lineHeight": "normal",
+                  "lineHeight": "120%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -135,16 +136,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "letterSpacing": "0px"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 16px 0px",
+                  "containerPadding": "0px 0px 16px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -153,7 +159,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "Hi {{firstName}},",
                   "_meta": {
                     "htmlID": "u_content_text_1",
                     "htmlClassNames": "u_content_text"
@@ -162,16 +167,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Hi {{firstName}},"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -180,7 +192,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "Thanks for signing up! Your workspace is ready and you can start building right away. Here are three quick things to try on your first day:",
                   "_meta": {
                     "htmlID": "u_content_text_2",
                     "htmlClassNames": "u_content_text"
@@ -189,16 +200,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Thanks for signing up! Your workspace is ready and you can start building right away. Here are three quick things to try on your first day:"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "16px 0px 0px 0px",
+                  "containerPadding": "16px 0px 0px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "28px",
+                  "lineHeight": "187%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -207,7 +225,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "1. Create your first project",
                   "_meta": {
                     "htmlID": "u_content_text_3",
                     "htmlClassNames": "u_content_text"
@@ -216,16 +233,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "1. Create your first project"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "28px",
+                  "lineHeight": "187%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -234,7 +258,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "2. Invite your teammates",
                   "_meta": {
                     "htmlID": "u_content_text_4",
                     "htmlClassNames": "u_content_text"
@@ -243,16 +266,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "2. Invite your teammates"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "28px",
+                  "lineHeight": "187%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -261,7 +291,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "3. Connect your favorite integrations",
                   "_meta": {
                     "htmlID": "u_content_text_5",
                     "htmlClassNames": "u_content_text"
@@ -270,13 +299,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "3. Connect your favorite integrations"
                 }
               },
               {
                 "type": "button",
                 "values": {
-                  "containerPadding": "28px 0px 0px 0px",
+                  "containerPadding": "28px 0px 0px",
                   "href": {
                     "name": "web",
                     "values": {
@@ -287,8 +323,8 @@
                   "buttonColors": {
                     "color": "#ffffff",
                     "backgroundColor": "#4f39f6",
-                    "hoverColor": "#FFFFFF",
-                    "hoverBackgroundColor": "#0879A1"
+                    "hoverColor": "#ffffff",
+                    "hoverBackgroundColor": "#4f39f6"
                   },
                   "size": {
                     "autoWidth": true,
@@ -297,11 +333,10 @@
                   "fontSize": "15px",
                   "lineHeight": "120%",
                   "textAlign": "center",
-                  "padding": "12px 24px 12px 24px",
+                  "padding": "12px 24px",
                   "border": {},
-                  "borderRadius": "0.375rem",
+                  "borderRadius": "6px",
                   "text": "Go to your dashboard",
-                  "fontWeight": 600,
                   "_meta": {
                     "htmlID": "u_content_button_1",
                     "htmlClassNames": "u_content_button"
@@ -310,13 +345,19 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "30px 32px 0px 32px",
+              "padding": "30px 32px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -369,10 +410,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 16px 0px",
+                  "containerPadding": "0px 0px 16px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -381,7 +422,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#364153",
-                  "text": "Want to dig deeper? Our <a href=\"{{docsUrl}}\" style=\"color:rgb(79,57,246);text-decoration-line:underline\" target=\"_blank\">documentation</a> covers everything from quickstarts to advanced guides.",
                   "_meta": {
                     "htmlID": "u_content_text_6",
                     "htmlClassNames": "u_content_text"
@@ -390,20 +430,27 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Want to dig deeper? Our <a href=\"{{docsUrl}}\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline\">documentation</a> covers everything from quickstarts to advanced guides."
                 }
               },
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "10px 0px 26px 0px",
+                  "containerPadding": "10px 0px 26px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e7eb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_1",
                     "htmlClassNames": "u_content_divider"
@@ -418,10 +465,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 16px 0px",
+                  "containerPadding": "0px 0px 16px",
                   "fontSize": "12px",
                   "textAlign": "left",
-                  "lineHeight": "20px",
+                  "lineHeight": "167%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -430,7 +477,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6a7282",
-                  "text": "Questions? Just reply to this email or write to <a href=\"mailto:{{supportEmail}}\" style=\"color:rgb(106,114,130);text-decoration-line:underline\" target=\"_blank\">{{supportEmail}}</a>. We&#x27;re always happy to help.",
                   "_meta": {
                     "htmlID": "u_content_text_7",
                     "htmlClassNames": "u_content_text"
@@ -439,16 +485,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Questions? Just reply to this email or write to <a href=\"mailto:{{supportEmail}}\" target=\"_blank\" style=\"color:#6a7282;text-decoration:underline\">{{supportEmail}}</a>. We're always happy to help."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "12px",
                   "textAlign": "left",
-                  "lineHeight": "20px",
+                  "lineHeight": "167%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -457,7 +510,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#99a1af",
-                  "text": "Acme, Inc. · 123 Market Street · San Francisco, CA 94105",
                   "_meta": {
                     "htmlID": "u_content_text_8",
                     "htmlClassNames": "u_content_text"
@@ -466,13 +518,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Acme, Inc. · 123 Market Street · San Francisco, CA 94105"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "28px 32px 48px 32px",
+              "padding": "28px 32px 48px",
               "border": {},
               "borderRadius": "0px 0px 8px 8px",
               "_meta": {
@@ -497,7 +556,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px 0px 40px 0px",
+          "padding": "0px 0px 40px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {

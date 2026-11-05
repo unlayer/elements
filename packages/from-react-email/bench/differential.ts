@@ -24,7 +24,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import React from "react";
 import { render } from "@react-email/components";
-import { renderToHtml } from "@unlayer/react-elements/legacy";
+import { render as renderElements } from "@unlayer/react-elements";
 import { chromium, type Page } from "playwright";
 import { checkFails, compareText, convertReactEmail, convertSource, findTailwind, phoneDiffers } from "../src/index";
 import { BASES } from "./differential/bases";
@@ -59,8 +59,8 @@ async function bases(): Promise<Array<{ name: string; original: string; migrated
     const target = path.join(work, file);
     fs.writeFileSync(target, result.code);
     const { default: Migrated } = await import(pathToFileURL(target).href);
-    list.push({ name: `${file} codemod`, original, migrated: renderToHtml(React.createElement(Migrated, props)) });
-    list.push({ name: `${file} runtime`, original, migrated: (await convertReactEmail(Template, { mergeTags: false })).html() });
+    list.push({ name: `${file} codemod`, original, migrated: (await renderElements(React.createElement(Migrated, props))).html });
+    list.push({ name: `${file} runtime`, original, migrated: await (await convertReactEmail(Template, { mergeTags: false })).html() });
   }
   return list;
 }

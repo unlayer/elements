@@ -1,16 +1,13 @@
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";
-import { renderToHtml, renderToJson } from "@unlayer/react-elements/legacy";
+import { designOf, htmlOf } from "./elements";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
-import { compareText, convertReactEmail, convertSource, expand, htmlWords, verifyConversion } from "../src/index";
-import { htmlAttributes } from "@unlayer/convert-core";
+import { compareText, convertElement, convertReactEmail, convertSource, expand, htmlWords, verifyNewComponents } from "../src/index";
+import { htmlAttributes, NewComponentsError, TODAYS_COMPONENTS } from "@unlayer/convert-core";
 import { color } from "../src/styles";
 
-/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
-const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const fixtures = path.join(import.meta.dirname, "fixtures");
 const TEMPLATES = ["welcome", "receipt", "weekly-digest"];
@@ -20,14 +17,15 @@ describe.each(TEMPLATES)("%s", (name) => {
     const { default: Template } = await import(path.join(fixtures, `${name}.tsx`));
     const conversion = await convertReactEmail(Template);
     expect(conversion.report.nativeRatio).toBe(1);
-    await expect(await conversion.tsx()).toMatchFileSnapshot(`__snapshots__/${name}.runtime.tsx.snap`);
+    await expect(conversion.code).toMatchFileSnapshot(`__snapshots__/${name}.runtime.tsx.snap`);
     await expect(JSON.stringify(conversion.design(), null, 2)).toMatchFileSnapshot(`__snapshots__/${name}.runtime.design.json.snap`);
   });
 
   it("codemod mode: TSX that renders with the template's own props", async () => {
     const result = await convertSource(fs.readFileSync(path.join(fixtures, `${name}.tsx`), "utf8"), { fileName: `${name}.tsx` });
     expect(result.report.nativeRatio).toBe(1);
-    expect(result.code).toContain('from "@unlayer/react-elements/legacy"');
+    expect(result.code).toContain('from "@unlayer/react-elements";');
+    expect(result.code).not.toContain(TODAYS_COMPONENTS);
     expect(result.code).not.toContain("@react-email/components");
     await expect(result.code).toMatchFileSnapshot(`__snapshots__/${name}.codemod.tsx.snap`);
 
@@ -37,7 +35,7 @@ describe.each(TEMPLATES)("%s", (name) => {
       const file = path.join(dir, `${name}.tsx`);
       fs.writeFileSync(file, result.code);
       const { default: Migrated } = await import(file);
-      const design = renderToJson(Migrated(Migrated.PreviewProps));
+      const design = designOf(Migrated(Migrated.PreviewProps));
       expect(design.body.rows.length).toBeGreaterThan(1);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -49,7 +47,7 @@ describe("codemod keeps logic", () => {
   it("converts JSX inside loops and conditions, keeping keys", async () => {
     const result = await convertSource(fs.readFileSync(path.join(fixtures, "receipt.tsx"), "utf8"));
     expect(result.code).toContain("{items.map((item) => (");
-    expect(result.code).toContain("<Row key={item.name}");
+    expect(result.code).toContain("<Section key={item.name}");
     expect(result.code).toMatch(/\{item\.description \? \(\s*<Paragraph/);
     expect(result.code).toContain("ReceiptEmail.PreviewProps");
   });
@@ -64,7 +62,7 @@ export default function T() {
     <Text>Bye</Text>
   </Section></Container></Body></Html>;
 }`);
-    expect(result.code).toMatch(/items\.map\(\(p, i\) => \(\s*<Row key=\{i\}/);
+    expect(result.code).toMatch(/items\.map\(\(p, i\) => \(\s*<Section key=\{i\}/);
   });
 
   it("inlines same-file components, and keeps what it can't map as HTML, reported", async () => {
@@ -88,10 +86,44 @@ export default function T() {
     // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
     expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
     expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
-    expect(result.code).toMatch(/<KeptHtml[^>]*>\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.intermediate).toMatch(/<KeptHtml[^>]*>\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).toMatch(/<Html>\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
     expect(result.code).not.toContain("react-dom");
-    expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
+    expect(result.intermediate).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
+    expect(result.code).toContain("<Span>new</Span>");
     expect(result.code).not.toContain("const Badge");
+  });
+});
+
+describe("runtime mode in the new components", () => {
+  it("throws a NewComponentsError, with why and the template in today's components, where the new ones can't render it", async () => {
+    const { Body, Button, Html, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    // React Email writes the link; the new components write no script links.
+    const Template = () => h(Html, null, h(Body, null, h(Text, null, "Hi"), h(Button, { href: "javascript:void(0)" }, "Go")));
+    const error = await convertReactEmail(Template).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NewComponentsError);
+    expect((error as NewComponentsError).reason).toMatch(/^what it's written as doesn't render: .*"javascript:void\(0\)" isn't a link Elements will write/);
+    expect((error as NewComponentsError).intermediate).toContain(`from "${TODAYS_COMPONENTS}"`);
+    expect((error as NewComponentsError).intermediate).toContain('href="javascript:void(0)"');
+  });
+
+  it("writes code that renders as the element it gives, with a design from toDesign", async () => {
+    const { default: Template } = await import(path.join(fixtures, "welcome.tsx"));
+    const conversion = await convertReactEmail(Template);
+    expect(conversion.code).toContain('from "@unlayer/react-elements";');
+    expect(conversion.code).not.toContain(TODAYS_COMPONENTS);
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "runtime.tsx");
+      fs.writeFileSync(file, conversion.code);
+      const { default: Written } = await import(file);
+      expect(await htmlOf(React.createElement(Written))).toBe(await conversion.html());
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    expect(conversion.design()).toEqual(designOf(conversion.element));
+    expect(conversion.report.designWarnings).toBeUndefined();
   });
 });
 
@@ -141,7 +173,8 @@ export default function Template() {
     const Tailwind = ({ children }: { children: React.ReactElement[] }) =>
       children.map((child) => (child.props as { className?: string }).className === "brand" ? React.cloneElement(child, { className: undefined, style: { color: "#ff0000" } } as object) : child);
     const result = await convertSource(source, { tailwind: Tailwind });
-    expect(result.code).toContain('color="#ff0000"');
+    expect(result.intermediate).toContain('color="#ff0000"');
+    expect(result.code).toContain('color: "#ff0000"');
   });
 });
 
@@ -156,8 +189,8 @@ export default function Template({ tone }: { tone: string }) {
   </Body></Html>;
 }`;
     const result = await convertSource(source);
-    expect(result.code).toContain('fontSize="20px"');
-    expect(result.code).toContain('lineHeight="26px"');
+    expect(result.intermediate).toContain('fontSize="20px"');
+    expect(result.intermediate).toContain('lineHeight="26px"');
     expect(result.report.lostStyles).toEqual(["line 6: letterSpacing: tone"]);
   });
 
@@ -168,7 +201,7 @@ export default function Template() {
 }`;
     const result = await convertSource(source);
     expect(result.report.lostStyles).toBeUndefined();
-    expect(result.code).toContain('fontSize="18px"');
+    expect(result.intermediate).toContain('fontSize="18px"');
   });
 });
 
@@ -182,9 +215,9 @@ export default function Template() {
 
   it("codemod: applies rules on a class where they'd win, phone rules too, and reports the rest", async () => {
     const result = await convertSource(source);
-    expect(result.code).toMatch(/color="#fff(fff)?"/);
-    expect(result.code).toContain('fontSize="14px"');
-    expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "18px"/);
+    expect(result.intermediate).toMatch(/color="#fff(fff)?"/);
+    expect(result.intermediate).toContain('fontSize="14px"');
+    expect(result.intermediate).toMatch(/mobile=\{\{[^}]*fontSize: "18px"/);
     expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
   });
 
@@ -194,7 +227,7 @@ export default function Template() {
     const Template = () =>
       h(Html, null, h(Head, null, h("style", null, css)), h(Body, { style: { backgroundColor: "#000000" } }, h(Text, { className: "copy", style: { margin: 0 } }, "Code 482913")));
     const conversion = await convertReactEmail(Template);
-    const paragraph = JSON.stringify(conversion.tree);
+    const paragraph = JSON.stringify((await convertElement(h(Template))).tree);
     expect(paragraph).toContain('"fontSize":"14px"');
     expect(paragraph).toContain('"fontSize":"18px"');
     expect(paragraph).toMatch(/"color":"#fff(fff)?"/);
@@ -224,7 +257,7 @@ export default function Template() {
     const { Html, Body, Text } = await import("@react-email/components");
     const h = React.createElement;
     const Template = () => h(Html, null, h(Body, null, h(Text, null, "Shown"), h(Text, { style: { visibility: "hidden" } }, "Secret")));
-    const html = (await convertReactEmail(Template)).html();
+    const html = await (await convertReactEmail(Template)).html();
     expect(html).toMatch(/visibility:\s*hidden[^>]*>Secret/);
   });
 });
@@ -234,7 +267,7 @@ describe("image max-width", () => {
     const source = `import { Html, Body, Img } from "@react-email/components";
 export default function Template() { return <Html><Body><Img src="https://example.com/a.png" width="100%" style={{ maxWidth: "300px" }} alt="A" /></Body></Html>; }`;
     const result = await convertSource(source);
-    expect(result.code).toContain('width="300px"');
+    expect(result.intermediate).toContain('width="300px"');
   });
 });
 
@@ -259,7 +292,8 @@ export default function Template() {
 
   it("codemod: content a phone rule shows becomes a block hidden on desktop; a box is reported", async () => {
     const result = await convertSource(source);
-    expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
+    expect(result.intermediate).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
+    expect(result.code).toMatch(/<Paragraph[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
     expect(result.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
   });
 
@@ -271,7 +305,8 @@ export default function Template() {
       h(Text, { className: "phone-only", style: { display: "none" } }, "Phones only"),
       h(Section, { className: "phone-only", style: { display: "none" } }, h(Text, null, "Phone section"))));
     const conversion = await convertReactEmail(Template);
-    expect(JSON.stringify(conversion.tree)).toMatch(/"hideOnDesktop":true[^}]*/);
+    expect(JSON.stringify((await convertElement(h(Template))).tree)).toMatch(/"hideOnDesktop":true[^}]*/);
+    expect(conversion.code).toMatch(/<Paragraph[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
     expect(conversion.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
   });
 });
@@ -284,7 +319,7 @@ export default function Template({ code }: { code: string }) {
 }
 Template.PreviewProps = { code: "SPARO-NDIGO-AMURT-SECAN" };`;
     const result = await convertSource(source);
-    expect(result.code).toMatch(/fontSize="13px"\s*html=\{`<code/);
+    expect(result.intermediate).toMatch(/fontSize="13px"\s*html=\{`<code/);
   });
 });
 
@@ -298,7 +333,6 @@ export default function Template() {
 }`;
 
   it("keep the color around them over the email's `table, td` color (both modes)", async () => {
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const fs = await import("node:fs");
     const path = await import("node:path");
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
@@ -306,13 +340,13 @@ export default function Template() {
       const file = path.join(dir, "migrated.tsx");
       fs.writeFileSync(file, (await convertSource(source)).code);
       const { default: Migrated } = await import(file);
-      const codemod = renderToHtml(React.createElement(Migrated));
+      const codemod = await htmlOf(React.createElement(Migrated));
       expect(codemod).toMatch(/<table style="color:#333333;border-collapse:separate"/);
       expect(codemod).toMatch(/<td style="color:#333333">18 Jan 2023/);
       const original = path.join(dir, "original.tsx");
       fs.writeFileSync(original, source);
       const { default: Original } = await import(original);
-      const runtime = (await convertReactEmail(Original)).html();
+      const runtime = await (await convertReactEmail(Original)).html();
       expect(runtime).toMatch(/<td style="color:#333333">18 Jan 2023/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -342,7 +376,7 @@ export default function Template() {
       const original = path.join(dir, "original.tsx");
       fs.writeFileSync(original, kept);
       const { default: Original } = await import(original);
-      for (const html of [renderToHtml(React.createElement(Migrated)), (await convertReactEmail(Original)).html()]) {
+      for (const html of [await htmlOf(React.createElement(Migrated)), await (await convertReactEmail(Original)).html()]) {
         const tableBefore = (word: string) => (html.slice(0, html.indexOf(word)).match(/<table\b[^>]*>/g) ?? []).pop() ?? "";
         expect(tableBefore("Ideas")).toMatch(/style="[^"]*padding:20px[^"]*;border-collapse:separate"/);
         expect(tableBefore("Billing")).toMatch(/style="border-collapse:separate"/);
@@ -371,10 +405,10 @@ export default function Template() {
   </Body></Html>;
 }`;
     const result = await convertSource(source);
-    const inlineWins = /<Paragraph([^>]*)>\s*Inline wins/.exec(result.code)?.[1] ?? "";
+    const inlineWins = /<Paragraph([^>]*)>\s*Inline wins/.exec(result.intermediate)?.[1] ?? "";
     expect(inlineWins).toContain('fontSize="14px"');
     expect(inlineWins).toContain('color="#ff0000"');
-    expect(result.code).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
+    expect(result.intermediate).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
   });
 
   it("lets an !important rule win over the template's own inline style too (both modes)", async () => {
@@ -386,11 +420,11 @@ export default function Template() {
   </Body></Html>;
 }`;
     const codemod = await convertSource(source);
-    const notice = /<Paragraph([^>]*)>\s*Important notice/.exec(codemod.code)?.[1] ?? "";
+    const notice = /<Paragraph([^>]*)>\s*Important notice/.exec(codemod.intermediate)?.[1] ?? "";
     expect(notice).toContain('color="#ff0000"');
     expect(notice).toContain('fontSize="40px"');
     expect(notice).toContain('containerPadding="0px 20px 0px 20px"');
-    expect(codemod.code).toMatch(/<Paragraph[^>]*color="#0000ff"[^>]*>\s*Inline wins/);
+    expect(codemod.intermediate).toMatch(/<Paragraph[^>]*color="#0000ff"[^>]*>\s*Inline wins/);
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     try {
       fs.writeFileSync(path.join(dir, "t.tsx"), source);
@@ -440,7 +474,7 @@ console.log(started);`;
       // The migrated file still renders.
       fs.writeFileSync(file, result.code);
       const { default: Migrated } = await import(file);
-      expect(JSON.stringify(renderToJson(Migrated({ name: "Ada" })))).toContain("The team");
+      expect(JSON.stringify(designOf(Migrated({ name: "Ada" })))).toContain("The team");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -467,7 +501,7 @@ Template.PreviewProps = { name: "Ana" };`;
       const file = path.join(dir, "template.tsx");
       fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
       const { default: Migrated } = await import(file);
-      expect(renderToHtml(Migrated({ name: "Ana", warning: "Check your address" }))).toContain("Check your address");
+      expect(await htmlOf(Migrated({ name: "Ana", warning: "Check your address" }))).toContain("Check your address");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -482,7 +516,7 @@ describe("loops", () => {
       const file = path.join(dir, "template.tsx");
       fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
       const { default: Migrated } = await import(file);
-      const design = renderToJson(Migrated({}));
+      const design = designOf(Migrated({}));
       const blocks = design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => [
         { padding: column.values.padding ?? "0px" },
         ...column.contents.map((content: any) => ({ padding: content.values.containerPadding ?? "0px", text: content.values.text })),
@@ -549,7 +583,7 @@ export default function Template() {
 
   it("codemod: takes em at the element's own font size, and reports % and an em it can't size", async () => {
     const result = await convertSource(source);
-    expect(result.code).toMatch(/containerPadding="0px 24px 0px 24px"[^>]*>\s*Twelve/);
+    expect(result.intermediate).toMatch(/containerPadding="0px 24px 0px 24px"[^>]*>\s*Twelve/);
     const notes = result.report.notes.map((n) => n.detail);
     expect(notes).toContain("padding: 0 10% (Container)");
     expect(notes).toContain("padding: 1em (at 16px per em) (Section)");
@@ -566,7 +600,7 @@ export default function Template() {
       const notes = conversion.report.notes.map((n) => n.detail);
       expect(notes).toContain("padding: 0 10% (Container)");
       expect(notes).toContain("padding: 1em (at 16px per em) (text)");
-      expect(JSON.stringify(conversion.design())).toContain('"containerPadding":"0px 24px 0px 24px"');
+      expect(conversion.code).toMatch(/padding: "0px 24px 0px 24px",\s*fontSize: 12,/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -622,7 +656,7 @@ export default function Template({ name = "Ada" }: { name?: string }) {
 }`);
     expect(result.report.nativeRatio).toBe(1);
     expect(result.code).not.toMatch(/Email\.|@react-email/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 
@@ -637,10 +671,10 @@ export default function Receipt({ orderId, date }: Props) {
 }
 Receipt.PreviewProps = { orderId: "#A-1001", date: "January 4, 2026" } satisfies Props;`);
     // Chromium gives the label 54px of the 600: its value starts right after it, not halfway across.
-    const [label, value] = (/cells=\{\[(\d+), (\d+)\]\}/.exec(result.code) ?? []).slice(1).map(Number);
+    const [label, value] = (/cells=\{\[(\d+), (\d+)\]\}/.exec(result.intermediate) ?? []).slice(1).map(Number);
     expect(label).toBeLessThan(80);
     expect(label + value).toBe(600);
-    expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
+    expect((await verifyNewComponents(Original, Migrated)).variants).toEqual([]);
   });
 
   it("shows nothing where an optional prop is left out, as the original does (not Elements' defaults)", async () => {
@@ -657,7 +691,7 @@ export default function Profile({ name, ctaUrl, avatarUrl, heading, ctaLabel, us
 }
 Profile.PreviewProps = { name: "Ana", ctaUrl: "https://example.com", avatarUrl: "https://example.com/a.png", heading: "Updated", ctaLabel: "Review" } satisfies Props;`);
     expect(result.code).toContain('(user?.title || heading) ?? ""');
-    const html = renderToHtml(Migrated({ name: "Ana", ctaUrl: "https://example.com" }));
+    const html = await htmlOf(Migrated({ name: "Ana", ctaUrl: "https://example.com" }));
     const text = html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ");
     expect(text).not.toMatch(/\bHeading\b|\bButton\b/i);
     expect(html).not.toContain("placeholder.png");
@@ -671,11 +705,11 @@ export default function Template({ show = true, name = "Ada" }: { show?: boolean
   return (<Html><Body><Text>Hi {name}</Text></Body></Html>);
 }
 Template.PreviewProps = { show: true, name: "Ada" };`);
-    expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
+    expect((await verifyNewComponents(Original, Migrated)).variants).toEqual([]);
     // A migration that renders nothing where the original shows text fails.
     const Always = (props: Record<string, unknown>) => Original({ ...props, show: true });
     Always.PreviewProps = Original.PreviewProps;
-    const variants = (await verifyConversion(Always, Migrated)).variants;
+    const variants = (await verifyNewComponents(Always, Migrated)).variants;
     expect(variants).toEqual([expect.objectContaining({ change: "show: false", missing: ["Hi", "Ada"] })]);
   });
 });
@@ -687,7 +721,7 @@ let destination = "https://example.com/default";
 export function configure(url: string) { destination = url; }
 const fixed = "https://example.com/fixed";
 export default function Template() { return <Html><Body><Button href={destination}>Go</Button><Button href={fixed}>Fixed</Button></Body></Html>; }`;
-    const { code } = await convertSource(source);
+    const { intermediate: code } = await convertSource(source);
     expect(code).toContain("href={destination}");
     expect(code).toContain('href="https://example.com/fixed"');
   });
@@ -718,18 +752,18 @@ Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.c
       const { default: Migrated } = await import(file);
       const { render } = await import("@react-email/components");
       expect(injected(await render(React.createElement(Original, hostile)))).toBe(false);
-      const check = await verifyConversion(Original, Migrated, { props: hostile });
+      const check = await verifyNewComponents(Original, Migrated, { props: hostile });
       expect(injected(check.convertedHtml)).toBe(false);
       expect([check.missing, check.added]).toEqual([[], []]);
       const runtime = await convertReactEmail(Original, { props: hostile, mergeTags: false });
-      expect(injected(runtime.html())).toBe(false);
+      expect(injected(await runtime.html())).toBe(false);
       // The check gives text props markup itself: a migration that renders one as HTML fails.
       expect(check.variants).toEqual([]);
-      const { Email, Row, Column, Heading } = await import("@unlayer/react-elements/legacy");
-      const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Heading, { text: p.title }))));
+      const { Email, Html } = await import("@unlayer/react-elements");
+      const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Html, { html: p.title }));
       const OnlyTitle = (p: { title: string }) => Original({ ...p, name: "", url: "" });
       OnlyTitle.PreviewProps = { title: "Welcome" };
-      const unsafe = await verifyConversion(OnlyTitle as any, Unsafe as any);
+      const unsafe = await verifyNewComponents(OnlyTitle as any, Unsafe as any);
       expect(unsafe.variants).toEqual([expect.objectContaining({ change: "text props with markup" })]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -761,7 +795,7 @@ describe("color: inherit", () => {
 export default function Template() {
   return <Html><Body style={{ backgroundColor: "#000000", color: "#ffffff" }}><Section style={{ backgroundColor: "#000000" }}><Text style={{ color: "inherit" }}>Footer</Text></Section></Body></Html>;
 }`;
-    const { code } = await convertSource(source);
+    const { intermediate: code } = await convertSource(source);
     expect(code).toMatch(/<Paragraph[^>]*color="#ffffff"[^>]*>\s*Footer/);
     expect(code).not.toContain('color="inherit"');
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
@@ -809,10 +843,10 @@ export default function Template() {
     ];
     for (const source of sources) {
       const { result, runtime, Original, Migrated } = await bothModes(source);
-      expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phone version/);
-      const check = await verifyConversion(Original, Migrated);
+      expect(result.intermediate).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phone version/);
+      const check = await verifyNewComponents(Original, Migrated);
       expect([check.missing, check.added]).toEqual([[], []]);
-      expect(compareText(check.originalHtml, runtime.html())).toMatchObject({ missing: [], added: [] });
+      expect(compareText(check.originalHtml, await runtime.html())).toMatchObject({ missing: [], added: [] });
     }
   });
 });
@@ -831,8 +865,8 @@ export default function Template() {
     ];
     for (const [background, fill, note] of cases) {
       const { result, runtime } = await bothModes(template(background));
-      expect(result.code).toContain(`<Email backgroundColor="${fill}"`);
-      expect(runtime.tree.props?.backgroundColor).toBe(fill);
+      expect(result.intermediate).toContain(`<Email backgroundColor="${fill}"`);
+      expect(runtime.code).toMatch(new RegExp(`<Email[^>]*backgroundColor: "${fill}"`));
       for (const report of [result.report, runtime.report]) {
         expect(report.notes.filter((n) => n.reason === "style not converted")).toEqual(note ? [{ reason: "style not converted", detail: note }] : []);
       }
@@ -856,7 +890,7 @@ export default function Template() {
 
   it("start text, buttons and images on the right where the template sets no alignment, in both modes", async () => {
     const { runtime, Migrated } = await bothModes(template('dir="rtl"'));
-    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+    for (const design of [designOf(Migrated({})), runtime.design()]) {
       expect(aligns(design)).toEqual(["right", "right", "left", "center", "right", "right"]);
     }
   });
@@ -877,11 +911,11 @@ Template.PreviewProps = { direction: "rtl", locale: "ar" };`;
     for (const dir of ["direction", `locale === "ar" ? "rtl" : "ltr"`]) {
       const { result, Original, Migrated } = await bothModes(template(dir));
       // A name is used where it is; an expression is worked out once, before the return.
-      if (dir === "direction") expect(result.code).toContain('textAlign={direction === "rtl" ? "right" : "left"}');
-      else expect(result.code).toMatch(/const textDirection = locale === "ar" \? "rtl" : "ltr";\s+return[\s\S]*textDirection=\{textDirection\}[\s\S]*textAlign=\{textDirection === "rtl" \? "right" : "left"\}/);
-      expect(aligns(renderToJson(Migrated({ direction: "rtl", locale: "ar" })))).toEqual(["right", "right", "left", "center", "right", "right"]);
-      expect(aligns(renderToJson(Migrated({ direction: "ltr", locale: "en" })))).toEqual(["left", "left", "left", "center", "left", "left"]);
-      const check = await verifyConversion(Original, Migrated);
+      if (dir === "direction") expect(result.intermediate).toContain('textAlign={direction === "rtl" ? "right" : "left"}');
+      else expect(result.intermediate).toMatch(/const textDirection = locale === "ar" \? "rtl" : "ltr";\s+return[\s\S]*textDirection=\{textDirection\}[\s\S]*textAlign=\{textDirection === "rtl" \? "right" : "left"\}/);
+      expect(aligns(designOf(Migrated({ direction: "rtl", locale: "ar" })))).toEqual(["right", "right", "left", "center", "right", "right"]);
+      expect(aligns(designOf(Migrated({ direction: "ltr", locale: "en" })))).toEqual(["left", "left", "left", "center", "left", "left"]);
+      const check = await verifyNewComponents(Original, Migrated);
       expect([check.missing, check.added]).toEqual([[], []]);
     }
   });
@@ -893,13 +927,13 @@ export default function Template({ lang }: { lang?: { dir: string } }) {
 }
 Template.PreviewProps = { lang: { dir: "rtl" } };`);
     expect(result.code).not.toContain("const textDirection");
-    expect(aligns(renderToJson(Migrated({ lang: { dir: "rtl" } })))).toEqual(["right"]);
-    expect(aligns(renderToJson(Migrated({})))).toEqual(["left"]);
+    expect(aligns(designOf(Migrated({ lang: { dir: "rtl" } })))).toEqual(["right"]);
+    expect(aligns(designOf(Migrated({})))).toEqual(["left"]);
   });
 
   it("leaves left-to-right templates as they were", async () => {
     const { runtime, Migrated } = await bothModes(template(""));
-    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+    for (const design of [designOf(Migrated({})), runtime.design()]) {
       expect(aligns(design)).toEqual(["left", "left", "left", "center", "left", "left"]);
     }
   });
@@ -934,18 +968,24 @@ describe("a heading's line height", () => {
 export default function Template() {
   return <Html><Body style={{ ${body} }}><Heading style={{ fontSize: "60px"${heading} }}>Big title</Heading></Body></Html>;
 }`;
-    const lineHeight = (design: any) => design.body.rows[0].columns[0].contents[0].values.lineHeight;
+    // The heading's line height in px, at its 60px (the builder writes a multiple of the font size as a percentage).
+    const lineHeight = (design: any) => {
+      const value = String(design.body.rows[0].columns[0].contents[0].values.lineHeight);
+      if (/%$/.test(value)) return `${Math.round((parseFloat(value) * 60) / 100)}px`;
+      return /^[\d.]+$/.test(value) ? `${Math.round(Number(value) * 60)}px` : value;
+    };
     const cases: Array<[string, string, string]> = [
-      ["lineHeight: 2", "", "2"],
+      ["lineHeight: 2", "", "120px"],
       ['fontSize: "16px", lineHeight: "150%"', "", "24px"],
       ['fontSize: "20px", lineHeight: "1.2em"', "", "24px"],
       ['lineHeight: "20px"', "", "20px"],
-      ["lineHeight: 2", ', lineHeight: "1.1"', "1.1"],
-      ['color: "#000000"', "", "normal"],
+      ["lineHeight: 2", ', lineHeight: "1.1"', "66px"],
+      // (The builder has no normal: it writes the browser's, 120%.)
+      ['color: "#000000"', "", "72px"],
     ];
     for (const [body, heading, expected] of cases) {
       const { runtime, Migrated } = await bothModes(template(body, heading));
-      expect([lineHeight(renderToJson(Migrated({}))), lineHeight(runtime.design())], body + heading).toEqual([expected, expected]);
+      expect([lineHeight(designOf(Migrated({}))), lineHeight(runtime.design())], body + heading).toEqual([expected, expected]);
     }
   });
 });
@@ -962,7 +1002,7 @@ export default function Template() {
     <Button href="https://example.com/d">New tab</Button>
   </Body></Html>;
 }`);
-    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+    for (const html of [await htmlOf(Migrated({})), await runtime.html()]) {
       expect(["a", "b", "c", "d"].map((path) => targetOf(html, `https://example.com/${path}`))).toEqual(["_self", "_blank", "_self", "_blank"]);
     }
   });
@@ -1009,10 +1049,10 @@ export default function Template() {
     <Text className="roomy" style={{ paddingTop: "4px" }}>Padded</Text>
   </Body></Html>;
 }`);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.phone).toEqual({ missing: [], added: [] });
-    expect(compareText(check.originalHtml, runtime.html()).phone).toEqual({ missing: [], added: [] });
-    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+    expect(compareText(check.originalHtml, await runtime.html()).phone).toEqual({ missing: [], added: [] });
+    for (const design of [designOf(Migrated({})), runtime.design()]) {
       const texts = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
       expect(texts.map((t: any) => Boolean(t.values._override?.mobile?.hideMobile))).toEqual([false, true, false]);
     }
@@ -1025,8 +1065,8 @@ describe("content a <style> class hides", () => {
 export default function Template() {
   return <Html><Head><style>{".hide{display:none}"}</style></Head><Body><Text>Shown</Text><Text className="hide">Internal note</Text></Body></Html>;
 }`);
-    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlWords(html)).toEqual(["Shown"]);
-    const check = await verifyConversion(Original, Migrated);
+    for (const html of [await htmlOf(Migrated({})), await runtime.html()]) expect(htmlWords(html)).toEqual(["Shown"]);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
     expect(result.code).toMatch(/style=\{\{ display: "none" \}\}/);
   });
@@ -1040,8 +1080,8 @@ export default function Template() {
     <Img className="dark-img" src="https://example.com/dark.png" width={100} alt="Dark logo" />
   </Body></Html>;
 }`);
-    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlAttributes(html)).toEqual(["src https://example.com/light.png", "alt Light logo"]);
-    const check = await verifyConversion(Original, Migrated);
+    for (const html of [await htmlOf(Migrated({})), await runtime.html()]) expect(htmlAttributes(html)).toEqual(["src https://example.com/light.png", "alt Light logo"]);
+    const check = await verifyNewComponents(Original, Migrated);
     // In dark mode the original shows the dark logo, the migration the light one.
     expect([check.missingAttributes, check.addedAttributes]).toEqual([
       ["src https://example.com/dark.png (in dark mode)", "alt Dark logo (in dark mode)"],
@@ -1057,7 +1097,7 @@ describe("!important in <style> rules", () => {
 export default function Template() {
   return <Html><Head><style>{".copy { color: #000000 !important; } .copy { color: #ffffff; }"}</style><style>{".copy { color: #ffffff; }"}</style></Head><Body><Text className="copy">Black text</Text></Body></Html>;
 }`);
-    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+    for (const html of [await htmlOf(Migrated({})), await runtime.html()]) {
       // The text's own style: black, not white (as today's components write it, or the new engine).
       expect(html).toMatch(/color:\s*#000(?:000)?;[^"]*line-height:\s*24px/);
       expect(html).not.toMatch(/color:\s*#fff(?:fff)?;[^"]*line-height:\s*24px/);
@@ -1071,8 +1111,9 @@ describe("inline styles in text", () => {
 export default function Template() {
   return <Html><Body><Text>Hello <span style={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, color: "#ff0000" }}>bold red</span></Text></Body></Html>;
 }`);
-    expect(result.code).toContain('style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000"');
-    expect(renderToHtml(Migrated({}))).toContain('<span style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000">bold red</span>');
+    expect(result.intermediate).toContain('style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000"');
+    expect(result.code).toContain(`fontFamily: '"Inter", sans-serif'`);
+    expect(await htmlOf(Migrated({}))).toMatch(/<span style="[^"]*font-family:&quot;Inter&quot;, sans-serif;[^"]*">bold red<\/span>/);
   });
 });
 
@@ -1084,8 +1125,8 @@ function Cta({ href, children = "Get started" }: { href: string; children?: Reac
 export default function Template({ ctaLabel }: { ctaLabel?: string }) { return <Html><Body><Cta href="https://example.com">{ctaLabel}</Cta></Body></Html>; }
 Template.PreviewProps = { ctaLabel: "Shop now" };`);
     expect(result.code).toContain('"Get started"');
-    expect(htmlWords(renderToHtml(Migrated({})))).toEqual(["Get", "started"]);
-    expect(htmlWords(renderToHtml(Migrated({ ctaLabel: "Shop now" })))).toEqual(["Shop", "now"]);
+    expect(htmlWords(await htmlOf(Migrated({})))).toEqual(["Get", "started"]);
+    expect(htmlWords(await htmlOf(Migrated({ ctaLabel: "Shop now" })))).toEqual(["Shop", "now"]);
   });
 });
 
@@ -1110,17 +1151,17 @@ Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join"
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     try {
       const file = path.join(dir, "migrated.tsx");
-      const { code } = await convertSource(source, { fileName: file });
+      const { code, intermediate } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       expect(code).toContain('{name ?? ""}');
       // A fallback that's never missing needs none (prettier writes \`(a ?? "b") ?? ""\` as \`a ?? "b" ?? ""\`: TS2881).
       expect(code).toContain('{name ?? "Friend"}');
       expect(code).not.toMatch(/"Únete al equipo"\) \?\? ""|`\) \?\? ""|url\) \?\? ""/);
-      expect(code).toMatch(/textAlign="left"[^>]*>\s*Starts here/);
-      expect(code).toMatch(/textAlign="right"[^>]*>\s*Ends here/);
+      expect(intermediate).toMatch(/textAlign="left"[^>]*>\s*Starts here/);
+      expect(intermediate).toMatch(/textAlign="right"[^>]*>\s*Ends here/);
       // It compiles against Elements' own types (TS2869/TS2881: `??` after a value never missing; TS2322: an alignment Elements doesn't take).
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
     } finally {
@@ -1138,7 +1179,7 @@ describe("the fixture templates, migrated", () => {
       const { code } = await convertSource(fs.readFileSync(original, "utf8"), { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const options = { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
       const program = ts.createProgram([original, file], options);
       const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       // Each error the migration has, the original has too (an unused `React` import in both, say).
@@ -1175,7 +1216,7 @@ describe("migrations that compile where the original does", () => {
       const { code } = await convertSource(files[entry], { fileName: file, loadModule });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const options = { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
       const program = ts.createProgram([original, file], options);
       const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors(original)).toEqual([]);
@@ -1259,14 +1300,15 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     try {
       const file = path.join(dir, "migrated.tsx");
-      const { code } = await convertSource(source, { fileName: file });
+      const { code, intermediate } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       // The colors are written as the code they're read from; the gap, lost, goes with its name.
       expect(code).toMatch(/const \{ text, muted \} = theme\.colors/);
-      expect(code).toContain('color={text || "#000000"}');
+      expect(intermediate).toContain('color={text || "#000000"}');
+      expect(code).toContain('color: text || "#000000"');
       expect(code).toMatch(/const \{ pad \} = theme\.space/);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
     } finally {
@@ -1299,7 +1341,7 @@ Digest.PreviewProps = { articles: [{ title: "First", url: "https://example.com/1
       const { default: Migrated } = await import(file);
       const second = { title: "Second", url: "https://example.com/2", image: "https://example.com/2.png" };
       for (const articles of [Original.PreviewProps.articles, [...Original.PreviewProps.articles, second]]) {
-        const check = await verifyConversion(Original, Migrated, { props: { articles } });
+        const check = await verifyNewComponents(Original, Migrated, { props: { articles } });
         expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [], []]);
       }
     } finally {
@@ -1320,13 +1362,16 @@ Total.PreviewProps = { total: "$84.00", taxRate: 20 };`;
       const originalFile = path.join(dir, "original.tsx");
       fs.writeFileSync(originalFile, source);
       const file = path.join(dir, "migrated.tsx");
-      const { code } = await convertSource(source, { fileName: file });
+      const { code, intermediate } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       const { default: Original } = await import(originalFile);
       const { default: Migrated } = await import(file);
-      expect(code).toMatch(/htmlAttribute\("hidden"/);
+      expect(intermediate).toMatch(/htmlAttribute\("hidden"/);
+      // In the new components: shown where the condition doesn't hide it; the element always hidden left out.
+      expect(code).toMatch(/\{\(\(taxRate === 0 \|\| undefined\) \?\? false\) === false \? \(\s*<Span>/);
+      expect(code).not.toContain("never shown");
       for (const taxRate of [20, 0]) {
-        const check = await verifyConversion(Original, Migrated, { props: { total: "$84.00", taxRate } });
+        const check = await verifyNewComponents(Original, Migrated, { props: { total: "$84.00", taxRate } });
         expect([check.missing, check.added]).toEqual([[], []]);
       }
     } finally {
@@ -1350,7 +1395,7 @@ Card.PreviewProps = { accent: "red", name: "Ada" };`;
       expect(report.lostStyles?.[0]).toContain("accent");
       expect(code).toContain("function Card({ name }:");
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1366,7 +1411,7 @@ describe("what only a dropped style or attribute read", () => {
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       return { code, errors: ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`) };
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1439,7 +1484,7 @@ export default function NoteDefault() {
       expect(code).not.toMatch(/import \{[^}]*\bTailwind\b[^}]*\} from "@react-email\/components"/);
       expect(code).toContain("export const Note = ({ Tailwind }");
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1467,7 +1512,7 @@ Note.PreviewProps = { name: "Ada" };`;
       expect(code).not.toMatch(/\bconfig\b|\bmix\b|\bparse\b/);
       expect(code).toMatch(/^\s*\(\{ value: track\(name\) \}\);$/m);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1503,11 +1548,11 @@ Reset.PreviewProps = { url: "https://acme.com/reset?t=1" };`;
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
       const { default: Migrated } = await import(file);
-      const words = htmlWords(renderToHtml(Migrated(Migrated.PreviewProps)));
+      const words = htmlWords(await htmlOf(Migrated(Migrated.PreviewProps)));
       expect(words.join(" ")).toContain("You received this because you asked for a reset Acme Inc 1 Market St You received this because you asked for a reset Reply to stop these emails");
       expect(words).not.toContain("Unsubscribe");
     } finally {
@@ -1528,10 +1573,10 @@ export default function Template() {
     <Text className="desktop-only">Not on phones</Text>
   </Body></Html>;
 }`);
-    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+    for (const html of [await htmlOf(Migrated({})), await runtime.html()]) {
       expect(htmlWords(html)).toEqual(["Shown", "on", "screen", "Not", "on", "phones"]);
     }
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.phone.missing, check.phone.added]).toEqual([[], [], [], []]);
     expect(result.code).not.toMatch(/Shown on screen[\s\S]{0,40}display/);
   });
@@ -1555,12 +1600,12 @@ export default function Template({ name }: { name: string }) {
 }
 Template.PreviewProps = { name: "Ana" };`);
     expect(result.report.lostStyles).toBeUndefined();
-    expect(result.code).toContain('backgroundColor="#f3f4f6"');
-    expect(result.code).toContain('value: "Inter, Arial, sans-serif"');
-    expect(result.code).toMatch(/<Heading[^>]*color="#111827"[^>]*fontSize="24px"/);
-    expect(result.code).toMatch(/<Paragraph[^>]*color="#6b7280"[^>]*fontSize="13px"[^>]*fontWeight=\{600\}/);
-    expect(result.code).toMatch(/<Button[^>]*backgroundColor="#4f46e5"/);
-    const html = renderToHtml(Migrated({ name: "Ana" }));
+    expect(result.intermediate).toContain('backgroundColor="#f3f4f6"');
+    expect(result.intermediate).toContain('value: "Inter, Arial, sans-serif"');
+    expect(result.intermediate).toMatch(/<Heading[^>]*color="#111827"[^>]*fontSize="24px"/);
+    expect(result.intermediate).toMatch(/<Paragraph[^>]*color="#6b7280"[^>]*fontSize="13px"[^>]*fontWeight=\{600\}/);
+    expect(result.intermediate).toMatch(/<Button[^>]*backgroundColor="#4f46e5"/);
+    const html = await htmlOf(Migrated({ name: "Ana" }));
     expect(html).toMatch(/color:\s*#111827/);
     expect(html).toMatch(/background-color:\s*#4f46e5/);
   });
@@ -1578,9 +1623,9 @@ export default function Template() {
   </Body></Html>;
 }`);
     expect(result.report.lostStyles).toBeUndefined();
-    expect(result.code).toMatch(/color="#ff0000"[^>]*>\s*Card/);
-    expect(result.code).toMatch(/fontSize="20px"[^>]*>\s*Big/);
-    expect(result.code).toMatch(/fontSize="18px"[^>]*>\s*Sized/);
+    expect(result.intermediate).toMatch(/color="#ff0000"[^>]*>\s*Card/);
+    expect(result.intermediate).toMatch(/fontSize="20px"[^>]*>\s*Big/);
+    expect(result.intermediate).toMatch(/fontSize="18px"[^>]*>\s*Sized/);
   });
 
   it("fail the check: a style from props or from a function of the styles object", async () => {
@@ -1642,7 +1687,7 @@ Template.PreviewProps = { tone: "light" };`);
 const styles = { card: { color: "#ff0000" } };
 const merge = (a: object, b: object) => ({ ...a, ...b });
 export default function Template() { return <Html><Body><Text style={styles.card}>Colored {JSON.stringify(merge(styles, {}))}</Text></Body></Html>; }`);
-    expect(merged.result.code).toContain('color="#ff0000"');
+    expect(merged.result.intermediate).toContain('color="#ff0000"');
   });
 
   it("fail the check: a column's or a linked image's width computed from props", async () => {

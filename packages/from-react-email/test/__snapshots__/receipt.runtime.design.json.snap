@@ -20,13 +20,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://placehold.co/140x36/111827/ffffff?text=Northwind",
                     "width": 140,
+                    "height": 36,
                     "autoWidth": false,
-                    "maxWidth": "26.12%",
-                    "height": 36
+                    "maxWidth": "26.12%"
                   },
                   "textAlign": "left",
                   "altText": "Northwind",
@@ -37,14 +37,6 @@
                       "target": "_blank"
                     }
                   },
-                  "_override": {
-                    "mobile": {
-                      "src": {
-                        "autoWidth": false,
-                        "maxWidth": "140px"
-                      }
-                    }
-                  },
                   "_meta": {
                     "htmlID": "u_content_image_1",
                     "htmlClassNames": "u_content_image"
@@ -53,13 +45,22 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "_override": {
+                    "mobile": {
+                      "src": {
+                        "autoWidth": false,
+                        "maxWidth": "140px"
+                      }
+                    }
+                  },
+                  "maxWidth": "156.72px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#111827",
-              "padding": "24px 32px 24px 32px",
+              "padding": "24px 32px",
               "border": {},
               "borderRadius": "8px 8px 0px 0px",
               "_meta": {
@@ -84,7 +85,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "40px 0px 0px 0px",
+          "padding": "40px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -112,11 +113,11 @@
               {
                 "type": "heading",
                 "values": {
-                  "containerPadding": "0px 32px 12px 32px",
+                  "containerPadding": "0px 32px 12px",
                   "headingType": "h1",
                   "fontSize": "24px",
                   "textAlign": "left",
-                  "lineHeight": "32px",
+                  "lineHeight": "134%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -135,16 +136,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "letterSpacing": "0px"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 32px 0px 32px",
+                  "containerPadding": "0px 32px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -153,7 +159,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#4b5563",
-                  "text": "We&#x27;ve received your payment and are getting your order ready. Here&#x27;s your receipt for your records.",
                   "_meta": {
                     "htmlID": "u_content_text_1",
                     "htmlClassNames": "u_content_text"
@@ -162,13 +167,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "We've received your payment and are getting your order ready. Here's your receipt for your records."
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "32px 0px 24px 0px",
+              "padding": "32px 0px 24px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -230,9 +242,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_1",
                     "htmlClassNames": "u_content_divider"
@@ -263,10 +275,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "8px 0px 2px 0px",
+                  "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -275,9 +287,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "fontWeight": 600,
-                  "letterSpacing": "0.05em",
-                  "text": "<span style=\"text-transform:uppercase\">Order number</span>",
                   "_meta": {
                     "htmlID": "u_content_text_2",
                     "htmlClassNames": "u_content_text"
@@ -286,16 +295,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0.55px",
+                  "text": "<span style=\"text-transform:uppercase\">Order number</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 8px 0px",
+                  "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -304,7 +320,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "#{{orderNumber}}",
                   "_meta": {
                     "htmlID": "u_content_text_3",
                     "htmlClassNames": "u_content_text"
@@ -313,7 +328,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "#{{orderNumber}}"
                 }
               }
             ],
@@ -335,10 +357,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "8px 0px 2px 0px",
+                  "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -347,9 +369,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "fontWeight": 600,
-                  "letterSpacing": "0.05em",
-                  "text": "<span style=\"text-transform:uppercase\">Order date</span>",
                   "_meta": {
                     "htmlID": "u_content_text_4",
                     "htmlClassNames": "u_content_text"
@@ -358,16 +377,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0.55px",
+                  "text": "<span style=\"text-transform:uppercase\">Order date</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 8px 0px",
+                  "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -376,7 +402,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "{{orderDate}}",
                   "_meta": {
                     "htmlID": "u_content_text_5",
                     "htmlClassNames": "u_content_text"
@@ -385,13 +410,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "{{orderDate}}"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#f9fafb",
-              "padding": "8px 0px 8px 0px",
+              "padding": "8px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -407,10 +439,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "8px 0px 2px 0px",
+                  "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -419,9 +451,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "fontWeight": 600,
-                  "letterSpacing": "0.05em",
-                  "text": "<span style=\"text-transform:uppercase\">Payment method</span>",
                   "_meta": {
                     "htmlID": "u_content_text_6",
                     "htmlClassNames": "u_content_text"
@@ -430,16 +459,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0.55px",
+                  "text": "<span style=\"text-transform:uppercase\">Payment method</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 8px 0px",
+                  "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -448,7 +484,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "{{paymentMethod}}",
                   "_meta": {
                     "htmlID": "u_content_text_7",
                     "htmlClassNames": "u_content_text"
@@ -457,7 +492,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "{{paymentMethod}}"
                 }
               }
             ],
@@ -484,9 +526,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_2",
                     "htmlClassNames": "u_content_divider"
@@ -526,7 +568,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -572,9 +614,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_3",
                     "htmlClassNames": "u_content_divider"
@@ -589,7 +631,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "24px 0px 0px 0px",
+              "padding": "24px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -605,13 +647,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/beanie/128/128",
                     "width": 64,
+                    "height": 64,
                     "autoWidth": false,
-                    "maxWidth": "80%",
-                    "height": 64
+                    "maxWidth": "80%"
                   },
                   "textAlign": "left",
                   "altText": "Merino Wool Beanie",
@@ -630,18 +672,15 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "64px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "36px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "36px 0px 12px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_9",
@@ -656,10 +695,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 2px 0px",
+                  "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -668,8 +707,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "Merino Wool Beanie",
                   "_meta": {
                     "htmlID": "u_content_text_8",
                     "htmlClassNames": "u_content_text"
@@ -678,16 +715,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "Merino Wool Beanie"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -696,7 +740,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Charcoal / One size",
                   "_meta": {
                     "htmlID": "u_content_text_9",
                     "htmlClassNames": "u_content_text"
@@ -705,16 +748,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Charcoal / One size"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -723,7 +773,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Qty: 1",
                   "_meta": {
                     "htmlID": "u_content_text_10",
                     "htmlClassNames": "u_content_text"
@@ -732,18 +781,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Qty: 1"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "36px 0px 12px 8px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_10",
@@ -758,10 +810,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -770,8 +822,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "$34.00",
                   "_meta": {
                     "htmlID": "u_content_text_11",
                     "htmlClassNames": "u_content_text"
@@ -780,18 +830,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "$34.00"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "36px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "36px 0px 12px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_11",
@@ -811,9 +864,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_4",
                     "htmlClassNames": "u_content_divider"
@@ -828,7 +881,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "24px 0px 0px 0px",
+              "padding": "24px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -853,7 +906,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -899,9 +952,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_5",
                     "htmlClassNames": "u_content_divider"
@@ -932,13 +985,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/socks/128/128",
                     "width": 64,
+                    "height": 64,
                     "autoWidth": false,
-                    "maxWidth": "80%",
-                    "height": 64
+                    "maxWidth": "80%"
                   },
                   "textAlign": "left",
                   "altText": "Trail Running Socks (3-pack)",
@@ -957,18 +1010,15 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "64px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "12px 0px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_14",
@@ -983,10 +1033,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 2px 0px",
+                  "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -995,8 +1045,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "Trail Running Socks (3-pack)",
                   "_meta": {
                     "htmlID": "u_content_text_12",
                     "htmlClassNames": "u_content_text"
@@ -1005,16 +1053,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "Trail Running Socks (3-pack)"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1023,7 +1078,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Assorted / Medium",
                   "_meta": {
                     "htmlID": "u_content_text_13",
                     "htmlClassNames": "u_content_text"
@@ -1032,16 +1086,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Assorted / Medium"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1050,7 +1111,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Qty: 2",
                   "_meta": {
                     "htmlID": "u_content_text_14",
                     "htmlClassNames": "u_content_text"
@@ -1059,18 +1119,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Qty: 2"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "12px 0px 12px 8px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_15",
@@ -1085,10 +1148,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1097,8 +1160,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "$49.00",
                   "_meta": {
                     "htmlID": "u_content_text_15",
                     "htmlClassNames": "u_content_text"
@@ -1107,18 +1168,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "$49.00"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "12px 0px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_16",
@@ -1138,9 +1202,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_6",
                     "htmlClassNames": "u_content_divider"
@@ -1180,7 +1244,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1226,9 +1290,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_7",
                     "htmlClassNames": "u_content_divider"
@@ -1259,13 +1323,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/bottle/128/128",
                     "width": 64,
+                    "height": 64,
                     "autoWidth": false,
-                    "maxWidth": "80%",
-                    "height": 64
+                    "maxWidth": "80%"
                   },
                   "textAlign": "left",
                   "altText": "Insulated Water Bottle",
@@ -1284,18 +1348,15 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "64px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "12px 0px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_19",
@@ -1310,10 +1371,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 2px 0px",
+                  "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1322,8 +1383,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "Insulated Water Bottle",
                   "_meta": {
                     "htmlID": "u_content_text_16",
                     "htmlClassNames": "u_content_text"
@@ -1332,16 +1391,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "Insulated Water Bottle"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1350,7 +1416,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "24 oz / Forest green",
                   "_meta": {
                     "htmlID": "u_content_text_17",
                     "htmlClassNames": "u_content_text"
@@ -1359,16 +1424,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "24 oz / Forest green"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "13px",
                   "textAlign": "left",
-                  "lineHeight": "18px",
+                  "lineHeight": "139%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1377,7 +1449,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Qty: 1",
                   "_meta": {
                     "htmlID": "u_content_text_18",
                     "htmlClassNames": "u_content_text"
@@ -1386,18 +1457,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Qty: 1"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "12px 0px 12px 8px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_20",
@@ -1412,10 +1486,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1424,8 +1498,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 600,
-                  "text": "$29.99",
                   "_meta": {
                     "htmlID": "u_content_text_19",
                     "htmlClassNames": "u_content_text"
@@ -1434,18 +1506,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px",
+                  "text": "$29.99"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
-              "border": {
-                "borderBottomWidth": "1px",
-                "borderBottomStyle": "solid",
-                "borderBottomColor": "#f3f4f6"
-              },
+              "padding": "12px 0px",
+              "border": {},
               "borderRadius": "0px",
               "_meta": {
                 "htmlID": "u_column_21",
@@ -1465,9 +1540,9 @@
                   "border": {
                     "borderTopWidth": "0px",
                     "borderTopStyle": "solid",
-                    "borderTopColor": "#BBBBBB"
+                    "borderTopColor": "#bbbbbb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_8",
                     "htmlClassNames": "u_content_divider"
@@ -1507,7 +1582,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1544,14 +1619,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 32px 0px 32px",
+                  "containerPadding": "0px 32px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e7eb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_9",
                     "htmlClassNames": "u_content_divider"
@@ -1566,7 +1641,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -1611,8 +1686,8 @@
       },
       {
         "cells": [
-          1,
-          1
+          300,
+          300
         ],
         "columns": [
           {
@@ -1623,7 +1698,7 @@
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1632,7 +1707,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Subtotal",
                   "_meta": {
                     "htmlID": "u_content_text_20",
                     "htmlClassNames": "u_content_text"
@@ -1641,13 +1715,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Subtotal"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -1666,7 +1747,7 @@
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1675,7 +1756,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "$112.99",
                   "_meta": {
                     "htmlID": "u_content_text_21",
                     "htmlClassNames": "u_content_text"
@@ -1684,13 +1764,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "$112.99"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -1715,7 +1802,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1734,8 +1821,8 @@
             }
           },
           "cells": [
-            1,
-            1
+            300,
+            300
           ]
         }
       },
@@ -1753,7 +1840,7 @@
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1762,7 +1849,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Shipping",
                   "_meta": {
                     "htmlID": "u_content_text_22",
                     "htmlClassNames": "u_content_text"
@@ -1771,7 +1857,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Shipping"
                 }
               }
             ],
@@ -1796,7 +1889,7 @@
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1805,7 +1898,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "Free",
                   "_meta": {
                     "htmlID": "u_content_text_23",
                     "htmlClassNames": "u_content_text"
@@ -1814,7 +1906,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Free"
                 }
               }
             ],
@@ -1845,7 +1944,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1883,7 +1982,7 @@
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1892,7 +1991,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#6b7280",
-                  "text": "Tax (8.75%)",
                   "_meta": {
                     "htmlID": "u_content_text_24",
                     "htmlClassNames": "u_content_text"
@@ -1901,7 +1999,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Tax (8.75%)"
                 }
               }
             ],
@@ -1926,7 +2031,7 @@
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1935,7 +2040,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "text": "$9.89",
                   "_meta": {
                     "htmlID": "u_content_text_25",
                     "htmlClassNames": "u_content_text"
@@ -1944,7 +2048,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "$9.89"
                 }
               }
             ],
@@ -1975,7 +2086,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -2009,14 +2120,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 32px 0px 32px",
+                  "containerPadding": "0px 32px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e7eb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_10",
                     "htmlClassNames": "u_content_divider"
@@ -2031,7 +2142,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -2088,7 +2199,7 @@
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "16px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -2097,8 +2208,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 700,
-                  "text": "Total",
                   "_meta": {
                     "htmlID": "u_content_text_26",
                     "htmlClassNames": "u_content_text"
@@ -2107,13 +2216,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 700,
+                  "letterSpacing": "0px",
+                  "text": "Total"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -2132,7 +2248,7 @@
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "18px",
                   "textAlign": "right",
-                  "lineHeight": "24px",
+                  "lineHeight": "134%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -2141,8 +2257,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#111827",
-                  "fontWeight": 700,
-                  "text": "$122.88",
                   "_meta": {
                     "htmlID": "u_content_text_27",
                     "htmlClassNames": "u_content_text"
@@ -2151,13 +2265,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 700,
+                  "letterSpacing": "0px",
+                  "text": "$122.88"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 0px 0px",
+              "padding": "20px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -2182,7 +2303,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -2216,7 +2337,7 @@
               {
                 "type": "button",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "href": {
                     "name": "web",
                     "values": {
@@ -2227,8 +2348,8 @@
                   "buttonColors": {
                     "color": "#ffffff",
                     "backgroundColor": "#111827",
-                    "hoverColor": "#FFFFFF",
-                    "hoverBackgroundColor": "#0879A1"
+                    "hoverColor": "#ffffff",
+                    "hoverBackgroundColor": "#111827"
                   },
                   "size": {
                     "autoWidth": true,
@@ -2237,11 +2358,10 @@
                   "fontSize": "14px",
                   "lineHeight": "120%",
                   "textAlign": "center",
-                  "padding": "12px 24px 12px 24px",
+                  "padding": "12px 24px",
                   "border": {},
                   "borderRadius": "6px",
                   "text": "View your order",
-                  "fontWeight": 600,
                   "_meta": {
                     "htmlID": "u_content_button_1",
                     "htmlClassNames": "u_content_button"
@@ -2250,13 +2370,19 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "0px"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "28px 0px 0px 0px",
+              "padding": "28px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -2309,14 +2435,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 32px 20px 32px",
+                  "containerPadding": "0px 32px 20px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e7eb"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_11",
                     "htmlClassNames": "u_content_divider"
@@ -2331,10 +2457,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 32px 6px 32px",
+                  "containerPadding": "0px 32px 6px",
                   "fontSize": "12px",
                   "textAlign": "center",
-                  "lineHeight": "18px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -2343,7 +2469,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#9ca3af",
-                  "text": "Need help with your order? Visit our <a href=\"https://northwind.example.com/help\" style=\"color:#6b7280;text-decoration-line:none;text-decoration:underline\" target=\"_blank\">help center</a> or reply to this email.",
                   "_meta": {
                     "htmlID": "u_content_text_28",
                     "htmlClassNames": "u_content_text"
@@ -2352,16 +2477,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Need help with your order? Visit our <a href=\"https://northwind.example.com/help\" target=\"_blank\" style=\"color:#6b7280;text-decoration:underline\">help center</a> or reply to this email."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 32px 0px 32px",
+                  "containerPadding": "0px 32px",
                   "fontSize": "12px",
                   "textAlign": "center",
-                  "lineHeight": "18px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -2370,7 +2502,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#9ca3af",
-                  "text": "Northwind Traders · 500 Harbor Way · Seattle, WA 98101",
                   "_meta": {
                     "htmlID": "u_content_text_29",
                     "htmlClassNames": "u_content_text"
@@ -2379,13 +2510,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "-apple-system",
+                    "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Northwind Traders · 500 Harbor Way · Seattle, WA 98101"
                 }
               }
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "20px 0px 38px 0px",
+              "padding": "20px 0px 38px",
               "border": {},
               "borderRadius": "0px 0px 8px 8px",
               "_meta": {
@@ -2410,7 +2548,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px 0px 40px 0px",
+          "padding": "0px 0px 40px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertSource, htmlWords, verifyConversion } from "../src/index";
+import { convertSource, htmlWords, verifyNewComponents } from "../src/index";
 
 describe("dynamic preview text", () => {
   it.each(["tsx", "jsx"])("keeps absent and mixed text empty as React does in %s", async (extension) => {
@@ -29,7 +29,7 @@ T.PreviewProps = ${JSON.stringify(props)};`;
         const migratedFile = path.join(dir, `${name}.converted.${extension}`);
         fs.writeFileSync(migratedFile, converted.code);
         const { default: Migrated } = await import(migratedFile);
-        const check = await verifyConversion(Original, Migrated);
+        const check = await verifyNewComponents(Original, Migrated);
         if (name === "absent" || name === "zero" || name === "array" || name === "array-zero") {
           expect(check.missing).toEqual([]);
           expect(check.added).toEqual([]);

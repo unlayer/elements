@@ -1,13 +1,11 @@
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import React from "react";
-import { convertSource, mergeTagDesign, verifyConversion } from "../src/index";
+import { convertSource, mergeTagDesign, verifyNewComponents } from "../src/index";
+import { htmlOf } from "./elements";
 
-/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
-const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -34,15 +32,13 @@ async function migrate(files: Record<string, string>, entry: string) {
   };
   const conversion = await convertSource(files[entry], { fileName: file, loadModule });
   fs.writeFileSync(file, conversion.code);
-  const options = { noEmit: true, paths: TODAYS_TYPES, allowJs: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+  const options = { noEmit: true, allowJs: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
   const program = ts.createProgram([original, file], options);
   const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
-  const left = errors(original);
-  const added = errors(file).filter((e) => {
-    const at = left.indexOf(e);
-    if (at >= 0) left.splice(at, 1);
-    return at < 0;
-  });
+  // An error the original has too isn't the migration's: one it has once (a prop typed unknown shown as a child) may
+  // come once for each way a block is written (as text, and kept as it renders, where the value may be an element).
+  const left = new Set(errors(original));
+  const added = errors(file).filter((e) => !left.has(e));
   const { default: Original } = await import(original);
   const { default: Migrated } = await import(file);
   return { conversion, added, originalErrors: errors(original), Original, Migrated };
@@ -134,7 +130,7 @@ Digest.PreviewProps = { name: "Ana", accountId: "42", message: "Big news", items
     expect(added).toEqual([]);
     expect(conversion.code).not.toMatch(/\{\s*\(?undefined\)?\s*&&/);
     for (const props of [Original.PreviewProps, { name: "Bo", message: "Other news", items: [] }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.designWarnings]).toEqual([[], [], [], [], []]);
       // No Paragraph for the tagline that isn't there, nor for the links the first footer doesn't get.
       expect(texts(check.design).filter((text) => !text.trim())).toEqual([]);
@@ -168,7 +164,7 @@ Receipt.PreviewProps = { logo: "https://example.com/logo.png" };
     // No `loading` the original doesn't have: lazy images can wait until they're scrolled to (a tracking pixel too).
     // React 19's preload links for them aren't content to the check.
     expect(conversion.code).not.toContain("loading=");
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
     expect(check.convertedHtml).not.toContain("loading=");
   });
@@ -191,7 +187,7 @@ Summary.PreviewProps = { change: 12 };
     expect(originalErrors).toEqual([]);
     expect(added).toEqual([]);
     expect(conversion.code).toMatch(/<Badge value=\{change\} className="ml-1" \/>/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 });
@@ -228,8 +224,8 @@ Welcome.PreviewProps = { name: "Ana" };
     }, "welcome.tsx");
     expect(added).toEqual([]);
     expect(conversion.report.fallbacks).toEqual([]);
-    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#f4f4f5"/);
-    const check = await verifyConversion(Original, Migrated);
+    expect(conversion.intermediate).toMatch(/<Email[^>]*backgroundColor="#f4f4f5"/);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
     expect(check.convertedHtml.match(/<html/g)).toHaveLength(1);
   });
@@ -264,9 +260,9 @@ Notice.PreviewProps = { page: "Acme", note: "All systems normal." };
     expect(added).toEqual([]);
     expect(conversion.report.fallbacks).toEqual([]);
     expect(conversion.code).toMatch(/const layoutBrand = pageBrand\(page\);/);
-    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#eef2ff"/);
+    expect(conversion.intermediate).toMatch(/<Email[^>]*backgroundColor="#eef2ff"/);
     for (const props of [Original.PreviewProps, { page: "Globex", note: "Degraded." }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
     }
   });
@@ -298,7 +294,7 @@ Invite.PreviewProps = { url: "https://example.com/accept" };
     expect(conversion.report.fallbacks).toEqual([]);
     expect(conversion.report.nativeRatio).toBe(1);
     expect(conversion.code).toMatch(/import \{ company \} from "\.\/ui";/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
   });
 
@@ -326,7 +322,7 @@ Invite.PreviewProps = { url: "https://example.com/accept" };
     }, "invite.tsx");
     // The project's Button isn't Elements' Button with React Email's defaults: it renders as the project wrote it.
     expect(conversion.code).toMatch(/<Button href=\{url\}>Accept<\/Button>/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.styles]).toEqual([[], [], [], []]);
   });
 });
@@ -351,10 +347,10 @@ Receipt.PreviewProps = { firstName: "Leo" };
 `,
     }, "receipt.jsx");
     expect(conversion.report.lostStyles ?? []).toEqual([]);
-    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#0f172a"/);
-    expect(conversion.code).toMatch(/color="#f8fafc"/);
+    expect(conversion.intermediate).toMatch(/<Email[^>]*backgroundColor="#0f172a"/);
+    expect(conversion.intermediate).toMatch(/color="#f8fafc"/);
     for (const props of [Original.PreviewProps, {}]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
   });
@@ -386,8 +382,8 @@ Status.PreviewProps = { url: "https://status.example.com" };
     }, "status.tsx");
     expect(added).toEqual([]);
     expect(conversion.report.lostStyles ?? []).toEqual([]);
-    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#0b1120"/);
-    const check = await verifyConversion(Original, Migrated);
+    expect(conversion.intermediate).toMatch(/<Email[^>]*backgroundColor="#0b1120"/);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
@@ -415,7 +411,7 @@ export default function Notice() {
     expect(conversion.code).not.toContain("Acme");
     expect(conversion.code).not.toContain("acme.example.com");
     expect(conversion.code).toContain("#22d3ee");
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
@@ -438,7 +434,7 @@ export default function Notice() {
     expect(conversion.code).toContain('from "./config"');
     expect(conversion.code).not.toContain("holdsElements");
     expect(conversion.code).not.toContain("Springfield");
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
     expect(conversion.report.nativeRatio).toBe(1);
   });
@@ -500,7 +496,7 @@ Weekly.PreviewProps = { count: 1200 };
     expect(added).toEqual([]);
     expect(conversion.report.info.filter((i) => i.reason === "local component inlined where it's used").map((i) => i.detail).sort()).toEqual(["Note", "Title"]);
     expect(conversion.code).toMatch(/import \{ formatCount \} from "\.\/parts";/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
@@ -526,7 +522,7 @@ Status.PreviewProps = { down: true };
     expect(originalErrors).toEqual([]);
     expect(added).toEqual([]);
     for (const props of [Original.PreviewProps, { down: false }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added]).toEqual([[], []]);
     }
   });
@@ -554,7 +550,7 @@ Trial.PreviewProps = { paid: true };
     expect(added).toEqual([]);
     expect(conversion.report.fallbacks).toEqual([]);
     for (const props of [Original.PreviewProps, { paid: false }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
   });
@@ -606,13 +602,13 @@ Note.PreviewProps = { name: "Ana", footer: "reply to this email" };
     expect(conversion.code).not.toContain("react-dom");
     // The plain-children block stays as it was.
     expect(conversion.code).not.toMatch(/holdsElements\(name\)/);
-    const text = await verifyConversion(Original, Migrated);
+    const text = await verifyNewComponents(Original, Migrated);
     expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
     expect(blockTypes(text.design)).toEqual(["text", "text"]);
     // In the design, the text a value gives is a merge tag, as for any text (its test for elements is false for one).
-    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, text.design, { source: conversion.code, helpers: conversion.helpers });
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, text.design!, { source: conversion.code, helpers: conversion.helpers });
     expect(tagged.used).toContain("footer");
-    const element = await verifyConversion(Original, Migrated, { props: { name: "Ana", footer: link } });
+    const element = await verifyNewComponents(Original, Migrated, { props: { name: "Ana", footer: link } });
     expect([element.missing, element.added, element.missingAttributes]).toEqual([[], [], []]);
     expect(element.convertedHtml).toContain('<a href="https://example.com/help">the help center</a>');
   });
@@ -638,15 +634,16 @@ export default function Note({ footer }: { footer?: any }) {
 Note.PreviewProps = { footer: "reply to this email" };
 `,
     }, "note.tsx");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
+    const { Email, Column, Paragraph, Span } = await import("@unlayer/react-elements");
     // A migration whose text is right and whose kept branch (for elements) loses the value.
     function holdsElements(...values: unknown[]): boolean {
       return values.some((value) => React.isValidElement(value));
     }
+    const h = React.createElement;
     const Migrated = ({ footer }: { footer?: unknown }) =>
-      React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null,
-        holdsElements(footer) ? React.createElement(Paragraph, { html: "Questions? <b>Help:</b>" }) : React.createElement(Paragraph, { html: `Questions? <b>Help:</b> ${String(footer ?? "")}` }))));
-    const check = await verifyConversion(Original, Migrated);
+      h(Email, null, h(Column, null,
+        holdsElements(footer) ? h(Paragraph, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:")) : h(Paragraph, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:"), ` ${String(footer ?? "")}`)));
+    const check = await verifyNewComponents(Original, Migrated);
     expect(check.variants.find((v) => v.change === "footer: an element")?.missing).toEqual(["given", "as", "an", "element"]);
   });
 });
@@ -677,7 +674,7 @@ Dark.PreviewProps = { plan: "pro" };
     }, "dark.tsx");
     expect(added).toEqual([]);
     expect(conversion.report.lostShown ?? []).toEqual([]);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 
@@ -718,7 +715,7 @@ Digest.PreviewProps = { date: "Tue" };
 `,
     }, "digest.tsx");
     expect(conversion.code).not.toMatch(/\{\s*<Paragraph/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 
@@ -744,7 +741,7 @@ News.PreviewProps = { who: "Globex" };
     // A prop that may be null keeps the default's own test (`??` would also replace null).
     expect(conversion.code).toMatch(/who === undefined \? "Acme Inc\." : who/);
     for (const props of [Original.PreviewProps, {}]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added]).toEqual([[], []]);
     }
   });
@@ -770,7 +767,7 @@ Watch.PreviewProps = { tone: "good", url: "https://example.com/watch" };
     expect(added).toEqual([]);
     expect(conversion.report.lostStyles ?? []).toEqual([]);
     for (const tone of ["good", "bad"]) {
-      const check = await verifyConversion(Original, Migrated, { props: { tone, url: "https://example.com/watch" } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { tone, url: "https://example.com/watch" } });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
   });
@@ -795,7 +792,7 @@ Invite.PreviewProps = { month: "Nov", day: "14", title: "Design night" };
 `,
     }, "invite.tsx");
     expect(added).toEqual([]);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
     expect(check.styles.filter((s) => s.property === "background" || s.property === "color")).toEqual([]);
   });
@@ -815,7 +812,7 @@ Team.PreviewProps = { team: "Acme", members: ["Ana", "Bo"] };
 `,
     }, "team.jsx");
     expect(conversion.code).toMatch(/holdsElements\(team, members\.length\)/);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.variants]).toEqual([[], [], []]);
   });
 });
@@ -828,7 +825,7 @@ export default function Theme({ dark = false }: { dark?: boolean }) {
 }
 Theme.PreviewProps = { dark: false };
 `;
-  const shown = (check: Awaited<ReturnType<typeof verifyConversion>>) => check.styles.filter((s) => s.property === "shown");
+  const shown = (check: Awaited<ReturnType<typeof verifyNewComponents>>) => check.styles.filter((s) => s.property === "shown");
 
   it.each([
     ["a Body", `<Body style={{ backgroundColor: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Plain text</Text></Body>`],
@@ -840,7 +837,7 @@ Theme.PreviewProps = { dark: false };
     expect(added).toEqual([]);
     expect(conversion.report.lostStyles ?? []).toEqual([]);
     for (const dark of [false, true]) {
-      const check = await verifyConversion(Original, Migrated, { props: { dark } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { dark } });
       expect([check.missing, check.added, shown(check)]).toEqual([[], [], []]);
       expect(check.styles.filter((s) => s.property === "color" || s.property === "background")).toEqual([]);
     }
@@ -850,7 +847,7 @@ Theme.PreviewProps = { dark: false };
     const { conversion, Original, Migrated } = await migrate({ "theme.tsx": theme(`<Body><Container style={{ background: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Plain text</Text></Container></Body>`) }, "theme.tsx");
     expect(conversion.code).not.toContain("color={fg}");
     for (const dark of [false, true]) {
-      const check = await verifyConversion(Original, Migrated, { props: { dark } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { dark } });
       expect([check.missing, check.added, shown(check)]).toEqual([[], [], []]);
     }
   });
@@ -878,7 +875,7 @@ Greet.PreviewProps = { name: "Ana" };
     expect(added).toEqual([]);
     expect(conversion.code).toMatch(expected);
     expect(conversion.code.match(/^import [^;]*from "react";/gm)?.filter((l) => !l.startsWith("import type"))).toHaveLength(1);
-    const check = await verifyConversion(Original, Migrated);
+    const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 });
@@ -908,7 +905,7 @@ Notice.PreviewProps = { locale: "en" };
     expect(conversion.code).not.toContain("holdsElements");
     expect(conversion.code).not.toContain("@react-email");
     for (const locale of ["en", "es"]) {
-      const check = await verifyConversion(Original, Migrated, { props: { locale } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { locale } });
       expect([check.missing, check.added]).toEqual([[], []]);
     }
   });
@@ -941,7 +938,7 @@ Note.PreviewProps = { name: "Ana", url: "https://example.com/support", footer: "
     expect(conversion.code).toMatch(/<a\s+href=\{url\}/);
     expect(conversion.report.info.filter((i) => i.reason === "keeps @react-email/components")).toEqual([]);
     for (const footer of ["Reply anytime.", link]) {
-      const check = await verifyConversion(Original, Migrated, { props: { name: "Ana", url: "https://example.com/x", footer } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { name: "Ana", url: "https://example.com/x", footer } });
       expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.styles]).toEqual([[], [], [], [], []]);
     }
   });
@@ -955,9 +952,8 @@ export default function Note({ footer }) {
 Note.PreviewProps = { footer: "reply" };
 `,
     }, "note.jsx");
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const { render } = await import("@react-email/components");
-    const kept = blockHtml(renderToHtml(React.createElement(Migrated, { footer: link })));
+    const kept = blockHtml(await htmlOf(React.createElement(Migrated, { footer: link })));
     const original = blockHtml(await render(React.createElement(Original, { footer: link })));
     // The same paragraph, but its 16px margins: the block's padding holds them, as it does the Paragraph's.
     expect(kept.replace(/margin:0/, "")).toBe(original.replace(/margin-top:16px;margin-bottom:16px/, ""));
@@ -997,7 +993,7 @@ Note.PreviewProps = { name: "Ana", note: ${preview} };
 });
 
 describe("the design of a template whose preview props give an element", () => {
-  it("has no merge tag from the element's insides, and a block left out of a design fails the check", async () => {
+  it("has no merge tag from the element's insides, and a component that throws fails the check", async () => {
     const { conversion, Original, Migrated } = await migrate({
       "note.tsx": `import type { ReactNode } from "react";
 import { Html, Body, Text } from "@react-email/components";
@@ -1011,25 +1007,24 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     const error = console.error;
     console.error = (...args: unknown[]) => void errors.push(args.map(String).join(" "));
     try {
-      const check = await verifyConversion(Original, Migrated);
+      const check = await verifyNewComponents(Original, Migrated);
       expect(check.designWarnings).toEqual([]);
-      const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code, helpers: conversion.helpers });
+      const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design!, { source: conversion.code, helpers: conversion.helpers });
       expect(tagged.used).toEqual(["name"]);
       expect(JSON.stringify(tagged.design)).not.toMatch(/note\.props|uNlAyEr/);
       expect(errors.filter((e) => /uNlAyEr|Invalid tag/.test(e))).toEqual([]);
     } finally {
       console.error = error;
     }
-    // A component that throws in the design's render is a block the editor doesn't get.
+    // A component that throws: the new components don't leave its block out, the template doesn't render.
     const Broken = () => {
       throw new Error("no data");
     };
-    const { Email, Row, Column } = await import("@unlayer/react-elements/legacy");
+    const { Email, Row, Column } = await import("@unlayer/react-elements");
     const Leaves = () => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Broken))));
     console.error = () => undefined;
     try {
-      const check = await verifyConversion(Original, Leaves);
-      expect(check.designWarnings).toEqual([expect.stringMatching(/^\[Unlayer\] <Broken> threw while rendering/)]);
+      await expect(verifyNewComponents(Original, Leaves)).rejects.toThrow("no data");
     } finally {
       console.error = error;
     }
@@ -1037,7 +1032,7 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
 });
 
 describe("a box's background image with a computed URL", () => {
-  it.each([undefined, "shop.example.com"])("is written with the template's code for the URL (VERCEL_URL %s), in the email and the design", async (host) => {
+  it.each([undefined, "shop.example.com"])("is written with the template's code for the URL (VERCEL_URL %s), and left out of the new components with what only it read: a lost image", async (host) => {
     const before = process.env.VERCEL_URL;
     if (host === undefined) delete process.env.VERCEL_URL;
     else process.env.VERCEL_URL = host;
@@ -1056,13 +1051,17 @@ Hero.PreviewProps = { code: "SPRING15" };
 `,
       }, "hero.tsx");
       expect(added).toEqual([]);
-      expect(conversion.code).toContain("url: `${assets}/static/hero-art.png`");
+      expect(conversion.intermediate).toContain("url: `${assets}/static/hero-art.png`");
       expect(conversion.report.lostStyles ?? []).toEqual([]);
-      const check = await verifyConversion(Original, Migrated);
-      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [], []]);
+      // The new components have no background image: it's left out, said so, with what only it read; the color under it
+      // keeps the text readable.
+      expect(conversion.notes).toContainEqual(expect.stringMatching(/<Row>'s backgroundImage isn't migrated: it's left out/));
+      expect(conversion.code).not.toContain("assets");
+      // So the image is lost, which the check finds (as content: the template fails it).
+      const check = await verifyNewComponents(Original, Migrated);
       const url = `${host ? `https://${host}` : "https://assets.example.com"}/static/hero-art.png`;
-      const images = (check.design as any).body.rows.map((row: any) => row.values.backgroundImage?.url).filter(Boolean);
-      expect(images).toEqual([url]);
+      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [`src ${url}`], []]);
+      expect(check.convertedHtml).toMatch(/background-color:#2b1a3d/);
     } finally {
       if (before === undefined) delete process.env.VERCEL_URL;
       else process.env.VERCEL_URL = before;
@@ -1112,7 +1111,7 @@ Payout.PreviewProps = { small: true, fee: "$2" };
     }, "payout.tsx");
     expect(added).toEqual([]);
     for (const small of [true, false]) {
-      const check = await verifyConversion(Original, Migrated, { props: { small, fee: "$2" } });
+      const check = await verifyNewComponents(Original, Migrated, { props: { small, fee: "$2" } });
       expect([check.missing, check.added, check.missingAttributes]).toEqual([[], [], []]);
     }
     expect(conversion.code).toMatch(/holdsElements\(message\)/);
@@ -1143,7 +1142,7 @@ Recap.PreviewProps = { decisions: ["Ship in June", "Hire two engineers"], steps:
     }, "recap.tsx");
     expect(added).toEqual([]);
     for (const props of [Original.PreviewProps, { decisions: [], steps: ["Review", "Send"] }]) {
-      const check = await verifyConversion(Original, Migrated, { props });
+      const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added]).toEqual([[], []]);
     }
   });

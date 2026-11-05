@@ -4,7 +4,7 @@
  *   pnpm --filter @unlayer/from-react-email bench [filter,filter…]
  *
  * For each template: original HTML (React Email render) vs converted HTML
- * (Elements renderToHtml), compared three ways:
+ * (the new components' render()), compared three ways:
  *   - text: words must be preserved without missing or extra words;
  *   - layout (Chromium, at 700px and 375px): where each word lands, and
  *     whether the reading order holds;
@@ -24,7 +24,7 @@ import { render } from "@react-email/components";
 import { chromium, type BrowserContext, type Route } from "playwright";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
-import { compareText, convertReactEmail, findTailwind, verifyConversion } from "../src/index";
+import { compareText, convertReactEmail, findTailwind, verifyNewComponents } from "../src/index";
 import { convertSource } from "../src/codemod";
 import { layoutScore, SETTLED, WORDS, type Layout, type Word } from "./layout";
 
@@ -51,8 +51,8 @@ interface Result {
   notes?: Array<{ reason: string; detail?: string }>;
   diff?: Record<number, number>;
   typeErrors?: number;
-  /** renderToJson warnings on the migrated component (blocks the editor wouldn't get). */
-  jsonWarnings?: number;
+  /** What the visual editor wouldn't get of the migrated component (toDesign failed). */
+  designWarnings?: number;
   originalTypeErrors?: number;
   /** Shift-tolerant diff: both screenshots shrunk 4×, looser threshold. */
   looks?: Record<number, number>;
@@ -115,7 +115,7 @@ async function main() {
   save();
   fs.writeFileSync(path.join(out, "results.md"), summarize(results));
   console.log(`\n${summarize(results)}`);
-  const failed = results.filter((r) => !r.converted || r.error || r.missingText?.length || r.addedWords || r.missingAttributes?.length || r.addedAttributes?.length || r.lostStyles?.length || r.variants?.length || r.jsonWarnings);
+  const failed = results.filter((r) => !r.converted || r.error || r.missingText?.length || r.addedWords || r.missingAttributes?.length || r.addedAttributes?.length || r.lostStyles?.length || r.variants?.length || r.designWarnings);
   console.log(`${failed.length} conversions failed the content check.`);
   if (failed.length) process.exitCode = 2;
 }
@@ -209,9 +209,9 @@ async function loadAsset(route: Route, url: string): Promise<{ status: number; c
 async function runtime(Template: any, dir: string): Promise<string> {
   // Sample values, not merge tags: the comparison is with the original as it renders them.
   const conversion = await convertReactEmail(Template, { mergeTags: false });
-  const html = conversion.html();
+  const html = await conversion.html();
   fs.writeFileSync(path.join(dir, "runtime.html"), html);
-  fs.writeFileSync(path.join(dir, "runtime.tsx"), await conversion.tsx());
+  fs.writeFileSync(path.join(dir, "runtime.tsx"), conversion.code);
   fs.writeFileSync(path.join(dir, "runtime.design.json"), JSON.stringify(conversion.design(), null, 2));
   fs.writeFileSync(path.join(dir, "runtime.report.json"), JSON.stringify(summaryOf(conversion.report), null, 2));
   return html;
@@ -224,25 +224,15 @@ async function codemod(file: string, dir: string, Template: any): Promise<string
   const target = path.join(dir, "codemod.tsx");
   fs.writeFileSync(target, result.code);
   fs.writeFileSync(path.join(dir, "codemod.report.json"), JSON.stringify(summaryOf(result.report), null, 2));
-  // Render the migrated component with the original's sample props.
+  // Render the migrated component with the original's sample props, checked as the CLI checks it: the editor must get
+  // it (toDesign), and each boolean prop is flipped for the branches the preview props don't take.
   const mod = await import(`${target}?t=${Date.now()}`);
-  const { renderToHtml } = await import("@unlayer/react-elements/legacy");
   const Component = mod.default;
-  const html = renderToHtml(Component(Component.PreviewProps ?? {}));
-  // The editor path: renderToJson must see every row (it skips what it can't walk).
-  const { renderToJson } = await import("@unlayer/react-elements/legacy");
-  const warn = console.warn;
-  const warnings: string[] = [];
-  console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));
-  try {
-    renderToJson(Component(Component.PreviewProps ?? {}));
-  } finally {
-    console.warn = warn;
-  }
+  const check = await verifyNewComponents(Template, Component, { props: Component.PreviewProps ?? {} });
+  const html = check.convertedHtml;
   const report = JSON.parse(fs.readFileSync(path.join(dir, "codemod.report.json"), "utf8"));
-  report.jsonWarnings = warnings.filter((w) => w.includes("renderToJson")).length;
-  // Branches the preview props don't take: each boolean prop flipped.
-  report.variants = (await verifyConversion(Template, Component)).variants;
+  report.designWarnings = check.designWarnings.length;
+  report.variants = check.variants;
   fs.writeFileSync(path.join(dir, "codemod.report.json"), JSON.stringify(report, null, 2));
   fs.writeFileSync(path.join(dir, "codemod.html"), html);
   return html;

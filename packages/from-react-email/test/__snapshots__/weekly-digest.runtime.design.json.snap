@@ -19,10 +19,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "12px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "200%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -31,9 +31,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#a1a1a1",
-                  "fontWeight": 600,
-                  "letterSpacing": "2px",
-                  "text": "<span style=\"text-transform:uppercase\">The Weekly Dispatch</span>",
                   "_meta": {
                     "htmlID": "u_content_text_1",
                     "htmlClassNames": "u_content_text"
@@ -42,17 +39,24 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "2px",
+                  "text": "<span style=\"text-transform:uppercase\">The Weekly Dispatch</span>"
                 }
               },
               {
                 "type": "heading",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "headingType": "h1",
                   "fontSize": "26px",
                   "textAlign": "left",
-                  "lineHeight": "32px",
+                  "lineHeight": "124%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -71,16 +75,21 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "letterSpacing": "0px"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -89,7 +98,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#a1a1a1",
-                  "text": "Week of {{weekOf}}",
                   "_meta": {
                     "htmlID": "u_content_text_2",
                     "htmlClassNames": "u_content_text"
@@ -98,13 +106,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Week of {{weekOf}}"
                 }
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "28px 32px 28px 32px",
+              "backgroundColor": "#171717",
+              "padding": "28px 32px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -121,7 +136,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#171717",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -129,7 +144,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "24px 0px 0px 0px",
+          "padding": "24px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -157,10 +172,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "15px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "160%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -169,7 +184,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#404040",
-                  "text": "Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week.",
                   "_meta": {
                     "htmlID": "u_content_text_3",
                     "htmlClassNames": "u_content_text"
@@ -178,13 +192,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week."
                 }
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "28px 32px 0px 32px",
+              "backgroundColor": "#ffffff",
+              "padding": "28px 32px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -201,7 +222,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#ffffff",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -238,13 +259,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/async/224/224",
                     "width": 112,
+                    "height": 112,
                     "autoWidth": false,
-                    "maxWidth": "84.85%",
-                    "height": 112
+                    "maxWidth": "84.85%"
                   },
                   "textAlign": "left",
                   "altText": "How small teams ship faster with async-first habits",
@@ -263,7 +284,8 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "139.15px"
                 }
               }
             ],
@@ -285,10 +307,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -297,9 +319,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#4f39f6",
-                  "fontWeight": 600,
-                  "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Maya Chen · 6 min read</span>",
                   "_meta": {
                     "htmlID": "u_content_text_4",
                     "htmlClassNames": "u_content_text"
@@ -308,16 +327,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "1px",
+                  "text": "<span style=\"text-transform:uppercase\">Maya Chen · 6 min read</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -326,7 +352,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" style=\"color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px\" target=\"_blank\">How small teams ship faster with async-first habits</a>",
                   "_meta": {
                     "htmlID": "u_content_text_5",
                     "htmlClassNames": "u_content_text"
@@ -335,16 +360,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">How small teams ship faster with async-first habits</a>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "21px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -353,7 +385,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#525252",
-                  "text": "Three teams share the rituals that replaced their daily standups and what they measured along the way.",
                   "_meta": {
                     "htmlID": "u_content_text_6",
                     "htmlClassNames": "u_content_text"
@@ -362,16 +393,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Three teams share the rituals that replaced their daily standups and what they measured along the way."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -380,7 +418,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" style=\"color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600\" target=\"_blank\">Read more</a>",
                   "_meta": {
                     "htmlID": "u_content_text_7",
                     "htmlClassNames": "u_content_text"
@@ -389,7 +426,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
                 }
               }
             ],
@@ -420,7 +464,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -454,14 +498,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e5e5"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_1",
                     "htmlClassNames": "u_content_divider"
@@ -475,8 +519,8 @@
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "24px 32px 0px 32px",
+              "backgroundColor": "#ffffff",
+              "padding": "24px 32px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -493,7 +537,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#ffffff",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -530,13 +574,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/plaintext/224/224",
                     "width": 112,
+                    "height": 112,
                     "autoWidth": false,
-                    "maxWidth": "84.85%",
-                    "height": 112
+                    "maxWidth": "84.85%"
                   },
                   "textAlign": "left",
                   "altText": "The quiet comeback of plain-text email",
@@ -555,7 +599,8 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "139.15px"
                 }
               }
             ],
@@ -577,10 +622,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -589,9 +634,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#4f39f6",
-                  "fontWeight": 600,
-                  "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Luis Ortega · 4 min read</span>",
                   "_meta": {
                     "htmlID": "u_content_text_8",
                     "htmlClassNames": "u_content_text"
@@ -600,16 +642,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "1px",
+                  "text": "<span style=\"text-transform:uppercase\">Luis Ortega · 4 min read</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -618,7 +667,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" style=\"color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px\" target=\"_blank\">The quiet comeback of plain-text email</a>",
                   "_meta": {
                     "htmlID": "u_content_text_9",
                     "htmlClassNames": "u_content_text"
@@ -627,16 +675,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">The quiet comeback of plain-text email</a>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "21px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -645,7 +700,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#525252",
-                  "text": "Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement.",
                   "_meta": {
                     "htmlID": "u_content_text_10",
                     "htmlClassNames": "u_content_text"
@@ -654,16 +708,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -672,7 +733,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" style=\"color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600\" target=\"_blank\">Read more</a>",
                   "_meta": {
                     "htmlID": "u_content_text_11",
                     "htmlClassNames": "u_content_text"
@@ -681,7 +741,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
                 }
               }
             ],
@@ -712,7 +779,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -746,14 +813,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e5e5"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_2",
                     "htmlClassNames": "u_content_divider"
@@ -767,8 +834,8 @@
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "24px 32px 0px 32px",
+              "backgroundColor": "#ffffff",
+              "padding": "24px 32px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -785,7 +852,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#ffffff",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -822,13 +889,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/migrations/224/224",
                     "width": 112,
+                    "height": 112,
                     "autoWidth": false,
-                    "maxWidth": "84.85%",
-                    "height": 112
+                    "maxWidth": "84.85%"
                   },
                   "textAlign": "left",
                   "altText": "A practical guide to database migrations without downtime",
@@ -847,7 +914,8 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "139.15px"
                 }
               }
             ],
@@ -869,10 +937,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -881,9 +949,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#4f39f6",
-                  "fontWeight": 600,
-                  "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Anika Rao · 9 min read</span>",
                   "_meta": {
                     "htmlID": "u_content_text_12",
                     "htmlClassNames": "u_content_text"
@@ -892,16 +957,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "1px",
+                  "text": "<span style=\"text-transform:uppercase\">Anika Rao · 9 min read</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -910,7 +982,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" style=\"color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px\" target=\"_blank\">A practical guide to database migrations without downtime</a>",
                   "_meta": {
                     "htmlID": "u_content_text_13",
                     "htmlClassNames": "u_content_text"
@@ -919,16 +990,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">A practical guide to database migrations without downtime</a>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "21px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -937,7 +1015,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#525252",
-                  "text": "Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them.",
                   "_meta": {
                     "htmlID": "u_content_text_14",
                     "htmlClassNames": "u_content_text"
@@ -946,16 +1023,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -964,7 +1048,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" style=\"color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600\" target=\"_blank\">Read more</a>",
                   "_meta": {
                     "htmlID": "u_content_text_15",
                     "htmlClassNames": "u_content_text"
@@ -973,7 +1056,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
                 }
               }
             ],
@@ -1004,7 +1094,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1038,14 +1128,14 @@
               {
                 "type": "divider",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "width": "100%",
                   "border": {
                     "borderTopWidth": "1px",
                     "borderTopStyle": "solid",
                     "borderTopColor": "#e5e5e5"
                   },
-                  "textAlign": "center",
+                  "textAlign": "left",
                   "_meta": {
                     "htmlID": "u_content_divider_3",
                     "htmlClassNames": "u_content_divider"
@@ -1059,8 +1149,8 @@
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "24px 32px 0px 32px",
+              "backgroundColor": "#ffffff",
+              "padding": "24px 32px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -1077,7 +1167,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#ffffff",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -1114,13 +1204,13 @@
               {
                 "type": "image",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "src": {
                     "url": "https://picsum.photos/seed/designsystem/224/224",
                     "width": 112,
+                    "height": 112,
                     "autoWidth": false,
-                    "maxWidth": "84.85%",
-                    "height": 112
+                    "maxWidth": "84.85%"
                   },
                   "textAlign": "left",
                   "altText": "Interview: building a design system that people actually use",
@@ -1139,7 +1229,8 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "maxWidth": "139.15px"
                 }
               }
             ],
@@ -1161,10 +1252,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "11px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "219%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1173,9 +1264,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#4f39f6",
-                  "fontWeight": 600,
-                  "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Tom Becker · 12 min read</span>",
                   "_meta": {
                     "htmlID": "u_content_text_16",
                     "htmlClassNames": "u_content_text"
@@ -1184,16 +1272,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 600,
+                  "letterSpacing": "1px",
+                  "text": "<span style=\"text-transform:uppercase\">Tom Becker · 12 min read</span>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1202,7 +1297,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" style=\"color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px\" target=\"_blank\">Interview: building a design system that people actually use</a>",
                   "_meta": {
                     "htmlID": "u_content_text_17",
                     "htmlClassNames": "u_content_text"
@@ -1211,16 +1305,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">Interview: building a design system that people actually use</a>"
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "6px 0px 0px 0px",
+                  "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "21px",
+                  "lineHeight": "150%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1229,7 +1330,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#525252",
-                  "text": "The lead of a 40-person design org on governance, documentation, and saying no to one-off components.",
                   "_meta": {
                     "htmlID": "u_content_text_18",
                     "htmlClassNames": "u_content_text"
@@ -1238,16 +1338,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "The lead of a 40-person design org on governance, documentation, and saying no to one-off components."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "14px",
                   "textAlign": "left",
-                  "lineHeight": "24px",
+                  "lineHeight": "172%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1256,7 +1363,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#000000",
-                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" style=\"color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600\" target=\"_blank\">Read more</a>",
                   "_meta": {
                     "htmlID": "u_content_text_19",
                     "htmlClassNames": "u_content_text"
@@ -1265,7 +1371,14 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
                 }
               }
             ],
@@ -1296,7 +1409,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
@@ -1330,10 +1443,10 @@
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "0px 0px 0px 0px",
+                  "containerPadding": "0px",
                   "fontSize": "12px",
                   "textAlign": "center",
-                  "lineHeight": "20px",
+                  "lineHeight": "167%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1342,7 +1455,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#737373",
-                  "text": "You&#x27;re receiving this because you subscribed to The Weekly Dispatch.",
                   "_meta": {
                     "htmlID": "u_content_text_20",
                     "htmlClassNames": "u_content_text"
@@ -1351,16 +1463,23 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "You're receiving this because you subscribed to The Weekly Dispatch."
                 }
               },
               {
                 "type": "text",
                 "values": {
-                  "containerPadding": "8px 0px 0px 0px",
+                  "containerPadding": "8px 0px 0px",
                   "fontSize": "12px",
                   "textAlign": "center",
-                  "lineHeight": "20px",
+                  "lineHeight": "167%",
                   "linkStyle": {
                     "inherit": true,
                     "linkColor": "#0000ee",
@@ -1369,7 +1488,6 @@
                     "linkHoverUnderline": true
                   },
                   "color": "#737373",
-                  "text": "<a href=\"{{preferencesUrl}}\" style=\"color:rgb(115,115,115);text-decoration-line:underline\" target=\"_blank\">Email preferences</a> · <a href=\"{{unsubscribeUrl}}\" style=\"color:rgb(115,115,115);text-decoration-line:underline\" target=\"_blank\">Unsubscribe</a>",
                   "_meta": {
                     "htmlID": "u_content_text_21",
                     "htmlClassNames": "u_content_text"
@@ -1378,13 +1496,20 @@
                   "draggable": true,
                   "duplicatable": true,
                   "deletable": true,
-                  "hideable": true
+                  "hideable": true,
+                  "fontFamily": {
+                    "label": "ui-sans-serif",
+                    "value": "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'"
+                  },
+                  "fontWeight": 400,
+                  "letterSpacing": "0px",
+                  "text": "<a href=\"{{preferencesUrl}}\" target=\"_blank\" style=\"color:#737373;text-decoration:underline\">Email preferences</a> · <a href=\"{{unsubscribeUrl}}\" target=\"_blank\" style=\"color:#737373;text-decoration:underline\">Unsubscribe</a>"
                 }
               }
             ],
             "values": {
-              "backgroundColor": "",
-              "padding": "24px 32px 24px 32px",
+              "backgroundColor": "#fafafa",
+              "padding": "24px 32px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
@@ -1401,7 +1526,7 @@
           "columns": false,
           "_styleGuide": null,
           "backgroundColor": "",
-          "columnsBackgroundColor": "#fafafa",
+          "columnsBackgroundColor": "",
           "backgroundImage": {
             "url": "",
             "fullWidth": true,
@@ -1409,7 +1534,7 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px 0px 24px 0px",
+          "padding": "0px 0px 24px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
