@@ -8,7 +8,7 @@ import {
   Image,
   Paragraph,
   Section,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
 const sansFont = "'Inter', system-ui, -apple-system, sans-serif";
 

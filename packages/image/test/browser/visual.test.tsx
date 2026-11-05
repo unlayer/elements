@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { chromium } from "playwright";
 import type { ReactElement } from "react";
-import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Text } from "@unlayer/react-elements/primitives";
+import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Text } from "@unlayer/react-elements";
 import { renderImage } from "../../src";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));

@@ -32,24 +32,11 @@
     "react": ">=18",
     "react-dom": ">=18"
   },
-  "dependencies": {
-    "@unlayer/types": "catalog:"
-  },
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/primitives.cjs",
+  "module": "./dist/primitives.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./legacy": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./primitives": {
       "types": "./dist/primitives.d.ts",
       "import": "./dist/primitives.js",
       "require": "./dist/primitives.cjs"
@@ -63,20 +50,15 @@
   },
   "typesVersions": {
     "*": {
-      "primitives": [
-        "./dist/primitives.d.ts"
-      ],
       "builder": [
         "./dist/builder.d.ts"
-      ],
-      "legacy": [
-        "./dist/index.d.ts"
       ]
     }
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/primitives.d.ts",
   "files": [
-    "dist",
+    "dist/primitives.*",
+    "dist/builder.*",
     "README.md",
     "PRIMITIVES.md",
     "PRIMITIVES-REFERENCE.md",
@@ -113,6 +95,7 @@
     "@unlayer-internal/elements-exporters": "workspace:*",
     "@unlayer-internal/shared-elements": "workspace:*",
     "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.2.1",
+    "@unlayer/types": "catalog:",
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^3.2.4",
     "concurrently": "9.2.1",

@@ -1,6 +1,6 @@
 export const reactSample = `import {
   Email, Column, Paragraph, Heading, Button
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
 export default function WelcomeEmail() {
   return (

@@ -80,7 +80,7 @@ describe("Node environment (no jsdom)", () => {
 });
 
 describe("each entry's types, for every moduleResolution", () => {
-  it("resolves the main entry, /primitives, /builder and /legacy to their declarations, under node (node10) too", () => {
+  it("resolves the main entry, /legacy and /builder to their declarations, under node (node10) too", () => {
     // A project's node_modules with this package in it, as an install has it.
     const dir = resolve(__dirname, "..");
     const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
@@ -90,7 +90,7 @@ describe("each entry's types, for every moduleResolution", () => {
     symlinkSync(dir, installed, "dir");
     // The declarations each entry names, which a build writes: there for the resolver whether built or not.
     const entries = Object.entries(pkg.exports as Record<string, { types?: string }>).filter(([, entry]) => typeof entry === "object" && entry.types);
-    expect(entries.map(([subpath]) => subpath)).toEqual([".", "./legacy", "./primitives", "./builder"]);
+    expect(entries.map(([subpath]) => subpath)).toEqual([".", "./legacy", "./builder"]);
     const declared = new Set(entries.map(([, entry]) => join(dir, entry.types!)));
     const inPackage = (file: string) => (file.startsWith(installed) ? join(dir, file.slice(installed.length)) : file);
     const host: ts.ModuleResolutionHost = { ...ts.sys, fileExists: (file) => declared.has(inPackage(file)) || ts.sys.fileExists(file) };

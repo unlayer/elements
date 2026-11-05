@@ -424,7 +424,7 @@ function processBody(
  *
  * @example
  * ```tsx
- * import { renderToJson, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
+ * import { renderToJson, Body, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
  *
  * const design = renderToJson(
  *   <Body backgroundColor="#ffffff" contentWidth="600px">
@@ -449,7 +449,7 @@ function processBody(
  *
  * @example
  * ```tsx
- * import { renderRowToJson, Row, Column, Paragraph } from "@unlayer/react-elements";
+ * import { renderRowToJson, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
  *
  * const row = renderRowToJson(
  *   <Row>

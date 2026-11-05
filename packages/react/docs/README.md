@@ -1,6 +1,6 @@
 # Unlayer Elements task guides
 
-Choose Unlayer Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer design from shared components. Templates are written with the components from `@unlayer/react-elements/primitives`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
+Choose Unlayer Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer design from shared components. Templates are written with the components from `@unlayer/react-elements`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
 
 ```bash
 npm install @unlayer/react-elements react react-dom
@@ -28,7 +28,7 @@ Elements supplies components and renderers. Your email provider handles delivery
 ## Agent implementation rules
 
 - Read [PRIMITIVES.md](../PRIMITIVES.md) before writing a template: how one is written, the mistakes that fail a first try, and every component on a line.
-- Import from `@unlayer/react-elements/primitives`. A template has one root, `Email`, `Page`, `Document` or `Canvas`, and the root decides the output.
+- Import from `@unlayer/react-elements`. A template has one root, `Email`, `Page`, `Document` or `Canvas`, and the root decides the output.
 - Styles go in `style={{ }}`, never as props. There are no margins: space between blocks is the parent's `gap`, space inside a box its `padding`. Text is children of `Heading`, `Paragraph` or `Text`, with `Span`, `Link`, `LineBreak` and `MergeTag` inside them; raw tags such as `<b>` or `<div>` are errors.
 - Use `await render(element)` for `{ html, text, diagnostics }`: the full document, the text email body, and the warnings. A template with errors rejects with an `ElementsError`. Use `validate(element)` for the same checks without rendering, `outline(element)` to read the layout as text, and `toDesign(element)` from `@unlayer/react-elements/builder` for editor design data. `render()` is asynchronous, as are delivery and PDF printing; the others are synchronous.
 - For reusable trees, use a plain synchronous factory returning the root, as in the [invoice example](../../../examples/content-workflows/src/invoice.tsx). Fetch data before building the tree: a component that is async or suspends is an error.

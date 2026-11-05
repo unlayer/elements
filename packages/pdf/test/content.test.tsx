@@ -5,8 +5,8 @@
  *
  *   CONTENT_SEEDS=2000 pnpm vitest run test/content.test.tsx
  */
-import * as primitives from "@unlayer/react-elements/primitives";
-import { prepare } from "@unlayer/react-elements/primitives";
+import * as primitives from "@unlayer/react-elements";
+import { prepare } from "@unlayer/react-elements";
 import { createElement, type ReactElement } from "react";
 import { generate, misplaced, toElement, words } from "../../react/src/primitives/testing/templates";
 import { writeDocument } from "../src/write";

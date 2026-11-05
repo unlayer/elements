@@ -65,9 +65,9 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 442.5KB. It holds today's
+      # Fail if /legacy's ESM bundle (dist/index.js) exceeds its budget. It holds today's
       # components and the new engine they render through: its core and writers
-      # (about 216KB, the /primitives entry's, without its JSX API); the lowering
+      # (about 216KB, the main entry's, without its JSX API); the lowering
       # of today's designs into its tree (src/compat, about 119KB: each block and
       # frame in each case 0.2.1 drew it, what can't be read said); the render that
       # collects a template's rows and blocks, with the head and phone CSS of
@@ -77,7 +77,7 @@ jobs:
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       # Raise it on purpose, with what grew.
-      - name: Check bundle size
+      - name: Check /legacy bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
@@ -85,17 +85,17 @@ jobs:
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
-            echo "::error::Bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            echo "::error::/legacy bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
-          echo "✅ Bundle size within budget"
+          echo "✅ /legacy bundle within budget"
 
-      # The new engine's entry (/primitives) has its own budget: about 242KB
+      # The main entry (the new components, dist/primitives.js) has its own budget: about 242KB
       # unminified ESM. Its core (the components' definitions, validation, layout,
       # about 117KB), its writers (email, page, print HTML and plain text, about
-      # 102KB), its JSX API (about 17KB) and what it shares with the main entry's
+      # 102KB), its JSX API (about 17KB) and what it shares with /legacy's
       # render (about 5KB). Raise it on purpose, with what grew.
-      - name: Check /primitives bundle size
+      - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
@@ -104,17 +104,17 @@ jobs:
           MAX_SIZE=247500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
-            echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
-          echo "✅ /primitives bundle within budget"
+          echo "✅ Main entry bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
       # own budget: about 450KB unminified ESM. The adapter itself (the hidden
       # properties' manifest, reading designs and the builder's rich text, the JSX
       # printer, about 127KB); the core and writers it lays out and writes locked
       # markup with (about 217KB); today's components and renderToJson, which it
-      # writes the builder's design through (about 62KB); the /primitives JSX API it
+      # writes the builder's design through (about 62KB); the main entry's JSX API it
       # reads templates with (about 11KB), the shared package (about 23KB) and
       # today's value and run parsers (about 16KB). It leaves out what draws today's
       # components through React, which it doesn't call (tsup.config.ts). Raise it on

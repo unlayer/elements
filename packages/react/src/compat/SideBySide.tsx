@@ -133,7 +133,7 @@ function jsx(node: unknown, indent: string, names: Set<string>): string[] {
 export const code = (template: ReactElement) => {
   const names = new Set<string>();
   const lines = jsx(template, "  ", names);
-  return `import { ${[...names].sort().join(", ")} } from "@unlayer/react-elements/primitives";\n\nconst template = (\n${lines.join("\n")}\n);`;
+  return `import { ${[...names].sort().join(", ")} } from "@unlayer/react-elements";\n\nconst template = (\n${lines.join("\n")}\n);`;
 };
 
 /** A story of one template, with its code. */

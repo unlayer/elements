@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 
 interface Rendered {
   html: string;

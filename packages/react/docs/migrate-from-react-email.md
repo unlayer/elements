@@ -7,7 +7,7 @@ npx @unlayer/migrate emails --write --report migration.md
 npm install @unlayer/react-elements@^0.3.0
 ```
 
-Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template becomes the components from `@unlayer/react-elements/primitives`, with its styles in `style={{ }}`, and keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
+Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template becomes the components from `@unlayer/react-elements`, with its styles in `style={{ }}`, and keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
 
 JavaScript templates keep JavaScript helpers. The document's `dir` becomes `Email`'s `dir` prop. Its `lang` isn't carried over yet: the report notes it, and you set `lang` on `Email` yourself.
 
@@ -40,7 +40,7 @@ For each template:
 
 ```tsx
 import { toDesign } from "@unlayer/react-elements/builder";
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
 const element = <Welcome name="Alex" />;

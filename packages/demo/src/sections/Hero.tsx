@@ -2,7 +2,7 @@ import CodeBlock from "../components/CodeBlock";
 import { UnlayerLogoMark } from "../components/UnlayerLogo";
 
 const heroCode = `import { Button, Column, Email, Heading, render }
-  from "@unlayer/react-elements/primitives";
+  from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (

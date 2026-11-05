@@ -6,7 +6,7 @@
  */
 import { chromium } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "@unlayer/react-elements/primitives";
+import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "@unlayer/react-elements";
 import { renderPdf } from "../../src";
 
 /** Each line by its first word (each a different one). */

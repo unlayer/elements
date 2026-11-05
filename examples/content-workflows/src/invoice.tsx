@@ -1,4 +1,4 @@
-import { Button, Column, Document, Email, Heading, Page, Paragraph, Span } from "@unlayer/react-elements/primitives";
+import { Button, Column, Document, Email, Heading, Page, Paragraph, Span } from "@unlayer/react-elements";
 
 export interface InvoiceData {
   number: string;

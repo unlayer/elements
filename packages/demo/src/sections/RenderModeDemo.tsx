@@ -10,7 +10,7 @@ import {
   Paragraph,
   Row,
   Section,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 import { useRender } from "../hooks/useRender";
 import SectionHeader from "../components/SectionHeader";
 import DeviceFrame from "../components/DeviceFrame";

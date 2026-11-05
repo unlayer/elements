@@ -1,4 +1,4 @@
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import WelcomeEmail from "@/emails/welcome-email";
 import PreviewDashboard from "./PreviewDashboard";
 

@@ -44,15 +44,15 @@ import {
   Text,
   validate,
   Video,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 import { renderPdf } from "../src";
 import { writeDocument } from "../src/write";
 import { toWoff, toWoff2 } from "./woff";
 
 /** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
 const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
-vi.mock("@unlayer/react-elements/primitives", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@unlayer/react-elements/primitives")>();
+vi.mock("@unlayer/react-elements", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@unlayer/react-elements")>();
   return {
     ...actual,
     prepare: (element: ReactElement) => {

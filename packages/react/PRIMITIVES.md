@@ -1,4 +1,4 @@
-# Writing templates with the new components (`@unlayer/react-elements/primitives`)
+# Writing templates with the new components (`@unlayer/react-elements`)
 
 <!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
@@ -6,7 +6,7 @@ Everything needed to write a template, in short. Every prop's and style's detail
 
 ## How a template is written
 
-- Import from `@unlayer/react-elements/primitives`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
+- Import from `@unlayer/react-elements`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
 - Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `"12px 24px"`. A box's text styles are inherited by what it holds.
 - There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.
 - A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.
@@ -30,7 +30,7 @@ Each of these made an agent's first try fail:
 ## A whole template
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (

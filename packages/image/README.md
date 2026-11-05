@@ -1,6 +1,6 @@
 # @unlayer/elements-image
 
-Image output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Canvas>` from `@unlayer/react-elements/primitives` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
+Image output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Canvas>` from `@unlayer/react-elements` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
 
 ## Installation
 
@@ -25,7 +25,7 @@ Node.js only: it writes the image on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Canvas, Heading, Text } from "@unlayer/react-elements/primitives";
+import { Canvas, Heading, Text } from "@unlayer/react-elements";
 import { renderImage } from "@unlayer/elements-image";
 
 const SocialCard = () => (
@@ -75,7 +75,7 @@ Nothing is fetched. Give each file the template needs:
 | `image/unsupported` | warning | What an image can't show that the HTML can: a hover, a Video's player |
 | `canvas/overflow` | warning | The content looks taller than the Canvas (an estimate: text isn't measured yet) |
 
-`validate()` from `@unlayer/react-elements/primitives` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage` makes them.
+`validate()` from `@unlayer/react-elements` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage` makes them.
 
 ## Known limits
 

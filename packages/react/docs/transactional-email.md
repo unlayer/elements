@@ -1,6 +1,6 @@
 # Build and send transactional email in React
 
-Use `@unlayer/react-elements` for React receipts, order confirmations, welcome emails, and password reset emails. Write the template with the components from `@unlayer/react-elements/primitives`, `await render()` it into HTML and plain text in your server or job worker, then pass both strings to an email provider. Elements does not deliver messages.
+Use `@unlayer/react-elements` for React receipts, order confirmations, welcome emails, and password reset emails. Write the template with the components from `@unlayer/react-elements`, `await render()` it into HTML and plain text in your server or job worker, then pass both strings to an email provider. Elements does not deliver messages.
 
 ## Install and choose a template
 
@@ -16,7 +16,7 @@ The runnable [invoice template](./one-template-email-web-pdf.md#define-the-share
 [src/message.ts](../../../examples/content-workflows/src/message.ts):
 
 ```ts
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import { invoiceTemplate, sampleInvoice, type InvoiceData } from "./invoice";
 
 export async function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {

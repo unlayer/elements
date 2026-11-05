@@ -81,7 +81,7 @@ export function primitivesReference(): string {
   const missing = all.filter((c) => !placed.has(c.type)).map((c) => c.type);
   if (missing.length) throw new Error(`[Elements] The reference has no section for ${missing.join(", ")}`);
   return [
-    "# Components reference (`@unlayer/react-elements/primitives`)",
+    "# Components reference (`@unlayer/react-elements`)",
     "",
     GENERATED,
     "",
@@ -162,7 +162,7 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
 /** PRIMITIVES.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
 export function primitivesGuide(example: string): string {
   return [
-    "# Writing templates with the new components (`@unlayer/react-elements/primitives`)",
+    "# Writing templates with the new components (`@unlayer/react-elements`)",
     "",
     GENERATED,
     "",
@@ -178,7 +178,7 @@ const SKILL_DESCRIPTION =
 
 /**
  * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add unlayer/elements` installs: the
- * guide, as PRIMITIVES.md has it, under the frontmatter a skill needs and a few lines for projects already on today's
+ * guide, as PRIMITIVES.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string): string {
@@ -192,16 +192,15 @@ export function primitivesSkill(example: string): string {
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",
-    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements/primitives` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.",
+    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.",
     "",
-    "## Templates on today's components",
+    "## Templates from Elements 0.2",
     "",
-    "A project may already have templates on today's components: they import from `@unlayer/react-elements` (or `@unlayer/react-elements/legacy`, the same entry), not `/primitives`, and use `ColumnLayouts`, `html` props and `renderToHtml()`.",
+    "A project may have templates written for Elements 0.2: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor=\"#fff\"`. Those components aren't in 0.3.0: the package's components are these.",
     "",
-    "- They keep working. Their API is unchanged, and since 0.3.0 they render through the same engine as the new components: content, links, images and layout are preserved, and input that can't be drawn gets a diagnostic.",
-    "- The two sets don't mix: a template uses one or the other. When changing one of these templates, keep its components, or move it first.",
-    "- To move them, the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md",
-    "- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in the new components and checks each against its original. One that can't be kept the same stays in today's components, and the report says why.",
+    "- Move them with the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @unlayer/migrate --help`.",
+    "- What the codemod can't move is listed, and the file is left as it was: rewrite that part by hand with these components.",
+    "- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in these components and checks each against its original.",
     "",
     guide(example),
   ].join("\n");
@@ -220,7 +219,7 @@ function guide(example: string): string {
   return [
     "## How a template is written",
     "",
-    "- Import from `@unlayer/react-elements/primitives`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
+    "- Import from `@unlayer/react-elements`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
     "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
     "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
     "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
@@ -238,7 +237,7 @@ function guide(example: string): string {
     "- `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.",
     "- `items={[{ text: \"Home\", link: \"/\" }]}` → `items={[{ text: \"Home\", href: \"/\" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.",
     "- `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.",
-    "- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are the main import's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.",
+    "- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Elements 0.2's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.",
     "- `<Image src=\"https://example.com/logo.png\">` → `src={{ src: \"https://example.com/logo.png\", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.",
     "",
     "## A whole template",

@@ -29,8 +29,8 @@ const script = (format: "module" | "commonjs", noChannel = false, react19 = fals
   // when it loads. (On React 18, react-dom/server is the browser build there, which needs a TextEncoder itself.)
   const before = noChannel ? `delete globalThis.MessageChannel;${react19 ? " delete globalThis.TextEncoder;" : ""}\n` : "";
   const load = before + (format === "module"
-    ? `import * as E from "@unlayer/react-elements"; import React from "react"; import { renderToString } from "react-dom/server";`
-    : `const E = require("@unlayer/react-elements"); const React = require("react"); const { renderToString } = require("react-dom/server");`);
+    ? `import * as E from "@unlayer/react-elements/legacy"; import React from "react"; import { renderToString } from "react-dom/server";`
+    : `const E = require("@unlayer/react-elements/legacy"); const React = require("react"); const { renderToString } = require("react-dom/server");`);
   return `${load}
 const h = React.createElement;
 const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))));
@@ -42,6 +42,16 @@ console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there
 `;
 };
 
+/**
+ * The package's manifest, with today's components at /legacy: they're internal from 0.3.0 (/builder and
+ * @unlayer/migrate run on their build, which isn't published), and only this harness reaches them by that name.
+ */
+function writeInternalPackage(elements: string) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  pkg.exports["./legacy"] = { types: "./dist/index.d.ts", import: "./dist/index.js", require: "./dist/index.cjs" };
+  fs.writeFileSync(path.join(elements, "package.json"), JSON.stringify(pkg));
+}
+
 /** A project in a temporary folder with the built package and `react`/`react-dom` copied in (links would resolve back into the workspace). */
 function project(react: string, reactDom: string, type: "module" | "commonjs", dir = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"))): string {
   const modules = path.join(dir, "node_modules");
@@ -50,7 +60,7 @@ function project(react: string, reactDom: string, type: "module" | "commonjs", d
   const elements = path.join(modules, "@unlayer/react-elements");
   fs.mkdirSync(elements, { recursive: true });
   fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
-  fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
+  writeInternalPackage(elements);
   fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer/types")), path.join(modules, "@unlayer/types"), "dir");
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type }));
   return dir;
@@ -71,7 +81,7 @@ describe("importing the built package", () => {
 const server = require("react-dom/server");
 let calls = 0;
 for (const name of ["renderToStaticMarkup", "renderToString"]) { const real = server[name]; server[name] = (...args) => (calls++, real(...args)); }
-const E = require("@unlayer/react-elements");
+const E = require("@unlayer/react-elements/legacy");
 const atImport = calls;
 const reactDom = [...new Set(Object.keys(require.cache).filter((file) => /react-dom[\\/]/.test(file)).map((file) => file.split(/react-dom[\\/]/).pop()).filter((file) => file.startsWith("server")))];
 const h = React.createElement;
@@ -97,7 +107,7 @@ describe("an app that's a module, started from another folder than its own", () 
   const [react19, reactDom19] = reacts["React 19"];
   const page = `import React from "react";
 import { renderToString } from "react-dom/server";
-import * as E from "@unlayer/react-elements";
+import * as E from "@unlayer/react-elements/legacy";
 const h = React.createElement;
 const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))));
 const Page = () => { const rows = React.useMemo(() => E.renderToJson(email).body.rows.length, []); const [open] = React.useState(false); return h("pre", { dangerouslySetInnerHTML: { __html: rows + " rows, open=" + open + ", " + E.renderToHtml(email).includes("Hi there") } }); };
@@ -153,7 +163,7 @@ describe("a template with a list written without keys (`items.map(…)`)", () =>
         fs.writeFileSync(
           path.join(dir, "keys.js"),
           `const React = require("react");
-const E = require("@unlayer/react-elements");
+const E = require("@unlayer/react-elements/legacy");
 const h = React.createElement;
 const items = ["Shoes", "Hat"];
 const Item = ({ t }) => h(E.Paragraph, null, t);
@@ -209,7 +219,7 @@ describe("a bundle with React in it, which renders with react-dom/server", () =>
         try {
           fs.writeFileSync(
             path.join(dir, "app.js"),
-            `import * as E from "@unlayer/react-elements";
+            `import * as E from "@unlayer/react-elements/legacy";
 import React from "react";
 import { renderToString, renderToStaticMarkup } from "react-dom/server";
 const h = React.createElement;
@@ -255,7 +265,7 @@ describe("a Node script that renders with the built package", () => {
           const elements = path.join(modules, "@unlayer/react-elements");
           fs.mkdirSync(elements, { recursive: true });
           fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
-          fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
+          writeInternalPackage(elements);
           fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer/types")), path.join(modules, "@unlayer/types"), "dir");
           fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: format }));
           fs.writeFileSync(path.join(dir, "render.js"), script(format, noChannel, name === "React 19"));

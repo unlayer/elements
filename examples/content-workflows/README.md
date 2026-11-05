@@ -1,6 +1,6 @@
 # React transactional email, web, PDF, and visual editing example
 
-One invoice template, written with the components from `@unlayer/react-elements/primitives`, demonstrates rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
+One invoice template, written with the components from `@unlayer/react-elements`, demonstrates rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
 
 ## Install and run
 

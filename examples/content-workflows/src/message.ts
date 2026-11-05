@@ -1,4 +1,4 @@
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import { invoiceTemplate, sampleInvoice, type InvoiceData } from "./invoice";
 
 export async function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {

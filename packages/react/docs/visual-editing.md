@@ -1,6 +1,6 @@
 # Make React and AI-generated email templates visually editable with toDesign
 
-Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `toDesign()` from `@unlayer/react-elements/builder` creates design data from a template written with the components from `@unlayer/react-elements/primitives`; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML; `fromDesign()` reads the saved design back as a template.
+Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `toDesign()` from `@unlayer/react-elements/builder` creates design data from a template written with the components from `@unlayer/react-elements`; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML; `fromDesign()` reads the saved design back as a template.
 
 ## Generate Unlayer design JSON from React
 
@@ -15,7 +15,7 @@ This complete `src/export-design.tsx` can be run in a TypeScript project with `n
 ```tsx
 import { mkdir, writeFile } from "node:fs/promises";
 import { toDesign } from "@unlayer/react-elements/builder";
-import { Email, Paragraph } from "@unlayer/react-elements/primitives";
+import { Email, Paragraph } from "@unlayer/react-elements";
 
 const { design, report } = toDesign(
   <Email width={600}>
@@ -105,7 +105,7 @@ Expected: the editor loads the invoice after `editor:ready`; after `design:loade
 ```tsx
 import { readFile } from "node:fs/promises";
 import { fromDesign } from "@unlayer/react-elements/builder";
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 
 const saved = JSON.parse(await readFile("edited.design.json", "utf8"));
 const { element, code, report } = fromDesign(saved, { displayMode: "email" });

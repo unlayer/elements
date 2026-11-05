@@ -6,7 +6,7 @@ import {
   Paragraph,
   Section,
   Span,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
 const monoFont = "'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace";
 

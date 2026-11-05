@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 import "./render-email";

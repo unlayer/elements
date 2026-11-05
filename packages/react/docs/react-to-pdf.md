@@ -1,6 +1,6 @@
 # Generate a React invoice PDF
 
-Use `@unlayer/react-elements` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@unlayer/react-elements/primitives`; then there are two ways to get the file:
+Use `@unlayer/react-elements` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@unlayer/react-elements`; then there are two ways to get the file:
 
 - **With Playwright:** `await render(<Document>…</Document>)` produces print-ready HTML, and `page.pdf()` in headless Chromium produces the PDF bytes. It needs Chromium wherever it runs. The rest of this guide and the checked-in example use this way.
 - **Without a browser:** `renderPdf(<Document>…</Document>)` from `@unlayer/elements-pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
@@ -48,7 +48,7 @@ Save this as `src/render-pdf.ts` alongside `invoice.tsx` and `pdf.ts`:
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 

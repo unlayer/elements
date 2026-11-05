@@ -1,4 +1,4 @@
-# Components reference (`@unlayer/react-elements/primitives`)
+# Components reference (`@unlayer/react-elements`)
 
 <!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 

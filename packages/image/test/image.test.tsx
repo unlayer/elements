@@ -36,15 +36,15 @@ import {
   Text,
   validate,
   Video,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 import type { ReactElement, ReactNode } from "react";
 import { renderImage } from "../src";
 import { writeCanvas } from "../src/write";
 
 /** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
 const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
-vi.mock("@unlayer/react-elements/primitives", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@unlayer/react-elements/primitives")>();
+vi.mock("@unlayer/react-elements", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@unlayer/react-elements")>();
   return {
     ...actual,
     prepare: (element: ReactElement) => {

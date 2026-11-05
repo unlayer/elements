@@ -22,7 +22,7 @@ Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is edi
 | File | What it is |
 |------|------------|
 | `welcome.design.json`, `order-receipt.design.json` | Unlayer designs, ready for `loadDesign()` |
-| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components: the new ones from `@unlayer/react-elements/primitives`, except where a template doesn't pass the check in them. It stays in today's components, and the run and `report.json` say why (here `welcome.tsx`, whose `Row` works out its columns at run time) |
+| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components: the new ones from `@unlayer/react-elements`, except where a template doesn't pass the check in them. It stays in today's components, and the run and `report.json` say why (here `welcome.tsx`, whose `Row` works out its columns at run time) |
 | `report.json` | Each template's check result, differences and web fonts; `editor.html` lists the templates and registers their fonts from it |
 
 ## Your own templates

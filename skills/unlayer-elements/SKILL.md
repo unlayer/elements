@@ -7,7 +7,7 @@ description: Write emails, web pages, printed documents, PDFs and images in code
 
 <!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
-Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements/primitives` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.
+Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.
 
 ## Templates on today's components
 
@@ -20,7 +20,7 @@ A project may already have templates on today's components: they import from `@u
 
 ## How a template is written
 
-- Import from `@unlayer/react-elements/primitives`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
+- Import from `@unlayer/react-elements`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
 - Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `"12px 24px"`. A box's text styles are inherited by what it holds.
 - There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.
 - A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.
@@ -44,7 +44,7 @@ Each of these made an agent's first try fail:
 ## A whole template
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (

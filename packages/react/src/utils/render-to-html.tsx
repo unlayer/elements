@@ -54,7 +54,7 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  *
  * @example
  * ```tsx
- * import { renderToHtml, Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+ * import { renderToHtml, Email, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
  *
  * const html = renderToHtml(
  *   <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>,
@@ -83,7 +83,7 @@ export function renderToHtml(
  *
  * @example
  * ```tsx
- * import { renderToPlainText, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
+ * import { renderToPlainText, Body, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
  *
  * const text = renderToPlainText(
  *   <Body mode="email"><Row><Column><Paragraph>Hello World</Paragraph></Column></Row></Body>
@@ -152,7 +152,7 @@ export interface HtmlParts {
  *
  * @example
  * ```tsx
- * import { renderToHtmlParts, Email, Row, Column, Button } from "@unlayer/react-elements";
+ * import { renderToHtmlParts, Email, Row, Column, Button } from "@unlayer/react-elements/legacy";
  *
  * const { head, body } = renderToHtmlParts(
  *   <Email>

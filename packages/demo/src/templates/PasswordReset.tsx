@@ -8,7 +8,7 @@ import {
   Paragraph,
   Section,
   Span,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
 const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 

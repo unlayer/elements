@@ -8,7 +8,7 @@ import {
   Image,
   Paragraph,
   Section,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
 const sansFont = "'Circular', 'Helvetica Neue', Helvetica, Arial, sans-serif";
 

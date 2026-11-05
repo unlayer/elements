@@ -11,7 +11,7 @@
  * font), and says so.
  */
 import { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "@unlayer-internal/elements-core";
-import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
+import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements";
 import type { ReactElement } from "react";
 import type { Font } from "./model";
 import { reactPdf } from "./react-pdf";

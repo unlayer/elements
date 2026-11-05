@@ -1,6 +1,6 @@
 # @unlayer/elements-pdf
 
-PDF output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Document>` from `@unlayer/react-elements/primitives` written as a PDF on the server, with react-pdf, without a browser or the network. Its pages, header, footer and page numbers are the print HTML's, laid out at the same widths.
+PDF output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Document>` from `@unlayer/react-elements` written as a PDF on the server, with react-pdf, without a browser or the network. Its pages, header, footer and page numbers are the print HTML's, laid out at the same widths.
 
 ## Installation
 
@@ -24,7 +24,7 @@ Node.js only: it writes the PDF on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Document, Heading, Image, PageFooter, PageNumber, Paragraph, Text } from "@unlayer/react-elements/primitives";
+import { Document, Heading, Image, PageFooter, PageNumber, Paragraph, Text } from "@unlayer/react-elements";
 import { renderPdf } from "@unlayer/elements-pdf";
 
 const Invoice = () => (
@@ -74,7 +74,7 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player |
 | `document/overflow` | warning | A page's content looks taller than the page (an estimate: text isn't measured yet) |
 
-`validate()` from `@unlayer/react-elements/primitives` reports `pdf/unsupported` and `document/overflow` without rendering. The font and image checks need the files, so only `renderPdf` makes them.
+`validate()` from `@unlayer/react-elements` reports `pdf/unsupported` and `document/overflow` without rendering. The font and image checks need the files, so only `renderPdf` makes them.
 
 ## Known limits
 

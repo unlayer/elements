@@ -12,10 +12,10 @@ pnpm add @unlayer/react-elements
 
 ## Quick start
 
-Import from `@unlayer/react-elements/primitives`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
+Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements/primitives";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (
@@ -62,16 +62,16 @@ export default function Receipt() {
 ```
 
 ```tsx
-import { outline, render, validate } from "@unlayer/react-elements/primitives";
+import { outline, render, validate } from "@unlayer/react-elements";
 
 const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
 const { valid } = validate(<Receipt />); // the same checks, without rendering
 console.log(outline(<Receipt />)); // the laid-out template as text: each block, its width, its words
 ```
 
-These components are a preview of the next major version, when they become the main import. To write a template, read [PRIMITIVES.md](./PRIMITIVES.md): how a template is written, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
+To write a template, read [PRIMITIVES.md](./PRIMITIVES.md): how a template is written, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
 
-Already using the components at the main import? See [Moving from today's components](#moving-from-todays-components).
+Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-elements-02).
 
 ## Using with an AI agent
 
@@ -148,7 +148,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 A `Column` in a `Row` takes its `width`, or a share of what's left.
 
 ```tsx
-import { Column, Grid, Row } from "@unlayer/react-elements/primitives";
+import { Column, Grid, Row } from "@unlayer/react-elements";
 
 // Equal shares.
 <Row style={{ gap: 16 }}>
@@ -202,7 +202,7 @@ The options are `pretty` (the HTML indented, for reading it), `mergeTag` (how a 
 Share the content, and give each output its root:
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Paragraph, render } from "@unlayer/react-elements/primitives";
+import { Button, Column, Document, Email, Heading, Page, Paragraph, render } from "@unlayer/react-elements";
 
 const Invoice = () => (
   <Column style={{ gap: 12 }}>
@@ -301,7 +301,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 A function that returns components is a component of your own, as in [One template, every output](#one-template-every-output). For a named block with typed props and its own editors, use `component()`:
 
 ```tsx
-import { Button, Column, Heading, Image, component, prop } from "@unlayer/react-elements/primitives";
+import { Button, Column, Heading, Image, component, prop } from "@unlayer/react-elements";
 
 const ProductCard = component({
   type: "acme.ProductCard",
@@ -348,18 +348,16 @@ The design holds no Elements data. A style or prop a builder tool has no field f
 
 See [when to choose Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/unlayer/elements/tree/main/examples/content-workflows).
 
-## Moving from today's components
+## Moving from Elements 0.2
 
-The components at the main import keep working, with the same API, and since 0.3.0 they render through the same engine. Your templates and the functions you call don't change. Their HTML does: in Chromium, they now draw as the Unlayer editor's export draws them. That hasn't been checked in real email clients, and in classic Outlook a button has square corners, where the editor's are rounded. [CHANGELOG.md](./CHANGELOG.md) lists every difference from 0.2.1 and each new error, with its reason.
-
-A template uses one set of components or the other. To move:
+Elements 0.2's components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in 0.3.0: the package's components are these. The codemod moves templates written with them:
 
 ```bash
-npx @unlayer/migrate src/emails --from elements   # templates written with today's components
+npx @unlayer/migrate src/emails --from elements   # templates written for Elements 0.2
 npx @unlayer/migrate src/emails                   # React Email templates
 ```
 
-See the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
 
 ## Development
 

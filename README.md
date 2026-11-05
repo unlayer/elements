@@ -52,7 +52,7 @@ npm install @unlayer/react-elements
 ```
 
 ```tsx
-import { Button, Column, Email, Heading, Paragraph, render } from "@unlayer/react-elements/primitives";
+import { Button, Column, Email, Heading, Paragraph, render } from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (
@@ -71,7 +71,7 @@ function WelcomeEmail() {
 const { html, text } = await render(<WelcomeEmail />);
 ```
 
-The components at `@unlayer/react-elements/primitives` are a preview of the next major version, when they become the main import. Already using the components at the main import? They keep working: see [Moving from today's components](./packages/react/README.md#moving-from-todays-components).
+Upgrading from Elements 0.2, whose components aren't in 0.3.0? See [Moving from Elements 0.2](./packages/react/README.md#moving-from-elements-02).
 
 ## Email Client Compatibility Notes
 
@@ -219,7 +219,7 @@ Styles go in `style={{ }}`. A root, a `Section` and a `Column` stack what they h
 ## Column Layouts
 
 ```tsx
-import { Column, Grid, Row } from "@unlayer/react-elements/primitives";
+import { Column, Grid, Row } from "@unlayer/react-elements";
 
 // Equal shares.
 <Row style={{ gap: 16 }}>

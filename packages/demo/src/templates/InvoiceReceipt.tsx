@@ -11,9 +11,9 @@ import {
   Table,
   TableCell,
   TableRow,
-} from "@unlayer/react-elements/primitives";
+} from "@unlayer/react-elements";
 
-//   import { render } from "@unlayer/react-elements/primitives";
+//   import { render } from "@unlayer/react-elements";
 //   import { toDesign } from "@unlayer/react-elements/builder";
 //   const { html } = await render(<InvoiceReceipt />);
 //
