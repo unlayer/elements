@@ -184,6 +184,15 @@ describe("a link's window", () => {
   });
 });
 
+describe("a custom component that's a band of its own", () => {
+  it("goes to the builder as an HTML block, where it's placed as it was", () => {
+    const Hero = component({ type: "acme.Hero", label: "Hero", placement: "section", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Section><Heading>{title}</Heading></Section> });
+    const { design, report } = toDesign(<Email><Hero title="Launch" /></Email>);
+    expect(JSON.stringify(design)).toContain("Launch");
+    expect(report.join("\n")).toContain("HTML block");
+  });
+});
+
 describe("what the builder can't hold", () => {
   const said = (element: React.ReactElement) => toDesign(element).report.join("\n");
 
