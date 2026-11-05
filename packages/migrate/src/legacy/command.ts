@@ -1,7 +1,8 @@
 /**
- * `--from elements`: templates written with today's components (@unlayer/react-elements, or its /legacy entry)
- * rewritten with the new ones (/primitives), by the codemod. Nothing is written unless asked: one template is printed,
- * several are listed with what the codemod reported; --write replaces them, only where git can give them back.
+ * `--from elements`: templates written with Elements 0.2's components ("today's": @unlayer/react-elements before
+ * 0.3.0) rewritten with the new ones (its main entry from 0.3.0), by the codemod. Nothing is written unless asked: one
+ * template is printed, several are listed with what the codemod reported; --write replaces them, only where git can
+ * give them back.
  */
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
@@ -24,7 +25,7 @@ export interface LegacyHelpers {
 }
 
 export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, helpers: LegacyHelpers): Promise<number> {
-  for (const option of ["out", "design", "no-merge-tags", "strict", "force", "overwrite", "to"]) {
+  for (const option of ["out", "design", "no-merge-tags", "strict", "force", "overwrite"]) {
     if (args.option(option) !== undefined || args.flag(option)) {
       io.stderr(`--${option} isn't for --from elements: it prints a template, or replaces templates with --write.\n`);
       return 1;
@@ -62,8 +63,8 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
         continue;
       }
       const { code, report, stayed, current } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
-      // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was but for its
-      // import of the main entry, which moves to /legacy; one already on the new components is listed as it is.
+      // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was, not listed;
+      // one already on the new components is listed as it is.
       if (code !== source || stayed || current) results.push({ file, code, report, stayed, current });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });

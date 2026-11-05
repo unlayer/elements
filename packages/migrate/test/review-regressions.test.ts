@@ -7,11 +7,8 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import Module, { createRequire } from "node:module";
 import * as lib from "@unlayer/from-react-email";
-import { main as run, withContentHash, type Io } from "../src/cli";
+import { main, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
-
-/** These tests check the conversion and its checks, on today's components (cli.test.ts has the new components). */
-const main: typeof run = (argv, io, library) => run(!argv.length || argv[0] === "compare" || argv.includes("--to") ? argv : ["--to", "components", ...argv], io, library);
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -464,11 +461,11 @@ export default function Welcome() { return <Html><Body style={{ backgroundColor:
     expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped: not an email template/);
     const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
     expect(migrated).toContain("@unlayer/react-elements");
-    expect(migrated).toContain('contentWidth="400px"');
+    expect(migrated).toContain("width={400}");
     const { default: Welcome } = await import(path.join(dir, "emails/welcome.tsx"));
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    // The shared footer's white text (as today's components write it, #ffffff, or the new engine, #fff).
-    expect(renderToHtml(Welcome({}))).toMatch(/color:\s*#fff(fff)?\b/i);
+    const { render } = await import("@unlayer/react-elements");
+    // The shared footer's white text.
+    expect((await render(Welcome({}))).html).toMatch(/color:\s*#fff(fff)?\b/i);
     expect(fs.existsSync(path.join(dir, "emails/components/footer.design.json"))).toBe(false);
   });
 
@@ -548,17 +545,17 @@ export default function label(name: string) { return format(name); }`;
     expect(await main(["emails", "--out", "converted"], out, lib), out.out + out.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
     expect(fs.readFileSync(path.join(dir, "converted/components/footer.tsx"), "utf8")).toContain("@unlayer/react-elements");
-    expect(fs.readFileSync(path.join(dir, "converted/welcome.tsx"), "utf8")).toContain('color="#ffffff"');
+    expect(fs.readFileSync(path.join(dir, "converted/welcome.tsx"), "utf8")).toContain('color: "#ffffff"');
   });
 
   it.each(["--write", "--out"])("finishes all checks before %s writes", async (mode) => {
     const dir = project({ "emails/a.tsx": good, "emails/b.tsx": good });
     let checks = 0;
-    const checking = { ...lib, verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => {
+    const checking = { ...lib, verifyNewComponents: async (...args: Parameters<typeof lib.verifyNewComponents>) => {
       checks++;
       expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(good);
       expect(fs.existsSync(path.join(dir, "converted/a.tsx"))).toBe(false);
-      return lib.verifyConversion(...args);
+      return lib.verifyNewComponents(...args);
     } };
     const out = io(dir);
     expect(await main(["emails", mode, ...(mode === "--out" ? ["converted"] : [])], out, checking), out.out + out.err).toBe(0);
@@ -728,8 +725,8 @@ export default ${wrapper};`;
     // Check the wrapper as React renders it, as well as the unwrapped check.
     const { default: Wrapped } = await import(path.join(dir, "converted/welcome.tsx"));
     const { default: React } = await import("react");
-    const { render } = await import("@react-email/components");
-    expect(await render(React.createElement(Wrapped, {name:"Guest"}))).toContain("Hello Guest");
+    const { render } = await import("@unlayer/react-elements");
+    expect((await render(React.createElement(Wrapped, {name:"Guest"}))).html).toContain("Hello Guest");
   });
 
   it("prefers outer preview props, including for compare", async () => {
@@ -1030,8 +1027,8 @@ describe("compare and the whole check", () => {
   it("lists a hand migration that moves text across the page, as a run would (and fails it with --strict)", async () => {
     const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
-    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
-export default function T() { return <Email backgroundColor="#ffffff" contentWidth="600px"><Row><Column><Paragraph>Thanks for your order, here is the summary</Paragraph><Paragraph textAlign="left">Total due: 40 dollars</Paragraph></Column></Row></Email>; }`;
+    const migrated = `import { Email, Section, Paragraph } from "@unlayer/react-elements";
+export default function T() { return <Email width={600} style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ fontSize: 14 }}>Thanks for your order, here is the summary</Paragraph><Paragraph style={{ fontSize: 14, textAlign: "left" }}>Total due: 40 dollars</Paragraph></Section></Email>; }`;
     const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(0);
@@ -1043,8 +1040,8 @@ export default function T() { return <Email backgroundColor="#ffffff" contentWid
   it("fails a hand migration that hides a linked image on phones, naming it", async () => {
     const original = `import { Html, Body, Section, Text, Link, Img } from "@react-email/components";
 export default function T() { return <Html><Body><Section><Text>Thanks for your order, here is the summary</Text><Link href="https://example.com/app"><Img src="https://example.com/badge.png" alt="" width="120" height="40" /></Link></Section></Body></Html>; }`;
-    const migrated = `import { Email, Row, Column, Paragraph, Image } from "@unlayer/react-elements";
-export default function T() { return <Email><Row><Column><Paragraph>Thanks for your order, here is the summary</Paragraph><Image src="https://example.com/badge.png" alt="" width="120px" href="https://example.com/app" hideOnMobile /></Column></Row></Email>; }`;
+    const migrated = `import { Email, Section, Column, Paragraph, Image, Link } from "@unlayer/react-elements";
+export default function T() { return <Email><Section><Paragraph>Thanks for your order, here is the summary</Paragraph><Column hidden={{ mobile: true }}><Link href="https://example.com/app"><Image src="https://example.com/badge.png" alt="" style={{ width: 120 }} /></Link></Column></Section></Email>; }`;
     const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
@@ -1466,17 +1463,17 @@ T.PreviewProps = { label: "Go" };`;
 });
 
 describe("content the check reads beyond desktop text (compare)", () => {
-  const elements = (body: string) => `import { Column, Email, Image, Paragraph, Row } from "@unlayer/react-elements";
-export default function T() { return <Email backgroundColor="#ffffff"><Row><Column>${body}</Column></Row></Email>; }
+  const elements = (body: string) => `import { Email, Html, Image, Paragraph, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section>${body}</Section></Email>; }
 `;
-  const p = (text: string) => `<Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">${text}</Paragraph>`;
+  const p = (text: string) => `<Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>${text}</Paragraph>`;
   const original = (head: string, body: string) => `import { Html, Head, Body, Text, Img } from "@react-email/components";
 export default function T() { return <Html><Head>${head ? `<style dangerouslySetInnerHTML={{ __html: ${JSON.stringify(head)} }} />` : ""}</Head><Body>${body}</Body></Html>; }
 `;
   it("fails a list's numbering, dark-mode content or text hidden off the page the migration lost; lists phone styles as looks", async () => {
     const dir = project({
       "emails/steps.tsx": original("", `<Text>Next steps</Text><ol start={3}><li>Verify email</li></ol>`),
-      "migrated/steps.tsx": elements(`${p("Next steps")}<Paragraph fontSize="16px" color="#000000" html="<ol><li>Verify email</li></ol>" containerPadding="0px 0px 16px 0px" />`),
+      "migrated/steps.tsx": elements(`${p("Next steps")}<Html html="<ol><li>Verify email</li></ol>" />`),
       "emails/dark.tsx": original(".night{display:none} @media (prefers-color-scheme: dark) { .day{display:none !important} .night{display:block !important} }", `<Text className="day">Good morning</Text><Text className="night">Good night</Text>`),
       "migrated/dark.tsx": elements(p("Good morning")),
       "emails/away.tsx": original("", `<Text>Hi</Text><Text style={{ transform: "translateX(-9999px)" }}>Secret coupon</Text>`),
@@ -1827,8 +1824,8 @@ export default function Base({ heading = "Notice", content }: { heading?: string
       expect(out.out).toContain("2 templates: 2 migrated and checked");
     }
     const { default: Reset } = await import(path.join(dir, "emails/reset.tsx"));
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    expect(renderToHtml(Reset({}))).toContain("Reset your Acme password");
+    const { render } = await import("@unlayer/react-elements");
+    expect((await render(Reset({}))).html).toContain("Reset your Acme password");
   });
 
   it("migrates templates a mailer outside the folder sends, when one takes only a constant from it", async () => {
@@ -1869,7 +1866,7 @@ export default function Base({ heading = "Notice", content }: { heading?: string
     expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     const migrated = read(dir, "migrated/welcome.tsx");
     expect(migrated).not.toMatch(/\bbrand\b/);
-    expect(migrated).toContain('backgroundColor="#000000"');
+    expect(migrated).toContain('backgroundColor: "#000000"');
   });
 
   it("lists the files it left that still use a template it replaced", async () => {
@@ -1904,7 +1901,7 @@ export default function Base({ heading = "Notice", content }: { heading?: string
     });
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
-    const listed = /Still using a migrated template: render it with renderToHtml\(\) from @unlayer\/react-elements[^\n]*\n((?:  [^\n]*\n)*)/.exec(out.out)?.[1];
+    const listed = /Still using a migrated template: render it with await render\(\) from @unlayer\/react-elements[^\n]*\n((?:  [^\n]*\n)*)/.exec(out.out)?.[1];
     expect(listed, out.out).toBe(
       ["app/api/send/route.ts", "emails/welcome.test.tsx", "lib/mailer.ts", "lib/send.tsx", "scripts/preview.cjs"].map((file) => `  ${file} → emails/welcome.tsx\n`).join("")
     );
@@ -2010,8 +2007,8 @@ export default function T() {
     // Only the template that lost words is a converter bug.
     expect(out.out).toContain("\n2 templates: 0 migrated and checked, 2 failed the check (1 with content that differs: a converter bug, please report it).");
     // Head content in the email's body carries no words: what couldn't be verified is said on none.
-    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
-export default function T() { return <Email backgroundColor="#ffffff"><meta name="color-scheme" content="light only" /><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Hello there</Paragraph></Column></Row></Email>; }
+    const migrated = `import { Email, Html, Paragraph, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Html html={'<meta name="color-scheme" content="light only">'} /><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Hello there</Paragraph></Section></Email>; }
 `;
     const plain = `import { Body, Html, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>Hello there</Text></Body></Html>; }`;
@@ -2145,8 +2142,8 @@ describe("words in what the run says", () => {
     const original = `import { Html, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>Order A-10293 for (sarah@example.com) shipped.</Text></Body></Html>; }
 `;
-    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
-export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Order shipped, ref “B‑7”, from the U.S.</Paragraph></Column></Row></Email>; }
+    const migrated = `import { Email, Paragraph, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Order shipped, ref “B‑7”, from the U.S.</Paragraph></Section></Email>; }
 `;
     const dir = project({ "emails/order.tsx": original, "migrated/order.tsx": migrated });
     const out = io(dir);
@@ -2161,8 +2158,8 @@ export default function T() { return <Email backgroundColor="#ffffff"><Row><Colu
     const original = `import { Html, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>{"Run \u200d\u200bclient.\u2060connect() on \ufeffstart\u00adup."}</Text></Body></Html>; }
 `;
-    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
-export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Run it</Paragraph></Column></Row></Email>; }
+    const migrated = `import { Email, Paragraph, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Run it</Paragraph></Section></Email>; }
 `;
     const dir = project({ "emails/code.tsx": original, "migrated/code.tsx": migrated });
     const out = io(dir);

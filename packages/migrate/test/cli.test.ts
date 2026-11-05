@@ -4,10 +4,9 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import * as lib from "@unlayer/from-react-email";
-import { main as run, type Io } from "../src/cli";
+import { main, type Io } from "../src/cli";
 
-/** These tests check the conversion and its checks, on today's components; "the new components" below has the default. */
-const main: typeof run = (argv, io, library) => run(!argv.length || argv[0] === "compare" || argv.includes("--to") ? argv : ["--to", "components", ...argv], io, library);
+const run = main;
 
 const WELCOME = `import { Body, Button, Container, Head, Html, Preview, Section, Tailwind, Text } from "@react-email/components";
 import { formatName } from "../lib/format";
@@ -95,16 +94,16 @@ Welcome.PreviewProps = { name: "Alex" };`;
     const dir = setup();
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements";');
     expect(written(dir)).toContain("style={{");
-    expect(written(dir)).not.toMatch(/from "@unlayer\/react-elements";/);
+    expect(written(dir)).not.toContain("/legacy");
     // Its Button still opens in a new window, and the helpers today's markup needed are gone where nothing uses them.
     expect(written(dir)).toMatch(/href=\{\{ href: "https:\/\/example\.com", target: "_blank" \}\}|target: "_blank"/);
     expect(written(dir)).not.toContain("function htmlAttribute");
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
     expect(compare.out).toContain("same words, links and images");
-    expect(compare.out).not.toContain("the editor gets every block");
+    expect(compare.out).toContain("the editor gets the template");
   });
 
   it("take a template wrapped in memo, and compare checks it", async () => {
@@ -123,33 +122,40 @@ export default memo(Welcome);`,
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
   });
 
-  it("still give the design JSON, which comes from today's components", async () => {
+  it("give the design JSON, from toDesign", async () => {
     const dir = setup();
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated", "--design"], out, lib), out.out + out.err).toBe(0);
     expect(JSON.parse(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).body.rows.length).toBeGreaterThan(0);
   });
 
-  it("leave a template in today's components with --to components", async () => {
+  it("are all a run writes: there's no --to", async () => {
     const dir = setup();
     const out = io(dir);
-    expect(await run(["emails", "--out", "migrated", "--to", "components"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
-    const unknown = io(dir);
-    expect(await run(["emails", "--to", "other"], unknown, lib)).toBe(1);
-    expect(unknown.err).toContain('Unknown --to "other"');
+    expect(await run(["emails", "--out", "migrated", "--to", "components"], out, lib)).toBe(1);
+    expect(out.err).toContain("Unknown option: --to");
+    expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
   });
 
-  it("leave columns they couldn't keep side by side in today's components, and say why", async () => {
-    const dir = project({
-      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
-      "emails/welcome.tsx": `import { Html, Body, Row, Column, Text } from "@react-email/components";
-const items = ["a", "b"];
-export default function Welcome() { return <Html><Body><Row>{items.map((item) => <Column key={item} style={{ width: "50%" }}><Text>{item}</Text></Column>)}</Row></Body></Html>; }`,
-    });
+  it("write columns they put one under another, listed as looking different, and failed with --strict", async () => {
+    const dir = setup();
+    const stacked = "this Row's layout can't be read (layout): its Columns are written one under another";
+    const stacking = { ...lib, convertSource: async (...args: Parameters<typeof lib.convertSource>) => {
+      const converted = await lib.convertSource(...args);
+      return { ...converted, notes: [...converted.notes, stacked], stacked: [stacked] };
+    } } as typeof lib;
     const out = io(dir);
-    expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    if (/from "@unlayer\/react-elements";/.test(written(dir))) expect(out.out).toContain("kept in today's components");
+    expect(await run(["emails", "--out", "migrated", "--report", "report.json"], out, stacking), out.out + out.err).toBe(0);
+    expect(out.out).toContain(`looks different: columns written one under another: ${stacked}`);
+    expect(written(dir)).toContain('from "@unlayer/react-elements";');
+    const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
+    expect(result.looks).toContain(`columns written one under another: ${stacked}`);
+    // Listed once: not also among what the migration did.
+    expect(JSON.stringify(result.changes ?? [])).not.toContain("written one under another");
+    const strict = io(dir);
+    expect(await run(["emails", "--out", "strict", "--strict"], strict, stacking)).toBe(2);
+    expect(strict.out).toContain("check failed with --strict");
+    expect(fs.existsSync(path.join(dir, "strict/welcome.tsx"))).toBe(false);
   });
 
   const emails = (body: string, preview: string) => project({
@@ -164,7 +170,6 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>Hello <strong>{name}</strong> <Link href={note}><em>{name}</em></Link></Text>', '{ name: "Alex", note: "https://example.com/a" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).not.toContain("kept in today's components");
     expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).toContain("{name}");
     expect(written(dir)).not.toMatch(/htmlText|escapeHtml/);
@@ -176,7 +181,6 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>{note ? <em>{note}</em> : null}</Text>', '{ note: "Soon" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).not.toContain("kept in today's components");
     expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).toContain("{note}");
     const compare = io(dir);
@@ -187,7 +191,6 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>Hi {name}</Text><table><tbody><tr><td style={{ color: "#123456" }}>{note}</td></tr></tbody></table>', '{ name: "Tom & Jerry", note: "a < b" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).not.toContain("kept in today's components");
     expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).not.toContain("KeptHtml");
     const compare = io(dir);
@@ -202,7 +205,6 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
     });
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).not.toContain("kept in today's components");
     expect(written(dir)).toContain('from "@unlayer/react-elements"');
   });
 
@@ -220,14 +222,52 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
     expect(failed(await lib.verifyNewComponents(Original as never, once as never, { props }))).toEqual([]);
   });
 
-  it("leave a template that doesn't pass in them in today's components, and say why", async () => {
+  it("fail a template that can't be written in them, naming the stage, and write nothing for it", async () => {
     const dir = setup();
+    const intermediate = `import { Email } from "@unlayer/react-elements/legacy";\nexport default () => <Email />;\n`;
+    const refused = { ...lib, convertSource: async () => {
+      throw new lib.NewComponentsError("line 3: its root is chosen at run time (web ? Page : Email), which isn't migrated", intermediate);
+    } } as typeof lib;
     const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, refused)).toBe(2);
+    expect(out.out).toContain("✗ emails/welcome.tsx: it can't be written in the new components: line 3: its root is chosen at run time");
+    expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
+    // Nor in place.
+    const write = io(dir);
+    expect(await run(["emails", "--write"], write, refused)).toBe(2);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(template);
+  });
+
+  it("flag a template the visual editor wouldn't get, saying why: written, with no design JSON", async () => {
+    const dir = setup();
+    const why = "[Elements] This template can't go to the builder:; root: the builder edits an Email, a Page or a Document, not a Canvas";
+    const refused = { ...lib, verifyNewComponents: async (...args: Parameters<typeof lib.verifyNewComponents>) => {
+      const { design: _, ...check } = await lib.verifyNewComponents(...args);
+      return { ...check, designWarnings: [why] };
+    } } as typeof lib;
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated", "--design", "--report", "report.md"], out, refused)).toBe(2);
+    expect(out.out).toContain(`✗ emails/welcome.tsx: written, but it failed the check: the visual editor wouldn't get it: ${why}`);
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.design.json"))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain(`**The visual editor wouldn't get it:**\n- ${why}\n`);
+  });
+
+  it("fail a template whose module in them has no default export, or doesn't render, and write nothing for it", async () => {
+    const dir = setup();
+    const noDefault = { ...lib, convertSource: async (...args: Parameters<typeof lib.convertSource>) => {
+      const converted = await lib.convertSource(...args);
+      return { ...converted, code: converted.code.replace(/^export default /m, "export const Welcome = ").replace(/^export default \w+;$/m, "") };
+    } } as typeof lib;
+    const out = io(dir);
+    expect(await run(["emails", "--out", "migrated"], out, noDefault)).toBe(2);
+    expect(out.out).toContain("✗ emails/welcome.tsx: the template written in the new components has no default export");
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.tsx"))).toBe(false);
     const failing = { ...lib, verifyNewComponents: async () => { throw new Error("The template has 1 error:\n  it can't be drawn"); } } as typeof lib;
-    expect(await run(["emails", "--out", "migrated"], out, failing), out.out + out.err).toBe(0);
-    expect(written(dir)).toMatch(/from "@unlayer\/react-elements";/);
-    expect(out.out).toContain("kept in today's components");
-    expect(out.out).toContain("it can't be drawn");
+    const broken = io(dir);
+    expect(await run(["emails", "--out", "migrated"], broken, failing)).toBe(2);
+    expect(broken.out).toContain("✗ emails/welcome.tsx: the migrated template doesn't render: The template has 1 error:");
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.tsx"))).toBe(false);
   });
 });
 
@@ -323,8 +363,8 @@ Template.PreviewProps = { href: undefined };`;
     const { tsImport } = await import("tsx/esm/api");
     const mod = await tsImport(path.join(dir, "migrated/default.tsx"), { parentURL: import.meta.url });
     const Template = mod.default.default ?? mod.default;
-    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-    const html = renderToHtml(Template({ href: undefined })).replace(/<!--[\s\S]*?-->/g, "");
+    const { render } = await import("@unlayer/react-elements");
+    const html = (await render(Template({ href: undefined }))).html.replace(/<!--[\s\S]*?-->/g, "");
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const cta = links.find(([, , text]) => text.replace(/<[^>]*>/g, "").trim() === "Pay invoice");
     expect(cta?.[1]).toContain('href="https://example.com/pay"');
@@ -391,8 +431,8 @@ export default Exported;`;
       const { tsImport } = await import("tsx/esm/api");
       const mod = await tsImport(path.join(dir, "migrated/greeting.tsx"), { parentURL: import.meta.url });
       const Template = mod.default.default ?? mod.default;
-      const { renderToHtml } = await import("@unlayer/react-elements/legacy");
-      const html = renderToHtml(React.createElement(Template, { name: "Ada" }));
+      const { render } = await import("@unlayer/react-elements");
+      const { html } = await render(React.createElement(Template, { name: "Ada" }));
       expect(html).toContain('lang="ar"');
       expect(html).toContain('dir="rtl"');
       expect(html).toContain("Ada");
@@ -415,7 +455,7 @@ Hooky.PreviewProps = { name: "Ada", items: ["a", "b", "c"] };`;
     expect(out.out).toContain("1 migrated and checked");
     expect(fs.readFileSync(path.join(dir, "migrated/hooky.design.json"), "utf8")).toContain("You have 3 items");
     const { default: Hooky } = await import(path.join(dir, "emails/hooky.tsx"));
-    const words = (await lib.convertReactEmail(Hooky)).html().replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const words = (await (await lib.convertReactEmail(Hooky)).html()).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     expect(words).toContain("Hello {{name}}"); // a text prop shown as given: a merge tag
     expect(words).toContain("You have 3 items");
   });
@@ -492,8 +532,8 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     const page = { property: "background", original: "#f4f4f5", converted: "#ffffff", words: [], page: true as const };
     const library = {
       ...lib,
-      verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => {
-        const check = await lib.verifyConversion(...args);
+      verifyNewComponents: async (...args: Parameters<typeof lib.verifyNewComponents>) => {
+        const check = await lib.verifyNewComponents(...args);
         return { ...check, styles: [...check.styles, page] };
       },
     } as typeof lib;
@@ -529,7 +569,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome</Text></Bod
     ] as const) {
       const library = {
         ...lib,
-        verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => ({ ...(await lib.verifyConversion(...args)), styleCoverage: coverage }),
+        verifyNewComponents: async (...args: Parameters<typeof lib.verifyNewComponents>) => ({ ...(await lib.verifyNewComponents(...args)), styleCoverage: coverage }),
       } as typeof lib;
       expect(await main(["emails", "--report", "report.md"], io(dir), library)).toBe(0);
       expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain(`\n${said}\n`);
@@ -963,9 +1003,9 @@ export default function Hi({ name }: { name: string }) {
 Hi.PreviewProps = { name: "Alex" };
 `;
     // The original's look: a white page, and a button that looks like a link on the left (React Email's Button has no colors of its own).
-    const migrated = (text: string, button = 'backgroundColor="transparent" color="#0000ee" fontSize="16px" textAlign="left"') => `import { Button, Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+    const migrated = (text: string, button = 'style={{ backgroundColor: "transparent", color: "#0000ee", fontSize: 16, padding: 0 }}') => `import { Button, Column, Email, Paragraph, Section } from "@unlayer/react-elements";
 export default function Hi({ name }: { name: string }) {
-  return <Email backgroundColor="#ffffff"><Row><Column><Paragraph>${text}</Paragraph><Button href="https://example.com" ${button}>Start</Button></Column></Row></Email>;
+  return <Email style={{ backgroundColor: "#ffffff" }}><Section><Column style={{ alignItems: "start" }}><Paragraph>${text}</Paragraph><Button href={{ href: "https://example.com", target: "_blank" }} ${button}>Start</Button></Column></Section></Email>;
 }
 `;
     const dir = project({ "emails/hi.tsx": original, "migrated/good.tsx": migrated("Hello {name}, welcome aboard."), "migrated/bad.tsx": migrated("Hello {name}, welcome."), "migrated/styled.tsx": migrated("Hello {name}, welcome aboard.", "") });
@@ -983,6 +1023,41 @@ export default function Hi({ name }: { name: string }) {
     expect(await main(["compare", "emails/hi.tsx", "migrated/styled.tsx", "--strict"], strict, lib)).toBe(2);
     const usage = io(dir);
     expect(await main(["compare", "emails/hi.tsx"], usage, lib)).toBe(1);
+  });
+
+  it("refuses a hand migration in Elements 0.2's components, with the two commands that move it and then check it", async () => {
+    const original = `import { Body, Html, Text } from "@react-email/components";
+export default function Hi({ name }: { name: string }) {
+  return <Html><Body><Text>Hello {name}, welcome aboard.</Text></Body></Html>;
+}
+Hi.PreviewProps = { name: "Alex" };
+`;
+    const old = `import { Column, ColumnLayouts, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function Hi({ name }: { name: string }) {
+  return <Email><Row layout={ColumnLayouts.OneColumn}><Column><Paragraph>Hello {name}, welcome aboard.</Paragraph></Column></Row></Email>;
+}
+`;
+    const legacy = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
+export default function Hi() { return <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/hi.tsx": original, "migrated/old hi.tsx": old, "migrated/legacy.tsx": legacy });
+    const out = io(dir);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], out, lib)).toBe(1);
+    expect(out.out).toBe("");
+    expect(out.err).toBe(
+      `migrated/old hi.tsx is written in Elements 0.2's components (it imports ColumnLayouts from @unlayer/react-elements), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
+        `  npx @unlayer/migrate --from elements "migrated/old hi.tsx" --write\n` +
+        `  npx @unlayer/migrate compare emails/hi.tsx "migrated/old hi.tsx"\n`
+    );
+    const entry = io(dir);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/legacy.tsx"], entry, lib)).toBe(1);
+    expect(entry.err).toContain("migrated/legacy.tsx is written in Elements 0.2's components (it imports @unlayer/react-elements/legacy), which 0.3.0 doesn't have.");
+    // The two commands it gives: the template moved, then checked.
+    const moved = io(dir);
+    expect(await main(["--from", "elements", "migrated/old hi.tsx", "--write"], moved, lib), moved.out + moved.err).toBe(0);
+    const checked = io(dir);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], checked, lib), checked.out + checked.err).toBe(0);
+    expect(checked.out).toContain("same words, links and images");
   });
 
   it("doesn't take the next flag as an option's value (`--report --write`)", async () => {
