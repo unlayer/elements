@@ -55,12 +55,7 @@ describe("a page that renders with react-dom's browser build (react-dom/server.b
 });
 
 describe("a template's component", () => {
-  // KNOWN GAP: withBuild() (server-renderer.ts) takes another module of react-dom's for a component a collecting
-  // render renders only where one is on the stack in utils/collect.ts (`collecting()`, which Elements 0.2's collector
-  // pushed onto), and the new components' collector (primitives/collect.tsx) doesn't push onto it: the nested render
-  // runs on the module the template is being collected with, and the component's hook after it throws ("Cannot set
-  // properties of null"). When that's fixed, make this an `it`.
-  it.fails("can work out another template's design while Elements renders it, and use hooks after", async () => {
+  it("can work out another template's design while Elements renders it, and use hooks after", async () => {
     function RowCount() {
       const { design } = useMemo(() => toDesign(<Template />), []);
       const [label] = useState("rows");

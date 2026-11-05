@@ -10,7 +10,7 @@
  */
 import React from "react";
 import { checkDocument, Registry, type CheckResult, type CustomDefinition, type Diagnostic } from "@unlayer-internal/elements-core";
-import { isAsyncComponent, nonce } from "../utils/collect";
+import { isAsyncComponent, nonce, within } from "../utils/collect";
 import { renderToString } from "../utils/server-renderer";
 import { withRenderScope } from "../utils/render-scope";
 
@@ -226,7 +226,9 @@ export function collectNodes(element: React.ReactElement): {
     html = withRenderScope(() => {
       frames.push(collection);
       try {
-        return renderToString(element);
+        // On the shared stack too: a component that renders another template inside this one (toDesign() in a
+        // useMemo) renders it with another module of react-dom's, so the hooks after it keep theirs (withBuild).
+        return within(collection, () => renderToString(element));
       } finally {
         frames.pop();
       }
