@@ -13,6 +13,8 @@
  */
 
 import { resolutionOrder } from "./resolution";
+import { TODAYS, todaysPath } from "./todays-path";
+import { pathToFileURL } from "node:url";
 
 interface Data {
   /** A URL inside the project (the templates' folder), to resolve from. */
@@ -33,7 +35,9 @@ export async function initialize(value: Data): Promise<void> {
   cli = new URL(".", value.self).href;
 }
 
-export async function resolve(specifier: string, context: Context, nextResolve: Resolve): Promise<{ url: string }> {
+export async function resolve(specifier: string, context: Context, nextResolve: Resolve): Promise<{ url: string; shortCircuit?: boolean }> {
+  // Today's components are migrate's own copy, for the converter and every template: no package has them.
+  if (specifier === TODAYS) return { url: pathToFileURL(todaysPath()).href, shortCircuit: true };
   const importer = context.parentURL;
   const order = data && resolutionOrder(specifier, !!importer && !!cli && importer.startsWith(cli));
   if (!data || !order) return nextResolve(specifier, context);

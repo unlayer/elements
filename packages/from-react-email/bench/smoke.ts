@@ -16,7 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import React from "react";
 import { render } from "@react-email/components";
-import { renderToHtml } from "@unlayer/react-elements";
+import { renderToHtml } from "@unlayer/react-elements/legacy";
 import { chromium, type BrowserContext } from "playwright";
 import { compareText, convertReactEmail, convertSource, findTailwind } from "../src/index";
 import { layoutScore, resizedWords, SETTLED, WORDS, type Word } from "./layout";

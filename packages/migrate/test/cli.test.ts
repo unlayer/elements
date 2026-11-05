@@ -95,7 +95,7 @@ Welcome.PreviewProps = { name: "Alex" };`;
     const dir = setup();
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).toContain("style={{");
     expect(written(dir)).not.toMatch(/from "@unlayer\/react-elements";/);
     // Its Button still opens in a new window, and the helpers today's markup needed are gone where nothing uses them.
@@ -118,7 +118,7 @@ export default memo(Welcome);`,
     });
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
   });
@@ -165,7 +165,7 @@ Welcome.PreviewProps = ${preview};`,
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).not.toContain("kept in today's components");
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).toContain("{name}");
     expect(written(dir)).not.toMatch(/htmlText|escapeHtml/);
     const compare = io(dir);
@@ -177,7 +177,7 @@ Welcome.PreviewProps = ${preview};`,
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).not.toContain("kept in today's components");
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).toContain("{note}");
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
@@ -188,7 +188,7 @@ Welcome.PreviewProps = ${preview};`,
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).not.toContain("kept in today's components");
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
     expect(written(dir)).not.toContain("KeptHtml");
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
@@ -203,11 +203,11 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).not.toContain("kept in today's components");
-    expect(written(dir)).toContain('from "@unlayer/react-elements/primitives"');
+    expect(written(dir)).toContain('from "@unlayer/react-elements"');
   });
 
   it("are checked with text props that hold markup: a template that escapes them twice fails, though its preview draws the same", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/primitives");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
     const { Html, Body, Text } = await import("@react-email/components");
     const React = (await import("react")).default;
     const Original = ({ name }: { name: string }) => React.createElement(Html, null, React.createElement(Body, null, React.createElement(Text, null, name)));
@@ -323,7 +323,7 @@ Template.PreviewProps = { href: undefined };`;
     const { tsImport } = await import("tsx/esm/api");
     const mod = await tsImport(path.join(dir, "migrated/default.tsx"), { parentURL: import.meta.url });
     const Template = mod.default.default ?? mod.default;
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const html = renderToHtml(Template({ href: undefined })).replace(/<!--[\s\S]*?-->/g, "");
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const cta = links.find(([, , text]) => text.replace(/<[^>]*>/g, "").trim() === "Pay invoice");
@@ -391,7 +391,7 @@ export default Exported;`;
       const { tsImport } = await import("tsx/esm/api");
       const mod = await tsImport(path.join(dir, "migrated/greeting.tsx"), { parentURL: import.meta.url });
       const Template = mod.default.default ?? mod.default;
-      const { renderToHtml } = await import("@unlayer/react-elements");
+      const { renderToHtml } = await import("@unlayer/react-elements/legacy");
       const html = renderToHtml(React.createElement(Template, { name: "Ada" }));
       expect(html).toContain('lang="ar"');
       expect(html).toContain('dir="rtl"');

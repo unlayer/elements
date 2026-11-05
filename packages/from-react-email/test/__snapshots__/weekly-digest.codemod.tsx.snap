@@ -1,6 +1,14 @@
 /** @jsxRuntime automatic */
 // Migrated from React Email by @unlayer/migrate (codemod mode).
-import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
+import {
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Paragraph,
+  Row,
+} from "@unlayer/react-elements/legacy";
 import * as React from "react";
 
 interface Article {

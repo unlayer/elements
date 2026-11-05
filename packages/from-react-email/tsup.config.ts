@@ -11,7 +11,7 @@ export default defineConfig({
     compilerOptions: {
       // Resolve the workspace source as part of this declaration build, so
       // its relative imports are bundled too.
-      paths: { "@unlayer/convert-core": ["../convert-core/src/index.ts"] },
+      paths: { "@unlayer/convert-core": ["../convert-core/src/index.ts"], "@unlayer/react-elements/legacy": ["../react/dist/index.d.ts"] },
     },
   },
   splitting: false,

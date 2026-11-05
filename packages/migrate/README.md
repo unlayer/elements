@@ -39,7 +39,7 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
 | `--force` | With `--strict`, write templates the check fails anyway. |
 | `--overwrite` | Replace files already at a destination that the run didn't produce: a template an earlier run wrote in an `--out` folder, as it wrote it, or files git can restore. A design JSON (which may have been made or edited in the editor) only when git can restore it or it's the same design the run writes: otherwise that template fails and neither file is written. With `--strict`, it never writes a template that failed the check. |
 | `--allow-dirty` | Replace files git can't restore (uncommitted changes, not committed, or not in a repository): templates with `--write`, other files with `--overwrite`. |
-| `--to <target>` | What's written: `primitives` (the default), the new components with their styles in `style={{ }}`, from `@unlayer/react-elements/primitives`; or `components`, today's components with their styles as props. |
+| `--to <target>` | What's written: `primitives` (the default), the new components with their styles in `style={{ }}`, from `@unlayer/react-elements`; or `components`, today's components with their styles as props. |
 | `--from react-email` | The source format: `react-email` (the default), or `elements` (below). |
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
@@ -75,7 +75,7 @@ The migrated templates import `@unlayer/react-elements`: until it's installed, t
 Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), and where `--out` writes them, so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` before writing anything, with the install command to run.
 
 ```tsx
-import { render } from "@unlayer/react-elements/primitives";
+import { render } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
 const { html, text } = await render(<Welcome name="Alex" />); // send with any provider
@@ -116,7 +116,7 @@ const tsx = await conversion.tsx();
 
 ## From today's Elements components (preview)
 
-`--from elements` rewrites templates written with `@unlayer/react-elements`'s components with the new ones (`@unlayer/react-elements/primitives`, the main import from the next major version). Props, loops and helpers stay; the defaults today's components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
+`--from elements` rewrites templates written with `@unlayer/react-elements`'s components with the new ones (`@unlayer/react-elements`, the main import from the next major version). Props, loops and helpers stay; the defaults today's components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
 
 Templates are the files that import today's components, from the package or through your own modules that pass them on (an index with `export { Email } from "@unlayer/react-elements"` or `export *` from it, followed as your `tsconfig` resolves it). Other files, such as one that only calls `renderToHtml` or that index itself, are left as they are and aren't listed. A template that imports a namespace of them another module passes on (`export * as E from "@unlayer/react-elements"`) isn't followed: the run fails it, saying so.
 

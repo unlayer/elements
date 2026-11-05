@@ -130,7 +130,7 @@ const NOT_A_RUN = /^(image |<hr>|<ul>|<ol>|<dl>|<table>|style display: inline-(b
 export interface MigrateElementsOptions {
   /** Module specifiers today's components are imported from (default: the package and its /legacy entry). */
   from?: string[];
-  /** Where the new components are imported from (default "@unlayer/react-elements/primitives"). */
+  /** Where the new components are imported from (default "@unlayer/react-elements"). */
   to?: string;
   /**
    * The project's modules that pass today's components on (an index re-exporting them), by the specifier the module
@@ -150,12 +150,18 @@ export interface MigrateElementsResult {
   code: string;
   /** What couldn't be migrated as it was, or what it may change: one line each, with where. */
   report: string[];
-  /** The template is one of today's that can't be migrated, and comes back as it was. */
+  /** The template is one of today's that can't be migrated, and comes back as it was (to rewrite by hand: 0.3.0 doesn't have today's). */
   stayed?: boolean;
+  /** The module already uses the new components: it comes back as it was. */
+  current?: boolean;
 }
 
-export const DEFAULT_FROM = ["@unlayer/react-elements", "@unlayer/react-elements/legacy"];
-const DEFAULT_TO = "@unlayer/react-elements/primitives";
+/** The package: Elements 0.2's components until 0.3.0, the new ones from it (0.2's aren't in it). */
+const ROOT = "@unlayer/react-elements";
+export const DEFAULT_FROM = [ROOT];
+const DEFAULT_TO = ROOT;
+/** Names only the new components' entry exports: a module importing one from the main entry already uses them. */
+const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
 
 /** Today's components that have a new one (by the same name, or the one they become). */
 const COMPONENTS = new Set(["Email", "Page", "Document", "PageBreak", "Row", "Column", "Heading", "Paragraph", "Text", "Button", "Image", "Divider", "Social", "Menu", "Video", "Html", "Table", "Spacer"]);
@@ -292,6 +298,32 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   /** Whether an expression is followed by one of today's layout names (`ColumnLayouts.TwoEqual`). */
   const beforeLayout = (expression: ts.Node) => ts.isPropertyAccessExpression(expression.parent) && expression.parent.expression === expression && isLayout(expression.parent.name.text);
 
+  // The package is the new components from 0.3.0. A module importing a name only they have from it already uses them,
+  // so a second run changes nothing; otherwise its import of the package is today's (a project on 0.2).
+  const rootImports = file.statements.filter((statement): statement is ts.ImportDeclaration => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === ROOT);
+  const newOnly = (statement: ts.ImportDeclaration) => {
+    const clause = statement.importClause;
+    const named = clause?.namedBindings;
+    if (named && ts.isNamedImports(named)) return named.elements.some((element) => !element.isTypeOnly && NEW_ONLY.has((element.propertyName ?? element.name).text));
+    // A namespace: a name only the new components have, read from it.
+    if (named && ts.isNamespaceImport(named)) {
+      let found = false;
+      const visit = (n: ts.Node): void => {
+        if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === named.name.text && NEW_ONLY.has(n.name.text)) found = true;
+        if (!found) ts.forEachChild(n, visit);
+      };
+      visit(file);
+      return found;
+    }
+    return false;
+  };
+  if (from.has(ROOT) && options.from === undefined && rootImports.some(newOnly)) {
+    from.delete(ROOT);
+    if (!file.statements.some((statement) => ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && (from.has(statement.moduleSpecifier.text) || !!own(options.through, statement.moduleSpecifier.text)))) {
+      return { code: source, report: [], current: true };
+    }
+  }
+
   // Today's components and layouts, by the name they're imported as (through a namespace, `E.Button`); the imports of
   // today's package (or of a module passing its components on), each with what stays imported from it (today's other
   // API, and its types; the module's own names).
@@ -347,7 +379,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         }
       } else {
         specifiers.push(element.getText());
-        report.push(`${where(element)}: ${(element.propertyName ?? element.name).text} is today's API and stays imported from ${specifier}; it doesn't take the new components (render them with render() from the new entry)`);
+        report.push(`${where(element)}: ${(element.propertyName ?? element.name).text} is Elements 0.2's API, which 0.3.0 doesn't have: it stays imported from ${specifier} for you to replace (render the new components with render())`);
       }
     }
     if (specifiers.length) kept.push(`{ ${specifiers.join(", ")} }`);
@@ -367,7 +399,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   };
   findRootValue(file);
   if (rootAsValue) {
-    return { code: source, stayed: true, report: [`${where(rootAsValue)}: its root is chosen at run time (${rootAsValue.parent.getText(file).slice(0, 60)}), which isn't migrated: this template stays as it was. Write it with one root, or by hand in the new components`] };
+    return { code: source, stayed: true, report: [`${where(rootAsValue)}: its root is chosen at run time (${rootAsValue.parent.getText(file).slice(0, 60)}), which isn't migrated: this template stays as it was, and 0.3.0 doesn't have today's components. Write it with one root, or by hand in the new components`] };
   }
 
   // The names the module declares itself (a component of its own called Section, Next's Link): a new component whose

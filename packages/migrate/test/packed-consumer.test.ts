@@ -123,7 +123,7 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
     const migrated = run(["template.jsx", "--out", "converted", "--design"]);
     expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0);
     const written = fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8");
-    expect(written).toContain("@unlayer/react-elements/primitives");
+    expect(written).toContain("@unlayer/react-elements");
     expect(written).toContain("{name}");
     expect(written).not.toContain("htmlText");
     const compared = run(["compare", "template.jsx", "converted/template.jsx"]);

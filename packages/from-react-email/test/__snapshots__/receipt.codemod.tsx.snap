@@ -10,7 +10,7 @@ import {
   Image,
   Paragraph,
   Row,
-} from "@unlayer/react-elements";
+} from "@unlayer/react-elements/legacy";
 import * as React from "react";
 
 interface ReceiptItem {

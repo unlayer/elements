@@ -48,7 +48,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     if (!resolvers.has(dir)) resolvers.set(dir, helpers.resolver(fromFile));
     return (await resolvers.get(dir)!)(specifier, fromFile);
   });
-  const results: Array<{ file: string; code?: string; report: string[]; error?: string; stayed?: boolean }> = [];
+  const results: Array<{ file: string; code?: string; report: string[]; error?: string; stayed?: boolean; current?: boolean }> = [];
   for (const file of files) {
     const source = await readFile(file, "utf8");
     try {
@@ -61,9 +61,10 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
         results.push({ file, report: [], error: `it imports today's components ${how}, a namespace of them, which the codemod doesn't follow: import them by name` });
         continue;
       }
-      const { code, report, stayed } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
-      // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was: not listed.
-      if (code !== source || stayed) results.push({ file, code, report, stayed });
+      const { code, report, stayed, current } = await migrateElements(source, { typescript: !/\.[cm]?jsx?$/.test(file), through: found.through });
+      // A module with none of today's JSX in it (a name passed on, today's other API) comes back as it was but for its
+      // import of the main entry, which moves to /legacy; one already on the new components is listed as it is.
+      if (code !== source || stayed || current) results.push({ file, code, report, stayed, current });
     } catch (error) {
       results.push({ file, report: [], error: (error as Error).message });
     }
@@ -74,7 +75,8 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
   }
   const failed = results.filter((r) => r.error);
   for (const r of failed) io.stderr(`${name(r.file)}: couldn't be migrated: ${r.error}\n`);
-  const migrated = results.filter((r) => !r.error);
+  const current = results.filter((r) => r.current);
+  const migrated = results.filter((r) => !r.error && !r.current);
 
   // One template, not written: the migrated template itself, on stdout (what the codemod reported, on stderr).
   if (!args.flag("write") && paths.length === 1 && files.length === 1 && migrated.length === 1) {
@@ -94,6 +96,7 @@ export async function migrateLegacy(paths: string[], args: Args, io: LegacyIo, h
     }
     for (const r of migrated) await writeFile(r.file, r.code!);
   }
+  for (const r of current) io.stdout(`${name(r.file)}: already uses the new components: left as it is\n`);
   for (const r of migrated) {
     io.stdout(`${name(r.file)}: ${r.stayed ? "stays as it was" : args.flag("write") ? "migrated" : "would be migrated"}${r.report.length ? `, with ${r.report.length} note${r.report.length === 1 ? "" : "s"}` : ""}\n`);
     for (const line of r.report) io.stdout(`  - ${line}\n`);

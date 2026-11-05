@@ -18,6 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { normalizeWord, StyledDocument } from "@unlayer/convert-core";
 import { parseArgs, type Args } from "./args";
 import { resolutionOrder, type Origin } from "./resolution";
+import { TODAYS, todaysPath } from "./todays-path";
 
 export interface Io {
   cwd: string;
@@ -53,8 +54,9 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    Markdown for any other.
   --to <target>    What to write: primitives (the default), the new
                    components with their styles in style={{ }}, from
-                   @unlayer/react-elements/primitives; or components, today's
-                   components with their styles as props.
+                   @unlayer/react-elements; or components, today's
+                   components with their styles as props, from
+                   @unlayer/react-elements/legacy.
   --strict         Fail (and don't write) a template with any difference:
                    in its content, in how it looks, or one the migration
                    lists (a style it couldn't keep). Without it, every
@@ -68,14 +70,15 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    --write, or with --overwrite. Without it, they're
                    refused, so git can always undo a migration.
   --from <source>  What to migrate from: react-email (the default), or
-                   elements, templates written with @unlayer/react-elements's
-                   components, rewritten with the new ones (/primitives):
+                   elements, templates written with today's components of
+                   @unlayer/react-elements (0.2), rewritten with the new ones:
                    their props, loops and helpers stay. One template is
                    printed; with --write, templates are replaced (only ones
                    git can restore, unless --allow-dirty). What may draw a
                    little differently is listed (--report writes it).
-                   A preview: the new components are at /primitives until
-                   the next major version makes them the main import.
+                   From 0.3.0 the main import is the new components, and
+                   today's are at @unlayer/react-elements/legacy: what
+                   stays on them is imported from there.
   -h, --help       Show this help.
   -v, --version    Show the version.
 
@@ -481,7 +484,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
     if (users.length) {
       io.stdout(
-        `\nStill using a migrated template: render it with ${options.to === "primitives" ? "await render() from @unlayer/react-elements/primitives (its html)" : "renderToHtml() from @unlayer/react-elements"}, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
+        `\nStill using a migrated template: render it with ${options.to === "primitives" ? "await render() from @unlayer/react-elements (its html)" : "renderToHtml() from @unlayer/react-elements"}, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
           `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
       );
     }
@@ -1169,7 +1172,8 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const Migrated: any = migrated.exported;
     const props: Record<string, unknown> = original.props;
     // A template in the new components has no design to check here: today's components give that.
-    const inNew = /@unlayer\/react-elements\/primitives/.test(await readFile(migratedPath, "utf8"));
+    // (from 0.3.0 the main entry is the new components, and today's are at /legacy).
+    const inNew = /(?:from\s*|require\(\s*|import\(\s*)["']@unlayer\/react-elements["']/.test(await readFile(migratedPath, "utf8"));
     let check: Awaited<ReturnType<Library["verifyNewComponents"]>>;
     try {
       check = writtenWords(inNew ? await lib.verifyNewComponents(Original, Migrated, { props }) : await lib.verifyConversion(Original, Migrated, { props }));
@@ -1684,7 +1688,7 @@ async function importsElements(path: string, source: string): Promise<boolean> {
       (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) &&
       !!s.moduleSpecifier &&
       ts.isStringLiteral(s.moduleSpecifier) &&
-      s.moduleSpecifier.text === "@unlayer/react-elements" &&
+      (s.moduleSpecifier.text === "@unlayer/react-elements" || s.moduleSpecifier.text === "@unlayer/react-elements/legacy") &&
       !typesOnly(s)
   );
   // Re-exporting Elements (or importing it for its effects) counts as using it.
@@ -1822,6 +1826,8 @@ function sharedCjsPackages(projectFolder: string): () => void {
     let resolving = false;
     api._resolveFilename = (request, parent, isMain, options) => {
       const project = cjsProjects[cjsProjects.length - 1];
+      // Today's components are migrate's own copy (no package has them), for every template.
+      if (request === TODAYS) return todaysPath();
       // A require never comes from the converter, which is an ES module.
       const order = !project || resolving ? undefined : resolutionOrder(request, false);
       if (!order) return previous(request, parent, isMain, options);
@@ -1950,6 +1956,9 @@ async function importFile(
       createRequire(import.meta.url).resolve("@unlayer/react-elements"),
     ];
   }
+  // Today's components, which a template converted from React Email is written in before it moves to the new ones:
+  // migrate's own copy, as no package has them (todays-path.ts).
+  paths[TODAYS] = [todaysPath()];
   // tsx applies the JSX settings only to the files `include` lists, by their real
   // paths: a workspace package's TSX (outside the app) needs them too.
   const workspace = workspaceRoot(dirname(path));

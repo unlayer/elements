@@ -1,12 +1,16 @@
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";
-import { renderToHtml, renderToJson } from "@unlayer/react-elements";
+import { renderToHtml, renderToJson } from "@unlayer/react-elements/legacy";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
 import { compareText, convertReactEmail, convertSource, expand, htmlWords, verifyConversion } from "../src/index";
 import { htmlAttributes } from "@unlayer/convert-core";
 import { color } from "../src/styles";
+
+/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
+const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const fixtures = path.join(import.meta.dirname, "fixtures");
 const TEMPLATES = ["welcome", "receipt", "weekly-digest"];
@@ -23,7 +27,7 @@ describe.each(TEMPLATES)("%s", (name) => {
   it("codemod mode: TSX that renders with the template's own props", async () => {
     const result = await convertSource(fs.readFileSync(path.join(fixtures, `${name}.tsx`), "utf8"), { fileName: `${name}.tsx` });
     expect(result.report.nativeRatio).toBe(1);
-    expect(result.code).toContain('from "@unlayer/react-elements"');
+    expect(result.code).toContain('from "@unlayer/react-elements/legacy"');
     expect(result.code).not.toContain("@react-email/components");
     await expect(result.code).toMatchFileSnapshot(`__snapshots__/${name}.codemod.tsx.snap`);
 
@@ -294,7 +298,7 @@ export default function Template() {
 }`;
 
   it("keep the color around them over the email's `table, td` color (both modes)", async () => {
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const fs = await import("node:fs");
     const path = await import("node:path");
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
@@ -721,7 +725,7 @@ Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.c
       expect(injected(runtime.html())).toBe(false);
       // The check gives text props markup itself: a migration that renders one as HTML fails.
       expect(check.variants).toEqual([]);
-      const { Email, Row, Column, Heading } = await import("@unlayer/react-elements");
+      const { Email, Row, Column, Heading } = await import("@unlayer/react-elements/legacy");
       const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Heading, { text: p.title }))));
       const OnlyTitle = (p: { title: string }) => Original({ ...p, name: "", url: "" });
       OnlyTitle.PreviewProps = { title: "Welcome" };
@@ -1116,7 +1120,7 @@ Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join"
       expect(code).toMatch(/textAlign="right"[^>]*>\s*Ends here/);
       // It compiles against Elements' own types (TS2869/TS2881: `??` after a value never missing; TS2322: an alignment Elements doesn't take).
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
     } finally {
@@ -1134,7 +1138,7 @@ describe("the fixture templates, migrated", () => {
       const { code } = await convertSource(fs.readFileSync(original, "utf8"), { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const options = { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
       const program = ts.createProgram([original, file], options);
       const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       // Each error the migration has, the original has too (an unused `React` import in both, say).
@@ -1171,7 +1175,7 @@ describe("migrations that compile where the original does", () => {
       const { code } = await convertSource(files[entry], { fileName: file, loadModule });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const options = { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
       const program = ts.createProgram([original, file], options);
       const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors(original)).toEqual([]);
@@ -1262,7 +1266,7 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
       expect(code).toContain('color={text || "#000000"}');
       expect(code).toMatch(/const \{ pad \} = theme\.space/);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
     } finally {
@@ -1346,7 +1350,7 @@ Card.PreviewProps = { accent: "red", name: "Ada" };`;
       expect(report.lostStyles?.[0]).toContain("accent");
       expect(code).toContain("function Card({ name }:");
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1362,7 +1366,7 @@ describe("what only a dropped style or attribute read", () => {
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       return { code, errors: ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`) };
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1397,6 +1401,7 @@ Rows.PreviewProps = { rows: [{ id: "a", label: "First row" }, { id: "b", label: 
   it("is named _item where a later parameter is still read, and a call that may do something still runs", async () => {
     const { code, errors } = await compile(`import { Body, Html, Section, Text } from "@react-email/components";
 import { track } from "./analytics";
+
 type Item = { glow: string; label: string };
 export default function List({ items, name }: { items: Item[]; name: string }) {
   const pixel = track(name);
@@ -1434,7 +1439,7 @@ export default function NoteDefault() {
       expect(code).not.toMatch(/import \{[^}]*\bTailwind\b[^}]*\} from "@react-email\/components"/);
       expect(code).toContain("export const Note = ({ Tailwind }");
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1462,7 +1467,7 @@ Note.PreviewProps = { name: "Ada" };`;
       expect(code).not.toMatch(/\bconfig\b|\bmix\b|\bparse\b/);
       expect(code).toMatch(/^\s*\(\{ value: track\(name\) \}\);$/m);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -1498,7 +1503,7 @@ Reset.PreviewProps = { url: "https://acme.com/reset?t=1" };`;
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       const ts = (await import("typescript")).default;
-      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
       const { default: Migrated } = await import(file);

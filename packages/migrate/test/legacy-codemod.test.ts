@@ -24,7 +24,7 @@ describe("migrateElements", () => {
   it("writes a Document as the new root, with its page's size and orientation", async () => {
     const { code, report } = await migrateElements(`import { Document, Row, Column, Paragraph, PageBreak } from "@unlayer/react-elements";
 export const T = () => <Document documentSize="Letter" documentOrientation="landscape" contentWidth="700px"><Row><Column><Paragraph>One</Paragraph><PageBreak /><Paragraph>Two</Paragraph></Column></Row></Document>;`);
-    expect(code).toContain('from "@unlayer/react-elements/primitives"');
+    expect(code).toContain('from "@unlayer/react-elements"');
     expect(code).not.toMatch(/from "@unlayer\/react-elements";/);
     expect(squash(code)).toContain('<Documentsize="Letter"orientation="landscape"');
     expect(code).toContain("<PageBreak />");
@@ -249,7 +249,7 @@ export const T = ({ name }: { name: string }) => <Email><Row><Column>
   it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
     const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, renderToHtml } from "@unlayer/react-elements";
 export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);`);
-    expect(code).toContain('import { Email, Paragraph, Section } from "@unlayer/react-elements/primitives";');
+    expect(code).toContain('import { Email, Paragraph, Section } from "@unlayer/react-elements";');
     expect(code).toContain('import { renderToHtml } from "@unlayer/react-elements";');
     expect(report.join("\n")).toMatch(/renderToHtml is today's API/);
   });
@@ -499,7 +499,7 @@ export const T = ({ web }: { web: boolean }) => {
     expect((await migrateElements(namespaced)).code).toBe(namespaced);
     // Its type alone doesn't stop it.
     const typed = await migrateElements(`import { Email, Row } from "@unlayer/react-elements";\ntype P = React.ComponentProps<typeof Email>;\nexport const T = (p: P) => <Email><Row /></Email>;`);
-    expect(typed.code).toContain("@unlayer/react-elements/primitives");
+    expect(typed.code).toContain("@unlayer/react-elements");
   });
 
   it("writes one of today's layouts outside a Row's props as its cells, so nothing is left using today's ColumnLayouts", async () => {
@@ -705,7 +705,7 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project({ "emails/welcome.tsx": TEMPLATE });
     const sink = io(dir);
     expect(await main(["emails/welcome.tsx", "--from", "elements"], sink)).toBe(0);
-    expect(sink.out).toContain('from "@unlayer/react-elements/primitives"');
+    expect(sink.out).toContain('from "@unlayer/react-elements"');
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(TEMPLATE);
   });
 
@@ -713,7 +713,7 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project({ "emails/Card.jsx": `import { Email, Row, Column, Button } from "@unlayer/react-elements";\nexport default function Card({ align }) { return <Email><Row><Column><Button textAlign={align}>Go</Button></Column></Row></Email>; }\n` });
     const sink = io(dir);
     expect(await main(["emails/Card.jsx", "--from", "elements"], sink)).toBe(0);
-    expect(sink.out).toContain('from "@unlayer/react-elements/primitives"');
+    expect(sink.out).toContain('from "@unlayer/react-elements"');
     expect(syntaxErrors(sink.out, "Card.jsx")).toEqual([]);
   });
 
@@ -731,7 +731,7 @@ describe("unlayer-migrate --from elements", () => {
     const sink = io(dir);
     expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
     expect(sink.out).toContain("emails/welcome.tsx: migrated");
-    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements/primitives");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
     expect(fs.readFileSync(path.join(dir, "emails/other.ts"), "utf8")).toBe("export const x = 1;\n");
   });
 
@@ -766,7 +766,7 @@ describe("unlayer-migrate --from elements", () => {
     expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
     expect(sink.out).toBe("emails/digest.tsx: migrated\nemails/welcome.tsx: migrated\n");
     const welcome = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
-    expect(welcome).toContain('import { Email, Heading, Section } from "@unlayer/react-elements/primitives";');
+    expect(welcome).toContain('import { Email, Heading, Section } from "@unlayer/react-elements";');
     // The project's own components stay imported from where they were, and as they were.
     expect(welcome).toContain('import { Paragraph, Footer } from "./ui";');
     expect(squash(welcome)).toMatch(/<Section><Headingstyle=\{\{[^}]*\}\}>Hi<\/Heading><Paragraph>Mine<\/Paragraph><Footer\/><\/Section>/);

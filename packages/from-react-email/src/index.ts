@@ -4,8 +4,8 @@
 
 import React from "react";
 import { render } from "@react-email/components";
-import { renderToHtml, renderToJson } from "@unlayer/react-elements";
-import { render as renderNewComponents } from "@unlayer/react-elements/primitives";
+import { renderToHtml, renderToJson } from "@unlayer/react-elements/legacy";
+import { render as renderNewComponents } from "@unlayer/react-elements";
 import {
   checkFails,
   compareText,

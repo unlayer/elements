@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
@@ -5,6 +6,9 @@ import { convertReactEmail, convertSource, htmlWords, mergeTagDesign, verifyConv
 import { replaceMarkers } from "../src/merge-tags";
 import ts from "typescript";
 import React from "react";
+
+/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
+const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -149,7 +153,7 @@ describe("an image whose src is false (`vip && badgeUrl`)", () => {
       }
       T.PreviewProps = { tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } };`);
     expect(conversion.code).toContain('(tier.vip && tier.badgeUrl) || ""');
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const html = renderToHtml(Migrated({ tier: { vip: false, badgeUrl: "https://acme.com/gold.png" } }));
     expect(html).toContain("Hi there");
     expect(html).not.toMatch(/<img/);
@@ -159,7 +163,7 @@ describe("an image whose src is false (`vip && badgeUrl`)", () => {
 
 describe("buttons", () => {
   const html = async (Template: any) => {
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const React = (await import("react")).default;
     return renderToHtml(React.createElement(Template, Template.PreviewProps ?? {}));
   };
@@ -213,7 +217,7 @@ T.PreviewProps = { url: "https://example.com/track" };`;
 
 describe("links in text", () => {
   const html = async (Template: any, props: Record<string, unknown> = Template.PreviewProps ?? {}) => {
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     return renderToHtml(Template(props));
   };
 
@@ -528,7 +532,7 @@ describe("text props with markup", () => {
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     fs.writeFileSync(path.join(dir, "original.tsx"), original);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements/legacy";
 export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
   return <Email><Row><Column>${body}</Column></Row></Email>;
 }`);
@@ -558,7 +562,7 @@ export default function Card({ image, name = "Ada" }: { image?: string; name?: s
 }
 Card.PreviewProps = { image: "https://example.com/a.png", name: "Ada" };`);
     expect(conversion.code).toMatch(/cells=\{image \? \[120, 480\] : \[600\]\}/);
-    const { renderToJson } = await import("@unlayer/react-elements");
+    const { renderToJson } = await import("@unlayer/react-elements/legacy");
     const cells = (props: Record<string, unknown>) => (renderToJson(React.createElement(Migrated, props)) as any).body.rows[0].cells;
     const shown = cells({ image: "https://example.com/a.png" });
     expect(shown.length).toBe(2);
@@ -679,7 +683,7 @@ export default function Welcome({ tone = "info" }: { tone?: "info" | "warn" }) {
     expect(code).toMatch(/import type \{ Tone \} from "\.\/types"/);
     expect(code).toContain("LABELS[tone]");
     expect(code).not.toMatch(/\bSIZES\b|\bSize\b/);
-    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noResolve: true, types: [] }, {
+    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noResolve: true, types: [] }, {
       ...ts.createCompilerHost({}),
       getSourceFile: (name, version) => (name === "/project/emails/welcome.tsx" ? ts.createSourceFile(name, code, version, true, ts.ScriptKind.TSX) : undefined),
       fileExists: (name) => name === "/project/emails/welcome.tsx",
@@ -700,7 +704,7 @@ describe("columns from a list in a Row", () => {
       }
       Timeline.PreviewProps = { events: [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }] };`);
     expect(conversion.code).not.toMatch(/cells=\{[^}]*reverse\(\)/);
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const events = () => [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }];
     const html = renderToHtml(Migrated({ events: events() }));
     expect(html.indexOf("Delivered")).toBeLessThan(html.indexOf("Shipped"));
@@ -720,14 +724,14 @@ describe("columns from a list in a Row", () => {
       Cart.PreviewProps = { recs: [{ id: "1", name: "Lamp" }, { id: "2", name: "Pad" }, { id: "3", name: "Arm" }, { id: "4", name: "Box" }] };`;
     const { Migrated, conversion } = await templates(source);
     expect(conversion.code).toContain("(recs?.slice(0, 3) ?? [])");
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     expect(renderToHtml(Migrated({}))).toContain("Your cart");
     // The migrated file compiles as the original does (strict).
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     const file = path.join(dir, "cart.tsx");
     fs.writeFileSync(file, conversion.code);
-    const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+    const program = ts.createProgram([file], { noEmit: true, paths: TODAYS_TYPES, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
     expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "))).toEqual([]);
   });
 });
@@ -1031,6 +1035,7 @@ describe("props typed to hold JSX", () => {
   it("keeps a link passed in a ReactNode prop whose preview is text: rendered as React renders it", async () => {
     const { Migrated, conversion } = await templates(`import type { ReactNode } from "react";
 import { Html, Body, Text } from "@react-email/components";
+
 export default function T({ message }: { message: ReactNode }) { return <Html><Body><Text>{message}, soon.</Text></Body></Html>; }
 T.PreviewProps = { message: "Track it here" };`);
     // Its text can't be written as HTML without rendering it (no react-dom in the migration): the block is also written
@@ -1039,7 +1044,7 @@ T.PreviewProps = { message: "Track it here" };`);
     expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<p style=\{\{[^}]*\}\}>\s*\{message\}, soon.\s*<\/p>/);
     expect(conversion.code).not.toContain("@react-email");
     expect(conversion.code).not.toContain("react-dom");
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const withLink = renderToHtml(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
     expect(withLink).toContain('<a href="https://example.com/track">here</a>');
     expect(renderToHtml(React.createElement(Migrated, { message: "Tom & <b>Jerry</b>" }))).toContain("Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;");
@@ -1131,7 +1136,7 @@ T.PreviewProps = { url: "https://example.com", target: "_self" };`);
     expect(conversion.code).toContain('target: target ?? "_blank"');
     expect(conversion.code).toContain('target: target ?? "_self"');
     expect(conversion.code).toContain('htmlAttribute("target", target ?? "_blank")');
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const targets = (props: Record<string, unknown>) => [...renderToHtml(React.createElement(Migrated, props)).matchAll(/<a\b[^>]*target="([^"]*)"/g)].map((m) => m[1]);
     expect(targets({ target: "_self" })).toEqual(["_self", "_self", "_self", "_self"]);
     expect(targets({})).toEqual(["_blank", "_blank", "_self", "_blank"]);
@@ -1154,7 +1159,7 @@ export default function T({ compact = false }: { compact?: boolean }) {
   </Row></Section></Body></Html>;
 }
 T.PreviewProps = { compact: false };`);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements/legacy";
 export default function T({ compact = false }: { compact?: boolean }) {
   if (compact) return <Email><Row><Column><Paragraph>Short column words</Paragraph></Column></Row><Row><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
   return <Email><Row cells={[1, 1]}><Column><Paragraph>Left column words</Paragraph></Column><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
@@ -1197,7 +1202,7 @@ export default function Receipt({ name, channel }: { name: string; channel: "tra
   return <Html><Body><Heading>Thanks, {name}</Heading><Text>Your order is confirmed.</Text>{channel === "marketing" && legalFooter}</Body></Html>;
 }
 Receipt.PreviewProps = { name: "Alex", channel: "transactional" } as const;`);
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     expect(renderToHtml(Migrated({ name: "Bo", channel: "marketing" }))).toContain('href="https://acme.com/unsubscribe"');
     expect(renderToHtml(Migrated({ name: "Bo", channel: "transactional" }))).not.toContain("unsubscribe");
     expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*\{channel === "marketing" && legalFooter\}/);

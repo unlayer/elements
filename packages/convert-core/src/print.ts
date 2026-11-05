@@ -32,7 +32,7 @@ export async function treeToTsx(tree: ElementNode, options: PrintOptions = {}): 
     // Lets tools without JSX config (plain `tsx`, esbuild) run the file.
     "/** @jsxRuntime automatic */",
     ...header,
-    `import { ${imports.join(", ")} } from "@unlayer/react-elements";`,
+    `import { ${imports.join(", ")} } from "@unlayer/react-elements/legacy";`,
     "",
     `export default function ${options.componentName ?? "Template"}() {`,
     `  return (${body});`,

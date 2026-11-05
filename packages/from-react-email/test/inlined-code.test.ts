@@ -1,9 +1,13 @@
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import React from "react";
 import { convertSource, mergeTagDesign, verifyConversion } from "../src/index";
+
+/** Elements 0.2's components: the converter writes a template in them first, and no package exports them (0.3.0). */
+const TODAYS_TYPES = { "@unlayer/react-elements/legacy": [fileURLToPath(new URL("../../react/dist/index.d.ts", import.meta.url))] };
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -30,7 +34,7 @@ async function migrate(files: Record<string, string>, entry: string) {
   };
   const conversion = await convertSource(files[entry], { fileName: file, loadModule });
   fs.writeFileSync(file, conversion.code);
-  const options = { noEmit: true, allowJs: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+  const options = { noEmit: true, paths: TODAYS_TYPES, allowJs: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
   const program = ts.createProgram([original, file], options);
   const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
   const left = errors(original);
@@ -634,7 +638,7 @@ export default function Note({ footer }: { footer?: any }) {
 Note.PreviewProps = { footer: "reply to this email" };
 `,
     }, "note.tsx");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
     // A migration whose text is right and whose kept branch (for elements) loses the value.
     function holdsElements(...values: unknown[]): boolean {
       return values.some((value) => React.isValidElement(value));
@@ -951,7 +955,7 @@ export default function Note({ footer }) {
 Note.PreviewProps = { footer: "reply" };
 `,
     }, "note.jsx");
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const { render } = await import("@react-email/components");
     const kept = blockHtml(renderToHtml(React.createElement(Migrated, { footer: link })));
     const original = blockHtml(await render(React.createElement(Original, { footer: link })));
@@ -1020,7 +1024,7 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     const Broken = () => {
       throw new Error("no data");
     };
-    const { Email, Row, Column } = await import("@unlayer/react-elements");
+    const { Email, Row, Column } = await import("@unlayer/react-elements/legacy");
     const Leaves = () => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Broken))));
     console.error = () => undefined;
     try {
@@ -1086,6 +1090,7 @@ describe("a variable given JSX in one branch, shown in text", () => {
     const { conversion, added, Original, Migrated } = await migrate({
       "payout.tsx": `import * as React from "react";
 import { Html, Body, Text } from "@react-email/components";
+
 export default function Payout({ small, fee }: { small: boolean; fee: string }) {
   let message: string | React.ReactNode = "";
   if (small) {

@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { renderToJson } from "@unlayer/react-elements";
+import { renderToJson } from "@unlayer/react-elements/legacy";
 import {
   compareText,
   convertReactEmail,
@@ -229,7 +229,7 @@ describe("Preview inside Body", () => {
 describe("verifyConversion", () => {
   it("includes added words when only a flipped prop exposes them", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
     const { createElement: h } = await import("react");
     const Original = Object.assign(() => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), {PreviewProps:{trial:false}});
     const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
@@ -241,7 +241,7 @@ describe("verifyConversion", () => {
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
     const { Body, Container, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
     const React = await import("react");
     const h = React.createElement;
     const Original = Object.assign(
@@ -416,7 +416,7 @@ describe("returns that render nothing", () => {
     for (const [source, name] of [[early, "early-null"], [ternary, "ternary-null"]] as const) {
       const { codemod, check } = await convertBoth(source, name);
       expect(codemod.code).toContain("null");
-      expect(codemod.code).toContain('from "@unlayer/react-elements"');
+      expect(codemod.code).toContain('from "@unlayer/react-elements/legacy"');
       expect(check.missing).toEqual([]);
     }
   });
@@ -517,7 +517,7 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
   });
 
   it("reads a migrated template's code through memo() for its design JSON", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name, company }: { name: string; company: string }) =>
@@ -532,7 +532,7 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
 
 describe("merge tags in a migrated template's design JSON", () => {
   it("tags the preview text (preheaderText) as well as the body", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements/legacy");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name }: { name: string }) =>
@@ -717,7 +717,7 @@ describe("evaluation order and conditional roots", () => {
     const { codemod, check, Migrated } = await convertBoth(source, "default-kept");
     expect(codemod.code).not.toMatch(/<Greeting/);
     expect(check.missing).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     expect(renderToHtml(Migrated({ user: {} }))).toContain("Hi there, a kind welcome");
     expect(renderToHtml(Migrated({ user: { name: "Bo" } }))).toContain("Hi Bo, a kind welcome");
   });
@@ -752,7 +752,7 @@ describe("evaluation order and conditional roots", () => {
     expect(check.missing).toEqual([]);
     expect(check.added).toEqual([]);
     expect(check.missingAttributes).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     const html = renderToHtml(Migrated({}));
     expect(html).toContain("Verify &amp; continue");
     expect(html).toMatch(/href="https:\/\/example\.com\/\?a=1&(amp;)?b=2"/);
@@ -769,7 +769,7 @@ describe("evaluation order and conditional roots", () => {
     const { codemod, check, Migrated } = await convertBoth(source, "optional-columns");
     expect(codemod.code).toContain("(logos ?? [])");
     expect(check.missing).toEqual([]);
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     expect(renderToHtml(Migrated({}))).toContain("Thanks for reading");
   });
 

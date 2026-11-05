@@ -3754,7 +3754,7 @@ class Converter {
           });
         return `import { ${names.join(", ")} } from "${from}";`;
       }),
-      `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
+      `import { ${elementNames.join(", ")} } from "@unlayer/react-elements/legacy";`,
       ...(this.needsHoldsElements && !react.namespace && !react.named ? [`import { ${elementImport} } from "react";`] : []),
     ].join("\n");
 

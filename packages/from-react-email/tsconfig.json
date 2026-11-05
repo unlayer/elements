@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
+    "paths": { "@unlayer/react-elements/legacy": ["../react/dist/index.d.ts"] },
     "types": ["react", "node"]
   },
   "include": ["src/**/*", "bench/**/*", "test/**/*", ".corpus/**/*"]

@@ -1,6 +1,14 @@
 /** @jsxRuntime automatic */
 // Converted from a React Email template by @unlayer/migrate (runtime mode).
-import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
+import {
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Paragraph,
+  Row,
+} from "@unlayer/react-elements/legacy";
 
 export default function Template() {
   return (

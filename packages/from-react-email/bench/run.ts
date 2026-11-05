@@ -226,11 +226,11 @@ async function codemod(file: string, dir: string, Template: any): Promise<string
   fs.writeFileSync(path.join(dir, "codemod.report.json"), JSON.stringify(summaryOf(result.report), null, 2));
   // Render the migrated component with the original's sample props.
   const mod = await import(`${target}?t=${Date.now()}`);
-  const { renderToHtml } = await import("@unlayer/react-elements");
+  const { renderToHtml } = await import("@unlayer/react-elements/legacy");
   const Component = mod.default;
   const html = renderToHtml(Component(Component.PreviewProps ?? {}));
   // The editor path: renderToJson must see every row (it skips what it can't walk).
-  const { renderToJson } = await import("@unlayer/react-elements");
+  const { renderToJson } = await import("@unlayer/react-elements/legacy");
   const warn = console.warn;
   const warnings: string[] = [];
   console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));

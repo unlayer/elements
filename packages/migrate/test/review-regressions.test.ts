@@ -466,7 +466,7 @@ export default function Welcome() { return <Html><Body style={{ backgroundColor:
     expect(migrated).toContain("@unlayer/react-elements");
     expect(migrated).toContain('contentWidth="400px"');
     const { default: Welcome } = await import(path.join(dir, "emails/welcome.tsx"));
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     // The shared footer's white text (as today's components write it, #ffffff, or the new engine, #fff).
     expect(renderToHtml(Welcome({}))).toMatch(/color:\s*#fff(fff)?\b/i);
     expect(fs.existsSync(path.join(dir, "emails/components/footer.design.json"))).toBe(false);
@@ -1827,7 +1827,7 @@ export default function Base({ heading = "Notice", content }: { heading?: string
       expect(out.out).toContain("2 templates: 2 migrated and checked");
     }
     const { default: Reset } = await import(path.join(dir, "emails/reset.tsx"));
-    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { renderToHtml } = await import("@unlayer/react-elements/legacy");
     expect(renderToHtml(Reset({}))).toContain("Reset your Acme password");
   });
 

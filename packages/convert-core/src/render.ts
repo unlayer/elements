@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import * as Elements from "@unlayer/react-elements";
+import * as Elements from "@unlayer/react-elements/legacy";
 import { isExpr, type ElementNode, type Expr } from "./tree";
 
 const COMPONENTS = Elements as unknown as Record<string, React.ComponentType<any>>;
