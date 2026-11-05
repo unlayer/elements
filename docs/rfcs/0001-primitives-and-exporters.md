@@ -123,7 +123,7 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes through today's components, so it bundles them beside the new engine (with its own CI budget) |
+| `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes the builder's design as today's components wrote it, and reads one as they read it, without them: it bundles the new engine and itself (with its own CI budget) |
 | `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
 
@@ -525,8 +525,9 @@ JSON for Email, Page and Document (`toDesign(element)`), and designs back (`from
 
 - **To the builder:** as today's components wrote it, a design JSON the builder has opened for years: each item
   its tool's defaults, numbered as the builder numbers them, and its fields written exactly as the builder stores
-  them over those (`src/builder/design.ts` writes what today's `renderToJson` wrote, key for key). A `Section` is a full-width row (its band), a `Row` a row with its children as
-  columns (their gap and side padding the columns' padding, their widths and shares the columns' `cells`), a
+  them over those (`src/builder/design.ts` writes what today's `renderToJson` wrote, key for key). A `Section` is
+  a full-width row (its band), a `Row` a row with its children as columns (their gap and side padding the
+  columns' padding, their widths and shares the columns' `cells`), a
   box directly in the root or a Section a one-column row of its own, content directly under the root a
   one-column row, and each component the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text,
   `Button` → button, `Image` and a `Link` around one → image, `Divider` → divider, `Menu`, `Social`, `Video`,
