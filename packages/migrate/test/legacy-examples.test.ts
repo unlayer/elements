@@ -19,7 +19,11 @@ const FILE = path.join(REACT, "primitives/testing/codemod-examples.tsx");
  */
 const SCOPES: Record<string, string> = { AirbnbConfirmation: "airbnb", LumaEventInvite: "luma", MercuryReceipt: "mercury", MorningBrewDigest: "brew", NikeDrop: "nike", NotionWelcome: "notion", ProductDigest: "digest", StripeReceipt: "stripe", WarbyOrderShipped: "warby", SpotifyWelcome: "spotify" };
 const EXAMPLES = Object.keys(SCOPES);
-const sourceOf = (name: string) => path.join(REACT, name === "SpotifyWelcome" ? "" : "examples", `${name}.fixture.tsx`);
+/** Elements 0.2's examples as main had them (deleted from the react package with 0.2's components in 0.3.0): the codemod's input. */
+const FIXTURES = path.resolve(__dirname, "fixtures/main-examples");
+const sourceOf = (name: string) => path.join(FIXTURES, `${name}.fixture.tsx`);
+/** Where main had it, as the generated file names it. */
+const mainPath = (name: string) => `${name === "SpotifyWelcome" ? "" : "examples/"}${name}.fixture.tsx`;
 
 /** The example without what makes it a story (Storybook's import, its meta and its story), so the template is left. */
 function template(source: string): string {
@@ -38,7 +42,7 @@ function template(source: string): string {
 }
 
 /** Where an example's output sits in the file: its part starts at this line. */
-const markerOf = (name: string) => `// main's ${path.relative(REACT, sourceOf(name)).split(path.sep).join("/")}\n`;
+const markerOf = (name: string) => `// main's ${mainPath(name)}\n`;
 
 /** The codemod's output as a scope: its imports taken out (the file's own have them), `export` off its declarations, and the components it exported. */
 function scoped(code: string) {
