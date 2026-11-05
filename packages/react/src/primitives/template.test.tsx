@@ -75,8 +75,8 @@ describe("render()", () => {
     for (const held of ["body{color:red}", "<script>1</script>", "from-template", "https://example.com/x.png"]) expect(html).not.toContain(held);
     expect(diagnostics.filter((d) => d.code === "jsx/compat")).toHaveLength(3);
     expect(primitives.validate(template).diagnostics.map((d) => d.code)).toContain("jsx/compat");
-    expect(tree(template)?.root.compat).toBeUndefined();
-    // An id only `compat.anyId` lets through stays refused.
+    expect(tree(template)?.root).not.toHaveProperty("compat");
+    // An id of other characters stays refused.
     expect(primitives.validate(<Email><Paragraph {...compat({ anyId: true })} id="odd id">Words</Paragraph></Email>).diagnostics.map((d) => d.code)).toContain("id/invalid");
     const Custom = primitives.component({ type: "acme.Own", label: "Own", props: {}, render: () => <Paragraph {...compat({ className: "from-custom" })}>Custom</Paragraph> });
     await expect(render(<Email><Custom /></Email>)).rejects.toThrow("compat isn't a prop of a template");

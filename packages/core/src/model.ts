@@ -25,22 +25,6 @@ export interface Node {
   hover?: Record<string, Json>;
   hidden?: { mobile?: boolean; desktop?: boolean };
   children?: Child[];
-  /**
-   * What today's components draw that no style holds, as they lower into this
-   * tree (packages/react/src/compat), for the writers. A template can't set it:
-   * the JSX of /primitives leaves it out, as it can hold markup and CSS. An id
-   * of any characters (`anyId`, read when the template is checked), a
-   * `className`, on a Column, a Text, a Divider or an Image an `ariaLabel`; on a
-   * root the stylesheet
-   * rules that select it (`css`) and an email's `previewHtml`; on a Section an
-   * `align`; on a Section or an email's Row a `background` picture, and on a Row
-   * `stretch` (its columns table cells, as tall as it is, each at least its
-   * `minWidth` and `phoneMinWidth`); on an email's Raw `wide` (across the window, between Sections);
-   * in an email, `ownPhone` (its phone styles start where what's hidden does) and on an Image
-   * `fillsOnPhones` (its whole place, from where its Row stacks); on a page's Divider `inLine` (a line in a line of no
-   * height, by the font's middle) and on its Image `ownWidth` (as wide as its file, past its place).
-   */
-  compat?: Record<string, Json>;
 }
 
 /** A string is text, where the parent takes text. */

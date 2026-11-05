@@ -52,15 +52,6 @@ describe("checkDocument", () => {
     ]);
   });
 
-  it("takes any id where a node of today's components says so (compat.anyId), as they always wrote them", () => {
-    const { document, diagnostics } = checkDocument(doc({ type: "Email", children: [{ type: "Divider", id: "a.b:c", compat: { anyId: true } }, { type: "Divider", id: "a.b:c", compat: { anyId: true } }, { type: "Divider", id: "a.b:c", compat: { anyId: false } }] }));
-    expect(document!.root.children!.map((c) => (typeof c === "string" ? c : c.id))).toEqual(["a.b:c", undefined, undefined]);
-    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
-      ["id/duplicate", "root.children[1].id"],
-      ["id/invalid", "root.children[2].id"],
-    ]);
-  });
-
   it("checks the root", () => {
     expect(codes(doc({ type: "Row" }))).toEqual(["root/invalid"]);
     expect(codes({})).toEqual(["document/root"]);
@@ -149,13 +140,10 @@ describe("checkDocument", () => {
     ]);
   });
 
-  it("merges adjacent text, drops empty text, and keeps compat data as JSON", () => {
-    const { document, diagnostics } = checkDocument(
-      doc({ type: "Email", children: [{ type: "Paragraph", children: ["a", "", "b"], compat: { builder: { displayCondition: null } } }] })
-    );
+  it("merges adjacent text and drops empty text", () => {
+    const { document, diagnostics } = checkDocument(doc({ type: "Email", children: [{ type: "Paragraph", children: ["a", "", "b"] }] }));
     expect(diagnostics).toEqual([]);
-    expect(document!.root.children![0]).toEqual({ type: "Paragraph", children: ["ab"], compat: { builder: { displayCondition: null } } });
-    expect(codes(doc({ type: "Email", compat: { fn: () => 1 } }))).toEqual(["compat/invalid"]);
+    expect(document!.root.children![0]).toEqual({ type: "Paragraph", children: ["ab"] });
   });
 
   it("reports unknown types and keys", () => {

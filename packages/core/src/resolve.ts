@@ -60,7 +60,6 @@ export interface ResolvedNode {
   columns?: number[] | null;
   /** On a Table and its rows, where a column of its own px sits beside one with no width: how each column is written. "px" stays that wide in a narrower window, "share" stays its share of the table, "free" takes what they leave (otherwise, none: every column is a share of the table). */
   columnSizes?: Array<"px" | "share" | "free"> | null;
-  compat?: Record<string, Json>;
 }
 
 export interface ResolvedDocument {
@@ -204,7 +203,6 @@ function resolveNode(node: Node, path: string, parentText: ResolvedText, availab
     width: null,
     contentWidth: null,
     children: [],
-    ...(node.compat ? { compat: node.compat } : {}),
   };
 }
 

@@ -14,7 +14,7 @@ export interface CheckResult {
   diagnostics: Diagnostic[];
 }
 
-const NODE_KEYS = ["id", "type", "props", "style", "mobile", "hover", "hidden", "children", "compat"];
+const NODE_KEYS = ["id", "type", "props", "style", "mobile", "hover", "hidden", "children"];
 /** An id is written into HTML ids and CSS selectors. */
 const ID = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
@@ -153,8 +153,7 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
   // Only what the author writes: an id is theirs (an anchor, a reference), never generated.
   let id: string | undefined;
   if (input.id !== undefined) {
-    // (Today's components keep any id their authors give, as they always wrote them.)
-    if (typeof input.id !== "string" || !(ID.test(input.id) || (isObject(input.compat) && input.compat.anyId === true))) {
+    if (typeof input.id !== "string" || !ID.test(input.id)) {
       d.error("id/invalid", `An id starts with a letter and holds letters, digits, "_" and "-", not ${JSON.stringify(input.id)}`, `${path}.id`);
     } else if (context.idPrefix === null) {
       d.add("id/dropped", "info", `The id "${input.id}" is left out: inside a custom component, ids are kept only when the component is given one (a block used many times can't own an id)`, `${path}.id`);
@@ -197,11 +196,6 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
   if (input.hidden !== undefined) {
     const hidden = readHidden(input.hidden, `${path}.hidden`, id, context);
     if (hidden) node.hidden = hidden;
-  }
-
-  if (input.compat !== undefined) {
-    if (!isObject(input.compat) || !isJson(input.compat)) d.error("compat/invalid", "compat holds JSON data only", `${path}.compat`, id);
-    else node.compat = input.compat as Record<string, Json>;
   }
 
   const children = readChildren(input.children, definition, `${path}.children`, id, context);
@@ -342,12 +336,4 @@ function readChildren(input: unknown, definition: ComponentDefinition, path: str
     out.push(node);
   });
   return out;
-}
-
-function isJson(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJson);
-  if (isObject(value)) return Object.getPrototypeOf(value) === Object.prototype && Object.values(value).every(isJson);
-  return false;
 }

@@ -179,7 +179,6 @@ export type NodeInput<D extends ComponentDefinition<any, any>> = D extends Compo
       hover?: StyleInput<S>;
       hidden?: { mobile?: boolean; desktop?: boolean };
       children?: Array<{ type: string; [key: string]: unknown } | string>;
-      compat?: Record<string, Json>;
     }
   : never;
 

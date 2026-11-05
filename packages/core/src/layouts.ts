@@ -53,7 +53,6 @@ function arrangeGrid(node: Node): Node {
     style: { ...box, ...(rowGap !== undefined ? { gap: rowGap } : {}) },
     ...(mobileBox || mobileRowGap !== undefined ? { mobile: { ...mobileBox, ...(mobileRowGap !== undefined ? { gap: mobileRowGap } : {}) } } : {}),
     ...(node.hidden ? { hidden: node.hidden } : {}),
-    ...(node.compat ? { compat: node.compat } : {}),
     children: rows,
   };
 }
