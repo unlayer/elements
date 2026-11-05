@@ -24,7 +24,7 @@ Each of these made an agent's first try fail:
 - `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.
 - `items={[{ text: "Home", link: "/" }]}` → `items={[{ text: "Home", href: "/" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.
 - `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.
-- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are the main import's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.
+- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Elements 0.2's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.
 - `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.
 
 ## A whole template

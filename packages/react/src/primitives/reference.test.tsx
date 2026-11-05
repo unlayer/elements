@@ -50,7 +50,7 @@ describe("PRIMITIVES.md, PRIMITIVES-REFERENCE.md and the skill", () => {
     expect(frontmatter![1]).toMatch(/emails.*pages.*documents.*PDFs.*images/);
     const guide = read("PRIMITIVES.md");
     expect(skill.endsWith(guide.slice(guide.indexOf("## How a template is written")))).toBe(true);
-    expect(skill).toContain("## Templates on today's components");
+    expect(skill).toContain("## Templates from Elements 0.2");
     expect(skill).toContain("npx @unlayer/migrate src/emails --from elements");
   });
 
