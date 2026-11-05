@@ -8,7 +8,7 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import { JSDOM } from "jsdom";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { generate, toElement, type Root } from "../primitives/testing/templates";
@@ -28,14 +28,6 @@ import {
 import { fromDesign, toDesign, type DisplayMode } from "./index";
 import { seen, type Seen } from "./testing/reader";
 import { TEMPLATES } from "./testing/templates";
-
-// What draws today's components through React isn't in the /builder bundle (tsup.config.ts): nothing here may reach it.
-vi.mock("../compat/render", () => {
-  const none = () => {
-    throw new Error("/builder reached what draws today's components, which its bundle doesn't hold");
-  };
-  return { onItsOwn: none, renderThroughNewEngine: none };
-});
 
 const SEEDS = Number(process.env.ROUNDTRIP_SEEDS ?? 60);
 const tree = (element: React.ReactElement): Node => collectTemplate(element).document!.root;

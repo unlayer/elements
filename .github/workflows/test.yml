@@ -73,7 +73,8 @@ jobs:
       # collects a template's rows and blocks, with the head and phone CSS of
       # open HTML (src/utils, about 66KB); the values today's components read and
       # plain text (the shared package, about 24KB); the components themselves
-      # (about 14KB).
+      # (about 14KB). The design values and runs it reads with the builder adapter
+      # are the adapter's (src/builder), with its own copy of a link's reading.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       # Raise it on purpose, with what grew.
@@ -81,7 +82,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=450000
+          MAX_SIZE=451000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -110,21 +111,20 @@ jobs:
           echo "✅ Main entry bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 450KB unminified ESM. The adapter itself (the hidden
-      # properties' manifest, reading designs and the builder's rich text, the JSX
-      # printer, about 127KB); the core and writers it lays out and writes locked
-      # markup with (about 217KB); today's components and renderToJson, which it
-      # writes the builder's design through (about 62KB); the main entry's JSX API it
-      # reads templates with (about 11KB), the shared package (about 23KB) and
-      # today's value and run parsers (about 16KB). It leaves out what draws today's
-      # components through React, which it doesn't call (tsup.config.ts). Raise it on
-      # purpose, with what grew.
+      # own budget: about 399KB unminified ESM. The adapter itself (about 159KB: the
+      # hidden properties' manifest, writing designs over each tool's defaults,
+      # reading designs, their values, runs and rich text, the JSX printer); the core
+      # and writers it lays out and writes locked markup with (about 217KB); the main
+      # entry's JSX API it reads templates with (about 11KB) and the render that
+      # collects them (about 5KB). It imports nothing of today's components or the
+      # shared package (src/builder/imports.test.ts). Raise it on purpose, with what
+      # grew.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=462500
+          MAX_SIZE=402500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

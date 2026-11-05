@@ -24,23 +24,6 @@ const shared: Options = {
 
 export default defineConfig([
   { ...shared, entry: { index: 'src/index.ts', primitives: 'src/primitives/index.ts' }, clean: true },
-  {
-    ...shared,
-    entry: { builder: 'src/builder/index.ts' },
-    // toDesign() and fromDesign() read today's components while a template is collected: what draws one rendered
-    // through React, and all it reaches, isn't called here (roundtrip.test.tsx fails if it is).
-    esbuildPlugins: [
-      {
-        name: 'no-render-path-in-builder',
-        setup(build) {
-          build.onLoad({ filter: /[\\/]compat[\\/]render\.ts$/ }, () => ({
-            contents: `const none = () => { throw new Error("[Unlayer] @unlayer/react-elements/builder doesn't render today's components: use renderToHtml from @unlayer/react-elements"); };
-              export const onItsOwn = none;
-              export const renderThroughNewEngine = none;`,
-            loader: 'ts',
-          }));
-        },
-      },
-    ],
-  },
+  // toDesign() and fromDesign() import nothing of today's components (src/builder/imports.test.ts).
+  { ...shared, entry: { builder: 'src/builder/index.ts' } },
 ]);
