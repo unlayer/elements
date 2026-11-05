@@ -10,7 +10,8 @@ and print writers, PDF and image output, plain text, custom components, web font
 data for every output, the codemod from today's components, and the builder adapter (see [Status and
 order of work](#status-and-order-of-work)). It ships in 0.3.0 as internal entries, `@unlayer/react-elements/primitives`
 and `@unlayer/react-elements/builder`, until the new API becomes the package's main import in a new major
-version.
+version. (Correction: 0.3.0 shipped the new API at the package root, with `/builder` beside it; Elements 0.2's
+components were removed rather than kept at `/legacy`.)
 
 ## Summary
 
@@ -28,7 +29,8 @@ Elements gets a new engine with three parts, all open source and in this repo:
 JSX is the only way to write a template, for developers and agents alike:
 
 ```tsx
-import { Email, Heading, Paragraph, Row, Column, Text, Button, render, validate } from "@unlayer/react-elements/primitives";
+// 0.3.0 shipped these at the package root (this RFC first had them at /primitives).
+import { Email, Heading, Paragraph, Row, Column, Text, Button, render, validate } from "@unlayer/react-elements";
 
 const welcome = (
   <Email previewText="Welcome aboard" style={{ gap: 16 }}>
@@ -70,7 +72,7 @@ The decisions behind the design, with the date each was taken.
    custom components.
 7. **A new major version** (2026-11-01): the new API becomes the main import of `@unlayer/react-elements`;
    today's API stays, unchanged, at `@unlayer/react-elements/legacy`. A codemod in `@unlayer/migrate`
-   and a migration guide come with it.
+   and a migration guide come with it. (Correction: 0.3.0 shipped the new API at the package root; Elements 0.2's components were removed rather than kept at `/legacy`.)
 8. **CSS** (2026-11-01): rules the inline styles can't express go in a stylesheet under short classes
    named after their rule (`.e3k9fa`); HTML gets no generated ids, only the `id`s authors write.
 9. **Parity with React Email first, the builder last** (2026-11-01): the API and the full component
@@ -126,7 +128,7 @@ use instead.
 |---|---|---|
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
-| `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
+| `@unlayer/react-elements` | yes (the existing package) | The new API (planned at `/primitives` until a new major made it the main import; correction: 0.3.0 shipped it at the package root, and Elements 0.2's components were removed rather than kept at `/legacy`) |
 | `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes the builder's design as today's components wrote it, and reads one as they read it, without them: it bundles the new engine and itself (with its own CI budget) |
 | `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
 | `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
@@ -518,7 +520,7 @@ row's background picture, where an email's phone styles start; `packages/core/sr
 writers read them. They're for this lowering, not an API.
 
 The new major version then makes the new API the main import, keeps today's at `/legacy` (removed in the major
-after), and ships the codemod and the migration guide. `@unlayer/migrate`'s React Email converter moves to the new
+after), and ships the codemod and the migration guide. (Correction: 0.3.0 shipped the new API at the package root; Elements 0.2's components were removed rather than kept at `/legacy`.) `@unlayer/migrate`'s React Email converter moves to the new
 API.
 
 ## Builder adapter
@@ -626,7 +628,7 @@ Each step ends with its tests in CI.
 | 4. Lists and tables, in every output | done |
 | 5. React Email parity: web fonts, superscript and subscript, `title`/`aria-label`, `dir` per block, `pretty` | done |
 | 6. Support data for every output, and the styling vocabulary | done |
-| 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy`, the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
+| 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy` (0.3.0 removed today's components instead), the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
