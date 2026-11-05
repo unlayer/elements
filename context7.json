@@ -7,7 +7,7 @@
   "excludeFolders": [
     ".github",
     "tests",
-    "packages/demo",
+    "examples/demo",
     "node_modules",
     "dist",
     "coverage",
