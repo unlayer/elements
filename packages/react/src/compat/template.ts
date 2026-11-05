@@ -8,11 +8,10 @@
 import React from "react";
 import { checkDocument, type Diagnostic } from "@unlayer-internal/elements-core";
 import { Stylesheet } from "@unlayer-internal/elements-exporters";
-import { DEFAULT_CONFIG, htmlToPlainText, mergeValues, validateColumnLayout, type RenderMode, type UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG, escapeKeepingTags, htmlToPlainText, mergeValues, validateColumnLayout, type RenderMode, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
 import { safeMeta, textDirectionOf, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { amongRows, blockWithoutMarkers, drawnRoot, KEPT } from "../utils/normalize";
-import { looseText } from "../utils/render-scope";
 import { renderToStaticMarkup } from "../utils/server-renderer";
 import { extractHeadFromTree } from "../utils/extract-head";
 import { collectedDesign, extractSemanticProps, type Strays } from "../utils/render-to-json";
@@ -230,6 +229,24 @@ export function lowerTemplate(element: React.ReactElement, config: Partial<Unlay
   // What they all need is in the document once, where one of them is drawn: on the root, before each one's own rules.
   if (drawn && css) lowered.compat = { ...lowered.compat, css: [lowered.compat?.css, css].filter(Boolean).join("\n") };
   return { root, bare: !given, tree: dropEmpty(tree), mode, config: merged, head, diagnostics, tags, fonts: editorFontLinks(design), wholePage: wholePageCss(mode, design.body.values ?? {}) };
+}
+
+/**
+ * Text placed straight in a Row or Column, as HTML: escaped, as React shows
+ * text (raw HTML goes in an Html block). The editor has no place for it, so
+ * the warning says where it belongs.
+ */
+const warnedLoose = new Set<string>();
+
+function looseText(child: string | number, container: string): string {
+  const text = String(child);
+  // Said once per container, not on every render.
+  if (text.trim() && !warnedLoose.has(container)) {
+    warnedLoose.add(container);
+    console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
+  }
+  // An email service's `<%name%>` tag stays as written, as in other text.
+  return escapeKeepingTags(text, true);
 }
 
 /** What's wrong with the layout of a Row whose Columns don't fit it. */

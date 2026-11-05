@@ -10,10 +10,9 @@
  */
 import React from "react";
 import { checkDocument, Registry, type CheckResult, type CustomDefinition, type Diagnostic } from "@unlayer-internal/elements-core";
+import { isAsyncComponent, nonce } from "../utils/collect";
 import { renderToString } from "../utils/server-renderer";
 import { withRenderScope } from "../utils/render-scope";
-import { nonce } from "../utils/normalize";
-import { isAsyncComponent } from "../utils/unwrap-root";
 
 interface Recorded {
   type: string;

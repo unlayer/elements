@@ -8,13 +8,11 @@
 import React from "react";
 import { renderToStaticMarkup } from "./server-renderer";
 import { UNLAYER_RENDER_KEY } from "./create-component";
-import { RECORDS, ROOT } from "./collect";
+import { FORWARD_REF, MEMO, RECORDS, ROOT } from "./collect";
 
 /** The root components a design starts from. */
 export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
 const CONTAINER_NAMES = new Set([...ROOT_NAMES, "Row", "Column"]);
-export const MEMO = Symbol.for("react.memo");
-export const FORWARD_REF = Symbol.for("react.forward_ref");
 /** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
 const PROVIDER = Symbol.for("react.provider");
 const CONTEXT = Symbol.for("react.context");
@@ -53,12 +51,6 @@ export const isThenable = (value: unknown): boolean => typeof (value as { then?:
 const settle = (value: unknown): void => {
   if (isThenable(value)) (value as PromiseLike<unknown>).then(undefined, () => {});
 };
-
-/** A component declared `async`: it can't render synchronously, so it isn't called at all. */
-export function isAsyncComponent(type: any): boolean {
-  while (type?.$$typeof === MEMO) type = type.type;
-  return (type?.$$typeof === FORWARD_REF ? type.render : type)?.[Symbol.toStringTag] === "AsyncFunction";
-}
 
 /**
  * Call a template component in a throwaway render of its own. Its hooks run

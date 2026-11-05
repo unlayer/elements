@@ -4,8 +4,8 @@
  * renders inside them.
  */
 import React, { Suspense } from "react";
-import { collecting, COLLECTING_ID, marker, RECORDS, within, type Collection } from "./collect";
-import { isAsyncComponent, isElementsType } from "./unwrap-root";
+import { collecting, COLLECTING_ID, isAsyncComponent, marker, RECORDS, within, type Collection } from "./collect";
+import { isElementsType } from "./unwrap-root";
 
 /**
  * Children with each component Elements doesn't know wrapped: markers that

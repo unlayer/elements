@@ -15,9 +15,9 @@
  */
 import React from "react";
 import { renderToStaticMarkup, renderToString } from "./server-renderer";
-import { COLLECTING_ID, MARK, within, type Collection, type Recorded } from "./collect";
+import { COLLECTING_ID, FORWARD_REF, isAsyncComponent, MARK, MEMO, nonce, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
-import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
+import { callIsolated, isThenable } from "./unwrap-root";
 import { scopeCache } from "./render-scope";
 import Row from "../components/Row";
 import Column from "../components/Column";
@@ -448,23 +448,6 @@ function idsSeen(): boolean {
   };
   renderToStaticMarkup(<Probe />, { identifierPrefix: COLLECTING_ID });
   return seen;
-}
-
-// Shared by every copy of Elements a process loads, as the collecting stack is (collect.ts): no two renders get one nonce.
-const RENDERS = Symbol.for("@unlayer/react-elements/renders");
-
-/**
- * A collection's nonce, so markup a template's data holds can't name it: letters, digits and "_", from the count of
- * the process's renders and its high-resolution clock (when it started, and the time since to a fraction of a
- * millisecond), which data written before the render can't know. Not random numbers: a framework that prerenders
- * pages takes `crypto.getRandomValues()` and `Math.random()` for a value that changes the page, and Next.js's Cache
- * Components (its new apps' default) fail the build on one, but the nonce never reaches the output. `performance` is
- * what Next.js leaves for timing, and every runtime Elements supports has it.
- */
-export function nonce(): string {
-  const shared = globalThis as Record<symbol, number>;
-  const clock = globalThis.performance;
-  return [(shared[RENDERS] = (shared[RENDERS] ?? 0) + 1), (clock?.timeOrigin ?? 0) * 1e3, (clock?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
