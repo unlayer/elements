@@ -19,8 +19,6 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  if (isJsonPage) return <JsonDump />;
-
   // Scroll-triggered fade-in animations
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -36,7 +34,9 @@ export default function App() {
 
     document.querySelectorAll(".fade-in-up").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, []);
+  }, [isJsonPage]);
+
+  if (isJsonPage) return <JsonDump />;
 
   return (
     <div className="min-h-screen bg-surface-0">

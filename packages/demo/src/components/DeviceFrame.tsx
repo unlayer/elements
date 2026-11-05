@@ -43,12 +43,11 @@ export default function DeviceFrame({ html, device, className = "" }: DeviceFram
                   title="Email preview"
                   className="border-0"
                   sandbox="allow-same-origin"
+                  // A phone's own width, so a template's phone styles apply.
                   style={{
-                    width: "748px",
-                    height: "1320px",
+                    width: "374px",
+                    height: "660px",
                     background: "#f5f5f7",
-                    transform: "scale(0.5)",
-                    transformOrigin: "top left",
                   }}
                 />
               </div>
