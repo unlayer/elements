@@ -201,7 +201,7 @@ function video(values: Values, context: Context): Node[] {
   }
   const hidden = readHidden("video", "Video", values, context.say);
   // Its picture, where it isn't the one a video of its kind takes anyway.
-  const thumbnail = str(value.thumbnail) && value.thumbnail !== videoParts(url)?.thumbnail ? { thumbnail: value.thumbnail as string } : {};
+  const thumbnail: Record<string, Json> = str(value.thumbnail) && value.thumbnail !== videoParts(url)?.thumbnail ? { thumbnail: value.thumbnail as string } : {};
   const node = make("Video", { id: givenId(values), props: { src: url, ...thumbnail, ...hidden.props }, style: hidden.style, mobile: hidden.mobile });
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
