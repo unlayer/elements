@@ -7,8 +7,7 @@
  * its HTML. What a tool has no field for is a hidden property of it (hide.ts); what no tool shows (a Layer, an Svg, a
  * Table, a box nested in a column, a template's own component) is an HTML block of the new engine's own markup, and said.
  */
-import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
-import { prepareTemplate } from "@unlayer-internal/elements-exporters";
+import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import type React from "react";
 import { collectTemplate } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";

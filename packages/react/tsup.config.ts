@@ -3,8 +3,8 @@ import { defineConfig, type Options } from 'tsup';
 const shared: Options = {
   format: ['cjs', 'esm'],
   dts: {
-    // Inline types from the private workspace packages so consumers get full type completion without extra installs
-    resolve: ['@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
+    // Inline types from the private workspace package so consumers get full type completion without extra installs
+    resolve: ['@unlayer-internal/elements-core'],
   },
   splitting: false,
   sourcemap: true,
@@ -14,9 +14,9 @@ const shared: Options = {
   esbuildOptions(options, { format }) {
     options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
   },
-  // Bundle elements-core and elements-exporters into the output so consumers don't need to install them separately
-  // (they're private workspace packages).
-  noExternal: ['@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
+  // Bundle elements-core (the engine: the model, layout and the writers) into the output so consumers don't need to
+  // install it separately (it's a private workspace package).
+  noExternal: ['@unlayer-internal/elements-core'],
   treeshake: true,
 };
 

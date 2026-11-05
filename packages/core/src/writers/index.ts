@@ -1,0 +1,137 @@
+import { checkDocument } from "../normalize";
+import { checkTargetExpanded, resolveExpanded, type ResolvedDocument, type ResolvedNode } from "../resolve";
+import { ElementsError, type Diagnostic } from "../diagnostics";
+import { expandDocument } from "../expand";
+import { registryOf, type ComponentsOption } from "../registry";
+import type { Target } from "../define";
+import { renderEmail, type EmailOptions } from "./email";
+import { emailSupport } from "./email/support";
+import { overflow, pagedSupport } from "./shared/paged";
+import { support } from "./shared/support";
+import { renderPage, type PageOptions } from "./page";
+import { renderText } from "./plain-text";
+import { prettyHtml } from "./shared/pretty";
+
+export { renderEmail, EMAIL_PHONE_MARGIN, GMAIL_CLIP_BYTES, GMAIL_STYLE_BYTES, type EmailHtml, type EmailOptions } from "./email";
+export { renderPage, PAGE_PHONE_WIDTH, type PageHtml, type PageOptions } from "./page";
+export { renderText, type TextOptions } from "./plain-text";
+export { emailSupport } from "./email/support";
+export { support } from "./shared/support";
+export { overflow, pagedSupport } from "./shared/paged";
+export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
+
+export interface RenderOptions extends PageOptions, EmailOptions {
+  /** The HTML indented, for reading it; for sending, the compact HTML (white space may change how some email clients show it). */
+  pretty?: boolean;
+}
+
+export interface RenderResult {
+  /** The whole document, from `<!DOCTYPE html>`. */
+  html: string;
+  /** The plain-text version. */
+  text: string;
+  /** What goes in `<head>` and in `<body>`, and the body's own style: to embed the output in a page of your own. */
+  head: string;
+  body: string;
+  bodyStyle: string;
+  /** Warnings and notes (errors are thrown). */
+  diagnostics: Diagnostic[];
+}
+
+/** The output each root renders to, and whether its writer exists yet. */
+const OUTPUTS: Record<string, { target: Target; ready: boolean; later?: string }> = {
+  Page: { target: "web", ready: true },
+  // Print HTML: a page writer's, each page a box of the paper's size.
+  Document: { target: "web", ready: true },
+  // A Canvas as HTML, to look at (@unlayer/elements-image writes the image).
+  Canvas: { target: "web", ready: true },
+  Email: { target: "email", ready: true },
+};
+
+export interface Prepared {
+  /** The template laid out, its custom components expanded; null where it has errors. */
+  resolved: ResolvedDocument | null;
+  /** The output its root renders to. */
+  target: Target | null;
+  /** Everything found: errors, warnings and notes. */
+  diagnostics: Diagnostic[];
+}
+
+/**
+ * What both validating and rendering do, once: the template checked, its
+ * custom components expanded (each rendered once), checked against the output
+ * its root says, laid out, and what that output can't do as asked found.
+ * Only what needs the written output (an email's size against Gmail's limits)
+ * is left to rendering.
+ */
+export function prepareTemplate(input: unknown, options: ComponentsOption = {}): Prepared {
+  const registry = registryOf(options);
+  const checked = checkDocument(input, registry);
+  const diagnostics = [...checked.diagnostics];
+  const failed = () => diagnostics.some((d) => d.severity === "error");
+  if (!checked.document || failed()) return { resolved: null, target: null, diagnostics };
+  const root = checked.document.root.type;
+  const output = OUTPUTS[root];
+  if (!output?.ready) {
+    diagnostics.push({ code: "output/unavailable", severity: "error", message: output?.later ?? `A ${root} can't be rendered yet`, path: "root" });
+    return { resolved: null, target: null, diagnostics };
+  }
+  const expanded = expandDocument(checked.document, registry);
+  diagnostics.push(...expanded.diagnostics);
+  if (failed()) return { resolved: null, target: output.target, diagnostics };
+  diagnostics.push(...checkTargetExpanded(expanded.document, output.target, registry, expanded.paths));
+  if (failed()) return { resolved: null, target: output.target, diagnostics };
+  const resolved = resolveExpanded(expanded.document, registry, expanded.paths);
+  diagnostics.push(...resolved.diagnostics);
+  const found = output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target);
+  // A Document's page and a Canvas are a fixed size: content that can't fit is cut off.
+  if (root === "Document" || root === "Canvas") found.push(...overflow(resolved.root));
+  if (root !== "Document") found.push(...pageNumbersOutside(resolved.root));
+  diagnostics.push(...inTemplate(resolved, found));
+  return { resolved: failed() ? null : resolved, target: output.target, diagnostics };
+}
+
+/** Diagnostics found on the tree as laid out, at their places in the template (a Grid's children, a custom component's). */
+export function inTemplate(resolved: ResolvedDocument, diagnostics: Diagnostic[]): Diagnostic[] {
+  const { templatePath } = resolved;
+  return templatePath ? diagnostics.map((diagnostic) => ({ ...diagnostic, path: templatePath(diagnostic.path) })) : diagnostics;
+}
+
+/** A PageNumber outside a Document: a page has no number there. */
+function pageNumbersOutside(root: ResolvedNode): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const visit = (node: ResolvedNode) => {
+    if (node.type === "PageNumber") {
+      out.push({ code: "document/page-number", severity: "error", message: `A PageNumber is a page's number in a Document; this ${root.type} has no pages`, path: node.path, ...(node.id ? { nodeId: node.id } : {}) });
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
+}
+
+/**
+ * A template's problems, without writing it: errors make it invalid, warnings and notes don't. A Document's are its
+ * PDF's too, and a Canvas's its image's (what they can't show that its HTML can).
+ */
+export function validateTemplate(input: unknown, options: ComponentsOption = {}): { valid: boolean; diagnostics: Diagnostic[] } {
+  const { diagnostics, resolved } = prepareTemplate(input, options);
+  const root = resolved?.root;
+  const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
+  const all = [...diagnostics, ...(resolved ? inTemplate(resolved, paged) : paged)];
+  return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
+}
+
+/**
+ * A template (Elements' internal tree, with the custom components it uses)
+ * rendered to the output its root says: prepared (`prepareTemplate`), then
+ * written. Throws an `ElementsError` listing the errors if there are any.
+ */
+export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption = {}): RenderResult {
+  const { resolved, target, diagnostics } = prepareTemplate(input, options);
+  if (!resolved) throw new ElementsError(diagnostics);
+  const text = renderText(resolved, options);
+  const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), diagnostics: [] };
+  const shown = (html: string) => (options.pretty ? prettyHtml(html) : html);
+  return { html: shown(written.html), head: shown(written.head), body: shown(written.body), bodyStyle: written.bodyStyle, text, diagnostics: [...diagnostics, ...inTemplate(resolved, written.diagnostics)] };
+}

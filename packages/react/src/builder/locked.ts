@@ -3,8 +3,7 @@
  * markup for it, in an HTML block of the builder's. It can be moved, duplicated or deleted there, not edited; it
  * comes back as an `Html` block.
  */
-import type { Json, Node } from "@unlayer-internal/elements-core";
-import { renderTemplate } from "@unlayer-internal/elements-exporters";
+import { renderTemplate, type Json, type Node } from "@unlayer-internal/elements-core";
 import { block, type Block } from "./design";
 import { withParagraphMargin } from "./text";
 import { cssSides } from "./values";

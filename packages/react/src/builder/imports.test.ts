@@ -14,7 +14,7 @@ const SRC = resolve(__dirname, "..");
 /** The files outside src/builder and src/primitives /builder may import: the render that collects a template. */
 const COLLECTING = ["utils/collect.ts", "utils/server-renderer.ts", "utils/render-scope.ts"];
 /** The packages /builder may import. */
-const PACKAGES = ["react", "react-dom/server", "@unlayer-internal/elements-core", "@unlayer-internal/elements-exporters"];
+const PACKAGES = ["react", "react-dom/server", "@unlayer-internal/elements-core"];
 
 const name = (file: string) => relative(SRC, file).split(sep).join("/");
 

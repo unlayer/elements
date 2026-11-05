@@ -2,7 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2020"],
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals"],
+    // The writers' JSX writes strings (src/writers/jsx.ts), not React elements.
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment"
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  // The Chromium tests read the page with the DOM's types: test/browser/tsconfig.json.
+  "exclude": ["test/browser/**/*"]
 }

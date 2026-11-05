@@ -8,4 +8,9 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
+  // The writers' JSX writes strings (src/writers/jsx.ts), not React elements.
+  esbuildOptions(options) {
+    options.jsxFactory = 'h';
+    options.jsxFragment = 'Fragment';
+  },
 });

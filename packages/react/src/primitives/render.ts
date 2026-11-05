@@ -1,6 +1,5 @@
 import React from "react";
-import { ElementsError, LAYOUT_VERSION, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { pagedSupport, prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
+import { ElementsError, LAYOUT_VERSION, pagedSupport, prepareTemplate, renderTemplate, validateTemplate, type Diagnostic, type RenderOptions, type RenderResult, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { collectTemplate } from "./collect";
 import { outlineOf } from "./outline";
 

@@ -134,6 +134,15 @@ importers:
 
   packages/core:
     devDependencies:
+      '@types/jsdom':
+        specifier: 27.0.0
+        version: 27.0.0
+      jsdom:
+        specifier: 24.1.3
+        version: 24.1.3
+      playwright:
+        specifier: 1.60.0
+        version: 1.60.0
       tsup:
         specifier: ^8.0.1
         version: 8.5.0(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
@@ -180,31 +189,6 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-
-  packages/exporters:
-    dependencies:
-      '@unlayer-internal/elements-core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/jsdom':
-        specifier: 27.0.0
-        version: 27.0.0
-      jsdom:
-        specifier: 24.1.3
-        version: 24.1.3
-      playwright:
-        specifier: 1.60.0
-        version: 1.60.0
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.0(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.4(@types/node@25.3.5)(happy-dom@20.8.3)(jiti@2.6.1)(jsdom@24.1.3)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
 
   packages/from-react-email:
     dependencies:
@@ -424,9 +408,6 @@ importers:
       '@unlayer-internal/elements-core':
         specifier: workspace:*
         version: link:../core
-      '@unlayer-internal/elements-exporters':
-        specifier: workspace:*
-        version: link:../exporters
       '@vitejs/plugin-react':
         specifier: ^4.2.0
         version: 4.7.0(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))
