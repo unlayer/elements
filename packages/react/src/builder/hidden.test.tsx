@@ -33,6 +33,17 @@ function items(design: any): Item[] {
   return out;
 }
 
+describe("a Row hidden somewhere, in a Section", () => {
+  it("keeps its own hiding, and its Section's where the Section is the one hidden", () => {
+    const rows = (element: React.ReactElement) => designOf(element).body.rows.map((row: any) => row.values._override ?? {});
+    const cells = [<Column key="a"><Paragraph>A</Paragraph></Column>, <Column key="b"><Paragraph>B</Paragraph></Column>];
+    expect(rows(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Row hidden={{ mobile: true }}>{cells}</Row></Section></Email>)).toEqual([{ mobile: { hideMobile: true } }]);
+    expect(rows(<Email><Section hidden={{ desktop: true }}><Row>{cells}</Row></Section></Email>)).toEqual([{ desktop: { hideDesktop: true } }]);
+    const kept = back(designOf(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Row hidden={{ mobile: true }}>{cells}</Row></Section></Email>), "email");
+    expect(JSON.stringify(kept)).toContain('"hidden":{"mobile":true}');
+  });
+});
+
 /** Every style and prop a tool has no field for, set. */
 const everyHidden = [
   <Email key="email" title="Welcome" lang="en" fonts={[{ family: "Inter", src: "https://fonts.test/inter.woff2", format: "woff2", weight: 400 }]}>

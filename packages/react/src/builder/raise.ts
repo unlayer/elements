@@ -143,7 +143,8 @@ export function raise(element: React.ReactElement): Raised {
     // A Section's border, as the part of it around each of its rows; its hiding, each row's.
     const border = (section?.style?.border ?? {}) as Record<string, Json>;
     const count = Math.max(1, countRows(children));
-    const sectionHiding = section ? hiding(section) : {};
+    // Only where it's hidden: a Section shown everywhere leaves its rows' own hiding as it is.
+    const sectionHiding = section ? Object.fromEntries(Object.entries(hiding(section)).filter(([, hidden]) => hidden)) : {};
     const bandHidden = (r: number): Values => {
       const lines = { left: border.left, right: border.right, ...(r === 0 ? { top: border.top } : {}), ...(r === count - 1 ? { bottom: border.bottom } : {}) };
       const own = Object.fromEntries(Object.entries(lines).filter(([, line]) => line !== undefined));
