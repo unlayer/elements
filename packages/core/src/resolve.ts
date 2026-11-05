@@ -129,8 +129,8 @@ interface Context {
   registry: Registry;
   /** The root's type: Rows stack on phones by default in a responsive one. */
   responsive: boolean;
-  /** An Email's Rows wrap only where they stay side by side on phones. */
-  email: boolean;
+  /** The root's type: a Row wraps on a Page, and in an Email where it stays side by side on phones. A PDF and an image draw one line. */
+  root: string;
 }
 
 /**
@@ -152,7 +152,7 @@ export function resolveExpanded(document: ElementsDocument, options?: Components
   const registry = registryOf(options);
   const d = new Diagnostics();
   const definition = registry.get(document.root.type)!;
-  const context: Context = { d, registry, responsive: !!definition.responsive, email: document.root.type === "Email" };
+  const context: Context = { d, registry, responsive: !!definition.responsive, root: document.root.type };
   const root = resolveNode(document.root, "root", { ...INITIAL_TEXT, lineHeightPx: 24 }, null, context);
   // A Document's content is as wide as its page inside the margins; a Canvas's, as it inside its padding.
   const width = root.type === "Document" ? pageBox(root.props).contentWidth : toPx(root.props.width, null);
@@ -318,7 +318,7 @@ function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: Res
   const gap = toPx(row.style.gap, null) ?? 0;
   const items = desktop.map(({ resolved }) => flexItem(resolved, available));
   // A Row that wraps breaks where its children no longer fit, and each line is laid out on its own.
-  const wraps = row.style.flexWrap === "wrap" && (!context.email || row.props.stackOnMobile === false);
+  const wraps = row.style.flexWrap === "wrap" && (context.root === "Page" || (context.root === "Email" && row.props.stackOnMobile === false));
   for (const line of wraps ? wrappedLines(items, gap, available) : [items.map((_, index) => index)]) {
     const room = available - gap * Math.max(0, line.length - 1);
     const ownItems = line.map((index) => items[index]);

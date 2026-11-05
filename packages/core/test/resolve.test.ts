@@ -237,6 +237,23 @@ describe("lists and tables", () => {
     expect(child(table, 0, 0, 0).width).toBe(200);
   });
 
+  it("wraps a Row only where its output draws more than one line", () => {
+    const row = (root: string, props: Record<string, unknown> = {}) =>
+      child(
+        resolve({
+          type: root,
+          props: root === "Canvas" ? { width: 600, height: 300 } : { width: 600 },
+          children: [{ type: "Row", props, style: { flexWrap: "wrap" }, children: [{ type: "Column", style: { width: 400 } }, { type: "Column", style: { width: 400 } }] }],
+        }).root,
+        0
+      ).children.map((column) => (column as { width: number }).width);
+    expect(row("Page")).toEqual([400, 400]);
+    expect(row("Email", { stackOnMobile: false })).toEqual([400, 400]);
+    // An Email's Row that stacks stays on one line on desktop; a PDF and an image draw one line, narrowed to fit.
+    expect(row("Email")).toEqual([300, 300]);
+    expect(row("Canvas")).toEqual([300, 300]);
+  });
+
   it("rounds columns given as a share before sharing the rest, so the columns add up to the table", () => {
     const { root } = resolve({
       type: "Email",
