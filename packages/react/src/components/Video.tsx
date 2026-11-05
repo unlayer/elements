@@ -1,4 +1,4 @@
-import { VideoDefaults } from "../utils/tool-defaults";
+import { VideoDefaults } from "../builder/tool-defaults";
 import type { VideoValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

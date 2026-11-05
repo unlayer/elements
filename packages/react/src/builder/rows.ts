@@ -6,7 +6,7 @@
  * splits the row there (in a Document).
  */
 import type { Json, Node } from "@unlayer-internal/elements-core";
-import { ColumnDefaults, RowDefaults } from "../utils/tool-defaults";
+import { ColumnDefaults, RowDefaults } from "./tool-defaults";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { color, sides, some, type Sides, type Values } from "../compat/values";
 import { readRadius } from "./reading";

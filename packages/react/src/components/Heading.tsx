@@ -1,4 +1,4 @@
-import { HeadingDefaults } from "../utils/tool-defaults";
+import { HeadingDefaults } from "../builder/tool-defaults";
 import type { HeadingValues, TextStyleProps, HeadingLevel } from "../types";
 import {
   createItemComponent,

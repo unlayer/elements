@@ -98,7 +98,7 @@ Three modes: `email` (table-based), `web` (div + flexbox), `document` (print).
 |---------|------|
 | `@unlayer/types` | TypeScript types for all component value shapes |
 
-It's pinned in `pnpm-workspace.yaml` via the catalog feature and updated automatically by the `update-deps` workflow. The HTML is written in this repository (`packages/exporters`), and each tool's default values are in `packages/react/src/utils/tool-defaults.ts`.
+It's pinned in `pnpm-workspace.yaml` via the catalog feature and updated automatically by the `update-deps` workflow. The HTML is written in this repository (`packages/exporters`), and each tool's default values are in `packages/react/src/builder/tool-defaults.ts`.
 
 ## Pull Request Guidelines
 

@@ -1,4 +1,4 @@
-import { ImageDefaults } from "../utils/tool-defaults";
+import { ImageDefaults } from "../builder/tool-defaults";
 import type { ImageValues, ImageSrcInput, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

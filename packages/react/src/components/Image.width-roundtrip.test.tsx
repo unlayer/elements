@@ -8,7 +8,7 @@ import { Column } from "./Column";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtml } from "../utils/render-to-html";
-import { bodyContentWidthPx } from "../utils/image-sizing";
+import { bodyContentWidthPx } from "../builder/image-sizing";
 
 // Regression guard for the design-JSON round-trip: a fixed image width must pin
 // as autoWidth:false + a PERCENT maxWidth (of the column's content slot) so an

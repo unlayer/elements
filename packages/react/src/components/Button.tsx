@@ -1,4 +1,4 @@
-import { ButtonDefaults } from "../utils/tool-defaults";
+import { ButtonDefaults } from "../builder/tool-defaults";
 import type { ButtonValues, TextStyleProps, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

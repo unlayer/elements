@@ -1,4 +1,4 @@
-import { HtmlDefaults } from "../utils/tool-defaults";
+import { HtmlDefaults } from "../builder/tool-defaults";
 import type { HtmlValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

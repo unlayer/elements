@@ -6,7 +6,7 @@
  * can't be read is said.
  */
 import { videoParts, type Json } from "@unlayer-internal/elements-core";
-import { contentSlotWidth } from "../../utils/image-sizing";
+import { contentSlotWidth } from "../../builder/image-sizing";
 import type { TreeNode } from "../lower";
 import { attribute, DEFAULT_CDN, deviceValues, drawnImageUrl, drawnLink, keptUrl, sides, some, type Values } from "../values";
 import type { Lowering } from "./index";

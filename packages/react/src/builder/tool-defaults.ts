@@ -1,6 +1,6 @@
 /**
  * Each tool's default values and the schema version of the design JSON, as the Unlayer builder's editor defines them:
- * what renderToJson() fills in, and what fromDesign() reads a value an item doesn't have as. Plain data, in the editor's
+ * what toDesign() writes a part's values over (design.ts), and what fromDesign() reads a value an item doesn't have as. Plain data, in the editor's
  * key order (a design's JSON keeps it, and the regression tests compare it with the previous release's).
  */
 

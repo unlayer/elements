@@ -4,7 +4,7 @@
  * never throws: what can't be read is left out and said.
  */
 import type { Child, Json, Node } from "@unlayer-internal/elements-core";
-import { BodyDefaults } from "../utils/tool-defaults";
+import { BodyDefaults } from "./tool-defaults";
 import { color, fontWeight, font, px, serviceTag, type Sides, type Values } from "../compat/values";
 import type { Context } from "./blocks";
 import { readHidden } from "./hide";

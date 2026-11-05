@@ -15,7 +15,7 @@ import Html from "./components/Html";
  * contract.
  *
  * The default values asserted here (contentWidth 500px, content padding 10px,
- * text color #000000) are the defaults in utils/tool-defaults.
+ * text color #000000) are the defaults in builder/tool-defaults.
  */
 
 const uniq = (html: string, re: RegExp): string[] =>

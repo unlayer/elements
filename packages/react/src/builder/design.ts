@@ -19,7 +19,7 @@ import {
   schemaVersion,
   SocialDefaults,
   VideoDefaults,
-} from "../utils/tool-defaults";
+} from "./tool-defaults";
 import { merge } from "./hide";
 import type { Values } from "./values";
 

@@ -1,4 +1,4 @@
-import { SocialDefaults } from "../utils/tool-defaults";
+import { SocialDefaults } from "../builder/tool-defaults";
 import type { SocialValues, SocialIcon, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

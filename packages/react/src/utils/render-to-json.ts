@@ -20,11 +20,11 @@ import type {
 import { mergeValues } from "@unlayer-internal/shared-elements";
 // The editor's schema version: renderToJson output is recognized as current by the
 // editor, skipping unnecessary migrations.
-import { schemaVersion } from "./tool-defaults";
+import { schemaVersion } from "../builder/tool-defaults";
 import { mapSemanticProps } from "./semantic-props";
 import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
-import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
+import { contentSlotWidth, pinImageSrc, type SlotContext } from "../builder/image-sizing";
 import { withRenderScope } from "./render-scope";
 import { KEPT, normalizedChildren, normalizedRoot } from "./normalize";
 import { textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";

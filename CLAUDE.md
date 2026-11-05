@@ -50,7 +50,7 @@ Most content components are NOT hand-written. They're created by `createItemComp
 ```typescript
 const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
   name: "Button",
-  defaultValues: DEFAULT_VALUES, // from utils/tool-defaults.ts
+  defaultValues: DEFAULT_VALUES, // from builder/tool-defaults.ts
   propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Button"),
   draw: onItsOwn, // rendered straight through React: compat/render.ts
 });
@@ -94,7 +94,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 ### Key External Dependencies
 
 - **`@unlayer/types`** — TypeScript type definitions for all component value shapes. The package's only dependency, and types only: it stays because the published type definitions import it. Pinned version in `pnpm-workspace.yaml` catalog, updated automatically by the `update-deps.yml` GitHub workflow.
-- The closed `@unlayer/exporters` is gone. Don't add it back: HTML comes from `packages/exporters`, and each tool's default values from `packages/react/src/utils/tool-defaults.ts`. It's in the lockfile only through the dev alias `@unlayer/react-elements-previous` (the published 0.2.1), and CI fails if a bundle imports it.
+- The closed `@unlayer/exporters` is gone. Don't add it back: HTML comes from `packages/exporters`, and each tool's default values from `packages/react/src/builder/tool-defaults.ts`. It's in the lockfile only through the dev alias `@unlayer/react-elements-previous` (the published 0.2.1), and CI fails if a bundle imports it.
 
 ## Key Files
 
@@ -109,7 +109,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/builder/` | The builder adapter (`/builder`): `toDesign()` writes a template as the Unlayer builder's design JSON (`raise.ts` and `tools.ts` make its rows, columns and blocks; `design.ts` writes them over each tool's defaults, numbered as the builder numbers them, key for key as today's `renderToJson` wrote them), `fromDesign()` reads one back (`read.ts`, `rows.ts`, `blocks.ts`) with compat's parsers. `manifest.ts` lists every hidden property (a style or prop a tool has no field for, kept in its values) and the builder's own keys; a test holds `toDesign()` to it |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
-| `packages/react/src/utils/tool-defaults.ts` | Each tool's default values and the design's schema version, plain data in the editor's key order |
+| `packages/react/src/builder/tool-defaults.ts` | Each tool's default values and the design's schema version, plain data in the editor's key order |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
 | `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
 | `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |

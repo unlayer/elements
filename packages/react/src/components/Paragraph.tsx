@@ -1,4 +1,4 @@
-import { ParagraphDefaults } from "../utils/tool-defaults";
+import { ParagraphDefaults } from "../builder/tool-defaults";
 import type { ParagraphValues, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

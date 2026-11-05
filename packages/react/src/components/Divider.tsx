@@ -1,4 +1,4 @@
-import { DividerDefaults } from "../utils/tool-defaults";
+import { DividerDefaults } from "../builder/tool-defaults";
 import type { DividerValues, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

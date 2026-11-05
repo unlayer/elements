@@ -10,7 +10,7 @@ import { EMAIL_PHONE_MARGIN } from "@unlayer-internal/elements-exporters";
 import { escapeKeepingTags, type UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { safeName, textDirectionOf, UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { collectDeviceStyles, cssValue, deviceStylesCss } from "../utils/device-overrides";
-import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
+import { contentSlotWidth, DEFAULT_CONTAINER_PADDING } from "../builder/image-sizing";
 import { bodyLinkCss } from "./links";
 import { documentBodyPicture, ownMarkupCss, PAGE_BASE_CSS, pageBodyColor, pictureCss, pictureOf, rowColorInEmail, rowOffsetInEmail, rowPaddingInEmail, type Picture } from "./quirks";
 import { ALIGN, attribute, color, fontWeight, lineHeight, px, sides, some, type Values } from "./values";

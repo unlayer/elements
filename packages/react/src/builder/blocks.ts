@@ -6,11 +6,11 @@
  * draws), and a tool that isn't one of Elements' is left out, and said.
  */
 import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type Node } from "@unlayer-internal/elements-core";
-import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "../utils/tool-defaults";
+import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "./tool-defaults";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
 import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "../compat/values";
-import { contentSlotWidth } from "../utils/image-sizing";
+import { contentSlotWidth } from "./image-sizing";
 import { readHidden } from "./hide";
 import { alignOf, defined, make, obj, phoneText, placed, readRadius, str, textStyle, unless, type Context, type Slot } from "./reading";
 import { DEEPEST, mergeTags, richText, tooDeep, withParagraphMargin } from "./text";

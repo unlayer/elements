@@ -1,4 +1,4 @@
-import { MenuDefaults } from "../utils/tool-defaults";
+import { MenuDefaults } from "../builder/tool-defaults";
 import type { MenuValues, MenuItem, SizeInput, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { onItsOwn } from "../compat/render";

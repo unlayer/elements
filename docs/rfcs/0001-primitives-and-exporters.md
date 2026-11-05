@@ -476,7 +476,7 @@ by name, an email's document, and a page's and a printed document's margin, text
 `compat/quirks.ts` is legacy's where the editor draws the same, or where a template can't reach the editor's.
 
 `@unlayer/exporters` is gone in 0.3.0, not in the next major (2026-11-04): no block or template falls back to it.
-Each tool's default values are plain data in `packages/react/src/utils/tool-defaults.ts`. `@unlayer/types` stays,
+Each tool's default values are plain data in `packages/react/src/builder/tool-defaults.ts`. `@unlayer/types` stays,
 as the published type definitions import it.
 
 What isn't a template is an error that says what to do: a `<div>` as the root or a component returning plain

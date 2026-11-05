@@ -6,7 +6,7 @@
  * no URL its block has its padding and nothing in it.
  */
 import type { Json } from "@unlayer-internal/elements-core";
-import { contentSlotWidth } from "../../utils/image-sizing";
+import { contentSlotWidth } from "../../builder/image-sizing";
 import type { TreeNode } from "../lower";
 import { imageBox, outlookCopy } from "../quirks";
 import { ALIGN, attribute, deviceValues, drawnImageUrl, drawnLink, ENTITY, sides, some, webLink, type Values } from "../values";

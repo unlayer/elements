@@ -14,7 +14,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 /** A block's own HTML, by display mode: a custom tool's, an Html block's. */
 type ItemExporters = Partial<Record<RenderMode, (...args: any[]) => string>>;
 import type { DeviceProps, SizeInput } from "../types";
-import { contentSlotWidth, pinImageSrc } from "./image-sizing";
+import { contentSlotWidth, pinImageSrc } from "../builder/image-sizing";
 import {
   mergeValues,
   generateHtmlFromTextJson,

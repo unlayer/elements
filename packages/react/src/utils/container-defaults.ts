@@ -8,7 +8,7 @@
  * JSON output and head CSS always use consistent defaults.
  */
 
-import { BodyDefaults, RowDefaults, ColumnDefaults } from "./tool-defaults";
+import { BodyDefaults, RowDefaults, ColumnDefaults } from "../builder/tool-defaults";
 import type { BodyValues, RowValues, ColumnValues } from "@unlayer-internal/shared-elements";
 
 // Body defaults from the editor schema.
