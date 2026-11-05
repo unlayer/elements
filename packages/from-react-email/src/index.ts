@@ -403,10 +403,10 @@ async function valueVariants(Original: Template, Converted: MigratedTemplate, pr
         const check = compareText(original, rendersNothing(migrated) ? "" : await draw(migrated));
         if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
       } catch (error) {
-        // The new components refuse a value with markup where no text goes (a link's target, a color): the original
-        // writes it in an attribute no one reads. Text with markup in it, they show as text.
+        // The new components refuse a value with markup where no text goes (a link's target, a color from a prop): the
+        // original writes it in an attribute or a style no one reads as text. Text with markup in it, they show as text.
         const why = error instanceof Error ? error.message : "";
-        const refused = /^\[Elements\][\s\S]*prop\/invalid/.test(why) && why.includes(MARKUP.slice(0, -1));
+        const refused = /^\[Elements\][\s\S]*(prop|style)\/invalid/.test(why) && why.includes(MARKUP.slice(0, -1));
         if (!refused) variants.push({ change, missing: [], added: [], missingAttributes: [], error: inALine(error) });
       }
     }

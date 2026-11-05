@@ -1017,6 +1017,16 @@ export default function T() { return <Html><Body><Container style={{ width: "100
 });
 
 describe("style values from props", () => {
+  it("aren't content where the check's text props with markup give one the new components refuse (a color)", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text } from "@react-email/components";
+export default function T({ code, color }: { code: string; color: string }) { return <Html><Body><Text style={{ color }}>{code}</Text></Body></Html>; }
+T.PreviewProps = { code: "482913", color: "#e11d48" };`);
+    expect(conversion.code).toContain("color: color");
+    // React Email writes the color with markup in a style no one reads as text; the new components refuse it.
+    const check = await verifyNewComponents(Original, Migrated);
+    expect(check.variants).toEqual([]);
+  });
+
   it("can't add markup through the span that keeps a text style (runtime mode)", async () => {
     const { Original } = await templates(`import { Html, Body, Text } from "@react-email/components";
 export default function T({ look = "uppercase" }: { look?: string }) { return <Html><Body><Text style={{ textTransform: look as any }}>Hello there</Text></Body></Html>; }
