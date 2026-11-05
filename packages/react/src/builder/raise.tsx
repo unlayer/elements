@@ -31,6 +31,9 @@ export interface Raised {
 
 type Child = { child: Node; path: string };
 
+/** What a browser gives text where nothing says otherwise. */
+const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
+
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
   const hidden = new WeakMap<object, Values>();
@@ -65,12 +68,16 @@ export function raise(element: React.ReactElement): Raised {
   const childrenOf = (node: Node, path: string): Child[] =>
     (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is Child => typeof c.child !== "string");
 
-  /** The text styles a node inherits from its ancestors (its parent's, as resolved) that the root's don't give it. */
+  /**
+   * The text styles a node takes from around it (its parent's, as resolved) that it wouldn't get in the builder: the
+   * body holds the root's color, font and weight, and nothing else takes a browser's defaults' place.
+   */
   const inheritedText = (path: string): Record<string, Json> => {
     const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
     if (!parent) return {};
     const { lineHeightPx: _px, ...text } = parent.text;
-    return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(resolvedRoot.text[key as keyof typeof text]))) as Record<string, Json>;
+    const given: Record<string, unknown> = { ...BROWSER_TEXT, color: resolvedRoot.text.color, fontFamily: resolvedRoot.text.fontFamily, fontWeight: resolvedRoot.text.fontWeight };
+    return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(given[key]))) as Record<string, Json>;
   };
   const place: Place = {
     at,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
+import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign } from "./index";
 import { raise } from "./raise";
 import { invoice } from "./testing/templates";
@@ -58,7 +59,7 @@ describe("toDesign", () => {
 
   it("writes an Html block as the builder's own HTML block, its plain text hidden", () => {
     const [html] = blocks(toDesign(<Email><Html html="<b>Sale</b>" text="Sale now" /></Email>).design);
-    expect(html).toMatchObject({ type: "html", values: { html: "<b>Sale</b>", text: "Sale now", containerPadding: "0px" } });
+    expect(html).toMatchObject({ type: "html", values: { html: '<div style="line-height:1.5"><b>Sale</b></div>', text: "Sale now", containerPadding: "0px" } });
   });
 
   it("writes a Grid's rows as the builder's rows, its cells as their columns", () => {
@@ -183,6 +184,20 @@ describe("a link's window", () => {
   });
 });
 
+describe("a line height", () => {
+  const field = (element: React.ReactElement) => blocks(toDesign(<Email>{element}</Email>).design)[0].values as { lineHeight: string; _override?: { mobile?: { lineHeight?: string } } };
+
+  it("is a whole percentage in the builder's field, rounded up, as Chromium draws only a percentage's whole part", () => {
+    expect(field(<Text style={{ fontSize: 13, lineHeight: "24px" }}>x</Text>).lineHeight).toBe("185%");
+    expect(field(<Text style={{ fontSize: 14, lineHeight: 1.625 }}>x</Text>).lineHeight).toBe("163%");
+    expect(field(<Text style={{ fontSize: 16, lineHeight: "24px" }}>x</Text>).lineHeight).toBe("150%");
+  });
+
+  it("is one on phones too", () => {
+    expect(field(<Text mobile={{ lineHeight: 1.625 }}>x</Text>)._override?.mobile?.lineHeight).toBe("163%");
+  });
+});
+
 describe("an Html block", () => {
   it("takes the text styles around it to the builder, whose HTML block has none", () => {
     const { design } = toDesign(<Email><Column style={{ textAlign: "center", color: "#123456", fontSize: 18 }}><Html html="<b>x</b>" /></Column></Email>);
@@ -193,8 +208,17 @@ describe("an Html block", () => {
     expect(html).toContain("<b>x</b>");
   });
 
-  it("is as it is where nothing around it sets a text style", () => {
+  it("says the default line height, which the builder's body doesn't give, and comes back without it", () => {
     const { design } = toDesign(<Email><Html html="<b>x</b>" /></Email>);
-    expect(blocks(design).find((block) => block.type === "html")!.values.html).toBe("<b>x</b>");
+    expect(blocks(design).find((block) => block.type === "html")!.values.html).toBe('<div style="line-height:1.5"><b>x</b></div>');
+    const back = collectTemplate(fromDesign(design, { displayMode: "email" }).element).document!.root;
+    expect(JSON.stringify(back)).toContain('"html":"<b>x</b>"');
+  });
+
+  it("keeps markup that only starts and ends like that wrapper", () => {
+    const markup = '<div style="line-height:1.5">a</div><div>b</div>';
+    const design = { body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "html", values: { html: markup } }], values: {} }], values: {} }], values: {} } };
+    const back = collectTemplate(fromDesign(design, { displayMode: "email" }).element).document!.root;
+    expect(JSON.stringify(back)).toContain(JSON.stringify(markup).slice(1, -1));
   });
 });

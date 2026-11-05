@@ -8,7 +8,7 @@ import type React from "react";
 import { Button, Divider, Heading, Html, Image, Menu, Paragraph, PageBreak, Social, Video } from "../index";
 import { hiddenOf, merge } from "./hide";
 import { listHtml, runsHtml } from "./runs";
-import { builderBorder, builderFont, builderLink, cssLineHeight, cssPx, cssSides, encode, type Values } from "./values";
+import { builderBorder, builderFont, builderLink, cssLineHeight, cssPx, cssSides, encode, fieldLineHeight, type Values } from "./values";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
 type TextAlign = "left" | "center" | "right" | "justify";
@@ -46,7 +46,7 @@ function textFields(own: ResolvedNode): Values {
     fontWeight: text.fontWeight,
     color: text.color,
     textAlign: text.textAlign,
-    lineHeight: `${Math.round((text.lineHeightPx / text.fontSize) * 10000) / 100}%`,
+    lineHeight: fieldLineHeight(text.lineHeightPx / text.fontSize),
     letterSpacing: text.letterSpacing ? cssPx(text.letterSpacing) : "0px",
   };
 }
@@ -56,7 +56,7 @@ function phoneText(node: Node, containerPadding?: Sides): Values {
   const m = node.mobile ?? {};
   const out: Values = {};
   if (typeof m.fontSize === "number") out.fontSize = cssPx(m.fontSize);
-  if (m.lineHeight !== undefined) out.lineHeight = cssLineHeight(m.lineHeight);
+  if (m.lineHeight !== undefined) out.lineHeight = typeof m.lineHeight === "number" ? fieldLineHeight(m.lineHeight) : cssLineHeight(m.lineHeight);
   if (typeof m.letterSpacing === "number") out.letterSpacing = cssPx(m.letterSpacing);
   if (typeof m.textAlign === "string") out.textAlign = m.textAlign;
   if (containerPadding) out.containerPadding = cssSides(containerPadding);

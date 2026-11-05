@@ -41,6 +41,11 @@ export const readBorder = (value: unknown): Json | undefined => legacyBorder((va
 
 /** A line height as the builder's: a multiple as a percentage ("150%"), px as it is. */
 export const cssLineHeight = (value: Json) => (typeof value === "number" ? `${round(value * 100)}%` : String(value));
+/**
+ * A line height as the builder's field: a whole percentage, rounded up. Chromium draws a percentage's whole part only
+ * (184.62% as 184%), and a line a little too short moves its words up a pixel, where one a little too tall doesn't.
+ */
+export const fieldLineHeight = (ratio: number) => `${Math.ceil(ratio * 100 - 1e-9)}%`;
 
 /** A font stack as the builder's `{ label, value }`: its first family the label. */
 export const builderFont = (stack: string) => ({ label: stack.split(",")[0].replace(/["']/g, "").trim(), value: stack });

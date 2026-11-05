@@ -205,9 +205,22 @@ function video(values: Values, context: Context): Node[] {
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 
+/** What toDesign() wraps markup in where only the default line height needs saying: the builder's HTML block takes none, and an Html block takes it from around it. */
+const DEFAULT_LINE = '<div style="line-height:1.5">';
+function withoutDefaultLine(html: string): string {
+  if (!html.startsWith(DEFAULT_LINE) || !html.endsWith("</div>")) return html;
+  const inner = html.slice(DEFAULT_LINE.length, -"</div>".length);
+  let depth = 0;
+  for (const [tag] of inner.matchAll(/<\/?div\b/g)) {
+    depth += tag === "</div" ? -1 : 1;
+    if (depth < 0) return html;
+  }
+  return depth === 0 ? inner : html;
+}
+
 function html(values: Values, context: Context): Node[] {
   const hidden = readHidden("html", "Html", values, context.say);
-  const node = make("Html", { id: givenId(values), props: { html: context.safe(typeof values.html === "string" ? values.html : ""), ...hidden.props } });
+  const node = make("Html", { id: givenId(values), props: { html: context.safe(typeof values.html === "string" ? withoutDefaultLine(values.html) : ""), ...hidden.props } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 
