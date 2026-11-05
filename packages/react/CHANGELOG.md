@@ -2,9 +2,21 @@
 
 ## 0.3.0
 
+**What to expect when you upgrade:** your templates and the render functions don't change, and the words, links and
+images stay the same.
+
+- **Emails** mostly look the same: of 391 test emails, 350 drew the same as 0.2.1 at every width we checked. Most of
+  the others changed an image's width.
+- **Pages and printed documents will look different**, on purpose: 0.2.1 didn't match the editor, and this version
+  does (no 8px margin, text at 14px, padding inside a box's width). Nearly every one we tested changed.
+- **All the HTML is new.** A snapshot test, or code that reads the markup or selects its generated ids and classes,
+  will see a difference even where nothing looks different.
+
+The changes:
+
 - Today's components render entirely through Elements' own open-source writers. `@unlayer/exporters` is no longer
   a dependency, and nothing falls back to it. Templates and the render functions don't change. Content, links
-  and images are preserved, and in Chromium they draw as the editor's export does; the HTML may change; input that can't be drawn gets a diagnostic (a console
+  and images are preserved, and in Chromium they draw as the editor's export does; the HTML changes; input that can't be drawn gets a diagnostic (a console
   warning), never silent loss. A few small differences from 0.2.1 are listed here, each with its reason. It was
   checked against the published 0.2.1 in Chromium. The new output is checked in Chromium and against a model of
   Outlook, not in real Outlook.
