@@ -573,6 +573,14 @@ describe("email HTML", () => {
     expect(text).toBe("Item | Price\nNotebook | $12");
   });
 
+  it("keeps a column's share of the table beside one of its own px, the column with no width taking what's left", () => {
+    const { body } = render(email([{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: "40%" }, children: ["Share"] }, { type: "TableCell", children: ["Free"] }, { type: "TableCell", style: { width: 120 }, children: ["Px"] }] }] }]));
+    expect(body).toMatch(/<col width="\d+" style="width:40%"><col width="\d+" style="width:auto"><col width="120" style="width:120px">/);
+    expect(body).toMatch(/style="[^"]*width:40%[^"]*">Share</);
+    expect(body).toMatch(/style="[^"]*width:auto[^"]*">Free</);
+    expect(body).toMatch(/style="[^"]*width:120px[^"]*">Px</);
+  });
+
   it("writes a table whose cells share their borders, a row's height and footer rows in tfoot; markup among its rows and in a cell as it is", () => {
     const { body } = render(
       email([

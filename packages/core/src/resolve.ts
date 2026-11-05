@@ -58,8 +58,8 @@ export interface ResolvedNode {
   children: Array<ResolvedNode | string>;
   /** A Table's column widths in px, each column's from its cells, the rest shared (null where the table's width isn't known). */
   columns?: number[] | null;
-  /** On a Table and its rows: which of its columns have a width of their own in px, where others share what's left (otherwise, none: every column is a share of the table). */
-  ownColumns?: boolean[] | null;
+  /** On a Table and its rows, where a column of its own px sits beside one with no width: how each column is written. "px" stays that wide in a narrower window, "share" stays its share of the table, "free" takes what they leave (otherwise, none: every column is a share of the table). */
+  columnSizes?: Array<"px" | "share" | "free"> | null;
   compat?: Record<string, Json>;
 }
 
@@ -486,8 +486,9 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
     // A column of its own px stays that wide in a narrower window, the others taking what's left: as a share of the
     // table it would shrink past its words. With no other to take it, the whole table would run past the window.
     if (free.length > 0 && own.some(Boolean)) {
-      table.ownColumns = own;
-      for (const { row } of rows) row.ownColumns = own;
+      const sizes = set.map<"px" | "share" | "free">((width, index) => (own[index] ? "px" : width === null ? "free" : "share"));
+      table.columnSizes = sizes;
+      for (const { row } of rows) row.columnSizes = sizes;
     }
   }
   table.columns = columns;

@@ -4,12 +4,10 @@
  * its top are its `<thead>`, footer rows at its end its `<tfoot>`.
  */
 import { h } from "../jsx";
+import { columnWidth } from "../shared/css";
 import { isNode, shown, type Component } from "./context";
 import { Box } from "./layout";
 import { TABLE } from "./markup";
-
-/** A width as a share of `of`, in %. */
-export const share = (width: number, of: number) => `${Math.round((width / of) * 1e4) / 100}%`;
 
 export const Table: Component = ({ node, style, fill, render }) => {
   const rows = node.children.filter(isNode).filter(shown);
@@ -24,7 +22,7 @@ export const Table: Component = ({ node, style, fill, render }) => {
       <table cellpadding={TABLE.cellpadding} cellspacing={TABLE.cellspacing} border={TABLE.border} width="100%" style={{ tableLayout: "fixed", borderCollapse: style.borderCollapse ?? "separate" }}>
         <colgroup>
           {columns.map((width, index) => (
-            <col width={width} style={{ width: node.ownColumns ? (node.ownColumns[index] ? width : "auto") : share(width, total) }} />
+            <col width={width} style={{ width: columnWidth(node, width, index, total) }} />
           ))}
         </colgroup>
         {header.length > 0 && <thead>{header.map((row) => render(row))}</thead>}

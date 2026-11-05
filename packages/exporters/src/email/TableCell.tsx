@@ -4,10 +4,10 @@
  * its text styles on it (Outlook doesn't carry styles down through tables).
  */
 import { h } from "../jsx";
+import { share } from "../shared/css";
 import type { Component } from "./context";
 import { bgcolor } from "./markup";
 import { fullText } from "./styles";
-import { share } from "./Table";
 
 export const TableCell: Component = ({ node, style, mobile, parent: row, phoneText, text }) => {
   const Cell = row.props.header ? "th" : "td";
@@ -26,8 +26,8 @@ export const TableCell: Component = ({ node, style, mobile, parent: row, phoneTe
         // A header cell is bold of its own: its weight is always written.
         fullText(node, { weight: Cell === "th" }),
         {
-          // Beside a column that keeps its own px, the others take what it leaves: Word's attribute isn't theirs.
-          width: node.width !== null && row.width ? (row.ownColumns ? (typeof style.width === "number" ? style.width : "auto") : share(node.width, row.width)) : undefined,
+          // Beside a column that keeps its own px, a free one takes what's left: Word's attribute isn't its width.
+          width: node.width !== null && row.width ? (row.columnSizes && typeof style.width !== "string" ? (style.width ?? "auto") : share(node.width, row.width)) : undefined,
           boxSizing: "border-box",
           padding: style.padding,
           backgroundColor: style.backgroundColor,

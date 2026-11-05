@@ -244,6 +244,8 @@ describe("lists and tables", () => {
       children: [{ type: "Table", style: { border: "1px solid #ccc" }, children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: "40%" } }, { type: "TableCell" }, { type: "TableCell", style: { width: 120 } }] }] }],
     });
     expect(child(root, 0).columns).toEqual([255, 263, 120]);
+    // The px column keeps its px and the share its share, in any window: the one with no width takes what's left.
+    expect(child(root, 0).columnSizes).toEqual(["share", "free", "px"]);
   });
 
   it("warns where a Table's columns are wider than it, and shrinks them in proportion, as they're drawn", () => {

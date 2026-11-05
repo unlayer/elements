@@ -262,6 +262,11 @@ describe("web HTML", () => {
     expect(body).toContain('<tbody><tr><td colspan="2" style="box-sizing:border-box;padding:8px;vertical-align:top">C</td></tr></tbody></table>');
   });
 
+  it("keeps a column's share of the table beside one of its own px, the column with no width taking what's left", () => {
+    const { body } = web(page([{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: "40%" }, children: ["Share"] }, { type: "TableCell", children: ["Free"] }, { type: "TableCell", style: { width: 120 }, children: ["Px"] }] }] }]));
+    expect(body).toContain('<colgroup><col style="width:40%"><col style="width:auto"><col style="width:120px"></colgroup>');
+  });
+
   it("writes a table whose cells share their borders, a row's height and footer rows in tfoot; markup among its rows and in a cell as it is", () => {
     const { body } = web(
       page([

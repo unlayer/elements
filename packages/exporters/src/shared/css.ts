@@ -2,7 +2,16 @@
  * Writing markup and CSS from resolved values: escaping, and each value kind
  * as CSS. Shared by every HTML target.
  */
-import type { Border, BorderSide, FontFamily, Insets, Json, LineHeight, Radius, ResolvedText } from "@unlayer-internal/elements-core";
+import type { Border, BorderSide, FontFamily, Insets, Json, LineHeight, Radius, ResolvedNode, ResolvedText } from "@unlayer-internal/elements-core";
+
+/** A width as a share of `of`, in %. */
+export const share = (width: number, of: number) => `${Math.round((width / of) * 1e4) / 100}%`;
+
+/** A Table's column as a share of the table, unless it has columns that keep their own px. */
+export function columnWidth(table: ResolvedNode, width: number, index: number, total: number): number | string {
+  const size = table.columnSizes?.[index] ?? "share";
+  return size === "px" ? width : size === "free" ? "auto" : share(width, total);
+}
 
 export function escapeText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

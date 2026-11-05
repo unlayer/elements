@@ -4,12 +4,9 @@
  * footer rows at its end its `<tfoot>`.
  */
 import { h } from "../jsx";
-import { textDeclarations } from "../shared/css";
+import { columnWidth, textDeclarations } from "../shared/css";
 import { isNode, type Component } from "./context";
 import { box } from "./layout";
-
-/** A width as a share of `of`, in %. */
-export const share = (width: number, of: number) => `${Math.round((width / of) * 1e4) / 100}%`;
 
 export const Table: Component = ({ node, style, parent, placement, classes, render }) => {
   const rows = node.children.filter(isNode);
@@ -34,7 +31,7 @@ export const Table: Component = ({ node, style, parent, placement, classes, rend
     >
       <colgroup>
         {columns.map((width, index) => (
-          <col style={{ width: node.ownColumns ? (node.ownColumns[index] ? width : "auto") : share(width, total) }} />
+          <col style={{ width: columnWidth(node, width, index, total) }} />
         ))}
       </colgroup>
       {header.length > 0 && <thead>{header.map((row) => render(row, []))}</thead>}
