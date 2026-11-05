@@ -129,7 +129,7 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
       .filter((row): row is ResolvedNode => typeof row !== "string" && shown(row))
       .map((row) =>
         row.children
-          .filter((cell): cell is ResolvedNode => typeof cell !== "string")
+          .filter((cell): cell is ResolvedNode => typeof cell !== "string" && shown(cell))
           .map((cell) => tidy(inline(cell)))
           .join(" | ")
       )
