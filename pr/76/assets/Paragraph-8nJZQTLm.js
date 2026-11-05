@@ -1,1 +1,0 @@
-import{c as p,m as o,P as e}from"./Html-COuAh9FS.js";import{x as s}from"./render-B5shVQYX.js";const a={...e,color:"#000000"},n=p({name:"Paragraph",defaultValues:a,propMapper:r=>o(r,a,"Paragraph"),displayName:"Paragraph",draw:s});export{n as P};
