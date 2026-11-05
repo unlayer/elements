@@ -6,6 +6,7 @@
  * and each is named in what's returned for the caller to report: the migration never drops markup quietly.
  */
 import { decodeHtmlEntities } from "../entities";
+import { sourceReadsTwice } from "./expressions";
 
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g;
 /** An attribute: quoted, unquoted, or bare (`hidden`), its value then empty. */
@@ -293,7 +294,10 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
       const title = attrs.title === undefined ? "" : ` title=${HOLE.test(attrs.title) ? `{${expression(attrs.title)}}` : JSON.stringify(attrs.title)}`;
       open = `<${name("Link")} href=${href}${title}${styled([])}>`;
       // A URL from code may be missing (`<a${htmlAttribute("href", url)}>`): React writes no link then, only its text.
-      if (fromCode.has("href")) {
+      // That reads the URL twice: code that may do something, or give something else, each time it runs is written once.
+      if (fromCode.has("href") && !sourceReadsTwice(expression(attrs.href))) {
+        dropped.add(`link's URL is worked out by code, written once (${expression(attrs.href)}): where there's none, the new Link fails validation (today's draw its text alone there). Give it a name (const url = …) and only its text is written there`);
+      } else if (fromCode.has("href")) {
         when = `(${expression(attrs.href)})`;
         const styledText = styled([]);
         if (styledText) used.add("Span");

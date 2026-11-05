@@ -15,6 +15,7 @@
 import * as prettier from "prettier";
 import ts from "typescript";
 import { formatTsx, TODAYS_COMPONENTS } from "../print";
+import { readsTwice } from "./expressions";
 import { hole, inlineHtml, inPx, plain } from "./html";
 
 /** Stands for React's Fragment in what's written, until it's known what the template can call it. */
@@ -1085,10 +1086,17 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
   }
 
-  /** A Button's colors, given together as `buttonColors`, as the props they also are. */
-  function buttonColors(props: Props) {
+  /**
+   * A Button's colors, given together as `buttonColors`, as the props they also are. From code, each is read from it:
+   * code that may do something, or give something else, each time it runs (`nextTheme()`) isn't run once per color.
+   */
+  function buttonColors(node: ts.Node, props: Props) {
     const colors = props.get("buttonColors");
     if (!colors) return;
+    if (!isLiteral(colors) && !(colors.node && readsTwice(colors.node))) {
+      report.push(`${where(node)}: this Button's buttonColors are worked out by code (${code(colors)}), which would run once for each color: they're left out. Give them a name (const colors = …)`);
+      return;
+    }
     for (const key of ["color", "backgroundColor", "hoverColor", "hoverBackgroundColor"]) {
       if (props.has(key)) continue;
       if (!isLiteral(colors)) props.set(key, { code: `(${code(colors)}).${key}` });
@@ -1185,7 +1193,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   }
 
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
-    buttonColors(props);
+    buttonColors(node, props);
     let href = props.get("href");
     let target = props.get("target");
     // Today's action, as the builder writes one (`{ name: "web", values: { href, target } }`): its link and target.
@@ -1309,9 +1317,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const href = actionHref(props.get("action"), at);
     const linked = href ? element("Link", [attr("href", href)], [block]) : block;
     // A src from code may be empty (`avatarUrl || ""`): today's draw no image then, and the new Image needs one, so it's
-    // shown only where there's one.
-    const optional = !isLiteral(src) && !(node && ts.isObjectLiteralExpression(node));
+    // shown only where there's one. That reads the src twice: code that may do something, or give something else, each
+    // time it runs (`images.shift()`) is written once, and an empty one then fails validation.
+    const fromCode = !isLiteral(src) && !(node && ts.isObjectLiteralExpression(node));
+    const optional = fromCode && !!node && readsTwice(node);
     if (optional) report.push(`${where(at)}: this Image's src comes from code: where that's empty, the Image is left out (today's draw no image there, and the new one needs a src)`);
+    else if (fromCode) report.push(`${where(at)}: this Image's src is worked out by code, written once (${code(src)}): where that's empty, the new Image fails validation (today's draw no image there). Give it a name (const src = …) and the Image is left out there`);
     return wrapped(props, optional ? `{(${code(src)}) ? (${linked}) : null}` : linked, align(props, "textAlign", "center"), at);
   }
 

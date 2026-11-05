@@ -673,6 +673,26 @@ export const T = () => (
     expect(errors(code, { avatar: "https://example.com/a.png" })).toEqual([]);
   });
 
+  it("reads an Image's src from code once: a name is shown only where it isn't empty, a call is written once", async () => {
+    const named = await migrate('export const T = ({ logo }: { logo?: string }) => <Email><Row><Column><Image src={logo} altText="Logo" /></Column></Row></Email>;');
+    expect(squash(named.code)).toContain('{logo?<Imagesrc={logo}alt="Logo"/>:null}');
+    expect(errors(named.code, {})).toEqual([]);
+    // A call gives the next image each time it runs: written once, the Image draws the first, and there's no second.
+    const called = await migrate('export const T = ({ images }: { images: string[] }) => <Email><Row><Column><Image src={images.shift()} altText="Logo" /></Column></Row></Email>;');
+    expect(squash(called.code)).toContain('<Imagesrc={images.shift()}alt="Logo"/>');
+    expect(called.code.match(/images\.shift\(\)/g)).toHaveLength(1);
+    expect(called.report.join("\n")).toContain("this Image's src is worked out by code, written once (images.shift()): where that's empty, the new Image fails validation");
+    const images = ["https://example.com/first.png", "https://example.com/second.png"];
+    expect(errors(called.code, { images })).toEqual([]);
+    expect(images).toEqual(["https://example.com/second.png"]);
+  });
+
+  it("doesn't run a Button's buttonColors from a call once for each color", async () => {
+    const { code, report } = await migrate('export const T = ({ next }: { next: () => { color: string } }) => <Email><Row><Column><Button href="https://example.com" buttonColors={next()}>A</Button></Column></Row></Email>;');
+    expect(code).not.toContain("next()");
+    expect(report.join("\n")).toContain("this Button's buttonColors are worked out by code (next()), which would run once for each color: they're left out");
+  });
+
   it("takes a Button's and an Image's link and target from today's action, written out or as code", async () => {
     const { code, report } = await migrate(`export const T = ({ url, target }: { url: string; target?: string }) => <Email><Row><Column>
       <Button href={{ name: "web", values: { href: "https://example.com/a", target: "_self" } }}>A</Button>
@@ -844,6 +864,10 @@ describe("inlineHtml", () => {
         '{(other) ? (<Link href={{ href: other, target: (target ?? "_blank") === "_blank" ? "_blank" : "_self" }}>here</Link>) : (<>here</>)}'
     );
     expect(parsed.dropped).toEqual([]);
+    // A URL a call works out is written once: the guard would run it again.
+    const called = inlineHtml(`<a${hole(0)}>here</a>`, ['htmlAttribute("href", links.shift())']);
+    expect(called.jsx).toBe("<Link href={links.shift()}>here</Link>");
+    expect(called.dropped).toEqual(["link's URL is worked out by code, written once (links.shift()): where there's none, the new Link fails validation (today's draw its text alone there). Give it a name (const url = …) and only its text is written there"]);
   });
 
   it("starts each block's text on a line of its own, a paragraph's a blank line from its neighbors, with no line before the first", () => {
