@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Column, Document, Heading, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "../index";
+import { code } from "../../compat/SideBySide";
 
 const meta: Meta = {
   title: "Document",
@@ -17,6 +18,7 @@ export default meta;
 
 /** A Document's print HTML in a frame as tall as its pages. */
 const printed = (template: ReactElement): StoryObj => ({
+  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
   render: (_, { loaded }) => (
     <iframe

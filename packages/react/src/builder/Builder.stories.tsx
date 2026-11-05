@@ -47,7 +47,10 @@ function withoutHidden(design: Design): Design {
 }
 
 /** A template as it's written, next to the one that comes back from what the builder draws of its design. */
-const builder = (template: ReactElement) => sideBySide({ label: "As written", template }, { label: "Back from the builder", template: fromDesign(withoutHidden(toDesign(template).design)).element });
+const builder = (template: ReactElement) => {
+  const back = fromDesign(withoutHidden(toDesign(template).design));
+  return { ...sideBySide({ label: "As written", template }, { label: "Back from the builder", template: back.element }), parameters: { docs: { source: { code: back.code, language: "tsx" } } } };
+};
 
 // The examples as the codemod migrated them: what the builder gives back of them.
 export const StripeReceipt = builder(<stripe.StripeReceipt />);

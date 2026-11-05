@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Canvas, Circle, Column, Ellipse, Heading, Line, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Svg, Text } from "../index";
+import { code } from "../../compat/SideBySide";
 
 const meta: Meta = {
   title: "Canvas",
@@ -17,6 +18,7 @@ export default meta;
 
 /** A Canvas's HTML in a frame of its size. */
 const drawn = (template: ReactElement, width: number, height: number): StoryObj => ({
+  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
   render: (_, { loaded }) => <iframe title="Canvas" srcDoc={loaded.html as string} style={{ width, height, border: 0 }} />,
 });

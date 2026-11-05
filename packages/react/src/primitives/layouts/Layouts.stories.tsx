@@ -1,7 +1,7 @@
-import type { Meta } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Button, Column, Email, Grid, Heading, Image, Layer, Page, Paragraph, Section } from "../index";
-import { args, argTypes, sideBySide, type Args } from "../../compat/SideBySide";
+import { args, argTypes, code, sideBySide, type Args } from "../../compat/SideBySide";
 
 const meta: Meta<Args> = {
   title: "Layouts",
@@ -19,7 +19,10 @@ const meta: Meta<Args> = {
 export default meta;
 
 /** A template drawn as a Page and as an Email (`Root` is each). */
-const outputs = (template: (Root: typeof Page) => ReactElement) => sideBySide({ label: "Page", template: template(Page) }, { label: "Email", template: template(Email as unknown as typeof Page) });
+const outputs = (template: (Root: typeof Page) => ReactElement): StoryObj<Args> => ({
+  ...sideBySide({ label: "Page", template: template(Page) }, { label: "Email", template: template(Email as unknown as typeof Page) }),
+  parameters: { docs: { source: { code: code(template(Page)), language: "tsx" } } },
+});
 
 const INK = "#1F2933";
 const MUTED = "#616E7C";

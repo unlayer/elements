@@ -130,7 +130,7 @@ function jsx(node: unknown, indent: string, names: Set<string>): string[] {
 }
 
 /** What "Show code" has for a template: its imports and its JSX. */
-const code = (template: ReactElement) => {
+export const code = (template: ReactElement) => {
   const names = new Set<string>();
   const lines = jsx(template, "  ", names);
   return `import { ${[...names].sort().join(", ")} } from "@unlayer/react-elements/primitives";\n\nconst template = (\n${lines.join("\n")}\n);`;
