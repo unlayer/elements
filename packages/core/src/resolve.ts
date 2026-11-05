@@ -129,6 +129,8 @@ interface Context {
   registry: Registry;
   /** The root's type: Rows stack on phones by default in a responsive one. */
   responsive: boolean;
+  /** An Email's Rows wrap only where they stay side by side on phones. */
+  email: boolean;
 }
 
 /**
@@ -150,7 +152,7 @@ export function resolveExpanded(document: ElementsDocument, options?: Components
   const registry = registryOf(options);
   const d = new Diagnostics();
   const definition = registry.get(document.root.type)!;
-  const context: Context = { d, registry, responsive: !!definition.responsive };
+  const context: Context = { d, registry, responsive: !!definition.responsive, email: document.root.type === "Email" };
   const root = resolveNode(document.root, "root", { ...INITIAL_TEXT, lineHeightPx: 24 }, null, context);
   // A Document's content is as wide as its page inside the margins; a Canvas's, as it inside its padding.
   const width = root.type === "Document" ? pageBox(root.props).contentWidth : toPx(root.props.width, null);
@@ -314,19 +316,42 @@ function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: Res
   const desktop = nodes.filter(({ resolved }) => !resolved.hidden?.desktop);
   for (const { resolved } of nodes) if (resolved.hidden?.desktop) setWidth(resolved, available);
   const gap = toPx(row.style.gap, null) ?? 0;
-  const room = available - gap * Math.max(0, desktop.length - 1);
   const items = desktop.map(({ resolved }) => flexItem(resolved, available));
-  const widths = roundTogether(flexWidths(items, room));
-  // A child that takes its own size, and whose size isn't known (a Button without a width), takes no room and stays unknown.
-  desktop.forEach(({ resolved }, index) => setWidth(resolved, items[index].unknown ? null : widths[index]));
+  // A Row that wraps breaks where its children no longer fit, and each line is laid out on its own.
+  const wraps = row.style.flexWrap === "wrap" && (!context.email || row.props.stackOnMobile === false);
+  for (const line of wraps ? wrappedLines(items, gap, available) : [items.map((_, index) => index)]) {
+    const room = available - gap * Math.max(0, line.length - 1);
+    const ownItems = line.map((index) => items[index]);
+    const widths = roundTogether(flexWidths(ownItems, room));
+    // A child that takes its own size, and whose size isn't known (a Button without a width), takes no room and stays unknown.
+    line.forEach((index, at) => setWidth(desktop[index].resolved, items[index].unknown ? null : widths[at]));
 
-  const asked = items.reduce((sum, item) => sum + item.base, 0);
-  const used = widths.reduce((sum, width) => sum + width, 0);
-  if (used > room + 0.5) {
-    context.d.warning("layout/overflow", `The Row's children need ${Math.round(used - room)}px more than the ${Math.round(available)}px it has, at their minimum widths`, path, row.id);
-  } else if (asked > room + 0.5 && items.some((item) => item.shrink > 0 && item.inner > 0)) {
-    context.d.warning("layout/shrunk", `The Row's children's widths add up to ${Math.round(asked)}px, more than the ${Math.round(room)}px it has: they're narrowed to fit, as a browser does`, path, row.id);
+    const asked = ownItems.reduce((sum, item) => sum + item.base, 0);
+    const used = widths.reduce((sum, width) => sum + width, 0);
+    if (used > room + 0.5) {
+      context.d.warning("layout/overflow", `The Row's children need ${Math.round(used - room)}px more than the ${Math.round(available)}px it has, at their minimum widths`, path, row.id);
+    } else if (asked > room + 0.5 && ownItems.some((item) => item.shrink > 0 && item.inner > 0)) {
+      context.d.warning("layout/shrunk", `The Row's children's widths add up to ${Math.round(asked)}px, more than the ${Math.round(room)}px it has: they're narrowed to fit, as a browser does`, path, row.id);
+    }
   }
+}
+
+/** A wrapping Row's children by line, as flexbox breaks them: at the child whose size no longer fits beside the others. */
+function wrappedLines(items: FlexItem[], gap: number, available: number): number[][] {
+  const lines: number[][] = [];
+  let used = 0;
+  items.forEach((item, index) => {
+    const size = Math.max(item.min, Math.min(item.max, item.base));
+    const line = lines[lines.length - 1];
+    if (line && used + gap + size <= available + 0.5) {
+      line.push(index);
+      used += gap + size;
+    } else {
+      lines.push([index]);
+      used = size;
+    }
+  });
+  return lines;
 }
 
 interface FlexItem {

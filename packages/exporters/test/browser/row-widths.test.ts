@@ -22,6 +22,8 @@ const CASES: Array<[string, unknown[], Record<string, unknown>?, Record<string, 
   ["minimums that can't fit", [column({ minWidth: 400 }), column({ minWidth: 300 })]],
   ["a Divider with a % width", [{ type: "Divider", style: { width: "50%" } }, column()]],
   ["room left in a Row kept side by side", [column({ width: 100 }), column({ width: 200 })], {}, { stackOnMobile: false }],
+  ["a Row that wraps, each child on a line of its own", [column({ width: 400 }), column({ width: 400 })], { flexWrap: "wrap" }, { stackOnMobile: false }],
+  ["a Row that wraps, two children on a line and one on the next", [column({ width: 200 }), column({ width: 200 }), column({ width: 400 })], { flexWrap: "wrap", gap: 10 }, { stackOnMobile: false }],
   ["room left in a Row kept side by side, at its end", [column({ width: 100 }), column({ width: 200 })], { justifyContent: "end" }, { stackOnMobile: false }],
 ];
 
