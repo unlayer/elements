@@ -29,12 +29,13 @@ pnpm test
 ```
 packages/
   react/       → Published package (@unlayer/react-elements)
-  core/        → Component definitions, validation, layout (bundled into react, not published)
-  exporters/   → The writers: email, page and print HTML, plain text (bundled into react, not published)
+  core/        → Component definitions, validation, layout, and the writers (src/writers/: email, page and print
+                 HTML, plain text); bundled into react, not published
   pdf/         → A Document written as a PDF (@unlayer/elements-pdf)
   image/       → A Canvas written as PNG or SVG (@unlayer/elements-image)
-  migrate/     → The migration CLI (@unlayer/migrate), with from-react-email/ and convert-core/
-  demo/        → Demo application
+  migrate/     → The migration CLI (@unlayer/migrate), with the React Email converter (src/react-email/) and what
+                 converters share (src/convert/)
+examples/      → The demo application (demo/) and runnable examples
 tests/
   nextjs-integration/  → Integration test with Next.js 15 + Server Components (next14-, next16-, jest-integration/: more consumers)
 ```
@@ -79,14 +80,14 @@ pnpm storybook:hub
 The components are made from their definitions in `packages/core/src/components.ts` (props, styles, children, support
 per output, editors): `packages/react/src/primitives/components.tsx` turns each into a React component whose props'
 types come from the same definition that validates them. To add a component, define it in core and give each output
-a writer (`packages/exporters/src/{email,page}/`); see `packages/exporters/README.md`.
+a writer (`packages/core/src/writers/{email,page}/`); see `packages/core/README.md`.
 
 ### Rendering Pipeline
 
 ```
 JSX → one React render collects the template (packages/react/src/primitives/collect.tsx)
   → packages/core checks it and lays it out (each block's width)
-  → packages/exporters writes the email, page or print HTML and the plain text
+  → its writers (packages/core/src/writers) write the email, page or print HTML and the plain text
 ```
 
 `render()` writes the output its root says (`<Email>`, `<Page>`, `<Document>`, `<Canvas>`); `toDesign()` and
@@ -95,8 +96,8 @@ JSX → one React render collects the template (packages/react/src/primitives/co
 ### Key Dependencies
 
 The published package has no dependencies of its own: React and react-dom are peers, and the private workspace
-packages (`packages/core`, `packages/exporters`) are bundled into it. The HTML is written in this repository
-(`packages/exporters`), and each builder tool's default values are in `packages/react/src/builder/tool-defaults.ts`.
+package (`packages/core`) is bundled into it. The HTML is written in this repository (`packages/core/src/writers`),
+and each builder tool's default values are in `packages/react/src/builder/tool-defaults.ts`.
 
 ## Pull Request Guidelines
 
@@ -121,7 +122,7 @@ Version bumps are automatic on merge to `main`. To control the bump type, add a 
 
 - TypeScript strict mode
 - Follow existing naming conventions: `name.ts`, `name.test.ts`, stories in `*.stories.tsx`
-- Keep `packages/core` and `packages/exporters` framework-agnostic — no React imports (the writers' JSX writes strings)
+- Keep `packages/core` framework-agnostic — no React imports (the writers' JSX writes strings)
 
 ## Questions?
 

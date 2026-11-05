@@ -91,7 +91,7 @@ Email clients do not share a modern browser CSS baseline. To keep layout behavio
 Repository evidence:
 
 - `<Email>` is documented and tested as table-based output for email clients: [packages/react/README.md](./packages/react/README.md)
-- The email document shell includes MSO conditionals and Office's namespace: [packages/exporters/src/email/index.tsx](./packages/exporters/src/email/index.tsx)
+- The email document shell includes MSO conditionals and Office's namespace: [packages/core/src/writers/email/index.tsx](./packages/core/src/writers/email/index.tsx)
 - Golden output asserts table markup and Outlook-specific conditionals (`[if mso]`): [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
 
 ### Known Compatibility Caveats (Current Repo Scope)
@@ -258,12 +258,8 @@ For the full API reference, component props, design patterns, and common mistake
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
 | [`@unlayer/elements-pdf`](./packages/pdf) | A `<Document>` written as a PDF, with no browser | Not yet |
 | [`@unlayer/elements-image`](./packages/image) | A `<Canvas>` written as PNG or SVG | Not yet |
-| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
-| [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
-| [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
-| [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation and layout | Internal (bundled into `@unlayer/react-elements`) |
-| [`@unlayer-internal/elements-exporters`](./packages/exporters) | The writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
-| [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
+| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals; the converter as a library at `@unlayer/migrate/react-email` | Not yet |
+| [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation, layout, and the writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
 
 ## Examples
 
@@ -271,6 +267,7 @@ Runnable projects you can clone and experiment with:
 
 | Example | Description |
 |---------|-------------|
+| [`examples/demo`](./examples/demo) | The demo site (Vite + React): a component gallery and sample templates in each output |
 | [`examples/content-workflows`](./examples/content-workflows) | One React invoice → email + web + real PDF, five email providers, and editable design JSON |
 | [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `render()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
 
@@ -300,7 +297,7 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements writes its HTML with its own open-source writers, in [this repository](./packages/exporters). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
+Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 
