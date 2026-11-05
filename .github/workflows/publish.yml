@@ -146,10 +146,10 @@ jobs:
             ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
-            ELEMENTS=$(changed 'v*' packages/react packages/core packages/exporters pnpm-workspace.yaml)
+            ELEMENTS=$(changed 'v*' packages/react packages/core pnpm-workspace.yaml)
             # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
             # release the converter supports), not the newest, so an Elements release doesn't republish it.
-            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
+            MIGRATE=$(changed 'migrate-v*' packages/migrate pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
           if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then

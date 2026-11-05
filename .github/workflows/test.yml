@@ -61,10 +61,11 @@ jobs:
       # only type-checks each entry's import graph, so this catches a relaxed or
       # broken input type.
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck && pnpm --filter @unlayer/elements-pdf typecheck && pnpm --filter @unlayer/elements-image typecheck
+        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer/elements-pdf typecheck && pnpm --filter @unlayer/elements-image typecheck
 
+      # The CLI, the converters (src/react-email, src/convert), their tests and the benchmark.
       - name: Converter typechecks
-        run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
+        run: pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budgets ─────────────────────────────────────
       # Each entry's ESM bundle against its budget. The budgets track the
@@ -120,7 +121,8 @@ jobs:
             exit 1
           fi
 
-      # Every package's unit tests but the codemod's (their own job) and react's, which run once, with coverage.
+      # Every package's unit tests but migrate's (the codemod's and the converters', their own job) and react's, which
+      # run once, with coverage.
       - name: Run tests
         run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
 
@@ -150,7 +152,8 @@ jobs:
             coverage/
           retention-days: 30
 
-  # @unlayer/migrate's tests: the slowest suite (the codemod converts and checks whole templates).
+  # @unlayer/migrate's tests, the converters' included: the slowest suite (the codemod converts and checks whole
+  # templates).
   codemod:
     name: Codemod tests
     runs-on: ubuntu-latest
@@ -301,6 +304,11 @@ jobs:
           pnpm --filter @unlayer/content-workflows-example typecheck
           pnpm --filter @unlayer/content-workflows-example test
 
+      # The demo app (examples/demo) type-checks and builds against the built package: `pnpm build` builds
+      # packages/ only.
+      - name: Demo app builds
+        run: pnpm --filter @unlayer/elements-demo build
+
       # ── Browser import/runtime safety gate ──────────────────────
       # Bundles the shipped package entry as a browser consumer would, then
       # imports and renders inside Chromium without a Node `process` global.
@@ -319,9 +327,9 @@ jobs:
         run: pnpm --filter @unlayer/react-elements test:e2e
 
       # Elements primitives: what Chromium lays out matches the widths the resolver works out,
-      # on desktop and on phones (packages/exporters/test/browser).
+      # on desktop and on phones (packages/core/test/browser).
       - name: Primitives layout gate (web and email)
-        run: pnpm --filter @unlayer-internal/elements-exporters test:browser
+        run: pnpm --filter @unlayer-internal/elements-core test:browser
 
       # A Document's PDF (written by react-pdf, without a browser) laid out as its print HTML is: Chromium measures
       # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/pdf/test/browser).
@@ -340,17 +348,17 @@ jobs:
       # a word shown at another size on desktop, or words moved (on phones,
       # only for the fixtures that match there).
       - name: Migration fidelity smoke test
-        run: pnpm --filter @unlayer/from-react-email test:fidelity
+        run: pnpm --filter @unlayer/migrate test:fidelity
 
       # ── Migration check vs Chromium (differential) ──────────────
       # 400 fixed seeds: one side of a base (hand-written documents and the
       # fixture templates' renders) is mutated, Chromium decides whether a
       # reader sees the two differently, and the check must fail every pair
-      # it does. Committed fixtures (test/differential/) must still differ in
+      # it does. Committed fixtures (test/react-email/differential/) must still differ in
       # Chromium and fail the check. A false pass writes its pair to
       # .bench-out/differential/ and fails the job.
       - name: Migration check vs Chromium
-        run: pnpm --filter @unlayer/from-react-email test:differential
+        run: pnpm --filter @unlayer/migrate test:differential
 
       # ── Next.js integration test ────────────────────────────────
       # Packs the built react-elements as a tarball and installs it
