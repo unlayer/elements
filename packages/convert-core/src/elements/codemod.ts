@@ -279,13 +279,16 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
     return false;
   };
+  /** The types the module declares itself (`type Row = …`): a type by one of these names is that type, not an import. */
+  const ownTypes = new Set(file.statements.filter((statement) => ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)).map((statement) => (statement as ts.TypeAliasDeclaration | ts.InterfaceDeclaration).name.text));
   /** Whether every use of an imported name (but its import, and where the name is another's) is one `ok` takes. */
   const onlyUsedAs = (name: ts.Identifier, ok: (use: ts.Identifier) => boolean) => {
     let only = true;
     const visit = (n: ts.Node): void => {
       const parent = n.parent;
       const named = parent && ((ts.isPropertyAccessExpression(parent) && parent.name === n) || (ts.isPropertyAssignment(parent) && parent.name === n));
-      if (ts.isIdentifier(n) && n.text === name.text && n !== name && !named && !shadowed(n) && !ok(n)) only = false;
+      const ownType = parent && ownTypes.has(name.text) && ((ts.isTypeReferenceNode(parent) && parent.typeName === n) || ((ts.isTypeAliasDeclaration(parent) || ts.isInterfaceDeclaration(parent)) && parent.name === n));
+      if (ts.isIdentifier(n) && n.text === name.text && n !== name && !named && !ownType && !shadowed(n) && !ok(n)) only = false;
       ts.forEachChild(n, visit);
     };
     visit(file);
@@ -1048,13 +1051,34 @@ export async function migrateElements(source: string, options: MigrateElementsOp
 
   function button(node: ts.JsxElement | ts.JsxSelfClosingElement, props: Props) {
     buttonColors(props);
-    const href = props.get("href");
+    let href = props.get("href");
+    let target = props.get("target");
+    // Today's action, as the builder writes one (`{ name: "web", values: { href, target } }`): its link and target.
+    const action = webAction(href);
+    if (action === "other") {
+      report.push(`${where(node)}: this Button's action can't be read as a web link: it links to "#"`);
+      href = lit("#");
+    } else if (action) {
+      href = action.href;
+      if (!target && action.target) target = action.target;
+    } else if (isLiteral(href) && href.literal && typeof href.literal === "object") {
+      const { name, values = {}, attrs = {} } = href.literal as { name?: unknown; values?: Record<string, unknown>; attrs?: Record<string, unknown> };
+      const link = values.href ?? attrs.href;
+      const opens = values.target ?? attrs.target;
+      if (name === "web" && typeof link === "string" && link) {
+        href = lit(link);
+        if (!target && (opens === "_blank" || opens === "_self")) target = lit(opens);
+      } else {
+        report.push(`${where(node)}: this Button's action can't be read as a web link: it links to "#"`);
+        href = lit("#");
+      }
+    }
     const fontSize = props.get("fontSize");
     const radius = props.get("borderRadius");
     const m = phone(props, node);
     const block = element("Button", [
       // Today's opens in a new window, where the new one's stays in the same.
-      attr("href", opensNewWindow(href ?? lit("#"), props.get("target"))),
+      attr("href", opensNewWindow(href ?? lit("#"), target)),
       styleAttr([
         ["width", isLiteral(props.get("width")) && (props.get("width") as { literal: unknown }).literal !== "auto" ? props.get("width") : undefined],
         // Transparent, where the new Button has a color of its own.
@@ -1082,6 +1106,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     if (!src || nothing(src)) {
       src = lit(PLACEHOLDER);
       report.push(`${where(at)}: this Image has no src: today's draw their placeholder image, which is written in (give it its own)`);
+    }
+    // An empty src (`""`, `{ url: "" }`): today's draw no image, and the new Image needs one, so it's left out.
+    const literal = isLiteral(src) ? src.literal : undefined;
+    if (literal === "" || (literal && typeof literal === "object" && (literal as { url?: unknown }).url === "")) {
+      report.push(`${where(at)}: this Image's src is empty: today's draw no image, and the new Image needs one, so it's left out`);
+      return wrapped(props, "", align(props, "textAlign", "center"), at);
     }
     let natural: unknown;
     let source: Value | undefined = src;
@@ -1142,15 +1172,42 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         : [["width", n(m.get("width"))], ["maxWidth", n(m.get("maxWidth"))]];
     const block = element("Image", [attr("src", source), attr("alt", props.get("altText") ?? props.get("alt")), styleAttr(size), mobileAttr(phoneSize)]);
     const href = actionHref(props.get("action"), at);
-    return wrapped(props, href ? element("Link", [attr("href", href)], [block]) : block, align(props, "textAlign", "center"), at);
+    const linked = href ? element("Link", [attr("href", href)], [block]) : block;
+    // A src from code may be empty (`avatarUrl || ""`): today's draw no image then, and the new Image needs one, so it's
+    // shown only where there's one.
+    const optional = !isLiteral(src) && !(node && ts.isObjectLiteralExpression(node));
+    if (optional) report.push(`${where(at)}: this Image's src comes from code: where that's empty, the Image is left out (today's draw no image there, and the new one needs a src)`);
+    return wrapped(props, optional ? `{(${code(src)}) ? (${linked}) : null}` : linked, align(props, "textAlign", "center"), at);
   }
 
   /**
    * Today's image action as a link: a URL (which today's open in a new tab), or `{ name: "web", values: { href,
    * target } }`; anything else (an expression, an email or phone action) is reported and left out.
    */
+  /**
+   * Today's action written as code (`{ name: "web", values: { href: url, target } }`): its link and target; "other" for
+   * another action (an email, a phone number); undefined where it isn't an object written out.
+   */
+  function webAction(value: Value | undefined): { href: Value; target?: Value } | "other" | undefined {
+    const node = value && !isLiteral(value) && value.node ? bare(value.node) : undefined;
+    if (!node || !ts.isObjectLiteralExpression(node)) return undefined;
+    const field = (object: ts.ObjectLiteralExpression, key: string): ts.Expression | undefined => {
+      const property = object.properties.find((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && p.name.getText() === key);
+      if (property && ts.isShorthandPropertyAssignment(property)) return property.name;
+      return property && ts.isPropertyAssignment(property) ? bare(property.initializer) : undefined;
+    };
+    const name = field(node, "name");
+    const values = field(node, "values") ?? field(node, "attrs");
+    const link = values && ts.isObjectLiteralExpression(values) ? field(values, "href") : undefined;
+    if (!name || !ts.isStringLiteralLike(name) || name.text !== "web" || !link) return "other";
+    const opens = field(values as ts.ObjectLiteralExpression, "target");
+    return { href: valueOf(link), ...(opens ? { target: valueOf(opens) } : {}) };
+  }
+
   function actionHref(action: Value | undefined, at: ts.Node): Value | undefined {
     if (!action) return undefined;
+    const web = webAction(action);
+    if (web && web !== "other") return opensNewWindow(web.href, web.target);
     // A URL from code (`action={social.href}`). An action object from code stays reported below.
     if (!isLiteral(action) && action.node && !ts.isObjectLiteralExpression(bare(action.node)) && !/\baction\b/i.test(action.code)) return { code: `{ href: ${code(action)}, target: "_blank" }` };
     const value = isLiteral(action) ? action.literal : undefined;

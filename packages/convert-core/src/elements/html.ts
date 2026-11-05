@@ -8,7 +8,8 @@
 import { decodeHtmlEntities } from "../entities";
 
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*)>/g;
-const ATTRIBUTE = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+/** An attribute: quoted, unquoted, or bare (`hidden`), its value then empty. */
+const ATTRIBUTE = /([a-zA-Z][a-zA-Z0-9:-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 /** What draws nothing (a comment), and elements whose content isn't text (a style sheet, a script). */
 const COMMENT = /<!--[\s\S]*?-->/g;
 const NOT_TEXT = /<\s*(style|script|title|head)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
@@ -64,7 +65,7 @@ function look(tag: string): string | undefined {
 
 const attributes = (text: string): Record<string, string> => {
   const out: Record<string, string> = {};
-  for (const match of text.matchAll(ATTRIBUTE)) out[match[1].toLowerCase()] = decodeHtmlEntities(match[2] ?? match[3] ?? "");
+  for (const match of text.matchAll(ATTRIBUTE)) out[match[1].toLowerCase()] = decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? "");
   return out;
 };
 
@@ -115,7 +116,18 @@ export function plain(value: string): string {
 /** Text, or JSX source (an element, a line break). */
 type Part = { text: string } | { jsx: string };
 /** An element open in the markup, and what's in it so far; `open` and `close` are its JSX (none for one left out). */
-type Frame = { tag: string; open: string; close: string; parts: Part[]; block?: boolean; apart?: boolean };
+type Frame = {
+  tag: string;
+  open: string;
+  close: string;
+  parts: Part[];
+  block?: boolean;
+  apart?: boolean;
+  hidden?: boolean;
+  /** Written only where `when` holds (a link whose URL comes from code); elsewhere what's in it is written in `otherwise`. */
+  when?: string;
+  otherwise?: { open: string; close: string };
+};
 
 /**
  * The markup as children's JSX source, the components they use, and what's left out of it (each a phrase that follows
@@ -196,7 +208,12 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
   };
   const close = () => {
     const frame = stack.pop()!;
-    if (frame.open) top().parts.push({ jsx: `${frame.open}${jsx(frame.parts)}${frame.close}` });
+    // Hidden (`<b hidden>`): it never shows, nor what's in it.
+    if (frame.hidden) return;
+    if (frame.when !== undefined && frame.otherwise) {
+      const inner = jsx(frame.parts);
+      top().parts.push({ jsx: `{${frame.when} ? (${frame.open}${inner}${frame.close}) : (${frame.otherwise.open}${inner}${frame.otherwise.close})}` });
+    } else if (frame.open) top().parts.push({ jsx: `${frame.open}${jsx(frame.parts)}${frame.close}` });
     else top().parts.push(...frame.parts);
     // Boxes in a line of their own (inline-block) never run into each other; runs of text would.
     if (frame.apart) top().parts.push({ jsx: '{" "}' });
@@ -234,22 +251,29 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
       continue;
     }
     const attrs = attributes(match[3]);
+    /** Attributes from code: written only where their value isn't null, undefined or false. */
+    const fromCode = new Set<string>();
     // An attribute from code, as today's markup writes it (`<a${htmlAttribute("href", url)}>`), is the attribute it is.
     for (const [, index] of match[3].replace(/"[^"]*"|'[^']*'/g, "").matchAll(HOLES)) {
-      const fromCode = /^\s*\w*htmlAttribute\w*\(\s*["'`]([\w-]+)["'`]\s*,\s*([\s\S]+?)\s*\)\s*$/i.exec(holes[Number(index)]);
-      if (!fromCode) continue;
-      holes.push(fromCode[2]);
-      attrs[fromCode[1].toLowerCase()] = hole(holes.length - 1);
+      const call = /^\s*\w*htmlAttribute\w*\(\s*["'`]([\w-]+)["'`]\s*,\s*([\s\S]+?)\s*\)\s*$/i.exec(holes[Number(index)]);
+      if (!call) continue;
+      holes.push(call[2]);
+      attrs[call[1].toLowerCase()] = hole(holes.length - 1);
+      fromCode.add(call[1].toLowerCase());
     }
     const onItsOwnLine = !BLOCKS.has(tag) && /(^|;)\s*display\s*:\s*block\b/i.test(attrs.style ?? "");
     const style = runStyle(attrs.style, expression);
     for (const declaration of style.dropped) if (!(onItsOwnLine && /^display\s*:/i.test(declaration))) dropped.add(`style ${source(declaration)} (on <${tag}>) is left out: a run of text doesn't take it`);
     const styled = (base: string[]) => {
-      const all = [...base, ...style.entries];
+      // One entry per property: the element's own style over what its tag gives (`<u style="text-decoration: none">`), and
+      // of one written twice (`text-decoration: none; text-decoration: underline`) the last, as in CSS.
+      const all = [...new Map([...base, ...style.entries].map((entry) => [entry.slice(0, entry.indexOf(":")), entry])).values()];
       return all.length ? ` style={{ ${all.join(", ")} }}` : "";
     };
     let open = "";
     let component = "";
+    let when: string | undefined;
+    let otherwise: Frame["otherwise"];
     if (Object.prototype.hasOwnProperty.call(RUNS, tag)) component = "Span";
     else if (tag === "a" && attrs.href) component = "Link";
     else if (tag === "p") dropped.add("paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out");
@@ -262,18 +286,33 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
     }
     if (component === "Link") {
       const target = attrs.target;
-      const href = target === "_blank" || target === "_self" ? `{{ href: ${expression(attrs.href)}, target: ${JSON.stringify(target)} }}` : HOLE.test(attrs.href) ? `{${expression(attrs.href)}}` : JSON.stringify(attrs.href);
-      if (target && target !== "_blank" && target !== "_self") dropped.add(`<a>'s target ${JSON.stringify(target)} is left out: a link opens in a new window ("_blank") or in its own ("_self")`);
+      // A target from code: a new window where it says so, else its own (no target, "_parent", "_top", a name).
+      const opens = target !== undefined && HOLE.test(target) ? `(${expression(target)}) === "_blank" ? "_blank" : "_self"` : target === "_blank" || target === "_self" ? JSON.stringify(target) : undefined;
+      const href = opens ? `{{ href: ${expression(attrs.href)}, target: ${opens} }}` : HOLE.test(attrs.href) ? `{${expression(attrs.href)}}` : JSON.stringify(attrs.href);
+      if (target && !opens) dropped.add(`<a>'s target ${JSON.stringify(target)} is left out: a link opens in a new window ("_blank") or in its own ("_self")`);
       const title = attrs.title === undefined ? "" : ` title=${HOLE.test(attrs.title) ? `{${expression(attrs.title)}}` : JSON.stringify(attrs.title)}`;
       open = `<${name("Link")} href=${href}${title}${styled([])}>`;
+      // A URL from code may be missing (`<a${htmlAttribute("href", url)}>`): React writes no link then, only its text.
+      if (fromCode.has("href")) {
+        when = `(${expression(attrs.href)})`;
+        const styledText = styled([]);
+        if (styledText) used.add("Span");
+        otherwise = styledText ? { open: `<${name("Span")}${styledText}>`, close: `</${name("Span")}>` } : { open: "<>", close: "</>" };
+      }
     } else if (component === "Span" || style.entries.length) {
       // A block's or another element's style a run takes is its text's.
       component = "Span";
       open = `<${name("Span")}${styled(Object.prototype.hasOwnProperty.call(RUNS, tag) ? RUNS[tag] : [])}>`;
     }
     if (component) used.add(component);
+    let shut = component ? `</${name(component)}>` : "";
+    // Hidden where code says (`<span${htmlAttribute("hidden", vat === 0 || undefined)}>`): shown only where it isn't.
+    if (attrs.hidden !== undefined && fromCode.has("hidden")) {
+      open = `{((${expression(attrs.hidden)}) ?? false) === false ? (${open || "<>"}`;
+      shut = `${shut || "</>"}) : null}`;
+    }
     // An element written closed (`<span />`) holds nothing.
-    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: component ? `</${name(component)}>` : "", parts: [], block: onItsOwnLine, apart: /(^|;)\s*display\s*:\s*inline-(block|flex)\b/i.test(attrs.style ?? "") });
+    if (!/\/\s*$/.test(match[3])) stack.push({ tag, open, close: shut, parts: [], block: onItsOwnLine, apart: /(^|;)\s*display\s*:\s*inline-(block|flex)\b/i.test(attrs.style ?? ""), hidden: attrs.hidden !== undefined && !fromCode.has("hidden"), when, otherwise });
   }
   pushText(markup.slice(at));
   // What isn't closed ends with the markup, as a browser draws it.

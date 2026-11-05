@@ -23,8 +23,7 @@ describe("migrateElements", () => {
   it("writes a Document as the new root, with its page's size and orientation", async () => {
     const { code, report } = await migrateElements(`import { Document, Row, Column, Paragraph, PageBreak } from "@unlayer/react-elements";
 export const T = () => <Document documentSize="Letter" documentOrientation="landscape" contentWidth="700px"><Row><Column><Paragraph>One</Paragraph><PageBreak /><Paragraph>Two</Paragraph></Column></Row></Document>;`);
-    expect(code).toContain('from "@unlayer/react-elements"');
-    expect(code).not.toMatch(/from "@unlayer\/react-elements";/);
+    expect(code).toContain('import { Document, PageBreak, Paragraph, Section } from "@unlayer/react-elements";');
     expect(squash(code)).toContain('<Documentsize="Letter"orientation="landscape"');
     expect(code).toContain("<PageBreak />");
     expect(report.join("\n")).toContain("contentWidth is left out");
@@ -126,7 +125,7 @@ export const T = ({ cells }: { cells: number[] }) => <Email><Row cells={cells}><
     expect(computed.report.join("\n")).not.toContain("Columns are written one under another");
     expect(computed.code).toContain("<SharedRow shares={cells}>");
     expect(computed.code).toContain("function SharedRow(");
-    expect(computed.code).toMatch(/import \{[^}]*\bRow\b[^}]*\} from "@unlayer\/react-elements\/primitives"/);
+    expect(computed.code).toMatch(/import \{[^}]*\bRow\b[^}]*\} from "@unlayer\/react-elements";/);
     expect(computed.code).not.toMatch(/import \{[^}]*SharedRow/);
     const layout = await migrateElements(`import { Email, Row, Column } from "@unlayer/react-elements";
 export const T = ({ chosen }: { chosen: { cells: number[] } }) => <Email><Row layout={chosen}><Column /></Row></Email>;`);
@@ -245,12 +244,12 @@ export const T = ({ name }: { name: string }) => <Email><Row><Column>
     expect(errors(code)).toEqual([]);
   });
 
-  it("imports the new components it uses from /primitives, and keeps today's other exports where they were", async () => {
+  it("imports the new components it uses from the package, and keeps today's other exports where they were, for you to replace", async () => {
     const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, renderToHtml } from "@unlayer/react-elements";
 export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);`);
     expect(code).toContain('import { Email, Paragraph, Section } from "@unlayer/react-elements";');
     expect(code).toContain('import { renderToHtml } from "@unlayer/react-elements";');
-    expect(report.join("\n")).toMatch(/renderToHtml is today's API/);
+    expect(report.join("\n")).toMatch(/renderToHtml is Elements 0\.2's API, which 0\.3\.0 doesn't have: it stays imported from @unlayer\/react-elements for you to replace/);
   });
 
   it("writes out the defaults today's components draw that the new ones don't share", async () => {
@@ -528,7 +527,7 @@ import Link from "next/link";
 function Section({ title }: { title: string }) { return <h2>{title}</h2>; }
 export const T = () => <Email><Row><Column><Paragraph html={'See <a href="https://example.com">the docs</a>'} /></Column></Row></Email>;
 export const Nav = () => <Link href="/">Home</Link>;`);
-    expect(code).toMatch(/import \{\s*Email,\s*Link as ElementsLink,\s*Paragraph,\s*Section as ElementsSection,?\s*\} from "@unlayer\/react-elements\/primitives";/);
+    expect(code).toMatch(/import \{\s*Email,\s*Link as ElementsLink,\s*Paragraph,\s*Section as ElementsSection,?\s*\} from "@unlayer\/react-elements";/);
     expect(squash(code)).toContain('<ElementsSection><Paragraphstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>{"See"}<ElementsLinkhref="https://example.com">thedocs</ElementsLink></Paragraph></ElementsSection>');
     // The template's own are left as they were.
     expect(code).toContain('<Link href="/">Home</Link>');
@@ -646,6 +645,42 @@ export const T = () => (
     expect(errors(code)).toEqual([]);
   });
 
+  it("leaves an Image out where its src from code is empty, and one whose src is empty, as today's draw none", async () => {
+    const { code, report } = await migrate('export const T = ({ avatar }: { avatar?: string }) => <Email><Row><Column><Image src={avatar || ""} alt="" /><Image src="" alt="Logo" /><Image src={{ url: "" }} /></Column></Row></Email>;');
+    expect(squash(code)).toContain('{avatar||""?<Imagesrc={avatar||""}');
+    expect(code.match(/<Image\b/g)).toHaveLength(1);
+    expect(report.join("\n")).toMatch(/src comes from code: where that's empty, the Image is left out/);
+    expect(report.filter((line) => /src is empty: today's draw no image/.test(line))).toHaveLength(2);
+    // It validates with and without one (the new Image needs a src).
+    expect(errors(code, {})).toEqual([]);
+    expect(errors(code, { avatar: "https://example.com/a.png" })).toEqual([]);
+  });
+
+  it("takes a Button's and an Image's link and target from today's action, written out or as code", async () => {
+    const { code, report } = await migrate(`export const T = ({ url, target }: { url: string; target?: string }) => <Email><Row><Column>
+      <Button href={{ name: "web", values: { href: "https://example.com/a", target: "_self" } }}>A</Button>
+      <Button href={{ name: "web", values: { href: url, target: "_self" } }}>B</Button>
+      <Button href={{ name: "email", values: { email: "help@example.com" } }}>C</Button>
+      <Image src="https://example.com/i.png" action={{ name: "web", values: { href: url, target } }} />
+    </Column></Row></Email>;`);
+    const flat = squash(code);
+    expect(flat).toContain('href={{href:"https://example.com/a",target:"_self"}}');
+    expect(flat).toContain('href={{href:url,target:"_self"}}');
+    expect(flat).toContain('<Linkhref={{href:url,target:targetas"_blank"|"_self"}}><Image');
+    expect(report.filter((line) => /this Button's action can't be read as a web link: it links to "#"/.test(line))).toHaveLength(1);
+    expect(report.join("\n")).not.toMatch(/Image's action can't be read/);
+    expect(errors(code, { url: "https://example.com", target: "_self" })).toEqual([]);
+  });
+
+  it("migrates a component a type of the module's own is named after (`type Row`)", async () => {
+    const { code } = await migrate(`type Row = { label: string };
+export const T = ({ rows }: { rows: Row[] }) => <Email>{rows.map((row) => <Row key={row.label}><Column><Paragraph>{row.label}</Paragraph></Column></Row>)}</Email>;`);
+    expect(code).not.toMatch(/import \{[^}]*\bRow\b[^}]*\} from "@unlayer\/react-elements";\s*type Row/);
+    expect(code).toContain("rows: Row[]");
+    expect(code).toContain("<Section key={row.label}>");
+    expect(errors(code, { rows: [{ label: "One" }] })).toEqual([]);
+  });
+
   it("leaves modules that don't import today's components as they are", async () => {
     const source = `import { Button } from "@react-email/components";\nexport const T = () => <Button href="#">Go</Button>;\n`;
     expect((await migrateElements(source)).code).toBe(source);
@@ -669,6 +704,30 @@ describe("inlineHtml", () => {
     expect(inlineHtml('<span style="margin:4px;color:#123456">x</span>').dropped).toEqual(["style margin: 4px (on <span>) is left out: a run of text doesn't take it"]);
     expect(inlineHtml("<b>x")).toEqual({ jsx: "<Span style={{ fontWeight: 700 }}>x</Span>", used: new Set(["Span"]), dropped: [] });
     expect(inlineHtml("a</i> <!-- note --><b>b</b>")).toEqual({ jsx: '{"a "}<Span style={{ fontWeight: 700 }}>b</Span>', used: new Set(["Span"]), dropped: [] });
+  });
+
+  it("writes a style property given twice once, the last, as CSS does", () => {
+    expect(inlineHtml('<a href="https://example.com" style="color:#6b7280;text-decoration:none;text-decoration:underline">help</a>').jsx).toBe(
+      '<Link href="https://example.com" style={{ color: "#6b7280", textDecoration: "underline" }}>help</Link>'
+    );
+    expect(inlineHtml('<u style="text-decoration:none">u</u>').jsx).toBe('<Span style={{ textDecoration: "none" }}>u</Span>');
+  });
+
+  it("leaves out what's hidden, and shows what code hides only where it doesn't", () => {
+    const hole = (index: number) => `\uE000${index}\uE001`;
+    const parsed = inlineHtml(`Total <span${hole(0)}>(VAT)</span> <b hidden>never shown</b><i hidden="hidden">nor this</i>`, ['htmlAttribute("hidden", vat === 0 || undefined)']);
+    expect(parsed.jsx).toBe('{"Total "}{((vat === 0 || undefined) ?? false) === false ? (<Span>(VAT)</Span>) : null}{" "}');
+    expect(parsed.dropped).toEqual([]);
+  });
+
+  it("writes a link whose URL comes from code only where there's one, its text otherwise, and a target from code as a new window or its own", () => {
+    const hole = (index: number) => `\uE000${index}\uE001`;
+    const parsed = inlineHtml(`Go <a${hole(0)} style="color:#f00">there</a> or <a${hole(1)}${hole(2)}>here</a>`, ['htmlAttribute("href", url)', 'htmlAttribute("href", other)', 'htmlAttribute("target", target ?? "_blank")']);
+    expect(parsed.jsx).toBe(
+      '{"Go "}{(url) ? (<Link href={url} style={{ color: "#f00" }}>there</Link>) : (<Span style={{ color: "#f00" }}>there</Span>)}{" or "}' +
+        '{(other) ? (<Link href={{ href: other, target: (target ?? "_blank") === "_blank" ? "_blank" : "_self" }}>here</Link>) : (<>here</>)}'
+    );
+    expect(parsed.dropped).toEqual([]);
   });
 
   it("starts each block's text on a line of its own, a paragraph's a blank line from its neighbors, with no line before the first", () => {
