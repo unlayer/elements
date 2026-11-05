@@ -1055,7 +1055,8 @@ Hero.PreviewProps = { code: "SPRING15" };
       expect(conversion.report.lostStyles ?? []).toEqual([]);
       // The new components have no background image: it's left out, said so, with what only it read; the color under it
       // keeps the text readable.
-      expect(conversion.notes).toContainEqual(expect.stringMatching(/<Row>'s backgroundImage isn't migrated: it's left out/));
+      // (Not on a line of the intermediate source, which no one reads.)
+      expect(conversion.notes).toContainEqual(expect.stringMatching(/^<Row>'s backgroundImage isn't migrated: it's left out/));
       expect(conversion.code).not.toContain("assets");
       // So the image is lost, which the check finds (as content: the template fails it).
       const check = await verifyNewComponents(Original, Migrated);

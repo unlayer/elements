@@ -30,7 +30,7 @@ import {
 import { callInRender, findTailwind, findTailwindConfig } from "./expand";
 import { convertElement } from "./runtime";
 import { mergeTagged, testedProps } from "./merge-tags";
-import { CODEMOD_HELPERS } from "./codemod";
+import { CODEMOD_HELPERS, withoutLine } from "./codemod";
 
 type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unknown> };
 /** A migrated template as its file exports it: a function, or one wrapped in `memo` or `forwardRef`. */
@@ -152,7 +152,7 @@ async function inNewComponents(tree: ElementNode, print: PrintOptions): Promise<
   const intermediate = await treeToTsx(tree, print);
   const moved = await toNewComponents(intermediate);
   try {
-    return { ...moved, element: readTemplate(moved.code, MODULES) };
+    return { code: moved.code, notes: moved.notes.map(withoutLine), stacked: moved.stacked.map(withoutLine), element: readTemplate(moved.code, MODULES) };
   } catch (error) {
     throw new NewComponentsError(inALine(error), intermediate);
   }

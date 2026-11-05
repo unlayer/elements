@@ -284,7 +284,12 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   let code = await withoutUnusedHelpers(moved.code);
   const tidy = dropUnused(code, ts.createSourceFile(fileName, todays.code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX), javascript, new Set(), new Set());
   if (tidy !== code) code = await formatTsx(tidy);
-  return { ...todays, code, intermediate: todays.code, helpers: todays.helpers.filter((name) => new RegExp(`\\b${name}\\b`).test(code)), notes: moved.notes, stacked: moved.stacked };
+  return { ...todays, code, intermediate: todays.code, helpers: todays.helpers.filter((name) => new RegExp(`\\b${name}\\b`).test(code)), notes: moved.notes.map(withoutLine), stacked: moved.stacked.map(withoutLine) };
+}
+
+/** What the codemod said, without the line of the intermediate source it's on (no one reads that source). */
+export function withoutLine(note: string): string {
+  return note.replace(/^line \d+: /, "");
 }
 
 /** The module without the helpers the conversion wrote for today's components' markup, where nothing uses them now. */
