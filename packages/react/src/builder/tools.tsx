@@ -35,6 +35,7 @@ const length = (value: Json | undefined) => (value === undefined ? undefined : t
 
 /** A text block with a box of its own: its padding is inside the box, apart from its place's spacing. */
 const TEXT_BOX = ["backgroundColor", "border", "borderRadius", "width", "maxWidth"];
+const holdsImage = (node: Node): boolean => (node.children ?? []).some((child) => typeof child !== "string" && (child.type === "Image" || holdsImage(child)));
 const boxed = (node: Node) => TEXT_BOX.some((key) => node.style?.[key] !== undefined);
 
 /** A block's text styles as the builder's fields, from its node as resolved (inherited ones too). */
@@ -84,6 +85,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     case "Text":
     case "Paragraph":
     case "List": {
+      if (holdsImage(node)) return place.locked(node, path, "an Image in a run of text isn't something the builder's text holds", around);
       const box = boxed(node);
       const containerPadding = box ? around : add(padding(node), around);
       const tool = node.type === "Heading" ? "heading" : "text";
@@ -248,6 +250,8 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     default:
       // A plain stack (a Column without a box of its own) is its blocks, in the same column.
       if ((node.type === "Column" || node.type === "Section") && !Object.keys(node.style ?? {}).some((key) => !["padding", "gap", "alignItems", ...TEXT_STYLES].includes(key)) && !node.hidden) {
+        const phone = Object.keys(node.mobile ?? {});
+        if (phone.length) place.report.push(`${path}: the builder has no phone values for a plain ${node.type} (${phone.join(", ")}): left out`);
         return place.stack(node, path, around);
       }
       return place.locked(node, path, `a ${node.type} isn't a tool of the builder's`, around);

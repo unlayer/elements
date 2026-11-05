@@ -8,7 +8,8 @@
 import type { Json, Node } from "@unlayer-internal/elements-core";
 import { ColumnDefaults, RowDefaults } from "../utils/tool-defaults";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
-import { color, px, sides, some, type Sides, type Values } from "../compat/values";
+import { color, sides, some, type Sides, type Values } from "../compat/values";
+import { readRadius } from "./reading";
 import { readBlock, type Context, type Slot } from "./blocks";
 import { readHidden } from "./hide";
 import { sayUnread } from "./unread";
@@ -21,7 +22,7 @@ const add = (a: Sides, b: Sides): Sides => ({ top: a.top + b.top, right: a.right
 const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
 const ALIGN_ITEMS: Record<string, string> = { "flex-start": "start", center: "center", "flex-end": "end", stretch: "stretch" };
 /** Styles a box keeps its own padding inside: a block holding one isn't padded by its place. */
-const BOX = ["backgroundColor", "border", "borderRadius", "width", "maxWidth"];
+const BOX = ["backgroundColor", "border", "borderRadius", "width", "maxWidth", "minWidth", "height", "overflow", "justifyContent"];
 
 export interface Where {
   context(where: string): Context;
@@ -71,14 +72,16 @@ function phoneOf(columnValues: Values): Record<string, Json> {
 /** A column as a Column: its id, its share, its box and padding, its phone values and hiding. */
 function columnOf(columnValues: Values, children: Node[], share: string | undefined, say: (message: string) => void): Node {
   const hidden = readHidden("column", "Column", columnValues, say);
-  const phone = phoneOf(columnValues);
+  const phone = { ...phoneOf(columnValues), ...hidden.mobile };
   const id = givenId(columnValues);
+  const radius = readRadius(columnValues.borderRadius);
+  if (radius === undefined && columnValues.borderRadius) say(`a column's border radius ${JSON.stringify(columnValues.borderRadius)} isn't one Elements draws: left out`);
   const style = defined({
     width: share,
     padding: some(sides(columnValues.padding) ?? ZERO),
     backgroundColor: color(columnValues.backgroundColor),
     border: readBorder(columnValues.border),
-    borderRadius: px(columnValues.borderRadius) || undefined,
+    borderRadius: radius || undefined,
     ...hidden.style,
   });
   return {
@@ -138,7 +141,8 @@ export function readRow(row: Values, where: string, at: Where): Node[] {
   const alignItems = typeof values.alignItems === "string" && Object.hasOwn(ALIGN_ITEMS, values.alignItems) ? ALIGN_ITEMS[values.alignItems] : undefined;
   const rowStyle = defined({ backgroundColor: color(values.columnsBackgroundColor), ...(alignItems && alignItems !== "start" ? { alignItems } : {}), ...rowOwn });
   const layout = columns.length > 1 || Object.keys(rowStyle).length > 0;
-  const band = color(values.backgroundColor) !== undefined || sectionBorder !== undefined;
+  // (A row with an id of its own is a Section, which holds it.)
+  const band = !!(givenId(values) && !layout) || color(values.backgroundColor) !== undefined || sectionBorder !== undefined;
   const padding = sides(values.padding) ?? ZERO;
   // Its padding on phones, where it's another.
   const given = sides(obj(obj(values._override).mobile).padding);

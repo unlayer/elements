@@ -8,7 +8,7 @@ import React from "react";
 import { Column, Row } from "../index";
 import { hiddenOf, merge } from "./hide";
 import { blockTool, type Place } from "./tools";
-import { builderBorder, cssPx, cssSides, type Values } from "./values";
+import { builderBorder, cssPx, cssSides, encode, type Values } from "./values";
 
 export type Sides = { top: number; right: number; bottom: number; left: number };
 type Child = { child: Node; path: string };
@@ -33,6 +33,9 @@ export interface Writer {
   stack(node: Node, path: string, own: ResolvedNode, around: Sides): React.ReactElement[];
 }
 
+/** An id the template gives a row or a column, as the builder's. */
+export const builderId = (id: string | undefined, htmlClassNames: string): Values => (id ? { _meta: { htmlID: id, htmlClassNames } } : {});
+
 /** A row of the builder's for a Row: each child a column, its width and its share of the gap its column's. */
 export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode): React.ReactElement {
   const own = arranged ?? at(path);
@@ -40,7 +43,7 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
   const rowPad = add(padding(node), outer);
   const all = childrenOf(node, path);
   const n = all.length;
-  // (A Row's phone border is its columns' phone border, which they have of their own.)
+  if (!arranged && node.mobile?.border !== undefined) place.report.push(`${path}: the builder's row has no border on phones: left out`);
   if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "mobile.gap", "style.backgroundColor", "style.border", "mobile.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
   const stacks = node.props?.stackOnMobile !== false;
   const rowBorder = (own.style.border as Record<string, Json> | undefined) ?? {};
@@ -71,14 +74,14 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
         padding={cssSides(columnPadding)}
         backgroundColor={isColumn ? (style.backgroundColor as string | undefined) : undefined}
         border={builderBorder(lines as never)}
-        borderRadius={isColumn && style.borderRadius !== undefined ? (typeof style.borderRadius === "number" ? cssPx(style.borderRadius) : undefined) : undefined}
+        borderRadius={isColumn && style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined}
       >
         {contents}
       </Column>
     );
     // Its phone padding (where the columns stack, the Row's sides and gap in it) and border, as the builder's phone values.
     const phone = { ...(phonePadding && cssSides(phonePadding) !== cssSides(columnPadding) ? { padding: cssSides(phonePadding) } : {}), ...(isColumn && child.mobile?.border ? { border: builderBorder(child.mobile.border as never) } : {}) };
-    return { share, element: put(element, merge(isColumn ? hiddenOf("column", child) : {}, Object.keys(phone).length ? { _override: { mobile: phone } } : {})) };
+    return { share, element: put(element, merge(merge(isColumn ? hiddenOf("column", child) : {}, isColumn ? builderId(child.id, "u_column") : {}), Object.keys(phone).length ? { _override: { mobile: phone } } : {})) };
   });
   const alignItems = own.style.alignItems as string | undefined;
   const made = (
@@ -94,7 +97,7 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
       {columns.map((c) => c.element)}
     </Row>
   );
-  const values: Values = { ...(alignItems && alignItems !== "start" ? { alignItems: ALIGN_ITEMS[alignItems] } : {}) };
+  const values: Values = { ...(alignItems && alignItems !== "start" ? { alignItems: ALIGN_ITEMS[alignItems] } : {}), ...builderId(node.id, "u_row") };
   return put(made, merge(merge(values, arranged ? {} : hiddenOf("row", node, ["style.border"])), bandHidden));
 }
 
@@ -108,7 +111,7 @@ export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, pat
       padding={cssSides(padding(node))}
       backgroundColor={style.backgroundColor as string | undefined}
       border={builderBorder(style.border as never)}
-      borderRadius={typeof style.borderRadius === "number" ? cssPx(style.borderRadius) : undefined}
+      borderRadius={style.borderRadius !== undefined ? (encode("radius", style.borderRadius) as string) : undefined}
     >
       {stack(withoutPadding(node), path, own, ZERO)}
     </Column>
@@ -116,7 +119,7 @@ export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, pat
   const { hidden: _, ...visible } = node;
   const made = (
     <Row key={path} cells={[1]} padding={cssSides(outer)} {...hiding(node)} {...band}>
-      {put(column, merge(hiddenOf("column", visible as Node), phoneBox(node)))}
+      {put(column, merge(merge(hiddenOf("column", visible as Node), builderId(node.id, "u_column")), phoneBox(node)))}
     </Row>
   );
   return put(made, bandHidden);

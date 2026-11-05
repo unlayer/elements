@@ -37,6 +37,9 @@ export function runsHtml(node: Node, lost: string[] = []): string {
   return (node.children ?? [])
     .map((child) => {
       if (typeof child === "string") return escapeHtml(child);
+      if (Object.keys(child.mobile ?? {}).length) lost.push("phone styles on part of its text");
+      if (child.id) lost.push("id on part of its text");
+      if (child.type === "Link" && child.props?.attrs) lost.push("other attributes on a link");
       const css = runCss(child.style);
       const style = css ? ` style="${css}"` : "";
       switch (child.type) {
@@ -79,6 +82,7 @@ export function listHtml(node: Node, lost: string[] = []): string {
   const items = (node.children ?? []).filter((child): child is Node => typeof child !== "string");
   const html = items
     .map((item, i) => {
+      if (Object.keys(item.style ?? {}).length || item.props?.dir) lost.push("style or direction of a list item's own");
       // Its words and the lists in it, in their order (words after a list go under it).
       const parts: string[] = [];
       let words: Node["children"] = [];

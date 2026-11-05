@@ -5,14 +5,14 @@
  * around it with that padding and `alignItems`. Values are read as compat reads them (what legacy, and so the builder,
  * draws), and a tool that isn't one of Elements' is left out, and said.
  */
-import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, type Json, type Node } from "@unlayer-internal/elements-core";
+import { Button as ButtonDefinition, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type Node } from "@unlayer-internal/elements-core";
 import { ButtonDefaults, DividerDefaults, HeadingDefaults, HtmlDefaults, ImageDefaults, MenuDefaults, ParagraphDefaults, SocialDefaults, TextDefaults, VideoDefaults } from "../utils/tool-defaults";
 import { givenId, hidden as hiddenOn } from "../compat/lower";
 import { parseRuns } from "../compat/runs";
 import { color, fontWeight, font, letterSpacing, px, serviceTag, sides, some, webLink, type Values } from "../compat/values";
 import { contentSlotWidth } from "../utils/image-sizing";
 import { readHidden } from "./hide";
-import { alignOf, defined, make, obj, phoneText, placed, str, textStyle, unless, type Context, type Slot } from "./reading";
+import { alignOf, defined, make, obj, phoneText, placed, readRadius, str, textStyle, unless, type Context, type Slot } from "./reading";
 import { DEEPEST, mergeTags, richText, tooDeep } from "./text";
 import { textTool } from "./text-tool";
 import { sayUnread } from "./unread";
@@ -56,7 +56,7 @@ function button(values: Values, context: Context): Node[] {
     width,
     padding: unless(sides(values.padding ?? "10px 20px"), defaults.padding),
     border: readBorder(values.border),
-    borderRadius: unless(px(values.borderRadius ?? "4px"), defaults.borderRadius),
+    borderRadius: unless(radiusOf(values.borderRadius ?? "4px", context.say), defaults.borderRadius),
     ...hidden.style,
   });
   const hover = defined({ color: unless(color(colors.hoverColor), base.color), backgroundColor: unless(color(colors.hoverBackgroundColor), base.backgroundColor) });
@@ -178,14 +178,14 @@ function menu(values: Values, context: Context): Node[] {
 function social(values: Values, context: Context): Node[] {
   const defaults = SocialDefinition.defaultStyle as Record<string, Json>;
   const hidden = readHidden("social", "Social", values, context.say);
-  const icons = (Array.isArray(obj(values.icons).icons) ? (obj(values.icons).icons as unknown[]) : []).map(obj).filter((icon) => str(icon.name) && /[A-Za-z0-9]/.test(String(icon.name)) && str(icon.url));
+  const icons = (Array.isArray(obj(values.icons).icons) ? (obj(values.icons).icons as unknown[]) : []).map(obj).filter((icon) => str(icon.name) && /[A-Za-z0-9]/.test(String(icon.name)));
   if (!icons.length) {
     context.say("a social block with no icons in the builder: left out");
     return [];
   }
   const iconType = obj(values.icons).iconType;
   if (iconType !== undefined && iconType !== "circle" && iconType !== "rounded" && iconType !== "squared") context.say(`its icon set ${JSON.stringify(iconType)} isn't one a Social has: its circle icons`);
-  const props = defined({ icons: icons.map((icon) => ({ name: String(icon.name), href: String(icon.url) })) as Json, iconType: iconType === "rounded" || iconType === "squared" ? iconType : undefined, size: unless(px(values.iconSize), 32), ...hidden.props });
+  const props = defined({ icons: icons.map((icon) => ({ name: String(icon.name), href: str(icon.url) ? String(icon.url) : { href: "" } })) as Json, iconType: iconType === "rounded" || iconType === "squared" ? iconType : undefined, size: unless(px(values.iconSize), 32), ...hidden.props });
   const style = defined({ gap: unless(px(values.spacing), defaults.gap), justifyContent: unless(alignOf(values.align ?? "center"), defaults.justifyContent), ...hidden.style });
   const node = make("Social", { id: givenId(values), props, style, mobile: hidden.mobile });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
@@ -201,8 +201,17 @@ function video(values: Values, context: Context): Node[] {
     return [];
   }
   const hidden = readHidden("video", "Video", values, context.say);
-  const node = make("Video", { id: givenId(values), props: { src: url, ...hidden.props }, style: hidden.style, mobile: hidden.mobile });
+  // Its picture, where it isn't the one a video of its kind takes anyway.
+  const thumbnail = str(value.thumbnail) && value.thumbnail !== videoParts(url)?.thumbnail ? { thumbnail: value.thumbnail as string } : {};
+  const node = make("Video", { id: givenId(values), props: { src: url, ...thumbnail, ...hidden.props }, style: hidden.style, mobile: hidden.mobile });
   return [placed(node, sides(values.containerPadding ?? "10px"), str(values.textAlign) ?? "center", sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
+}
+
+/** A radius the builder holds; one Elements doesn't draw is said, and left out. */
+function radiusOf(value: unknown, say: (message: string) => void): Json | undefined {
+  const read = readRadius(value);
+  if (read === undefined && value !== undefined && value !== "") say(`its border radius ${JSON.stringify(value)} isn't one Elements draws: left out`);
+  return read;
 }
 
 /** What toDesign() wraps markup in where only the default line height needs saying: the builder's HTML block takes none, and an Html block takes it from around it. */

@@ -1,6 +1,6 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, Page, PageBreak, PageFooter, PageNumber, Paragraph, prop, Rect, Row, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
 import { collectTemplate } from "../primitives/collect";
@@ -181,6 +181,65 @@ describe("a link's window", () => {
     const { design } = toDesign(<Email><Button href="https://example.com">Go</Button></Email>);
     expect(JSON.stringify(design)).toContain('"href":{"name":"web","values":{"href":"https://example.com","target":"_self"}}');
     expect(fromDesign(design, { displayMode: "email" }).code).toMatch(/href="https:\/\/example\.com"/);
+  });
+});
+
+describe("what the builder can't hold", () => {
+  const said = (element: React.ReactElement) => toDesign(element).report.join("\n");
+
+  it("keeps an Image in a run of text, as an HTML block of its own", () => {
+    const { design, report } = toDesign(<Email><Text>Rated <Image src={{ src: "https://x.test/s.png", width: 80, height: 16 }} alt="five stars" /> by customers</Text></Email>);
+    expect(report.join("\n")).toContain("an Image in a run of text");
+    expect(JSON.stringify(design)).toContain("five stars");
+  });
+
+  it("says what it leaves out of text", () => {
+    expect(said(<Email><List><ListItem style={{ color: "#654321" }}>a</ListItem></List></Email>)).toContain("list item");
+    expect(said(<Email><Text>a <Span mobile={{ fontSize: 20 }}>b</Span></Text></Email>)).toContain("phone styles");
+    expect(said(<Email><Text><Link href="#" attrs={{ "data-x": "1" }}>b</Link></Text></Email>)).toContain("other attributes");
+    expect(said(<Email><Text><Link id="x" href="#">b</Link></Text></Email>)).toContain("id on part of its text");
+  });
+
+  it("says a Row's and a Section's border on phones, and a plain Column's phone values, are left out", () => {
+    expect(said(<Email><Row mobile={{ border: "1px solid #000" }}><Column><Text>a</Text></Column></Row></Email>)).toContain("no border on phones");
+    expect(said(<Email><Section mobile={{ border: "1px solid #000" }}><Text>a</Text></Section></Email>)).toContain("no border on phones");
+    expect(said(<Email><Column><Column mobile={{ padding: 4 }}><Text>a</Text></Column></Column></Email>)).toContain("no phone values");
+  });
+
+  it("takes what it can: a header's background, a Column's corners and the ids of rows and columns", () => {
+    const back = (element: React.ReactElement, displayMode: "email" | "document" = "email") => JSON.stringify(collectTemplate(fromDesign(JSON.parse(JSON.stringify(toDesign(element).design)), { displayMode }).element).document!.root);
+    expect(back(<Document><PageHeader style={{ backgroundColor: "#123456" }}><Text>H</Text></PageHeader><Text>x</Text></Document>, "document")).toContain("#123456");
+    expect(back(<Email><Column style={{ backgroundColor: "#eeeeee", borderRadius: { topLeft: 1, topRight: 2, bottomRight: 3, bottomLeft: 4 } }}><Text>a</Text></Column></Email>)).toContain('"topLeft":1');
+    expect(back(<Email><Row id="plans"><Column id="left"><Text>a</Text></Column><Column><Text>b</Text></Column></Row></Email>)).toContain('"id":"left"');
+    expect(back(<Email><Section id="pricing"><Text>a</Text></Section></Email>)).toContain('"id":"pricing"');
+  });
+});
+
+describe("a design read back", () => {
+  const read = (type: string, values: Record<string, unknown>, columnValues: Record<string, unknown> = {}) => {
+    const { element, report } = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: columnValues, contents: [{ type, values }] }] }] } }, { displayMode: "email" });
+    return { tree: JSON.stringify(collectTemplate(element).document!.root), report };
+  };
+
+  it("keeps a video's own picture", () => {
+    expect(read("video", { video: { type: "vimeo", videoId: "12345", thumbnail: "https://i.vimeocdn.com/custom.jpg" } }).tree).toContain("custom.jpg");
+  });
+
+  it("keeps a social icon with no link, as today's components do", () => {
+    expect(read("social", { icons: { iconType: "circle", icons: [{ name: "X", url: "" }, { name: "GitHub", url: "https://x.test" }] } }).tree).toContain('"name":"X"');
+  });
+
+  it("reads a button's corners, and says where it can't", () => {
+    expect(read("button", { text: "Go", borderRadius: "21px 22px 23px 24px" }).tree).toContain('"topLeft":21');
+    const percent = read("button", { text: "Go", borderRadius: "50%" });
+    expect(percent.report.join("\n")).toContain("isn't one Elements draws");
+  });
+
+  it("reads a column's corners, its height, and what's hidden on phones", () => {
+    expect(read("text", { text: "a" }, { backgroundColor: "#eeeeee", borderRadius: "1px 2px 3px 4px" }).tree).toContain('"bottomLeft":4');
+    expect(read("text", { text: "a" }, { height: "120px" }).tree).toContain('"height":120');
+    expect(read("text", { text: "a" }, { minWidth: "120px" }).tree).toContain('"minWidth":120');
+    expect(read("text", { text: "a" }, { maxWidth: "200px", _override: { mobile: { maxWidth: "120px" } } }).tree).toContain('"mobile":{"maxWidth":120');
   });
 });
 

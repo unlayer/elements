@@ -11,7 +11,7 @@ import { prepareTemplate } from "@unlayer-internal/elements-exporters";
 import React from "react";
 import { Column, Document, Email, Page, PageBreak, Row } from "../index";
 import { collectTemplate } from "../primitives/collect";
-import { add, boxRowOf, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
+import { add, boxRowOf, builderId, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
 import { blockTool, type Place } from "./tools";
@@ -231,7 +231,9 @@ export function raise(element: React.ReactElement): Raised {
       const own = at(path);
       sayLeftOut("row", child, path, ["style.backgroundColor", "style.padding", "style.border", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
       const band = own.style.backgroundColor !== undefined ? { backgroundColor: own.style.backgroundColor as string } : {};
+      if (child.mobile?.border !== undefined) report.push(`${path}: the builder's row has no border on phones: left out`);
       const sectionRows = rows(childrenOf(child, path), own, band, padding(child), path, child);
+      if (child.id && sectionRows[0]) put(sectionRows[0], builderId(child.id, "u_row"));
       // An empty Section (a band of space) is a row with nothing in it.
       body.push(...(sectionRows.length ? sectionRows : [oneColumn([], own, band, padding(child), `${path}.empty`, {}, hiding(child))]));
     } else if (child.type === "DocumentPage") {
@@ -249,7 +251,8 @@ export function raise(element: React.ReactElement): Raised {
       last = "break";
     } else if (child.type === "PageHeader" || child.type === "PageFooter") {
       sayLeftOut("row", child, path, ["style.gap", "style.alignItems", "style.padding", "style.backgroundColor", "style.border", ...TEXT_FOLDED]);
-      (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), {}, padding(child), path, child));
+      const bandOf = at(path).style.backgroundColor !== undefined ? { backgroundColor: at(path).style.backgroundColor as string } : {};
+      (child.type === "PageHeader" ? headers : footers).push(...rows(childrenOf(child, path), at(path), bandOf, padding(child), path, child));
     } else {
       if (last === "page") breakBefore(path);
       last = "other";

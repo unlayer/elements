@@ -39,6 +39,16 @@ export const lineHeight = (value: unknown): Json | undefined => {
   const read = legacyLineHeight(value);
   return typeof read === "string" && read.endsWith("%") ? Math.round(parseFloat(read) * 100) / 10000 : read;
 };
+/** A radius as the builder writes it, in px: one, or CSS's corners ("1px 2px 3px 4px"). Undefined for what Elements doesn't draw (a %). */
+export const readRadius = (value: unknown): Json | undefined => {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parts = value.trim().split(/\s+/).map(px);
+  if (parts.length > 4 || parts.some((part) => part === undefined)) return undefined;
+  if (parts.length === 1) return parts[0] as number;
+  const [topLeft, topRight = topLeft, bottomRight = topLeft, bottomLeft = topRight] = parts as number[];
+  return { topLeft, topRight, bottomRight, bottomLeft };
+};
 /** The builder's alignment (left, center, right) as Elements' (start, center, end); undefined for anything else. */
 export const alignOf = (value: unknown) => (typeof value === "string" && Object.hasOwn(ALIGN, value) ? ALIGN[value] : undefined);
 export const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
