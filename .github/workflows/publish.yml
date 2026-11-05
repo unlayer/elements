@@ -146,7 +146,7 @@ jobs:
             ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
-            ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
+            ELEMENTS=$(changed 'v*' packages/react packages/shared packages/core packages/exporters pnpm-workspace.yaml)
             # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
             # release the converter supports), not the newest, so an Elements release doesn't republish it.
             MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
