@@ -33,5 +33,5 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn) }, style: root.style, children: [Object.keys(around).length ? { type: "Column", style: around, children: [own] } : own] };
   const { head, body } = renderTemplate({ root: page }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
-  return withParagraphMargin(style + body, "1em 0");
+  return withParagraphMargin(style + body, "margin-top:1em;margin-bottom:1em");
 }

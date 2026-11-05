@@ -46,7 +46,7 @@ export function textTool(tool: "text" | "heading", given: Values, context: Conte
     // What its markup can't hold: its values on phones, its hidden properties.
     const lost = [...Object.keys(phoneText(values)).map((key) => `${key} on phones`), ...Object.keys(hidden.style)];
     if (lost.length) context.say(`its ${lost.join(", ")} aren't kept in its markup: left out`);
-    return [placed(make("Html", { id, props: { html: markup(html, values, level) } }), containerPadding, undefined, phonePadding, visibility)];
+    return [placed(make("Html", { id, props: { html: markup(context.safe(withParagraphMargin(rich.html, "margin:0")), values, level) } }), containerPadding, undefined, phonePadding, visibility)];
   }
   const boxed = boxOf(hidden);
   const blockDir = str(values.textDirection) ?? context.dir;
@@ -101,5 +101,5 @@ function markup(html: string, values: Values, level: number | undefined): string
   const declarations = Object.entries(css).filter(([, v]) => v !== "").map(([k, v]) => `${k}:${String(v).replace(/"/g, "'")}`).join(";");
   const tag = level ? `h${level}` : "div";
   const dir = ["ltr", "rtl", "auto"].includes(values.textDirection) ? ` dir="${values.textDirection}"` : "";
-  return `<${tag}${dir} style="${declarations}">${withParagraphMargin(html, "0")}</${tag}>`;
+  return `<${tag}${dir} style="${declarations}">${html}</${tag}>`;
 }

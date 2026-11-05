@@ -4,6 +4,7 @@ import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { renderToHtml } from "../index";
 import { collectTemplate } from "../primitives/collect";
+import { withParagraphMargin } from "./text";
 import { fromDesign, toDesign } from "./index";
 import { raise } from "./raise";
 import { invoice } from "./testing/templates";
@@ -293,13 +294,42 @@ describe("an Html block", () => {
 
   it("says a paragraph's margins going to the builder, whose stylesheet takes them away, and none coming from it", () => {
     const written = (html: string) => blocks(toDesign(<Email><Html html={html} /></Email>).design).find((block) => block.type === "html")!.values.html;
-    expect(written('<p>a</p><p class="x">b</p>')).toContain('<p style="margin:1em 0">a</p><p style="margin:1em 0" class="x">b</p>');
-    expect(written('<p style="color:red">a</p>')).toContain('<p style="margin:1em 0;color:red">a</p>');
+    expect(written('<p>a</p><p class="x">b</p>')).toContain('<p style=margin-top:1em;margin-bottom:1em>a</p><p style=margin-top:1em;margin-bottom:1em class="x">b</p>');
+    expect(written('<p style="color:red">a</p>')).toContain('<p style="margin-top:1em;margin-bottom:1em;color:red">a</p>');
     expect(written('<p style="margin:5px">a</p><pre>b</pre><picture></picture>')).toContain('<p style="margin:5px">a</p><pre>b</pre><picture></picture>');
     const read = (html: string) => JSON.stringify(collectTemplate(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "html", values: { html } }], values: {} }], values: {} }], values: {} } }, { displayMode: "email" }).element).document!.root);
-    expect(read("<p>a</p>")).toContain('<p style=\\"margin:0\\">a</p>');
+    expect(read("<p>a</p><p/>")).toContain("<p style=margin:0>a</p><p style=margin:0 />");
     expect(read("<p style=\"margin-top:4px\">a</p>")).toContain('<p style=\\"margin:0;margin-top:4px\\">a</p>');
     expect(read("<p style=color:red>a</p>")).toContain("<p style=color:red>a</p>");
+  });
+
+  it("changes only a tag that is a paragraph, and adds nothing that ends a value", () => {
+    // Text in an attribute, a comment, a script, or after a tag that never closes stays as it is.
+    for (const html of [
+      '<img src="x" title="<p onerror=alert(1)>">',
+      "<img src='x' title='<p onerror=alert(1)>'>",
+      "<img alt=<p/onerror=alert(1)>",
+      '<img title="<p onerror=alert(1)>',
+      "<!-- <p onerror=alert(1)> --><script>var p = '<p>';</script><style>p{}</style><textarea><p></textarea>",
+    ]) {
+      expect(withParagraphMargin(html, "margin:0")).toBe(html);
+    }
+    // A paragraph after them is still one.
+    expect(withParagraphMargin('<img title="<p>"><!-- <p> --><p>x</p>', "margin:0")).toBe('<img title="<p>"><!-- <p> --><p style=margin:0>x</p>');
+  });
+
+  it("gives its margins before a design's markup is sanitized, so what's sanitized is what's drawn", () => {
+    const markup = '<img src="x" title="<p onerror=alert(1)>"><p>a</p>';
+    // An HTML block, and text kept as its markup (a paragraph with a class of its own).
+    for (const block of [{ type: "html", values: { html: markup } }, { type: "text", values: { text: `<p class="c">b</p>${markup}` } }]) {
+      const given: string[] = [];
+      const toSafeHtml = (html: string) => (given.push(html), html.replace(/onerror=[^\s>]*/g, ""));
+      const design = { body: { rows: [{ cells: [1], columns: [{ contents: [block], values: {} }], values: {} }], values: {} } };
+      const root = JSON.stringify(collectTemplate(fromDesign(design, { displayMode: "email", toSafeHtml }).element).document!.root);
+      expect(given.some((html) => html.includes("<p style=margin:0>a</p>"))).toBe(true);
+      expect(root).toContain("<p style=margin:0>a</p>");
+      expect(root).not.toContain("onerror");
+    }
   });
 
   it("keeps markup that only starts and ends like that wrapper", () => {

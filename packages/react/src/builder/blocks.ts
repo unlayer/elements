@@ -229,7 +229,7 @@ function withoutDefaultLine(html: string): string {
 
 function html(values: Values, context: Context): Node[] {
   const hidden = readHidden("html", "Html", values, context.say);
-  const node = make("Html", { id: givenId(values), props: { html: withParagraphMargin(context.safe(typeof values.html === "string" ? withoutDefaultLine(values.html) : ""), "0"), ...hidden.props } });
+  const node = make("Html", { id: givenId(values), props: { html: context.safe(withParagraphMargin(typeof values.html === "string" ? withoutDefaultLine(values.html) : "", "margin:0")), ...hidden.props } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 

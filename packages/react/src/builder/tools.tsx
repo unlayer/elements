@@ -245,7 +245,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
-      return place.put(<Html key={path} {...hiding} />, merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "1em 0"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
+      return place.put(<Html key={path} {...hiding} />, merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "margin-top:1em;margin-bottom:1em"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
     case "PageBreak":
       return place.put(<PageBreak key={path} />);
     default:
