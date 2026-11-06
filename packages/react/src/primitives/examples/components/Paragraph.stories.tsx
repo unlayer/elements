@@ -1,7 +1,7 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Heading, LineBreak, Link, MergeTag, Paragraph, Section, Span, Text } from "../../index";
-import { BRAND, FONT, INK, MUTED, WASH } from "./shared";
+import { Column, Divider, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Span, Text } from "../../index";
+import { caption, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
   title: "Components/Paragraph",
@@ -20,15 +20,74 @@ export default meta;
 
 const story = asEmailAndPage;
 
+/**
+ * Tidewrack (a fictional quarterly of writing about the coast, printed in Port Ellis).
+ *
+ * All type and no pictures: cool sea-grey paper, Cormorant Garamond for the voice, Source Serif for
+ * reading, and a lobster red, used once or twice, where the eye should land.
+ */
+const FOG = "#E9EEEB";
+const SHEET = "#F7F9F7";
+const INK = "#15211F";
+const QUIET = "#5B6966";
+const RULE = "#CBD5D1";
+const LOBSTER = "#BE3F24";
+const SAND = "#F3DDB3";
+
+const DISPLAY = "'Cormorant Garamond', Garamond, Georgia, serif";
+const TEXT = "'Source Serif 4', Georgia, 'Times New Roman', serif";
+
+const SITE = "https://tidewrack.example";
+
+const root = {
+  width: 600,
+  lang: "en-GB",
+  fonts: [
+    { family: "Cormorant Garamond", src: "https://fonts.gstatic.com/s/cormorantgaramond/v21/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtKky2F7g.woff2", format: "woff2", weight: "300 700" },
+    { family: "Cormorant Garamond", src: "https://fonts.gstatic.com/s/cormorantgaramond/v21/co3ZmX5slCNuHLi8bLeY9MK7whWMhyjYrEtImSqn7B6D.woff2", format: "woff2", weight: "300 700", style: "italic" },
+    { family: "Source Serif 4", src: "https://fonts.gstatic.com/s/sourceserif4/v15/vEFI2_tTDB4M7-auWDN0ahZJW1gb8te1Xb7G.woff2", format: "woff2", weight: "200 900" },
+    { family: "Source Serif 4", src: "https://fonts.gstatic.com/s/sourceserif4/v15/vEFK2_tTDB4M7-auWDN0ahZJW1gewtW_WpzEpMs.woff2", format: "woff2", weight: "200 900", style: "italic" },
+    MONO_FONT,
+  ],
+  style: { backgroundColor: FOG, color: INK, fontFamily: TEXT, fontSize: 17, lineHeight: 1.6 },
+};
+
+const sheet = { padding: [44, 48, 48], gap: 16 } as const;
+const sheetOnPhones = { padding: [32, 24, 36], gap: 14 } as const;
+const label = { fontSize: 12, fontWeight: 600, letterSpacing: 1.6, textTransform: "uppercase", color: LOBSTER } as const;
+const voice = { fontFamily: DISPLAY, fontWeight: 500, lineHeight: 1.08, letterSpacing: -0.4 } as const;
+
+/** The quarterly's nameplate, over a rule. */
+const masthead = (issue: string) => (
+  <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 12], border: { bottom: `1px solid ${INK}` } }}>
+    <Column>
+      <Text style={{ fontFamily: DISPLAY, fontSize: 28, fontStyle: "italic", fontWeight: 600, lineHeight: 1 }}>Tidewrack</Text>
+    </Column>
+    <Column>
+      <Text style={{ ...label, color: QUIET, textAlign: "right" }}>{issue}</Text>
+    </Column>
+  </Row>
+);
+
 /** Headings and text: `Span` styles a run, `Link` links one, `LineBreak` breaks the line, `MergeTag` is filled in by the sender. */
 export const Runs = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 12 }}>
-      <Heading level={1} style={{ fontSize: 28 }}>Hello, <MergeTag name="first_name" /></Heading>
-      <Heading level={2} style={{ fontSize: 18, color: BRAND }}>Your plan renews soon</Heading>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.6 }}>
-        Your <Span style={{ fontWeight: 700 }}>Pro plan</Span> renews on <Span style={{ color: BRAND }}>March 3</Span>.<LineBreak />
-        Read <Link href="https://example.com/billing" style={{ color: BRAND }}>how billing works</Link>.
+  <Root {...root}>
+    <Section style={sheet} mobile={sheetOnPhones}>
+      {masthead("Renewals")}
+      <Heading level={1} style={{ ...voice, fontSize: 46, padding: [20, 0, 0] }} mobile={{ fontSize: 38, padding: [14, 0, 0] }}>
+        Hello, <MergeTag name="first_name" />
+      </Heading>
+      <Heading level={2} style={{ ...voice, fontSize: 24, fontStyle: "italic", color: LOBSTER }} mobile={{ fontSize: 22 }}>
+        Your subscription renews soon
+      </Heading>
+      <Paragraph>
+        Your <Span style={{ fontWeight: 700 }}>four issues of Tidewrack</Span> renew on <Span style={{ color: LOBSTER }}>3 March</Span>.
+        <LineBreak />
+        Read{" "}
+        <Link href={`${SITE}/renewal`} style={{ color: LOBSTER }}>
+          how renewal works
+        </Link>
+        , or do nothing, and the post will keep coming.
       </Paragraph>
     </Section>
   </Root>
@@ -36,78 +95,114 @@ export const Runs = story((Root) => (
 
 /** A paragraph's size, line height, color and spacing are in `style`, and `maxWidth` holds it to a width. */
 export const Styles = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 16 }}>
-      <Paragraph style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: BRAND }}>A small label</Paragraph>
-      <Paragraph style={{ fontSize: 22, lineHeight: 1.35 }}>A larger first line, to open an article with.</Paragraph>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.7, color: MUTED }}>Body text in a softer color, with more room between its lines so that a longer paragraph stays easy to read from start to end.</Paragraph>
-      <Paragraph style={{ fontSize: 13, fontStyle: "italic", color: MUTED }}>A small note, in italics.</Paragraph>
-      <Paragraph style={{ fontSize: 15, maxWidth: 280 }}>This one is held to 280px, however wide the space around it is.</Paragraph>
+  <Root {...root}>
+    <Section style={{ ...sheet, gap: 18 }} mobile={sheetOnPhones}>
+      <Paragraph style={label}>Winter, No. 31</Paragraph>
+      <Paragraph style={{ fontFamily: DISPLAY, fontSize: 36, fontWeight: 500, lineHeight: 1.14, letterSpacing: -0.4 }} mobile={{ fontSize: 30 }}>
+        The tide takes everything back, twice a day, and asks nobody first.
+      </Paragraph>
+      <Paragraph style={{ fontSize: 17, lineHeight: 1.7, color: QUIET }}>
+        This issue walks one stretch of the coast for a year, from the winter storms that move the shingle to the summer visitors who never notice it has moved. It starts, as most things do in Port Ellis, with a boat that shouldn’t have gone out.
+      </Paragraph>
+      <Paragraph style={{ fontSize: 14, fontStyle: "italic", color: QUIET }}>Photographs by nobody: we still think words will do.</Paragraph>
+      <Paragraph style={{ fontSize: 17, lineHeight: 1.45, maxWidth: 280, padding: [14, 0, 0], border: { top: `2px solid ${LOBSTER}` } }}>Held to 280px by maxWidth, however wide its column.</Paragraph>
     </Section>
   </Root>
 ));
 
 /** `textAlign` puts the lines on the left, in the center, on the right, or out to both sides. */
 export const Alignment = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 16 }}>
-      <Paragraph style={{ fontSize: 15, textAlign: "left" }}>On the left, where text starts by default.</Paragraph>
-      <Paragraph style={{ fontSize: 15, textAlign: "center" }}>In the center, for a short line under a heading.</Paragraph>
-      <Paragraph style={{ fontSize: 15, textAlign: "right" }}>On the right, for a date or a signature.</Paragraph>
-      <Paragraph style={{ fontSize: 15, textAlign: "justify" }}>Justified, out to both sides: every line but the last is stretched to the full width, which suits a column of text that runs for several lines.</Paragraph>
+  <Root {...root}>
+    <Section style={{ padding: [32, 24, 20] }} mobile={{ padding: [12, 12, 12] }}>
+      <Column style={{ backgroundColor: SHEET, padding: [40, 44, 40], gap: 18 }} mobile={{ padding: [28, 24, 28], gap: 14 }}>
+        <Paragraph style={{ textAlign: "left" }}>Dear reader,</Paragraph>
+        <Paragraph style={{ fontFamily: DISPLAY, fontSize: 28, fontStyle: "italic", lineHeight: 1.2, color: LOBSTER, textAlign: "center", padding: [4, 0] }} mobile={{ fontSize: 24 }}>
+          The shingle has moved again.
+        </Paragraph>
+        <Paragraph style={{ textAlign: "justify" }}>
+          Every winter we promise to print this issue on time, and every winter the sea has other ideas. This year it took the road to the printer’s for nine days. We waited, as people here do, and went back to work when it had finished.
+        </Paragraph>
+        <Paragraph style={{ textAlign: "right" }}>
+          Ines Harcourt, editor
+          <LineBreak />
+          <Span style={{ color: QUIET, fontSize: 15 }}>Port Ellis, February</Span>
+        </Paragraph>
+      </Column>
+    </Section>
+    <Section style={{ padding: [0, 24, 28] }} mobile={{ padding: [0, 20, 20] }}>
+      <Text style={{ ...caption(QUIET), textAlign: "center" }}>textAlign, from the top: "left", "center", "justify", "right"</Text>
     </Section>
   </Root>
 ));
 
 /** A `Span` styles a run of text: its weight, color and decoration, a highlight behind it, or raised and lowered. */
 export const Spans = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 16 }}>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.7 }}>
-        Text can be <Span style={{ fontWeight: 700 }}>bold</Span>, <Span style={{ fontStyle: "italic" }}>italic</Span>, <Span style={{ color: BRAND }}>colored</Span>, <Span style={{ textDecoration: "underline" }}>underlined</Span>, <Span style={{ textDecoration: "line-through" }}>struck through</Span> or <Span style={{ backgroundColor: "#FEF3C7" }}>highlighted</Span>.
+  <Root {...root}>
+    <Section style={{ ...sheet, gap: 22 }} mobile={sheetOnPhones}>
+      <Paragraph style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 500, lineHeight: 1.28 }} mobile={{ fontSize: 26 }}>
+        The winter issue is <Span style={{ fontWeight: 700 }}>our longest</Span>, <Span style={{ fontStyle: "italic" }}>mostly true</Span>, <Span style={{ color: LOBSTER }}>printed in red and black</Span>, <Span style={{ textDecoration: "underline" }}>set by hand</Span>, <Span style={{ textDecoration: "line-through" }}>early</Span>{" "}
+        <Span style={{ backgroundColor: SAND }}>out on 3 March</Span>.
       </Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>
-        Acme<Span style={{ verticalAlign: "super", fontSize: 11 }}>®</Span> measures CO<Span style={{ verticalAlign: "sub", fontSize: 11 }}>2</Span> in the air.
-      </Paragraph>
-      <Paragraph>
-        <Span style={{ fontSize: 28, fontWeight: 700 }}>$48</Span>
-        <Span style={{ fontSize: 13, color: MUTED }}> a month</Span>
-      </Paragraph>
+      <Divider style={{ borderTop: `1px solid ${RULE}` }} />
+      <Row style={{ gap: 24, alignItems: "end" }} mobile={{ gap: 18 }}>
+        <Column>
+          <Paragraph style={{ fontSize: 15, lineHeight: 1.5, color: QUIET }}>
+            Tidewrack<Span style={{ verticalAlign: "super", fontSize: 10 }}>®</Span> is printed by a press that counts its CO<Span style={{ verticalAlign: "sub", fontSize: 10 }}>2</Span> and tells us the number.
+          </Paragraph>
+        </Column>
+        <Column style={{ width: 190 }} mobile={{ width: "100%" }}>
+          <Paragraph style={{ textAlign: "right" }} mobile={{ textAlign: "left" }}>
+            <Span style={{ fontFamily: DISPLAY, fontSize: 44, fontWeight: 600 }}>£36</Span>
+            <Span style={{ fontSize: 14, color: QUIET }}> a year</Span>
+          </Paragraph>
+        </Column>
+      </Row>
     </Section>
   </Root>
 ));
 
+/** A way to link, its note beside it. */
+const way = (note: string, link: JSX.Element) => (
+  <Row style={{ gap: 20, padding: [13, 0], alignItems: "center", border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 3 }}>
+    <Column style={{ width: 200 }} mobile={{ width: "100%" }}>
+      <Text style={caption(QUIET)}>{note}</Text>
+    </Column>
+    <Column>{link}</Column>
+  </Row>
+);
+
 /** A `Link`'s color and underline are in `style`, its colors under the pointer in `hover`; `href` takes a mail or phone link, or a target. */
 export const Links = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 12 }}>
-      <Paragraph style={{ fontSize: 15 }}>With nothing set: <Link href="https://example.com">underlined, in blue</Link>.</Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>In a color: <Link href="https://example.com" style={{ color: BRAND }}>the brand's</Link>.</Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>
-        Underlined under the pointer only: <Link href="https://example.com" style={{ color: BRAND, textDecoration: "none" }} hover={{ textDecoration: "underline" }}>point at this</Link>.
-      </Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>
-        Highlighted under the pointer: <Link href="https://example.com" style={{ color: BRAND }} hover={{ color: "#FFFFFF", backgroundColor: BRAND }}>point at this</Link>.
-      </Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>
-        <Link href="mailto:hello@example.com" title="Write to us">Write to us</Link> or <Link href="tel:+15550100">call us</Link>.
-      </Paragraph>
-      <Paragraph style={{ fontSize: 15 }}>
-        <Link href={{ href: "https://example.com/terms", target: "_blank" }} aria-label="Our terms, in a new window">In a new window</Link>.
-      </Paragraph>
+  <Root {...root}>
+    <Section style={{ ...sheet, gap: 20 }} mobile={sheetOnPhones}>
+      <Heading level={2} style={{ ...voice, fontSize: 38 }} mobile={{ fontSize: 32 }}>
+        Where to go from here
+      </Heading>
+      <Column style={{ border: { bottom: `1px solid ${RULE}` } }}>
+        {way("With nothing set", <Paragraph><Link href={`${SITE}/back-issues`}>The back issues, underlined in blue</Link></Paragraph>)}
+        {way("In a color", <Paragraph><Link href={`${SITE}/contents`} style={{ color: LOBSTER }}>What’s in No. 31</Link></Paragraph>)}
+        {way('hover: underlined', <Paragraph><Link href={`${SITE}/writers`} style={{ color: LOBSTER, textDecoration: "none" }} hover={{ textDecoration: "underline" }}>Write for us, point at this</Link></Paragraph>)}
+        {way('hover: highlighted', <Paragraph><Link href={`${SITE}/shop`} style={{ color: LOBSTER }} hover={{ color: "#FFFFFF", backgroundColor: LOBSTER }}>Give a subscription, point at this</Link></Paragraph>)}
+        {way("Mail and phone", <Paragraph><Link href="mailto:post@tidewrack.example" title="Write to us" style={{ color: INK }}>Write to us</Link>, or <Link href="tel:+15550100" style={{ color: INK }}>call the office</Link></Paragraph>)}
+        {way('target: "_blank"', <Paragraph><Link href={{ href: `${SITE}/terms`, target: "_blank" }} aria-label="Our terms, in a new window" style={{ color: INK }}>Our terms, in a new window</Link></Paragraph>)}
+      </Column>
     </Section>
   </Root>
 ));
 
 /** `Text` is a block with no meaning of its own, and a box like any: here a note, and an address of `LineBreak`s and `MergeTag`s. */
 export const TextBlocks = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 16 }}>
-      <Text style={{ padding: 16, backgroundColor: "#ECFDF5", border: { left: `3px solid ${BRAND}` }, fontSize: 14, lineHeight: 1.6 }}>
-        <Span style={{ fontWeight: 700 }}>Good to know:</Span> your files are kept for 30 days after you cancel.
+  <Root {...root}>
+    <Section style={{ ...sheet, gap: 20 }} mobile={sheetOnPhones}>
+      {masthead("Winter, No. 31")}
+      <Heading level={2} style={{ ...voice, fontSize: 38, padding: [12, 0, 0] }} mobile={{ fontSize: 32, padding: [8, 0, 0] }}>
+        No. 31 is in the post
+      </Heading>
+      <Text style={{ padding: [14, 18], backgroundColor: SHEET, border: { left: `3px solid ${LOBSTER}` }, fontSize: 15, lineHeight: 1.55 }}>
+        <Span style={{ fontWeight: 700 }}>Good to know:</Span> it’s a thick one this winter, so it may not fit through a small letterbox.
       </Text>
-      <Text style={{ padding: 16, backgroundColor: WASH, borderRadius: 8, fontSize: 14, lineHeight: 1.6 }}>
-        <Span style={{ fontWeight: 700 }}>Shipping to</Span>
+      <Text style={{ padding: [18, 20], backgroundColor: SHEET, borderRadius: 4, fontSize: 15, lineHeight: 1.6 }}>
+        <Span style={{ fontWeight: 700 }}>Sent to</Span>
         <LineBreak />
         <MergeTag name="full_name" />
         <LineBreak />
