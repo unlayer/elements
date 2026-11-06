@@ -4,7 +4,7 @@ import {
   Divider,
   Document,
   Heading,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -65,7 +65,7 @@ export default function InvoiceReceipt(): ReactElement {
       <Section style={{ backgroundColor: "#ffffff", padding: [40, 56, 28, 56] }}>
         <Row>
           <Column style={{ width: "50%" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: 10,
                 fontSize: 18,
@@ -76,10 +76,10 @@ export default function InvoiceReceipt(): ReactElement {
               }}
             >
               ACME
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
               1 Infinite Loop, Cupertino, CA 95014
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
             <Heading
@@ -94,9 +94,9 @@ export default function InvoiceReceipt(): ReactElement {
             >
               INVOICE
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "right", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "right", lineHeight: 1.5 }}>
               INV-2041
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -121,15 +121,15 @@ export default function InvoiceReceipt(): ReactElement {
             >
               BILLED TO
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#1a1f36", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#1a1f36", textAlign: "left", lineHeight: 1.5 }}>
               Maple Studio LLC
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
               510 Townsend Street
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
               San Francisco, CA 94103
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
             <Heading
@@ -145,16 +145,16 @@ export default function InvoiceReceipt(): ReactElement {
             >
               DETAILS
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
               Issue date: June 30, 2026
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
               Due date: July 30, 2026
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#228403", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#228403", textAlign: "left", lineHeight: 1.5 }}>
               {"Status: "}
               <Span style={{ fontWeight: 700 }}>Paid</Span>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -183,12 +183,12 @@ export default function InvoiceReceipt(): ReactElement {
       </Section>
 
       <Section style={{ backgroundColor: "#f7f6ff", padding: [20, 56, 24, 56] }}>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "right", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "right", lineHeight: 1.6 }}>
           Subtotal: $8,150.00
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "right", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "right", lineHeight: 1.6 }}>
           Tax (8.5%): $692.75
-        </Paragraph>
+        </Text>
         <Divider style={{ borderTop: "1px solid #1a1f36", padding: 10 }} />
         <Heading
           level={2}
@@ -196,9 +196,9 @@ export default function InvoiceReceipt(): ReactElement {
         >
           $8,842.75
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#596579", textAlign: "right", lineHeight: 1.4 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#596579", textAlign: "right", lineHeight: 1.4 }}>
           Invoice total (USD)
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: "#ffffff", padding: [24, 56, 32, 56] }}>
@@ -209,18 +209,18 @@ export default function InvoiceReceipt(): ReactElement {
         >
           PAYMENT
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#697386", textAlign: "left", lineHeight: 1.5 }}>
           Paid on July 2, 2026 · Visa ending in 4242 · Reference PAY-88213
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: "#f6f8fa", padding: [24, 56, 32, 56] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#697386", textAlign: "center", lineHeight: 1.6 }}>
           Thank you for your business.
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#596579", textAlign: "center", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 12, color: "#596579", textAlign: "center", lineHeight: 1.6 }}>
           Questions about this invoice? Contact billing@acme.com
-        </Paragraph>
+        </Text>
       </Section>
     </Document>
   );

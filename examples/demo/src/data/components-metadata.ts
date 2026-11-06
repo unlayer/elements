@@ -13,7 +13,7 @@ export const componentsMeta: ComponentMeta[] = [
     code: `<Email width={560} style={{ backgroundColor: "#f4f4f5" }}>
   <Column style={{ padding: [24, 40], gap: 16 }}>
     <Heading style={{ fontSize: 24, fontWeight: 700 }}>Hello</Heading>
-    <Paragraph style={{ fontSize: 15, color: "#555555" }}>Welcome aboard.</Paragraph>
+    <Text style={{ fontSize: 15, color: "#555555" }}>Welcome aboard.</Text>
     <Button href="/start" style={{ backgroundColor: "#4f46e5", color: "#ffffff" }}>
       Get Started
     </Button>
@@ -25,8 +25,8 @@ export const componentsMeta: ComponentMeta[] = [
     name: "Row",
     description: "Columns side by side, stacked on phones",
     code: `<Row style={{ padding: 16, gap: 16 }}>
-  <Column><Paragraph>Left</Paragraph></Column>
-  <Column><Paragraph>Right</Paragraph></Column>
+  <Column><Text>Left</Text></Column>
+  <Column><Text>Right</Text></Column>
 </Row>`,
     group: "Layout",
   },
@@ -35,27 +35,27 @@ export const componentsMeta: ComponentMeta[] = [
     description: "Stacks its children, with its own spacing and box",
     code: `<Column style={{ gap: 8 }}>
   <Heading style={{ fontSize: 20 }}>Title</Heading>
-  <Paragraph style={{ fontSize: 14 }}>Column content</Paragraph>
+  <Text style={{ fontSize: 14 }}>Column content</Text>
 </Column>`,
     group: "Layout",
   },
 
   // Content
   {
-    name: "Paragraph",
+    name: "Text",
     description: "Plain text with typography styles",
-    code: `<Paragraph style={{ fontSize: 15, color: "#333333", lineHeight: 1.6 }}>
+    code: `<Text style={{ fontSize: 15, color: "#333333", lineHeight: 1.6 }}>
   Hello world
-</Paragraph>`,
+</Text>`,
     group: "Content",
   },
   {
-    name: "Paragraph",
+    name: "Text",
     description: "Rich text with Span and Link (bold, italic, links)",
-    code: `<Paragraph style={{ fontSize: 15, color: "#555555" }}>
+    code: `<Text style={{ fontSize: 15, color: "#555555" }}>
   Thanks for joining <Span style={{ fontWeight: 700 }}>Acme</Span>.{" "}
   <Link href="/dashboard">View dashboard</Link>
-</Paragraph>`,
+</Text>`,
     group: "Content",
   },
   {

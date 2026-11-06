@@ -5,7 +5,7 @@ import {
   Email,
   Heading,
   Link,
-  Paragraph,
+  Text,
   Row,
   Span,
 } from "@unlayer/react-elements";
@@ -57,9 +57,9 @@ export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailP
         <Heading level={1} style={{ fontSize: 26 }}>
           Welcome, {name}
         </Heading>
-        <Paragraph style={{ fontSize: 15, lineHeight: 1.7, color: "#52525b" }}>
+        <Text style={{ fontSize: 15, lineHeight: 1.7, color: "#52525b" }}>
           Your <Span style={{ fontWeight: 700 }}>{plan}</Span> workspace is ready. Invite your team, connect a repository, and ship your first deploy in under five minutes.
-        </Paragraph>
+        </Text>
         <Button
           href={safeDashboardUrl}
           style={{ backgroundColor: "#18181b", padding: [13, 26], borderRadius: 8, fontWeight: 600 }}
@@ -75,26 +75,26 @@ export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailP
             <Heading level={3} style={feature}>
               Unlimited projects
             </Heading>
-            <Paragraph style={smallPrint}>Spin up as many workspaces as your team needs.</Paragraph>
+            <Text style={smallPrint}>Spin up as many workspaces as your team needs.</Text>
           </Column>
           <Column style={{ gap: 6 }}>
             <Heading level={3} style={feature}>
               Priority support
             </Heading>
-            <Paragraph style={smallPrint}>Reach a human in under an hour, every day of the week.</Paragraph>
+            <Text style={smallPrint}>Reach a human in under an hour, every day of the week.</Text>
           </Column>
         </Row>
 
         <Divider style={{ borderTop: line }} />
 
         {/* Sign-off */}
-        <Paragraph style={smallPrint}>Questions? Just reply to this email — it reaches the team directly.</Paragraph>
+        <Text style={smallPrint}>Questions? Just reply to this email — it reaches the team directly.</Text>
       </Column>
 
       {/* Footer */}
-      <Paragraph style={{ padding: "0 40px 32px", fontSize: 11, lineHeight: 1.6, color: "#a1a1aa", textAlign: "center" }}>
+      <Text style={{ padding: "0 40px 32px", fontSize: 11, lineHeight: 1.6, color: "#a1a1aa", textAlign: "center" }}>
         Acme Inc · San Francisco, CA · <Link href="https://example.com/unsubscribe" style={{ color: "#a1a1aa" }}>Unsubscribe</Link>
-      </Paragraph>
+      </Text>
     </Email>
   );
 }

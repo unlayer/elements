@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Section,
 } from "@unlayer/react-elements";
 
@@ -51,10 +51,10 @@ export default function ProductLaunch(): ReactElement {
         >
           Arc 2.0
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 16, color: "#a1a1aa", textAlign: "center", lineHeight: 1.7 }}>
+        <Text style={{ padding: 10, fontSize: 16, color: "#a1a1aa", textAlign: "center", lineHeight: 1.7 }}>
           The browser that thinks the way you do. Rebuilt from the ground up with AI-native
           navigation, spatial tabs, and zero clutter.
-        </Paragraph>
+        </Text>
         <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
             href="#"
@@ -70,9 +70,9 @@ export default function ProductLaunch(): ReactElement {
             Download for Mac
           </Button>
         </Column>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#52525b", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#52525b", textAlign: "center", lineHeight: 1.5 }}>
           Also available for Windows and Linux
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Product Screenshot */}
@@ -117,10 +117,10 @@ export default function ProductLaunch(): ReactElement {
         >
           AI Navigator
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
           Ask Arc anything. It reads the page, finds answers, and takes actions — no extensions
           needed. Summarize articles, fill forms, compare products, all from the URL bar.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Feature 2 */}
@@ -131,10 +131,10 @@ export default function ProductLaunch(): ReactElement {
         >
           Spatial Tabs
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
           Tabs that organize themselves. Related pages cluster together, old tabs fade away, and
           your workspace stays clean without any effort.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Feature 3 */}
@@ -145,10 +145,10 @@ export default function ProductLaunch(): ReactElement {
         >
           Instant Preview
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "left", lineHeight: 1.65 }}>
           Hover any link to peek at the page. No more opening tabs just to check if a link is worth
           visiting.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* CTA */}
@@ -179,9 +179,9 @@ export default function ProductLaunch(): ReactElement {
 
       {/* Footer */}
       <Section style={{ backgroundColor: "#0a0a0a", padding: [36, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#3f3f46", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#3f3f46", textAlign: "center", lineHeight: 1.5 }}>
           The Browser Company · New York, NY
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

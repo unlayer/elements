@@ -8,7 +8,7 @@ import {
   Image,
   Link,
   Page,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -42,7 +42,7 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
         >
           The Weekly Brief
         </Heading>
-        <Paragraph
+        <Text
           style={{
             padding: 10,
             fontFamily: uiFont,
@@ -53,7 +53,7 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
           }}
         >
           March 4, 2026 · Issue #47
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Divider */}
@@ -95,12 +95,12 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
         >
           Design Systems at Scale: Lessons from the Trenches
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 16, color: "#555555", textAlign: "left", lineHeight: 1.7 }}>
+        <Text style={{ padding: 10, fontSize: 16, color: "#555555", textAlign: "left", lineHeight: 1.7 }}>
           After three years building a design system used by 200+ engineers, here's what actually
           matters — and what's just noise. Spoiler: tokens are table stakes, but governance is
           everything.
-        </Paragraph>
-        <Paragraph
+        </Text>
+        <Text
           style={{
             padding: 10,
             fontFamily: uiFont,
@@ -113,7 +113,7 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
           {"By "}
           <Span style={{ fontWeight: 700 }}>Sarah Chen</Span>
           {" · 8 min read"}
-        </Paragraph>
+        </Text>
         <Column style={{ padding: 10, alignItems: "start" }}>
           <Button
             href="#"
@@ -186,9 +186,9 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
             >
               The Future of Email Is Components
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
               How React-based email systems are replacing template builders.
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -228,9 +228,9 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
             >
               Accessibility Isn't Optional Anymore
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
               The EU Accessibility Act takes effect in June. Here's what it means for your emails.
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -270,16 +270,16 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
             >
               Why We Switched from Figma to Code-First
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#777777", textAlign: "left", lineHeight: 1.5 }}>
               Our team's journey from visual tools to component-driven design.
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [24, 0, 40, 0] }}>
-        <Paragraph
+        <Text
           style={{
             padding: 10,
             fontFamily: uiFont,
@@ -291,10 +291,10 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
         >
           {"You're receiving this because you subscribed to "}
           <Span style={{ fontWeight: 700 }}>The Weekly Brief</Span>.
-        </Paragraph>
+        </Text>
         {/* The only content that differs between the two outputs: the inbox
               copy links out to the archive, the archive links back to signup. */}
-        <Paragraph
+        <Text
           style={{
             padding: 10,
             fontFamily: uiFont,
@@ -315,7 +315,7 @@ function NewsletterContent({ output }: { output: NewsletterOutput }): ReactEleme
               <Link href="#">Update preferences</Link>
             </>
           )}
-        </Paragraph>
+        </Text>
       </Section>
     </>
   );
