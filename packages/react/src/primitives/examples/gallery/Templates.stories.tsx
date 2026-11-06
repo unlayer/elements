@@ -6,7 +6,7 @@ import { oyenLaunch } from "./oyen-launch";
 import { pellAshbyInvoice } from "./pell-ashby-invoice";
 
 const meta: Meta<Args> = {
-  title: "Gallery",
+  title: "Templates",
   args,
   argTypes,
   parameters: {
