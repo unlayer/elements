@@ -14,6 +14,9 @@ type Sides = { top: number; right: number; bottom: number; left: number };
 type TextAlign = "left" | "center" | "right" | "justify";
 
 /** What a block needs from the template it's in. */
+/** What the builder's document mode does with an HTML block. */
+export const NOT_IN_DOCUMENTS = "the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF";
+
 export interface Place {
   at(path: string): ResolvedNode;
   report: string[];
@@ -243,6 +246,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
+      if (place.at("root").type === "Document") place.report.push(`${path}: an Html block: ${NOT_IN_DOCUMENTS}`);
       return place.put(block("html", hiding), merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "margin-top:1em;margin-bottom:1em"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
     case "PageBreak":
       return place.put(block("page_break"));

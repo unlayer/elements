@@ -83,7 +83,7 @@ export const rowWith = (cells: number[], fields: RowFields, columns: Column[]): 
 export interface BodyFields {
   contentWidth: string;
   textColor?: string;
-  fontFamily: { label: string; value: string };
+  fontFamily: { label: string; value: string; url?: string };
   fontWeight?: number;
   textDirection?: string;
   documentSize?: string;

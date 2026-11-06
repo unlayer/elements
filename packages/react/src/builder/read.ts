@@ -65,8 +65,10 @@ export function readDesign(given: unknown, displayMode: DisplayMode | undefined,
   // An older design says it here, which the builder moves to its phone and desktop values when it opens one.
   const items = all.flatMap((row) => [row, ...arr(obj(row).columns).flatMap((column) => [column, ...arr(obj(column).contents)])]).map((item) => obj(obj(item).values));
   if (items.some((held) => held.hideMobile === true || held.hideDesktop === true)) report.push("body: what it hides on phones or on desktop is written as an older design's, which the builder moves when it opens one: left out, so it shows. Open it in the builder and save it first");
-  // A web font the builder loads from a stylesheet (a Google Fonts URL); a root's fonts are font files.
-  const webFonts = [...new Set([values, ...items].map((held) => obj(held.fontFamily)).filter((family) => typeof family.url === "string" && family.url).map((family) => String(family.label ?? family.value)))];
+  // A web font the builder loads from a stylesheet (a Google Fonts URL); a root's fonts are font files, and a stylesheet
+  // toDesign wrote for one of them comes back as that font.
+  const ownFonts = new Set(arr(root.props?.fonts).map((face) => obj(face).family));
+  const webFonts = [...new Set([values, ...items].map((held) => obj(held.fontFamily)).filter((family) => typeof family.url === "string" && family.url && !ownFonts.has(family.label)).map((family) => String(family.label ?? family.value)))];
   if (webFonts.length) report.push(`body: ${webFonts.join(", ")}: web fonts the builder loads from a stylesheet, which a root doesn't take (its fonts are font files): left out, so text shows in the next font of its stack`);
   const tags = [...new Set(wordsIn(all, 12).flatMap((text) => [...text.matchAll(/\[\[\s*[\w.-]+\s*\]\]/g)].map((match) => match[0])))];
   if (tags.length) report.push(`body: ${tags.join(", ")}: design tags are filled in by the builder, from what it's given: written as they are`);

@@ -14,7 +14,7 @@ import { add, boxRowOf, builderId, gapOf, hasBox, hiding, padding, rowOf, TEXT_F
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
-import { blockTool, type Place } from "./tools";
+import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
 import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
 
 export interface Raised {
@@ -89,7 +89,7 @@ export function raise(element: React.ReactElement): Raised {
     put,
     sayLeftOut,
     locked: (node, path, why, around) => {
-      report.push(`${path}: ${why}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`);
+      report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
       return put(lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path)));
     },

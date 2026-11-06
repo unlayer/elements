@@ -46,6 +46,12 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
   if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "mobile.gap", "style.backgroundColor", "style.border", "mobile.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
   const stacks = node.props?.stackOnMobile !== false;
   const rowBorder = (own.style.border as Record<string, Json> | undefined) ?? {};
+  // A Row's border is its columns' in the builder (below), which fill the row and move with its alignItems.
+  if (!arranged && Object.keys(rowBorder).length) {
+    const around = Math.max(outer.left, outer.right);
+    if (around) place.report.push(`${path}: the builder draws a Row's border on its columns, which fill the row: the ${around}px around the Row goes inside the line, so the line is as wide as the row`);
+    if (own.style.alignItems === "center" || own.style.alignItems === "end") place.report.push(`${path}: the builder draws a Row's border on its columns, which alignItems moves: each part of the line is at its column's height`);
+  }
   const columns = all.map(({ child, path: childPath }, i) => {
     // A child hidden on desktop takes no room there: the least share a column can have in the builder.
     const width = child.hidden?.desktop ? 0 : (at(childPath)?.width ?? 0);

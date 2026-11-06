@@ -155,6 +155,49 @@ describe("toDesign", () => {
     expect(plain.design.body.rows[1].columns[0].values.padding).toBe("20px 44px");
   });
 
+  it("gives each font the root has its stylesheet, as the builder loads one, and reads it back as that font", () => {
+    const face = { family: "Geist", src: "https://fonts.example/geist.woff2", format: "woff2", weight: "100 900" } as const;
+    const { design } = toDesign(
+      <Email fonts={[face]} style={{ fontFamily: "Geist, Arial, sans-serif" }}>
+        <Paragraph>Words</Paragraph>
+        <Paragraph style={{ fontFamily: "Georgia, serif" }}>More</Paragraph>
+      </Email>
+    );
+    const body = design.body.values.fontFamily as { label: string; url?: string };
+    expect(body.label).toBe("Geist");
+    expect(decodeURIComponent(body.url ?? "")).toBe("data:text/css;charset=utf-8,@font-face{font-family:'Geist';src:url(https://fonts.example/geist.woff2) format('woff2');font-weight:100 900;font-style:normal}");
+    expect(JSON.stringify(blocks(design)[1].values.fontFamily)).not.toContain("url");
+    const back = fromDesign(design);
+    expect(back.report.join("\n")).not.toContain("web fonts");
+    expect(back.code).toContain("geist.woff2");
+    // One the template doesn't have is still said to be left out.
+    const other = JSON.parse(JSON.stringify(design));
+    other.body.values.fontFamily = { label: "Lora", value: "Lora, serif", url: "https://fonts.example/lora.css" };
+    expect(fromDesign(other).report.join("\n")).toContain("Lora: web fonts the builder loads from a stylesheet");
+  });
+
+  it("says what a Document's HTML blocks lose, which the builder's document mode doesn't draw", () => {
+    const missing = "the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF";
+    const table = <Table><TableRow><TableCell>Words</TableCell></TableRow></Table>;
+    expect(toDesign(<Document>{table}</Document>).report.join("\n")).toContain(missing);
+    expect(toDesign(<Document><Html html="<p>Words</p>" /></Document>).report.join("\n")).toContain(missing);
+    expect(toDesign(<Email>{table}</Email>).report.join("\n")).toContain("it can be moved, not edited");
+    expect(toDesign(<Email><Html html="<p>Words</p>" /></Email>).report).toEqual([]);
+  });
+
+  it("says where the builder can't draw a Row's border as it's written: on its columns, which fill the row and move with alignItems", () => {
+    const row = (style: Record<string, unknown>) => (
+      <Row style={{ border: { top: "1px solid #000000" }, ...style }}>
+        <Column><Text>a</Text></Column>
+        <Column><Text>b</Text></Column>
+      </Row>
+    );
+    expect(toDesign(<Email>{row({})}</Email>).report).toEqual([]);
+    expect(toDesign(<Email><Section style={{ padding: [0, 48] }}>{row({})}</Section></Email>).report).toEqual(["root.children[0].children[0]: the builder draws a Row's border on its columns, which fill the row: the 48px around the Row goes inside the line, so the line is as wide as the row"]);
+    expect(toDesign(<Email>{row({ alignItems: "end" })}</Email>).report).toEqual(["root.children[0]: the builder draws a Row's border on its columns, which alignItems moves: each part of the line is at its column's height"]);
+    expect(toDesign(<Email>{row({ alignItems: "stretch" })}</Email>).report).toEqual([]);
+  });
+
   it("takes an Email, a Page or a Document, which the builder edits", () => {
     expect(() =>
       toDesign(
