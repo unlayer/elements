@@ -4,8 +4,8 @@ import { Email, Page, render, type RenderResult } from "../primitives/index";
 
 /** The window each render is shown in: an email client's on a desktop, or a phone's. */
 export type Width = "desktop" | "phone";
-const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
-const GAP = 16;
+export const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
+export const GAP = 16;
 
 /** One thing a render reported: its severity, and what it says. */
 export type Note = { severity: "error" | "warning" | "info"; text: string };
@@ -21,7 +21,7 @@ export interface SideBySideProps {
 }
 
 /** A list of what a render reported, under a summary that says how many. */
-function Reported({ notes, summary, open }: { notes: Note[]; summary: string; open?: boolean }) {
+export function Reported({ notes, summary, open }: { notes: Note[]; summary: string; open?: boolean }) {
   if (!notes.length) return null;
   return (
     <details open={open} style={{ font: "13px system-ui, sans-serif", marginTop: 16, color: open ? "#9a3412" : "#57606a" }}>
@@ -41,7 +41,7 @@ function Reported({ notes, summary, open }: { notes: Note[]; summary: string; op
  * One render, in a frame of its own: its stylesheet stays its own, and its phone styles answer the
  * frame's width. The frame keeps that width inside, and is drawn smaller (`scale`) where two don't fit.
  */
-function Frame({ label, html, width, scale }: { label: string; html: string; width: number; scale: number }) {
+export function Frame({ label, html, width, scale }: { label: string; html: string; width: number; scale: number }) {
   // Starts short, then takes its content's height once it has loaded.
   const [height, setHeight] = useState(200);
   return (

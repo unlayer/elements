@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, noted, SideBySide, type Args } from "../stories/SideBySide";
+import { InTheEditor } from "../stories/InTheEditor";
+import { args, argTypes, noted, type Args } from "../stories/SideBySide";
 import { gallery } from "../primitives/examples/gallery";
 import { Document, Page, render } from "../primitives/index";
 import { fromDesign, toDesign, type DisplayMode } from "./index";
@@ -15,7 +16,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "The gallery's templates as they're written (left), and the template `fromDesign()` brings back from their design JSON after `toDesign()`, without its hidden properties, which the builder keeps but doesn't draw (right): each field read as the builder draws it. Every gallery template but the Canvas card, which is an image the builder doesn't make.",
+          "The gallery's templates as Elements draws them, beside the real Unlayer editor holding their `toDesign()` JSON, live and editable (it loads from editor.unlayer.com: on this page, when you ask). Under each render is the template `fromDesign()` brings back from that JSON, without its hidden properties, which the builder keeps but doesn't draw: each field read as the builder draws it. Every gallery template but the Canvas card, which is an image the builder doesn't make.",
       },
     },
   },
@@ -53,9 +54,10 @@ const modeOf = (template: ReactElement): DisplayMode => (template.type === Page 
 /** The window a template is meant for: a browser's for a Page, its paper's for a Document, an email client's otherwise. */
 const windowOf = (template: ReactElement, width: Args["width"]) => (template.type === Page ? (width === "phone" ? 390 : 1280) : template.type === Document ? 842 : undefined);
 
-/** A template as it's written, next to the one that comes back from what the builder draws of its design. */
+/** A template as it's written, beside the real editor holding its design, over the one that comes back from what the builder draws of it. */
 const builder = (template: ReactElement): StoryObj<Args> => {
-  const back = fromDesign(withoutHidden(toDesign(template).design), { displayMode: modeOf(template) });
+  const { design, report } = toDesign(template);
+  const back = fromDesign(withoutHidden(design), { displayMode: modeOf(template) });
   return {
     parameters: { docs: { source: { code: back.code, language: "tsx" } } },
     loaders: [
@@ -64,15 +66,18 @@ const builder = (template: ReactElement): StoryObj<Args> => {
         return { written: written.html, returned: returned.html, notes: [...noted(written), ...noted(returned)] };
       },
     ],
-    render: ({ width }, { loaded }) => (
-      <SideBySide
-        frames={[
-          { label: "As written", html: loaded.written },
-          { label: "Back from the builder", html: loaded.returned },
-        ]}
+    render: ({ width }, { loaded, viewMode }) => (
+      <InTheEditor
+        template={template}
+        design={design}
+        report={report}
+        displayMode={modeOf(template)}
+        written={loaded.written}
+        back={loaded.returned}
         notes={loaded.notes}
         width={width}
         size={windowOf(template, width)}
+        onScreen={viewMode !== "docs"}
       />
     ),
   };
