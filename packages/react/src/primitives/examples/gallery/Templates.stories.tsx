@@ -35,7 +35,7 @@ export const SaltworksInvitation: StoryObj<Args> = { ...showing("Email", gallery
 /** An Email: a bank's sign-in code, in a narrow column of the system's own font. */
 export const KeelSignInCode: StoryObj<Args> = { ...showing("Email", gallery.keelSignInCode), name: "Keel sign-in code" };
 
-/** A Page: a guesthouse's landing page, the hills drawn with Svg shapes in an arched window. Switch `width` to see it on a phone. */
+/** A Page: a guesthouse's landing page, the hills an SVG in one Image, in an arched window. Switch `width` to see it on a phone. */
 export const CasaAlberoPage: StoryObj<Args> = { ...browsed(gallery.casaAlberoPage), name: "Casa Albero page" };
 
 /** A Document: an architecture practice's invoice, and the hours behind it, drawn as charts on its second page. */

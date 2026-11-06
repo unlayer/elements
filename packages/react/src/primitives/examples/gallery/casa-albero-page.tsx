@@ -1,13 +1,12 @@
 /**
  * Casa Albero (a fictional guesthouse in the hills above Lucca): its landing page.
  *
- * Written for the web: a wide hero with the hills drawn in an arched window (Svg shapes, so no
- * image to load), Cormorant Garamond for the voice and Jost for the facts, and the colours of
- * the place: terracotta, olive and the warm white of lime plaster. The rooms are a table, the
- * year is four columns, and booking is a terracotta band.
+ * Written for the web: a wide hero with the hills drawn in an arched window (an SVG in a data
+ * URI, so nothing to load, and one Image that fits any width), Cormorant Garamond for the voice
+ * and Jost for the facts, and the colours of the place: terracotta, olive and the warm white of
+ * lime plaster. The rooms are a table, the year is four columns, and booking is a terracotta band.
  */
-import { cloneElement } from "react";
-import { Button, Circle, Column, Grid, Heading, Link, Menu, Page, Paragraph, Path, Polygon, Rect, Row, Section, Svg, Text } from "../../index";
+import { Button, Column, Grid, Heading, Image, Link, Menu, Page, Paragraph, Row, Section, Text } from "../../index";
 
 const PLASTER = "#FBF7F0";
 const STONE = "#F2EADD";
@@ -25,54 +24,48 @@ const SITE = "https://casaalbero.example";
 const kicker = { fontSize: 13, fontWeight: 500, letterSpacing: 2, textTransform: "uppercase", color: TERRACOTTA } as const;
 
 /** A cypress: a tall flame of dark green, its foot at x, y. */
-const cypress = (x: number, y: number, height: number, width = height / 5.5) => (
-  <Path d={`M${x} ${y} C${x - width} ${y - height * 0.35} ${x - width * 0.55} ${y - height * 0.8} ${x} ${y - height} C${x + width * 0.55} ${y - height * 0.8} ${x + width} ${y - height * 0.35} ${x} ${y} Z`} style={{ fill: "#3B4824" }} />
-);
+const cypress = (x: number, y: number, height: number, width = height / 5.5) =>
+  `<path fill="#3B4824" d="M${x} ${y} C${x - width} ${y - height * 0.35} ${x - width * 0.55} ${y - height * 0.8} ${x} ${y - height} C${x + width * 0.55} ${y - height * 0.8} ${x + width} ${y - height * 0.35} ${x} ${y} Z"/>`;
 
 /** A row of olive trees along a slope. */
 const olives = (y: number, from: number, to: number, size: number, rise = 0) =>
   Array.from({ length: Math.floor((to - from) / (size * 3.2)) }, (_, i) => {
     const x = from + i * size * 3.2;
-    return <Circle key={`${y}-${i}`} cx={x} cy={y - (rise * (x - from)) / (to - from)} r={size} style={{ fill: "#6F7B3F" }} />;
-  });
+    return `<circle fill="#6F7B3F" cx="${x}" cy="${y - (rise * (x - from)) / (to - from)}" r="${size}"/>`;
+  }).join("");
 
-/** The hills, drawn in an arched window 560 wide and 640 tall: the shapes, for a desktop's Svg and a phone's. */
-const hills = [
-  <Rect width={560} height={640} style={{ fill: "#F3DDBF" }} />,
-  <Circle cx={384} cy={236} r={54} style={{ fill: "#E4A23F" }} />,
-  <Path d="M0 352 C90 318 170 330 250 312 C330 294 420 300 560 330 V640 H0 Z" style={{ fill: "#CAC6A0" }} />,
-  <Path d="M0 410 C70 380 150 372 230 388 C320 406 400 368 560 380 V640 H0 Z" style={{ fill: "#A0A66C" }} />,
-  ...olives(420, 300, 540, 5, 30),
-  ...olives(444, 280, 540, 5.5, 26),
-  // The farmhouse and its tower, on the far ridge.
-  <Rect x={128} y={356} width={74} height={36} style={{ fill: "#EBD3B2" }} />,
-  <Polygon points="122,358 165,340 208,358" style={{ fill: TERRACOTTA }} />,
-  <Rect x={176} y={326} width={24} height={36} style={{ fill: "#E2C59F" }} />,
-  <Polygon points="172,328 188,316 204,328" style={{ fill: TERRACOTTA }} />,
-  <Rect x={140} y={370} width={8} height={11} style={{ fill: "#6A4A33" }} />,
-  <Rect x={158} y={370} width={8} height={11} style={{ fill: "#6A4A33" }} />,
-  <Rect x={184} y={338} width={7} height={9} style={{ fill: "#6A4A33" }} />,
-  cypress(116, 392, 74),
-  cypress(214, 392, 62),
-  cypress(228, 394, 46),
-  <Path d="M0 500 C120 470 230 486 330 470 C430 454 500 470 560 462 V640 H0 Z" style={{ fill: "#6E7B3D" }} />,
-  // The white road up from the gate.
-  <Path d="M300 640 C292 590 250 560 214 530 C182 504 168 452 166 394 L171 394 C175 448 194 498 226 524 C266 556 314 590 322 640 Z" style={{ fill: "#EAD9B9" }} />,
-  ...olives(540, 20, 200, 7, -10),
-  ...olives(566, 0, 190, 8, -12),
-  <Path d="M0 590 C140 570 300 600 560 572 V640 H0 Z" style={{ fill: "#4B5630" }} />,
-  cypress(470, 600, 210),
-  cypress(512, 604, 168),
-  cypress(434, 606, 120),
-  // The window: the plaster around the arch, drawn over the hills (the arch turns the other way, so it's a hole).
-  <Path d="M-1 -1 H561 V641 H-1 Z M0 640 H560 V280 A280 280 0 0 0 0 280 Z" style={{ fill: PLASTER }} />,
-];
-
-const window = (width: number, height: number) => (
-  <Svg width={width} height={height} viewBox="0 0 560 640" title="Hills above Lucca at evening: a farmhouse with a tower, olive groves, a white road and cypresses, framed by an arched window.">
-    {hills.map((shape, index) => cloneElement(shape, { key: index }))}
-  </Svg>
-);
+/** The hills through an arched window, 560 wide and 640 tall: an SVG drawn as an Image, so it fits any width. */
+const HILLS = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="560" height="640" viewBox="0 0 560 640">
+  <clipPath id="arch"><path d="M0 640 H560 V280 A280 280 0 0 0 0 280 Z"/></clipPath>
+  <g clip-path="url(#arch)">
+    <rect width="560" height="640" fill="#F3DDBF"/>
+    <circle cx="384" cy="236" r="54" fill="#E4A23F"/>
+    <path fill="#CAC6A0" d="M0 352 C90 318 170 330 250 312 C330 294 420 300 560 330 V640 H0 Z"/>
+    <path fill="#A0A66C" d="M0 410 C70 380 150 372 230 388 C320 406 400 368 560 380 V640 H0 Z"/>
+    ${olives(420, 300, 540, 5, 30)}
+    ${olives(444, 280, 540, 5.5, 26)}
+    <!-- The farmhouse and its tower, on the far ridge. -->
+    <rect x="128" y="356" width="74" height="36" fill="#EBD3B2"/>
+    <polygon points="122,358 165,340 208,358" fill="${TERRACOTTA}"/>
+    <rect x="176" y="326" width="24" height="36" fill="#E2C59F"/>
+    <polygon points="172,328 188,316 204,328" fill="${TERRACOTTA}"/>
+    <rect x="140" y="370" width="8" height="11" fill="#6A4A33"/>
+    <rect x="158" y="370" width="8" height="11" fill="#6A4A33"/>
+    <rect x="184" y="338" width="7" height="9" fill="#6A4A33"/>
+    ${cypress(116, 392, 74)}
+    ${cypress(214, 392, 62)}
+    ${cypress(228, 394, 46)}
+    <path fill="#6E7B3D" d="M0 500 C120 470 230 486 330 470 C430 454 500 470 560 462 V640 H0 Z"/>
+    <!-- The white road up from the gate. -->
+    <path fill="#EAD9B9" d="M300 640 C292 590 250 560 214 530 C182 504 168 452 166 394 L171 394 C175 448 194 498 226 524 C266 556 314 590 322 640 Z"/>
+    ${olives(540, 20, 200, 7, -10)}
+    ${olives(566, 0, 190, 8, -12)}
+    <path fill="#4B5630" d="M0 590 C140 570 300 600 560 572 V640 H0 Z"/>
+    ${cypress(470, 600, 210)}
+    ${cypress(512, 604, 168)}
+    ${cypress(434, 606, 120)}
+  </g>
+</svg>`)}`;
 
 /** A room: its name and what it's like, beside what a night costs and who it sleeps (on phones too). */
 const room = (name: string, what: string, sleeps: string, from: string) => (
@@ -151,8 +144,8 @@ export const casaAlberoPage = (
 
     {/* The hero: the words, and the hills through the window */}
     <Section style={{ padding: [24, 48, 88] }} mobile={{ padding: [12, 20, 56] }}>
-      <Row style={{ alignItems: "center", gap: 72 }} mobile={{ gap: 36 }}>
-        <Column style={{ gap: 28 }}>
+      <Row style={{ alignItems: "center", flexWrap: "wrap", gap: 72 }} mobile={{ gap: 36 }}>
+        <Column style={{ width: 512, gap: 28 }}>
           <Text style={kicker}>A guesthouse in the hills above Lucca</Text>
           <Heading level={1} style={{ fontFamily: SERIF, fontSize: 92, fontWeight: 500, lineHeight: 0.92, letterSpacing: -2 }} mobile={{ fontSize: 58, letterSpacing: -1 }}>
             Stay where the olives grow.
@@ -176,10 +169,9 @@ export const casaAlberoPage = (
             </Text>
           </Row>
         </Column>
-        <Column style={{ width: 520 }} hidden={{ mobile: true }}>
-          {window(520, 594)}
+        <Column style={{ flex: 1, minWidth: 280, maxWidth: 520 }}>
+          <Image src={HILLS} alt="Hills above Lucca at evening: a farmhouse with a tower, olive groves, a white road and cypresses, framed by an arched window." style={{ width: "100%" }} />
         </Column>
-        <Column hidden={{ desktop: true }}>{window(350, 400)}</Column>
       </Row>
     </Section>
 
