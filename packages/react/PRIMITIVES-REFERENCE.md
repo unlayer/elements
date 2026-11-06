@@ -61,7 +61,7 @@ Props:
 - `textTransform`: one of "none", "uppercase", "lowercase", "capitalize" (inherited)
 - `backgroundColor`: *color*. The window's background, behind the content.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `gap`.
 
@@ -91,7 +91,7 @@ Props:
 - `textTransform`: one of "none", "uppercase", "lowercase", "capitalize" (inherited)
 - `backgroundColor`: *color*. The window's background, behind the content.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `gap`.
 
@@ -122,7 +122,7 @@ Props:
 - `textTransform`: one of "none", "uppercase", "lowercase", "capitalize" (inherited)
 - `backgroundColor`: *color*. Each page's background, out to its edges.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `gap`.
 
@@ -152,7 +152,7 @@ Props:
 - `textTransform`: one of "none", "uppercase", "lowercase", "capitalize" (inherited)
 - `backgroundColor`: *color*. The window's background, behind the content.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 - `padding`: *insets*
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
 
@@ -182,7 +182,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `padding`: *insets*
 - `border`: *border*
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `padding`, `border`, `gap`.
 
@@ -216,7 +216,7 @@ Props:
 - `borderRadius`: *radius*
 - `overflow`: one of "visible", "hidden". Whether content past a set height is cut off.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
 - `flexWrap`: one of "nowrap", "wrap", "words". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones). "words": in an email, also a space of the text's font apart, on lines at least as tall as its, as words are.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
@@ -249,7 +249,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `borderRadius`: *radius*
 - `overflow`: one of "visible", "hidden". Whether content past a set height is cut off.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
@@ -737,7 +737,7 @@ Holds: Section, Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, B
 - `textTransform`: one of "none", "uppercase", "lowercase", "capitalize" (inherited)
 - `backgroundColor`: *color*. The page's background, out to its edges.
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `gap`.
 
@@ -767,7 +767,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `backgroundColor`: *color*
 - `border`: *border*
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `padding`, `border`, `gap`.
 
@@ -791,7 +791,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Paragraph, Heading, Link, Button, Im
 - `backgroundColor`: *color*
 - `border`: *border*
 - `gap`: a length (a number of px). Space between children.
-- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items.
+- `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `padding`, `border`, `gap`.
 
