@@ -218,7 +218,7 @@ Props:
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
-- `flexWrap`: one of "nowrap", "wrap", "words". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones). "words": in an email, also a space of the text's font apart, on lines at least as tall as its, as words are.
+- `flexWrap`: one of "nowrap", "wrap", "words". "wrap": children that don't fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones, with no gap between the lines). "words": in an email, also a space of the text's font apart, on lines at least as tall as its, as words are.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`, `gap`.

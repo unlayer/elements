@@ -2,15 +2,15 @@
  * What email can't do as a template asks, found in one pass before the
  * email is written: what each style and prop declares for email (the shared
  * pass, `shared/support.ts`), and what no single style or prop says: a Row
- * child whose size isn't known, an image without a width, a hidden table
- * cell, a font stack that ends on a web font. Size budgets are checked on the
- * written email (index.tsx).
+ * child whose size isn't known, a wrapped Row's gap between its lines, an image
+ * without a width, a hidden table cell, a font stack that ends on a web font.
+ * Size budgets are checked on the written email (index.tsx).
  */
 import { Diagnostics, type Diagnostic } from "../../diagnostics";
 import { fontStack, videoParts, type FontFace } from "../../kinds";
 import type { ResolvedNode } from "../../resolve";
 import { support } from "../shared/support";
-import { wrapsPastIts } from "../shared/estimate";
+import { wrapsPastIts, wrapsWithGap } from "../shared/estimate";
 import { isNode, shown } from "./context";
 import { layerShape } from "./layout";
 
@@ -55,6 +55,18 @@ function structure(node: ResolvedNode, d: Diagnostics): void {
         "info",
         `What it holds looks about ${past}px wide on one line, wider than its ${node.contentWidth}px (an estimate: text isn't measured yet): classic Outlook can't wrap it onto another line as other clients do, and draws it wider`,
         path,
+        id
+      );
+    }
+    // Its children wrap as inline-blocks, whose lines touch: anything between them but no space around them takes a
+    // negative margin or flex-wrap, neither of which Gmail or Yahoo reads.
+    const lines = wrapsWithGap(node);
+    if (lines !== null) {
+      d.add(
+        "email/degraded",
+        "info",
+        `What it holds looks too wide for one line on ${lines} (an estimate), and an email can't keep its gap between the lines it wraps onto: they touch. Give what's in it padding, or put each line in a Row of its own`,
+        `${path}.style.gap`,
         id
       );
     }

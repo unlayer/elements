@@ -219,6 +219,61 @@ describe("a Row kept side by side, on phones", () => {
   });
 });
 
+describe("a wrapping Row's gap between its lines, in an email", () => {
+  const boxes = (count: number, width: number) => Array.from({ length: count }, (_, index) => ({ type: "Column", id: `w${index}`, style: { width }, children: [{ type: "Text", children: ["x"] }] }));
+  const template = (children: unknown[], style: Record<string, unknown>, mobile?: Record<string, unknown>) =>
+    renderTemplate({ root: { type: "Email", props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap", ...style }, ...(mobile ? { mobile } : {}), children }] } });
+  /** How many lines the children are on in Chromium, and the space between the first two where there are more than one. */
+  const lines = async (html: string, viewport: number, ids: string[]) => {
+    const page = await browser.newPage({ viewport: { width: viewport, height: 800 } });
+    await page.setContent(html);
+    const found = await page.evaluate((ids) => ids.map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ top, bottom }) => [Math.round(top), Math.round(bottom)]), ids);
+    await page.close();
+    const tops = [...new Set(found.map(([top]) => top))];
+    return { lines: tops.length, between: tops.length > 1 ? tops[1] - found[0][1] : null };
+  };
+
+  for (const [name, count, width, style, mobile, where] of [
+    ["on desktop and on phones", 7, 140, { gap: 8 }, undefined, "desktop and phones"],
+    ["on phones", 3, 140, { gap: 8 }, undefined, "phones"],
+    ["with a gap of its own on phones", 3, 140, { gap: 0 }, { gap: 8 }, "phones"],
+    ["on desktop, with no gap on phones", 7, 140, { gap: 8 }, { gap: 0 }, "desktop"],
+  ] as const) {
+    it(`is said where its lines touch: ${name}`, async () => {
+      const children = boxes(count, width);
+      const { html, diagnostics } = template(children, style, mobile);
+      const ids = children.map((child) => child.id);
+      const said = diagnostics.filter((d) => d.code === "email/degraded");
+      expect(said.map((d) => [d.severity, d.path])).toEqual([["info", "root.children[0].style.gap"]]);
+      expect(said[0].message).toContain(`one line on ${where} `);
+      // The limit it says: in Chromium they're on more than one line, with nothing between them.
+      expect(await lines(html, where === "desktop" ? 1000 : 320, ids)).toMatchObject({ between: 0 });
+    });
+  }
+
+  for (const [name, count, width, style, mobile] of [
+    ["no gap to keep", 7, 140, {}, undefined],
+    ["a gap only on desktop, where it fits", 3, 140, { gap: 8 }, { gap: 0 }],
+  ] as const) {
+    it(`isn't said for ${name}`, () => {
+      expect(template(boxes(count, width), style, mobile).diagnostics.filter((d) => d.code === "email/degraded")).toEqual([]);
+    });
+  }
+
+  it("isn't said for what fits on one line, even at the narrowest window", async () => {
+    const children = boxes(3, 60);
+    const { html, diagnostics } = template(children, { gap: 8 });
+    expect(diagnostics.filter((d) => d.code === "email/degraded")).toEqual([]);
+    expect(await lines(html, 320, children.map((child) => child.id))).toEqual({ lines: 1, between: null });
+  });
+
+  it("isn't said for a Menu's links, which have no gap", () => {
+    const items = Array.from({ length: 12 }, (_, index) => ({ text: `Section ${index + 1}`, href: "#" }));
+    const { diagnostics } = renderTemplate({ root: { type: "Email", props: { width: 600 }, children: [{ type: "Menu", props: { items } }] } });
+    expect(diagnostics.filter((d) => d.code === "email/degraded")).toEqual([]);
+  });
+});
+
 describe("a Grid kept side by side, on phones", () => {
   it("keeps the last row's cells as wide as the others, in the email and on the page", async () => {
     const children = ["a", "b", "c"].map((words, index) => ({ type: "Text", id: `g${index}`, children: [words] }));

@@ -110,7 +110,7 @@ export const Row = defineComponent({
     flexWrap: {
       kind: enumOf(["nowrap", "wrap", "words"]),
       label: "Wrap",
-      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones). "words": in an email, also a space of the text\'s font apart, on lines at least as tall as its, as words are.',
+      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (in an email, in a Row kept side by side on phones, with no gap between the lines). "words": in an email, also a space of the text\'s font apart, on lines at least as tall as its, as words are.',
       // A Row kept side by side wraps in an email (but classic Outlook, which the email's checks say where it matters).
       support: {
         email: { level: "none", values: ["wrap", "words"], when: (_, row) => row.props.stackOnMobile !== false, shows: "children on one line on desktop, stacked on phones", source: "writer" },
