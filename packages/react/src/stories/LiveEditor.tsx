@@ -10,7 +10,7 @@ import { toDesign, type DisplayMode } from "../builder";
 import type { Design } from "../builder/write";
 import { Document, Page } from "../primitives/index";
 import { forTheEditor } from "./editorDesign";
-import { Reported, type Width } from "./Reported";
+import type { Width } from "./Reported";
 
 const EMBED = "https://editor.unlayer.com/embed.js";
 /** The embed's default channel is behind: it can't read a Document's schema. */
@@ -151,7 +151,7 @@ export interface LiveEditorProps {
   tall?: number;
 }
 
-/** A template's design in the real editor, with what `toDesign` says the builder can't keep. */
+/** A template's design in the real editor. */
 export function LiveEditor({ template, width, tall = 680 }: LiveEditorProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(0);
@@ -185,7 +185,6 @@ export function LiveEditor({ template, width, tall = 680 }: LiveEditorProps) {
 
   return (
     <div ref={box} style={{ marginTop: 24, minWidth: 0 }}>
-      {made && <Reported notes={made.report.map((text) => ({ severity: "info", text }))} summary="What toDesign says the builder can't keep" />}
       <figure style={{ margin: "16px 0 0" }}>
         <figcaption style={{ font: "600 13px system-ui, sans-serif", marginBottom: 8 }}>In the Unlayer editor, live: click anything to edit it</figcaption>
         {!made ? (
