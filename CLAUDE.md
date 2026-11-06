@@ -1,5 +1,9 @@
 # CLAUDE.md — Unlayer Elements
 
+Agents' rules (commits included) are in AGENTS.md:
+
+@AGENTS.md
+
 ## What is this project?
 
 A monorepo providing React components that render to email-safe HTML (tables for Outlook/Gmail), responsive web HTML, and print/PDF HTML. The core value: write JSX once, get production-ready HTML for any output target.
