@@ -12,7 +12,7 @@ export const GAP = 16;
 export interface SideBySideProps {
   /** The documents, and what each frame shows. */
   frames: Array<{ label: string; html: string }>;
-  /** What the renders reported: warnings, and notes on what some clients draw differently. */
+  /** What the renders reported. Only problems are shown. */
   notes: Note[];
   width: Width;
   /** The window's width in px, where it isn't an email client's for `width` (a browser's for a page, an image's own). */
@@ -64,9 +64,7 @@ export function SideBySide({ frames, notes, width, size }: SideBySideProps) {
           <Frame key={frame.label} label={frame.label} html={frame.html} width={window} scale={scale} />
         ))}
       </div>
-      {/* Warnings and errors are problems, shown open; info notes say what some email clients draw differently. */}
-      <Reported notes={notes.filter((note) => note.severity !== "info")} summary="Warnings" open />
-      <Reported notes={notes.filter((note) => note.severity === "info")} summary="Notes: what some clients draw differently" />
+      <Reported notes={notes} />
     </div>
   );
 }

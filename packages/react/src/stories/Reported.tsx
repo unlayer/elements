@@ -8,16 +8,15 @@ export type Note = { severity: "error" | "warning" | "info"; text: string };
 
 const list: CSSProperties = { paddingLeft: 20 };
 
-/** A list of what a render reported, under a summary that says how many. */
-export function Reported({ notes, summary, open }: { notes: Note[]; summary: string; open?: boolean }) {
-  if (!notes.length) return null;
+/** What a render reported as a problem. Its info notes stay in `render()`'s diagnostics. */
+export function Reported({ notes }: { notes: Note[] }) {
+  const problems = notes.filter((note) => note.severity !== "info");
+  if (!problems.length) return null;
   return (
-    <details open={open} style={{ font: "13px system-ui, sans-serif", marginTop: 16, color: open ? "#9a3412" : "#57606a" }}>
-      <summary>
-        {summary} ({notes.length})
-      </summary>
+    <details open style={{ font: "13px system-ui, sans-serif", marginTop: 16, color: "#9a3412" }}>
+      <summary>Warnings ({problems.length})</summary>
       <ul style={list}>
-        {notes.map((note, index) => (
+        {problems.map((note, index) => (
           <li key={index}>{note.text}</li>
         ))}
       </ul>

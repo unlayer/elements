@@ -57,8 +57,7 @@ function WrittenAndBack({ written, back, notes, page }: { written: string; back:
         <Frame label="As written, in Elements" html={written} width={page} scale={scale} />
         <Frame label="Back from the builder" html={back} width={page} scale={scale} />
       </div>
-      <Reported notes={notes.filter((note) => note.severity !== "info")} summary="Warnings" open />
-      <Reported notes={notes.filter((note) => note.severity === "info")} summary="Notes: what some clients draw differently" />
+      <Reported notes={notes} />
     </div>
   );
 }
