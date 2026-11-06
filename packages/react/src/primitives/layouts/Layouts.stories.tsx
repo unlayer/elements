@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { Button, Column, Email, Grid, Heading, Image, Layer, LineBreak, Page, Paragraph, Section, Text } from "../index";
+import { Button, Column, Email, Grid, Heading, Image, Layer, LineBreak, Page, Paragraph, Section, Text, type EmailProps } from "../index";
 import { args, argTypes, code, sideBySide, type Args } from "../../stories/SideBySide";
 
 const meta: Meta<Args> = {
@@ -37,7 +37,7 @@ const SANS = "Figtree, 'Helvetica Neue', Helvetica, Arial, sans-serif";
 const FONTS = [
   { family: "Fraunces", src: "https://fonts.gstatic.com/s/fraunces/v38/6NU78FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0KxC9TeP2Xz5c.woff2", format: "woff2", weight: "100 900" },
   { family: "Figtree", src: "https://fonts.gstatic.com/s/figtree/v9/_Xms-HUzqDCFdgfMm4S9DaRvzig.woff2", format: "woff2", weight: "300 900" },
-] as const;
+] satisfies NonNullable<EmailProps["fonts"]>;
 
 const kicker = { fontSize: 12, fontWeight: 600, letterSpacing: 1.4, textTransform: "uppercase" } as const;
 

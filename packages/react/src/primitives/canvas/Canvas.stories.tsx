@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { Canvas, Circle, Column, Ellipse, Grid, Heading, Line, LineBreak, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Span, Svg, Text } from "../index";
+import { Canvas, Circle, Column, Ellipse, Grid, Heading, Line, LineBreak, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Span, Svg, Text, type EmailProps } from "../index";
 import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
@@ -36,7 +36,7 @@ const MONO = "'Spline Sans Mono', SFMono-Regular, Menlo, Consolas, monospace";
 const FONTS = [
   { family: "Manrope", src: "https://fonts.gstatic.com/s/manrope/v23/xn7gYHE41ni1AdIRggexSvfedN4.woff2", format: "woff2", weight: "200 800" },
   { family: "Spline Sans Mono", src: "https://fonts.gstatic.com/s/splinesansmono/v13/R70BjzAei_CDNLfgZxrW6wrZOF2WX5KZmE-Z-lw.woff2", format: "woff2", weight: "300 700" },
-] as const;
+] satisfies NonNullable<EmailProps["fonts"]>;
 
 /** Small mono capitals: labels, and what a story shows. */
 const label = { fontFamily: MONO, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: DIM } as const;

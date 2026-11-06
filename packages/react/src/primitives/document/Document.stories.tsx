@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { Column, Document, Grid, Heading, LineBreak, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Path, render, Row, Span, Svg, Text } from "../index";
+import { Column, Document, Grid, Heading, LineBreak, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Path, render, Row, Span, Svg, Text, type EmailProps } from "../index";
 import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
@@ -48,7 +48,7 @@ const FONTS = [
   { family: "Libre Caslon Text", src: "https://fonts.gstatic.com/s/librecaslontext/v5/DdT678IGsGw1aF1JU10PUbTvNNaDMfq95-BDGjG2u9s.woff2", format: "woff2", weight: 400, style: "italic" },
   { family: "Libre Caslon Text", src: "https://fonts.gstatic.com/s/librecaslontext/v5/DdT578IGsGw1aF1JU10PUbTvNNaDMfID8vdkPx6esdPs.woff2", format: "woff2", weight: 700 },
   { family: "Libre Franklin", src: "https://fonts.gstatic.com/s/librefranklin/v20/jizDREVItHgc8qDIbSTKq4XkRiUf2zcZiVbJ.woff2", format: "woff2", weight: "100 900" },
-] as const;
+] satisfies NonNullable<EmailProps["fonts"]>;
 
 /** The type every page starts from. */
 const TYPE = { backgroundColor: "#ffffff", fontFamily: SERIF, fontSize: 13, lineHeight: 1.6, color: INK } as const;
