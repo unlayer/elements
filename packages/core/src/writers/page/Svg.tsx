@@ -20,11 +20,12 @@ export function shapeAttributes(node: ResolvedNode): Record<string, string | num
 
 const TAGS: Record<string, string> = { Rect: "rect", Circle: "circle", Ellipse: "ellipse", Line: "line", Polygon: "polygon", Path: "path" };
 
-export const Svg: Component = ({ node, parent, placement }) => {
+export const Svg: Component = ({ node, parent, placement, classes }) => {
   const { width, height, viewBox, title } = node.props as { width: number; height: number; viewBox?: string; title?: string };
   return (
     <svg
       id={node.id}
+      class={classes()}
       xmlns="http://www.w3.org/2000/svg"
       width={width}
       height={height}

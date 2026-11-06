@@ -81,6 +81,18 @@ describe("web layout in Chromium", () => {
 describe("an Svg in Chromium", () => {
   // Its drawing is the width and height it says; its padding and border are around it, as the resolver counts them.
   const svg = (style: Record<string, unknown> = {}) => ({ type: "Svg", id: "drawing", props: { width: 100, height: 50 }, style, children: [{ type: "Rect", props: { width: 100, height: 50 } }] });
+  it("hides it where it's hidden, on phones or on desktop", async () => {
+    const drawing = (id: string, hidden: Record<string, boolean>) => ({ type: "Svg", id, props: { width: 100, height: 50 }, hidden, children: [{ type: "Rect", props: { width: 100, height: 50 } }] });
+    const { html: both } = renderPage(resolveDocument(parseDocument({ root: { type: "Page", props: { width: 600 }, children: [drawing("wide", { mobile: true }), drawing("narrow", { desktop: true })] } })));
+    const shown = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(both);
+      return page.evaluate(() => ["wide", "narrow"].map((id) => getComputedStyle(document.getElementById(id)!).display !== "none"));
+    };
+    expect(await shown(1280)).toEqual([true, false]);
+    expect(await shown(375)).toEqual([false, true]);
+  });
+
   const CASES: Array<[string, Record<string, unknown>]> = [
     ["with padding and a border", { type: "Column", children: [svg({ padding: 20, border: "2px solid #000" })] }],
     ["in a stack that stretches its children", { type: "Column", style: { alignItems: "stretch" }, children: [svg({ padding: 10 })] }],
