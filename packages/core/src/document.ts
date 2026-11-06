@@ -1,5 +1,5 @@
 /**
- * Printed documents (RFC 0001, step 9): a Document's children on pages of its size, as print HTML (a page writer's
+ * Printed documents: a Document's children on pages of its size, as print HTML (a page writer's
  * output with each page a box of the page's size, and CSS's @page) and as PDF (@unlayer/react-elements/pdf, without a
  * browser). Pages are given (Document.Page) or made by PageBreaks; a PageHeader and a PageFooter go on every page, and a
  * PageNumber says which page it's on. Nothing flows from one page to the next: a page holds what it's given.

@@ -2,7 +2,7 @@
  * Email HTML from a laid-out template. Email clients are the hard target:
  * classic Outlook lays out with Word (no flexbox, no sizes on divs, no
  * padding on inline elements), and Gmail drops `<style>` for some accounts.
- * So (docs/rfcs/0001-primitives-and-exporters.md, "Email"):
+ * So:
  *
  * 1. Right without `<style>`: layout at desktop width, colors, fonts, sizes
  *    and spacing are inline. The stylesheet only adds phone overrides,

@@ -1,7 +1,5 @@
 /**
- * The new Elements API, built here until it replaces the package's main entry
- * in the next major (see docs/rfcs/0001-primitives-and-exporters.md): the
- * components, component(), render() and validate(). JSX is the only way to
+ * The Elements API: the components, component(), render() and validate(). JSX is the only way to
  * write a template; the tree it becomes is internal.
  */
 export {

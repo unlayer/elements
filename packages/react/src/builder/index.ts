@@ -1,5 +1,5 @@
 /**
- * The builder adapter (RFC 0001, step 11): a template in the new components as the Unlayer builder's design JSON, and
+ * The builder adapter: a template in the new components as the Unlayer builder's design JSON, and
  * a design (edited in the builder or not) back as a template. The design holds no Elements data: a style or prop a
  * tool has no field for is a hidden property of that tool (manifest.ts), kept in the design with no editor yet. What
  * the builder can't arrange comes back as the builder holds it: the same look, flatter.

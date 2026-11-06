@@ -3,8 +3,7 @@
 Elements' engine, framework-neutral: the template tree, the components' definitions
 (`src/components.ts`), validation, custom components and layout (`src/resolve.ts`), and Elements'
 own writers (`src/writers/`): a laid-out template as HTML for each output, and as plain text.
-Private, bundled into `@unlayer/react-elements`. The plan behind it is
-`docs/rfcs/0001-primitives-and-exporters.md`.
+Private, bundled into `@unlayer/react-elements`.
 
 Two entries are not framework-neutral: `./pdf` and `./image`, the writers of
 `@unlayer/react-elements/pdf` and `/image` (see [PDF and images](#pdf-and-images)). The main entry

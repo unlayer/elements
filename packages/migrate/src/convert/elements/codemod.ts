@@ -1,6 +1,6 @@
 /**
  * Codemod: Elements 0.2's components ("today's": @unlayer/react-elements's main entry before 0.3.0) rewritten as the
- * new ones (its main entry from 0.3.0), keeping the template's props, loops, conditions and helpers (RFC 0001, step 7).
+ * new ones (its main entry from 0.3.0), keeping the template's props, loops, conditions and helpers.
  * The React Email converter writes a template in today's components as source text first and moves it to the new ones
  * here at once: today's are never run.
  *

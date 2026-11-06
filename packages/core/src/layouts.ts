@@ -1,5 +1,5 @@
 /**
- * Layouts made of the others (RFC 0001, step 8). A Grid is a component of its own in the template (validated,
+ * Layouts made of the others. A Grid is a component of its own in the template (validated,
  * described, a block of its own in the builder's design) and, before layout, the Rows of Columns it is: the resolver
  * and every writer lay out only those, so a Grid draws the same in every output with nothing of its own to support.
  */

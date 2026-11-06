@@ -1,7 +1,6 @@
 # Migrating to the new components
 
-From 0.3.0, `@unlayer/react-elements` is the new components: typed `style` props, with the outputs and checks
-described in [RFC 0001](../../../docs/rfcs/0001-primitives-and-exporters.md). Elements 0.2's components (`Body`,
+From 0.3.0, `@unlayer/react-elements` is the new components: typed `style` props, with new outputs and checks. Elements 0.2's components (`Body`,
 `ColumnLayouts`, `renderToHtml()` and the rest) aren't in it, so templates written with them move to the new ones
 when the project upgrades.
 

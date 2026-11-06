@@ -1,7 +1,7 @@
 /**
  * Custom components: a named block made of primitives, with its own typed
  * props and editors, kept as one node in the document and expanded when it's
- * rendered (see docs/rfcs/0001-primitives-and-exporters.md, Custom components).
+ * rendered.
  */
 import type React from "react";
 import {

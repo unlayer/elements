@@ -1,5 +1,5 @@
 /**
- * Images (RFC 0001, step 10): a Canvas is a fixed-size root, its children laid out in it as on a page, written as an
+ * Images: a Canvas is a fixed-size root, its children laid out in it as on a page, written as an
  * image by @unlayer/react-elements/image (and as HTML by render(), to look at); an Svg draws shapes (Rect, Circle, Ellipse,
  * Line, Polygon, Path) in a box of its own, on a page, in a Canvas and in a PDF. An email can't show one: Gmail and
  * Outlook drop inline SVG.

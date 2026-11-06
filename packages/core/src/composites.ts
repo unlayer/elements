@@ -1,5 +1,5 @@
 /**
- * Built-in components made of primitives: today's Social, Menu and Video on the new engine (RFC 0001, step 7).
+ * Built-in components made of primitives: today's Social, Menu and Video on the new engine.
  * Each is a component of its own in the template (validated, described, and a block of its own in the builder's
  * design), and is expanded into the primitives it's made of before layout, as a custom component is: the writers
  * draw only primitives, in every output, and nothing in a render needs a browser or the network.
