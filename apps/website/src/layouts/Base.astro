@@ -8,10 +8,18 @@ interface Props {
   title?: string;
   description?: string;
   footer?: boolean;
+  /** Kept out of search results, with no canonical URL (the 404 page). */
+  noindex?: boolean;
+  /** "article" for a docs page; "website" otherwise. */
+  ogType?: "website" | "article";
+  /** Structured data for search engines, written as JSON-LD. */
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
-const { title, description = site.description, footer = true } = Astro.props;
+const { title, description = site.description, footer = true, noindex = false, ogType = "website", jsonLd } = Astro.props;
 const fullTitle = title ? `${title} · Hyper Elements` : "Hyper Elements: the content engine for agents";
 const canonical = new URL(Astro.url.pathname, site.url).href;
+const ogImage = new URL("/og.png", site.url).href;
+const ogImageAlt = "Hyper Elements: the content engine for agents";
 ---
 <!doctype html>
 <html lang="en">
@@ -31,15 +39,27 @@ const canonical = new URL(Astro.url.pathname, site.url).href;
     </script>
     <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    <link rel="canonical" href={canonical} />
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="alternate" type="text/plain" title="llms.txt" href="/llms.txt" />
+    <link rel="alternate" type="text/plain" title="llms-full.txt" href="/llms-full.txt" />
+    <meta property="og:site_name" content={site.name} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonical} />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content={new URL("/og.png", site.url).href} />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    <meta property="og:type" content={ogType} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />

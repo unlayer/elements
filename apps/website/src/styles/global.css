@@ -230,7 +230,7 @@ pre { margin: 0; }
 .card { border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-1); padding: 24px; min-width: 0; position: relative; transition: border-color 0.2s; }
 a.card { text-decoration: none; display: block; }
 a.card:hover { border-color: var(--line-3); }
-.card h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -0.015em; font-weight: 600; }
+.card h2, .card h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -0.015em; font-weight: 600; }
 .card p { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.55; }
 .card .tag { font: 500 12.5px var(--mono); color: var(--text); }
 .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); font: 500 12.5px var(--mono); color: var(--text-2); background: transparent; white-space: nowrap; }
@@ -272,7 +272,7 @@ a.card:hover { border-color: var(--line-3); }
 /* Footer */
 .site-footer { border-top: 1px solid var(--line); padding: 56px 0 40px; margin-top: 40px; }
 .footer-grid { display: grid; grid-template-columns: 1.6fr repeat(3, 1fr); gap: 32px; }
-.footer-grid h4 { margin: 0 0 12px; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
+.footer-grid h2 { margin: 0 0 12px; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); }
 .footer-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .footer-grid a { color: var(--text-2); text-decoration: none; font-size: 14px; }
 .footer-grid a:hover { color: var(--text); }

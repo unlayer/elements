@@ -9,6 +9,23 @@ import BuildWithAI from "../components/BuildWithAI.astro";
 import { site } from "../lib/site";
 import { showcase, templates, thumbWidth } from "../lib/examples";
 
+// For search engines: the site, and the software it's about.
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: site.url, description: site.description },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    name: site.name,
+    description: site.description,
+    url: site.url,
+    codeRepository: site.github,
+    programmingLanguage: ["TypeScript", "React"],
+    runtimePlatform: "Node.js",
+    license: "https://opensource.org/licenses/MIT",
+    version: site.version,
+  },
+];
+
 // Real output for the feature tiles.
 const plain = showcase.email.text.split("\n").filter(Boolean).slice(0, 3).join("\n") + "\n…";
 const note = showcase.email.diagnostics.find((d) => d.code === "email/outlook-degraded");
@@ -22,7 +39,7 @@ const items = [
 ];
 const strip = [...items, ...items];
 ---
-<Base>
+<Base jsonLd={jsonLd}>
   <section class="hero">
     <div class="wrap hero-inner">
       <a class="pill" href={site.releases}><span class="badge">v{site.version}</span>Open source, MIT licensed <span aria-hidden="true">→</span></a>

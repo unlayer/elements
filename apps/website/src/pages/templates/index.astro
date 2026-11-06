@@ -3,7 +3,7 @@ import Base from "../../layouts/Base.astro";
 import Thumb from "../../components/Thumb.astro";
 import { templates, thumbWidth } from "../../lib/examples";
 ---
-<Base title="Templates" description="Real templates written with Hyper Elements: receipts, onboarding, newsletters, invites, password resets and invoices.">
+<Base title="Templates" description="Templates written with Hyper Elements: emails, a landing page, an invoice and social images, each shown as the engine renders it, with its code.">
   <section class="page-hero">
     <div class="wrap">
       <p class="eyebrow">Templates</p>
@@ -17,7 +17,7 @@ import { templates, thumbWidth } from "../../lib/examples";
         <a class="card tcard reveal" href={`/templates/${t.slug}`}>
           <Thumb example={t} width={thumbWidth(t, { page: 1000, document: 860, email: 640 })} height={340} />
           <div class="tcard-body">
-            <div class="tcard-top"><h3>{t.title}</h3><span class="chip">{`<${t.root}>`}</span></div>
+            <div class="tcard-top"><h2>{t.title}</h2><span class="chip">{`<${t.root}>`}</span></div>
             <p>{t.description}</p>
           </div>
         </a>
@@ -31,5 +31,5 @@ import { templates, thumbWidth } from "../../lib/examples";
   .tcard { padding: 0; overflow: hidden; }
   .tcard-body { padding: 18px 20px 22px; }
   .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
-  .tcard-top h3 { margin: 0; }
+  .tcard-top h2 { margin: 0; }
 </style>

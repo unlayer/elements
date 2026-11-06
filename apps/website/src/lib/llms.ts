@@ -8,6 +8,11 @@ export async function docsInOrder() {
   return docsNav.flatMap((g) => g.items.map((i) => ({ group: g.title, slug: i.slug, entry: byId.get(i.slug) }))).filter((d) => d.entry);
 }
 
+/** The component reference's overview: the props and style rules every component follows. */
+export async function referenceOverview() {
+  return (await getCollection("reference")).find((e) => e.id === "overview");
+}
+
 export async function referenceInOrder() {
   return (await getCollection("reference")).filter((e) => e.id !== "overview").sort((a, b) => a.data.order - b.data.order);
 }
@@ -20,3 +25,6 @@ Install: \`${site.install}\`. Import components from \`${site.pkg}\`. A template
 `;
 
 export const abs = (slug: string) => new URL(docHref(slug), site.url).href;
+
+/** Site links in Markdown made absolute, so they resolve once the file is read on its own. */
+export const absoluteLinks = (markdown: string) => markdown.replace(/\]\(\/(?!\/)/g, `](${site.url}/`);

@@ -1,7 +1,8 @@
 ---
 import Base from "./Base.astro";
 import { getCollection } from "astro:content";
-import { componentGroups, docHref, docsNav } from "../lib/site";
+import { componentGroups, docHref, docsNav, site } from "../lib/site";
+import { absoluteLinks } from "../lib/llms";
 
 interface Props {
   title: string;
@@ -12,8 +13,10 @@ interface Props {
   /** The page as Markdown, for "Copy page". */
   markdown?: string;
   eyebrow?: string;
+  /** The browser tab's and search results' title, where it differs from the page's heading. */
+  metaTitle?: string;
 }
-const { title, description, slug, headings = [], markdown, eyebrow } = Astro.props;
+const { title, description, slug, headings = [], markdown, eyebrow, metaTitle } = Astro.props;
 
 const reference = (await getCollection("reference")).filter((e) => e.id !== "overview").sort((a, b) => a.data.order - b.data.order);
 const componentNav = componentGroups
@@ -29,10 +32,22 @@ const at = flat.findIndex((i) => i.slug === slug);
 const prev = at > 0 ? flat[at - 1] : null;
 const next = at >= 0 && at < flat.length - 1 ? flat[at + 1] : null;
 const group = eyebrow ?? [...docsNav, ...componentNav].find((g) => g.items.some((i) => i.slug === slug))?.title ?? (slug === "components" ? "Components" : "");
+// For search engines: what the page is, and where it sits in the docs.
+const url = new URL(docHref(slug), site.url).href;
+// Every crumb is a page: Docs, the component index for a component's page, then the page itself.
+const crumbs = [
+  { name: "Docs", url: new URL("/docs", site.url).href },
+  ...(slug.startsWith("components/") ? [{ name: "Components", url: new URL("/docs/components", site.url).href }] : []),
+  ...(slug ? [{ name: title, url }] : []),
+];
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "TechArticle", headline: title, description, url, inLanguage: "en", isPartOf: { "@type": "WebSite", name: site.name, url: site.url } },
+  { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: crumbs.map((c, n) => ({ "@type": "ListItem", position: n + 1, name: c.name, item: c.url })) },
+];
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 const isCurrent = (s: string) => s === slug;
 ---
-<Base title={title} description={description}>
+<Base title={metaTitle ?? title} description={description} ogType="article" jsonLd={jsonLd}>
   <div class="docs wrap">
     <aside class="docs-side" aria-label="Docs">
       <details class="side-mobile">
@@ -101,7 +116,7 @@ const isCurrent = (s: string) => s === slug;
       </div>
     </aside>
   </div>
-  {markdown && <script type="text/markdown" id="page-markdown" set:html={`# ${title}\n\n${description}\n\n${markdown.replaceAll("</script", "<\\/script")}`}></script>}
+  {markdown && <script type="text/markdown" id="page-markdown" set:html={absoluteLinks(`# ${title}\n\n${description}\n\n${markdown.replaceAll("</script", "<\\/script")}`)}></script>}
 </Base>
 
 <script>

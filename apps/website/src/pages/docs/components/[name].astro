@@ -13,11 +13,25 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const { Content, headings } = await render(entry);
 const example = components[entry.id];
+// The search result's title and description: "Email component", not the Email output's "Email";
+// a summary too short or too long for a result is filled out or cut at a word.
+const isReference = entry.data.group === "Reference";
+const metaTitle = isReference ? entry.data.title : `${entry.data.title} component`;
+const summary = entry.data.summary as string;
+const metaDescription =
+  summary.length > 160
+    ? `${summary.slice(0, 157).replace(/[\s,;:(]+\S*$/, "")}…`
+    : summary.length < 70 && !isReference
+      ? `${summary} The ${entry.data.title} component's props, styles and an example, in Hyper Elements.`
+      : summary.length < 70
+        ? `${summary} The kinds of values Hyper Elements components take, in one reference.`
+        : summary;
 const import_ = `import { ${entry.data.title.split(".")[0]} } from "@hyper-elements/react";`;
 ---
 <Docs
   title={entry.data.title}
-  description={entry.data.summary}
+  metaTitle={metaTitle}
+  description={metaDescription}
   slug={`components/${entry.id}`}
   headings={[...(example ? [{ depth: 2, slug: "example", text: "Example" }] : []), { depth: 2, slug: "reference", text: "Reference" }, ...headings]}
   markdown={(example ? `## Example\n\n\`\`\`tsx\n${example.source}\n\`\`\`\n\n` : "") + `## Reference\n\n${entry.body}`}
