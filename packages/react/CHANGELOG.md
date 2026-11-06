@@ -21,7 +21,7 @@ conditions; what it can't move is listed, and that file is left as it was to rew
 | `<Row layout="TwoEqual">`, `ColumnLayouts` | A `Row` of `Column`s |
 | Styles as props (`backgroundColor="#000"`, `containerPadding`) | `style={{ backgroundColor: "#000" }}`, on the component they belong to |
 | `headingType`, `altText` | `level`, `alt` |
-| `<Text>` | `<Paragraph>` |
+| `<Paragraph>` | `<Text>` |
 
 Also gone: `Body`, `UnlayerProvider`, `renderToHtmlParts` and the `values` prop. Designs saved in the builder aren't
 affected: `fromDesign()` reads them, the older text tool's blocks included.
@@ -31,7 +31,7 @@ affected: `fromDesign()` reads them, the older text tool's blocks included.
 A template has one root (`Email`, `Page`, `Document` or `Canvas`), its styles go in `style={{ }}`, and
 `await render(element)` writes its HTML and plain text.
 
-- New: the components, each with typed props and styles: `Section`, `Row`, `Column`, `Grid`, `Heading`, `Paragraph`,
+- New: the components, each with typed props and styles: `Section`, `Row`, `Column`, `Grid`, `Heading`, `Text`,
   `Span`, `Link`, `List`, `Button`, `Image`, `Divider`, `Menu`, `Social`, `Video`, `Table`, `Html`, page
   headers, footers and numbers for a `Document`, and shapes for a `Canvas`. `component()` and `prop()` make your own.
 - New: `validate()` and `outline()` check a template without rendering it; `render()` returns its diagnostics.

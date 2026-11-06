@@ -24,18 +24,18 @@ Node.js only: it writes the PDF on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Document, Heading, Image, PageFooter, PageNumber, Paragraph } from "@unlayer/react-elements";
+import { Document, Heading, Image, PageFooter, PageNumber, Text } from "@unlayer/react-elements";
 import { renderPdf } from "@unlayer/react-elements/pdf";
 
 const Invoice = () => (
   <Document size="A4" margin={48} title="Invoice 2705" style={{ fontFamily: "Inter, sans-serif" }}>
     <Image src={{ src: "https://cdn.acme.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
     <Heading level={1}>Invoice 2705</Heading>
-    <Paragraph>Thank you for your order.</Paragraph>
+    <Text>Thank you for your order.</Text>
     <PageFooter>
-      <Paragraph style={{ fontSize: 10, textAlign: "right" }}>
+      <Text style={{ fontSize: 10, textAlign: "right" }}>
         Page <PageNumber /> of <PageNumber total />
-      </Paragraph>
+      </Text>
     </PageFooter>
   </Document>
 );

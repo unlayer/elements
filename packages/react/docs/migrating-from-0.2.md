@@ -36,6 +36,7 @@ share, the codemod writes it out:
 | `Email`'s 500px, black text, Arial | `width={500}` and the color and font in `style` |
 | A block's 10px of padding (`containerPadding`) | `padding: 10` on the block, or on a `Column` around an `Image`, `Button`, `Social`, `Menu` or `Video` |
 | `Heading`: 22px at 140%, not bold; `Paragraph`: 14px at 140% | those values in `style` |
+| `<Paragraph>` | `<Text>` |
 | `headingType="h3"` | `level={3}` |
 | `html="Hi <b>there</b>"` | children: `Hi <Span style={{ fontWeight: 700 }}>there</Span>`; `<a>` becomes `Link` (its target and title kept), `<br>` `LineBreak`, `<s>`, `<sup>` and `<sub>` a `Span`; entities are decoded; each paragraph (`<p>`) is a blank line from the next (0.2's 1em margins, about), and another block starts a line of its own |
 | A text block's children, `text` and `html` | what 0.2's draws: a `Paragraph` its children, else its `text` (plain text), else its `html`; a `Heading` or a `Button` its `text` (as markup) over its children, never its `html` |
