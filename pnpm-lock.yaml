@@ -7,11 +7,11 @@ settings:
 catalogs:
   default:
     '@unlayer/exporters':
-      specifier: 1.497.0
-      version: 1.497.0
+      specifier: 1.532.0
+      version: 1.532.0
     '@unlayer/types':
-      specifier: 1.497.0
-      version: 1.497.0
+      specifier: 1.532.0
+      version: 1.532.0
 
 importers:
 
@@ -292,10 +292,10 @@ importers:
     dependencies:
       '@unlayer/exporters':
         specifier: 'catalog:'
-        version: 1.497.0(@unlayer/types@1.497.0)
+        version: 1.532.0(@unlayer/types@1.532.0)
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.497.0
+        version: 1.532.0
       react:
         specifier: '>=18'
         version: 18.3.1
@@ -371,7 +371,7 @@ importers:
     dependencies:
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.497.0
+        version: 1.532.0
     devDependencies:
       tsup:
         specifier: ^8.0.1
@@ -2008,6 +2008,12 @@ packages:
     peerDependencies:
       '@unlayer/types': '>=1.497.0'
 
+  '@unlayer/exporters@1.532.0':
+    resolution: {integrity: sha512-KxVqPfaF8lMxzNIpXi1Qp1Ke+JX2aEw+k9HP9dyjMImDl2831TxUX7Fh+E4ZDP3QlYrUAwUipvS575JZf34egg==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@unlayer/types': '>=1.532.0'
+
   '@unlayer/react-elements@0.1.22':
     resolution: {integrity: sha512-WP4+6WPs9gxptcKGOQf3RsxqPhtUZBiurvxohUnVove83PLbSyK36b4b8ej9zO+lQRXcfELF766kPgh9EgRNVQ==}
     peerDependencies:
@@ -2016,6 +2022,9 @@ packages:
 
   '@unlayer/types@1.497.0':
     resolution: {integrity: sha512-aBxRs/v0/GfV9AFEdmdrMLMafyx0stIDBpAoSHDXV78EEzzTSgzr1OdV7St7k3j1ZLxlvNCLoFGJiwcivsOULQ==}
+
+  '@unlayer/types@1.532.0':
+    resolution: {integrity: sha512-uPJUXkfoZPSAXh8R6oIPA6s/imutOBcDcIdza5oCzJlpvPSScKF9FxpXmro8m6s+Cp8tahY/JgqHFLQfn4eWzg==}
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -6341,6 +6350,21 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@unlayer/exporters@1.532.0(@unlayer/types@1.532.0)':
+    dependencies:
+      '@lexical/headless': 0.41.0
+      '@lexical/html': 0.41.0
+      '@lexical/link': 0.41.0
+      '@lexical/list': 0.41.0
+      '@lexical/rich-text': 0.41.0
+      '@lexical/selection': 0.41.0
+      '@lexical/utils': 0.41.0
+      '@unlayer/types': 1.532.0
+      lexical: 0.41.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@unlayer/react-elements@0.1.22(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@unlayer/exporters': 1.497.0(@unlayer/types@1.497.0)
@@ -6352,6 +6376,8 @@ snapshots:
       - utf-8-validate
 
   '@unlayer/types@1.497.0': {}
+
+  '@unlayer/types@1.532.0': {}
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))':
     dependencies:
