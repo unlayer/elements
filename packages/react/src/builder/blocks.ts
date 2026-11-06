@@ -234,8 +234,8 @@ function html(values: Values, context: Context): Node[] {
 
 /** Each tool's reader. */
 const READERS = new Map<string, (values: Values, context: Context, slot?: Slot) => Node[]>([
-  ["text", (values, context) => textTool("text", values, context)],
-  ["paragraph", (values, context) => textTool("text", values, context, "paragraph")],
+  ["text", (values, context) => textTool("paragraph", values, context, "text")],
+  ["paragraph", (values, context) => textTool("paragraph", values, context)],
   ["heading", (values, context) => textTool("heading", values, context)],
   ["button", button],
   ["image", image],

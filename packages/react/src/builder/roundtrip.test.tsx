@@ -126,7 +126,7 @@ describe("to the builder and back", () => {
     const text = (design: any) => design.body.rows[0].columns[0].contents[1].values;
     expect(changed(() => undefined)).toEqual([]);
     expect(changed((design) => (text(design).containerPadding = "30px 20px 0px"))).toEqual([expect.stringContaining("above")]);
-    expect(changed((design) => (text(design).text = text(design).text.replace('href="https://x.test"', 'href="https://y.test"')))).toEqual([expect.stringContaining("runs")]);
+    expect(changed((design) => (text(design).textJson = text(design).textJson.replace('"url":"https://x.test"', '"url":"https://y.test"')))).toEqual([expect.stringContaining("runs")]);
     expect(changed((design) => (text(design).fontSize = "17px"))).toEqual([expect.stringContaining("runs")]);
     expect(changed((design) => (design.body.rows[1].cells = [1, 1]))).not.toEqual([]);
     expect(changed((design) => (design.body.rows[0].values.backgroundColor = "#ff0000"))).toEqual(expect.arrayContaining([expect.stringContaining("behind")]));

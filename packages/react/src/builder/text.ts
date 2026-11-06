@@ -20,8 +20,8 @@ export interface TextPart {
 }
 
 const TAG = /<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)([^>]*?)(\/?)\s*>/g;
-const style = (attrs: string) => /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs)?.slice(1).find((v) => v !== undefined) ?? "";
-const declarations = (css: string) => Object.fromEntries(css.split(";").map((d) => d.split(":")).filter((p) => p.length >= 2 && p[0].trim()).map(([name, ...rest]) => [name.trim().toLowerCase(), rest.join(":").trim()]));
+export const styleOf = (attrs: string) => /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs)?.slice(1).find((v) => v !== undefined) ?? "";
+export const declarations = (css: string) => Object.fromEntries(css.split(";").map((d) => d.split(":")).filter((p) => p.length >= 2 && p[0].trim()).map(([name, ...rest]) => [name.trim().toLowerCase(), rest.join(":").trim()]));
 /** A tag's attributes, its quoted values whole. */
 const ATTRIBUTES = `(?:[^>"']|"[^"]*"|'[^']*')*`;
 /**
@@ -45,7 +45,7 @@ export function withParagraphMargin(html: string, css: string): string {
     if (attrs === undefined) return piece;
     const own = /(?:^|[\s/])style\s*=\s*(["']?)/i.exec(attrs);
     if (!own) return `<p style=${css}${attrs.startsWith("/") ? " " : ""}${attrs}>`;
-    if (!own[1] || declarations(style(attrs)).margin !== undefined) return piece;
+    if (!own[1] || declarations(styleOf(attrs)).margin !== undefined) return piece;
     const at = own.index + own[0].length;
     return `<p${attrs.slice(0, at)}${css};${attrs.slice(at)}>`;
   });
@@ -221,7 +221,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
  * as the text's (a percentage is the text's size's, inherited as a length), but where its style says otherwise.
  */
 function readHeading(level: number, attrs: string, inner: string, runs: (html: string, weight?: number) => Child[], fontSize: number, lineHeight: Json, left: string[]): TextPart {
-  const d = declarations(style(attrs));
+  const d = declarations(styleOf(attrs));
   const size = d["font-size"] === undefined ? round(HEADING_SIZES[level - 1] * fontSize) : length(d["font-size"], fontSize);
   if (size === undefined) left.push(`a heading's font size ${d["font-size"]}`);
   const own = size ?? fontSize;
@@ -250,7 +250,7 @@ function readHeading(level: number, attrs: string, inner: string, runs: (html: s
 
 /** A `<p>` as a Paragraph: its line height, alignment, direction and indent its own, its margins none but its style's. */
 function readParagraph(attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart | undefined {
-  const d = declarations(style(attrs));
+  const d = declarations(styleOf(attrs));
   const own: Record<string, Json> = {};
   if (d["line-height"] !== undefined) {
     const height = /^(\d*\.?\d+)%$/.exec(d["line-height"]);
@@ -274,7 +274,7 @@ function readParagraph(attrs: string, inner: string, runs: (html: string) => Chi
 }
 
 /** Where the element opened before `from` closes (nested ones of its kind skipped), or null. */
-function closing(html: string, tag: string, from: number): { start: number; end: number } | null {
+export function closing(html: string, tag: string, from: number): { start: number; end: number } | null {
   const re = new RegExp(`<\\s*(\\/?)\\s*${tag}\\b[^>]*>`, "gi");
   re.lastIndex = from;
   let depth = 1;
@@ -292,7 +292,7 @@ function closing(html: string, tag: string, from: number): { start: number; end:
  * What a List doesn't hold (other markers, a direction of its own, other attributes) is said in `left`.
  */
 function readList(tag: string, attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart {
-  const d = declarations(style(attrs));
+  const d = declarations(styleOf(attrs));
   const indent = px(d["padding-left"] ?? d.padding ?? "40px");
   if (indent === undefined) left.push(`a list's indent ${d["padding-left"]}`);
   const marker = d["list-style-type"];
@@ -311,7 +311,7 @@ function readList(tag: string, attrs: string, inner: string, runs: (html: string
     }
     at = end.end;
     const body = inner.slice(match.index! + match[0].length, end.start);
-    const li = declarations(style(match[3]));
+    const li = declarations(styleOf(match[3]));
     const dir = /\bdir\s*=\s*"?(ltr|rtl)\b/i.exec(match[3])?.[1].toLowerCase();
     if (Object.keys(li).some((name) => !["margin-top", "text-align", "list-style-type"].includes(name)) || attributeNames(match[3]).some((name) => name !== "dir")) left.push("a list item with attributes of its own");
     // Its words and the lists in it, in their order.

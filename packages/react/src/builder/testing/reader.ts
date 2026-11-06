@@ -8,6 +8,7 @@
 import type { Insets, Json, ResolvedNode } from "@unlayer-internal/elements-core";
 import type React from "react";
 import { prepare } from "../../primitives/render";
+import { linesOf } from "../columns";
 
 export interface Seen {
   kind: string;
@@ -38,6 +39,8 @@ const follow = (value: Json | undefined): Json | undefined => {
   const { href, target } = typeof value === "string" ? { href: value, target: undefined } : (value as { href: string; target?: string });
   return target === "_blank" ? { href, target } : { href };
 };
+/** What a Column can have that isn't lines, and makes it a box of its own. */
+const OTHER_LOOK = ["backgroundColor", "borderRadius", "width", "minWidth", "maxWidth", "height", "overflow", "justifyContent"];
 const STACKS = new Set(["Email", "Page", "Document", "Canvas", "Section", "Column", "DocumentPage", "PageHeader", "PageFooter"]);
 const round = (n: number) => Math.round(n * 10) / 10;
 /** A Divider's line length: its width in px, or its share of the room inside its padding. */
@@ -57,6 +60,12 @@ const AROUND = ["textDecoration", "backgroundColor", "verticalAlign"];
 
 function runs(node: ResolvedNode, self = false): Seen["runs"] {
   const out: NonNullable<Seen["runs"]> = [];
+  // Words after a list in a list item start a line.
+  let listEnded = false;
+  const line = () => {
+    if (listEnded) out.push({ text: "\n", style: {} });
+    listEnded = false;
+  };
   const visit = (n: ResolvedNode, around: Record<string, Json>) => {
     // A line break that ends a block's text starts no line (as `<p>a<br></p>` shows one).
     const shown = n.children.filter((c) => typeof c !== "string" || c);
@@ -64,6 +73,7 @@ function runs(node: ResolvedNode, self = false): Seen["runs"] {
     const children = shown.length > 1 && typeof last !== "string" && last?.type === "LineBreak" ? shown.slice(0, -1) : shown;
     for (const child of children) {
       if (typeof child === "string") {
+        line();
         out.push({ text: child, style: runStyle(n, around) });
         continue;
       }
@@ -71,12 +81,15 @@ function runs(node: ResolvedNode, self = false): Seen["runs"] {
       const own: Record<string, Json> = { ...around };
       for (const key of AROUND) if (child.style[key] !== undefined) own[key] = child.style[key];
       if (child.type === "Link") own.link = follow(child.props.href as Json)!;
+      if (child.type !== "ListItem" && child.type !== "List") line();
       if (child.type === "LineBreak") out.push({ text: "\n", style: {} });
       else if (child.type === "MergeTag") out.push({ text: `{{${child.props.name}}}`, style: runStyle(n, around) });
       else if (child.type === "PageNumber") out.push({ text: child.props.total ? "{{page_count}}" : "{{page_number}}", style: runStyle(n, around) });
       else if (child.type === "ListItem" || child.type === "List") {
+        listEnded = false;
         out.push({ text: "\n", style: {} });
         visit(child, around);
+        listEnded = child.type === "List";
       } else visit(child, own);
     }
   };
@@ -114,6 +127,8 @@ export function seen(element: React.ReactElement, { markup = new Set<string>() }
     const here = { ...hidden, ...node.hidden };
     const paint = (node.style.backgroundColor as string | undefined) ?? behind;
     const visible = here.mobile || here.desktop ? { hidden: here } : {};
+    // A column of the builder's that only keeps space has an invisible line in it.
+    if (node.type === "Divider" && (node.style.borderTop as { color?: string } | undefined)?.color === "transparent") return;
     // What the builder holds as an HTML block of its markup (`markup`, the paths toDesign() said) is read as one.
     const locked = markup.has(node.path);
     const linkOfWords = node.type === "Link" && !node.children.some((c) => typeof c !== "string" && c.type === "Image");
@@ -158,7 +173,14 @@ export function seen(element: React.ReactElement, { markup = new Set<string>() }
     }
     const p = pad(node);
     const inner = { x: x + p.left + line(node, "left"), room: (node.width ?? room) - p.left - p.right - line(node, "left") - line(node, "right") };
-    pending += p.top + line(node, "top");
+    // Lines above and below a Row, or a Column with no other look, are what a reader gets from a Divider in their place.
+    const lines = node.type === "Row" || (node.type === "Column" && !OTHER_LOOK.some((key) => node.style[key] !== undefined) && !node.hidden) ? linesOf(node.style.border) : undefined;
+    const drawLine = (border: Json) => {
+      out.push({ kind: "Divider", x: round(x), width: round(node.width ?? room), above: round(pending), own: { borderTop: border }, behind, ...visible });
+      pending = 0;
+    };
+    if (lines?.top) drawLine(lines.top);
+    pending += p.top + (lines ? 0 : line(node, "top"));
     const gap = typeof node.style.gap === "number" ? node.style.gap : 0;
     const children = node.children.filter((c): c is ResolvedNode => typeof c !== "string" && !c.hidden?.desktop);
     if (STACKS.has(node.type)) {
@@ -179,7 +201,8 @@ export function seen(element: React.ReactElement, { markup = new Set<string>() }
       }
       pending = after;
     }
-    pending += p.bottom + line(node, "bottom");
+    pending += p.bottom + (lines ? 0 : line(node, "bottom"));
+    if (lines?.bottom) drawLine(lines.bottom);
   };
   walk(root, 0, root.width ?? 0, (root.style.backgroundColor as string | undefined) ?? "#ffffff", undefined, root);
   return out;

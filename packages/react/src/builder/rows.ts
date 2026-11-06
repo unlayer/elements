@@ -16,7 +16,7 @@ import { readBorder } from "./values";
 
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
 const obj = (value: unknown): Values => (value && typeof value === "object" && !Array.isArray(value) ? (value as Values) : {});
-const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const arr = (value: unknown): unknown[] => (Array.isArray(value) ? Array.from(value) : []);
 const add = (a: Sides, b: Sides): Sides => ({ top: a.top + b.top, right: a.right + b.right, bottom: a.bottom + b.bottom, left: a.left + b.left });
 const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
 const ALIGN_ITEMS: Record<string, string> = { "flex-start": "start", center: "center", "flex-end": "end", stretch: "stretch" };

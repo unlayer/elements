@@ -19,7 +19,7 @@ export interface Hidden {
 
 const own = (...paths: string[]): Hidden[] => paths.map((path) => ({ path, key: path.slice(path.indexOf(".") + 1) }));
 
-/** A text block's box and the text styles its tool has no field for. */
+/** A text block's box and the text styles its tool has no field for: its phone values (paint.ts writes the rest in its markup). */
 const TEXT_BOX = own("style.fontStyle", "style.textTransform", "style.textDecoration", "style.backgroundColor", "style.border", "style.borderRadius", "style.width", "style.maxWidth", "style.padding");
 
 export const HIDDEN: Readonly<Record<string, readonly Hidden[]>> = {
@@ -32,7 +32,8 @@ export const HIDDEN: Readonly<Record<string, readonly Hidden[]>> = {
     ...own("style.borderRadius", "style.width", "style.minWidth", "style.maxWidth", "style.height", "style.overflow", "style.justifyContent", "style.flexWrap"),
   ],
   column: [...own("style.justifyContent", "style.minWidth", "style.maxWidth", "style.height", "style.overflow"), { path: "hidden.desktop", key: "hideDesktop" }, { path: "hidden.mobile", key: "hideMobile" }],
-  text: TEXT_BOX,
+  // A List's indent and gap are its too: the builder's rich text has no place for them.
+  paragraph: [...TEXT_BOX, ...own("style.indent", "style.gap")],
   heading: TEXT_BOX,
   button: [
     { path: "style.textAlign", key: "buttonTextAlign", prefixed: "the button's textAlign places the button; the Button's aligns its label" },
@@ -68,7 +69,7 @@ export const BUILDER_KEYS: Readonly<Record<string, readonly string[]>> = {
     "border",
   ],
   column: ["backgroundColor", "padding", "border", "borderRadius", "_meta", "deletable", "locked", "_override"],
-  text: [...CONTENT, "text", "textJson", "color", "textAlign", "fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing", "linkStyle", "textDirection"],
+  paragraph: [...CONTENT, "text", "textJson", "color", "textAlign", "fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing", "linkStyle", "textDirection"],
   heading: [...CONTENT, "text", "textJson", "color", "textAlign", "fontFamily", "fontWeight", "fontSize", "lineHeight", "letterSpacing", "linkStyle", "textDirection", "headingType"],
   button: [...CONTENT, "text", "textJson", "href", "size", "fontFamily", "fontWeight", "buttonColors", "fontSize", "lineHeight", "letterSpacing", "border", "padding", "textAlign", "borderRadius", "textDirection"],
   // An image's border isn't a field, but today's image writer reads it (see imageBorder).
@@ -87,7 +88,7 @@ export const BUILDER_PHONE_KEYS: Readonly<Record<string, readonly string[]>> = {
   body: [],
   row: ["padding", "hideMobile", "noStackMobile", "backgroundColor", "columnsBackgroundColor"],
   column: ["padding", "border", "backgroundColor"],
-  text: ["containerPadding", "fontSize", "lineHeight", "textAlign", "letterSpacing", "hideMobile"],
+  paragraph: ["containerPadding", "fontSize", "lineHeight", "textAlign", "letterSpacing", "hideMobile"],
   heading: ["containerPadding", "fontSize", "lineHeight", "textAlign", "letterSpacing", "hideMobile"],
   button: ["containerPadding", "fontSize", "lineHeight", "textAlign", "padding", "letterSpacing", "size", "hideMobile"],
   image: ["containerPadding", "src", "textAlign", "hideMobile"],

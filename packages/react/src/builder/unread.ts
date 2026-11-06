@@ -64,7 +64,7 @@ const WHAT: Record<string, string> = {
 export function sayUnread(tool: string, values: Values, defaults: Values | undefined, say: (message: string) => void): void {
   const read = READ[tool === "paragraph" ? "text" : tool];
   if (!read) return;
-  const hidden = (HIDDEN[tool === "paragraph" ? "text" : tool] ?? []).map((entry) => entry.key);
+  const hidden = (HIDDEN[tool === "text" ? "paragraph" : tool] ?? []).map((entry) => entry.key);
   const given = defaults ?? FRAMES[tool] ?? {};
   const known = new Set([...NOTHING, ...read.values, ...hidden]);
   for (const [key, value] of Object.entries(values)) {

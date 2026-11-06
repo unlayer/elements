@@ -6,7 +6,8 @@
 import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type LinkValue, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { block, type Block } from "./design";
 import { hiddenOf, merge } from "./hide";
-import { listHtml, runsHtml } from "./runs";
+import { listJson, paragraphJson, runsHtml } from "./runs";
+import { intoMarkup } from "./paint";
 import { withParagraphMargin } from "./text";
 import { builderBorder, builderFont, builderLink, cssLineHeight, cssPx, cssSides, encode, fieldLineHeight, type Values } from "./values";
 
@@ -91,13 +92,10 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       if (holdsImage(node)) return place.locked(node, path, "an Image in a run of text isn't something the builder's text holds", around);
       const box = boxed(node);
       const containerPadding = box ? around : add(padding(node), around);
-      const tool = node.type === "Heading" ? "heading" : "text";
-      const html = node.type === "List" ? listHtml(node, lost) : runsHtml(node, lost);
-      said();
+      const tool = node.type === "Heading" ? "heading" : "paragraph";
       place.sayLeftOut(tool, node, path, [...TEXT_FIELDS, "style.padding", "mobile.padding", "props.dir", "props.level", "props.type", "props.start", "style.gap", "style.indent"]);
       const values: Values = {
         ...textFields(own),
-        text: html,
         containerPadding: cssSides(containerPadding),
         ...(node.type === "Heading" ? { headingType: `h${own.props.level ?? 1}` } : {}),
         ...(node.props?.dir ? { textDirection: node.props.dir } : {}),
@@ -105,7 +103,17 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       };
       const phonePadding = !box && node.mobile?.padding ? add(node.mobile.padding as Sides, around) : undefined;
       const extra = merge(phoneText(node, phonePadding), hiddenOf(tool, node, box ? [] : ["style.padding"], inheritedHidden(own)));
-      return place.put(block(tool, hiding), merge(values, extra));
+      if (node.type === "List") {
+        // A list's indent and gap are no part of the builder's rich text: hidden properties.
+        const space = { indent: cssPx(typeof node.style?.indent === "number" ? node.style.indent : 24), gap: cssPx(typeof node.style?.gap === "number" ? node.style.gap : 0) };
+        const textJson = listJson(node, lost);
+        said();
+        return place.put(block(tool, hiding), merge(merge(values, extra), { ...space, textJson }));
+      }
+      const { style, values: rest } = intoMarkup(merge(values, extra));
+      const written = tool === "heading" ? { text: style ? `<span style="display:block;${style.replace(/"/g, "'")}">${runsHtml(node, lost)}</span>` : runsHtml(node, lost) } : { textJson: paragraphJson(node, lost, style) };
+      said();
+      return place.put(block(tool, hiding), { ...rest, ...written });
     }
     case "Button": {
       const style = own.style;
@@ -145,11 +153,11 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       if (linked && !images.some((child) => child.type === "Image")) {
         // A Link of words on its own: a text block holding it, placed where the Link sits.
         const holder: Node = { type: "Paragraph", children: [node] };
-        place.sayLeftOut("text", { type: "Link", style: { ...node.style, color: undefined, textDecoration: undefined } as never, props: {} }, path, ["style.flex"]);
-        const html = runsHtml(holder, lost);
+        place.sayLeftOut("paragraph", { type: "Link", style: { ...node.style, color: undefined, textDecoration: undefined } as never, props: {} }, path, ["style.flex"]);
+        const textJson = paragraphJson(holder, lost, "");
         said();
         const hiddenHolder = { hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined };
-        return place.put(block("text", hiddenHolder), { ...textFields(parent), textAlign: alignIn(parent), text: html, containerPadding: cssSides(around) });
+        return place.put(block("paragraph", hiddenHolder), { ...textFields(parent), textAlign: alignIn(parent), textJson, containerPadding: cssSides(around) });
       }
       if (linked && (images.length !== 1 || (node.children ?? []).some((c) => typeof c === "string" && c.trim()))) {
         return place.locked(node, path, "a Link around more than an Image isn't a tool of the builder's", around);
@@ -274,7 +282,7 @@ function inText(html: string, text: Record<string, Json>): string {
   return css.length ? `<div style="${css.join(";")}">${html}</div>` : html;
 }
 
-const TOOLS: Record<string, string> = { Heading: "heading", Text: "text", Paragraph: "text", List: "text", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html" };
+const TOOLS: Record<string, string> = { Heading: "heading", Text: "paragraph", Paragraph: "paragraph", List: "paragraph", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html" };
 
 /** An id the template gives a block, as the builder's (its element's id). */
 const meta = (id: string | undefined, tool = "html"): Values => (id ? { _meta: { htmlID: id, htmlClassNames: `u_content_${tool}` } } : {});

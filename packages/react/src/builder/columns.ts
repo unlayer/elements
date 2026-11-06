@@ -4,7 +4,7 @@
  * directly in the root or a Section as a row of its own column.
  */
 import type { Json, Node, ResolvedNode } from "@unlayer-internal/elements-core";
-import { columnWith, rowWith, type Block, type Row, type RowFields } from "./design";
+import { block, columnWith, rowWith, type Block, type Row, type RowFields } from "./design";
 import { hiddenOf, merge } from "./hide";
 import { blockTool, type Place } from "./tools";
 import { builderBorder, cssPx, cssSides, encode, type Values } from "./values";
@@ -19,6 +19,11 @@ export const gapOf = (node: ResolvedNode) => (typeof node.style.gap === "number"
 /** A box with a look of its own: a Column that can't fold into the blocks around it. */
 const BOX = ["backgroundColor", "border", "borderRadius", "width", "minWidth", "maxWidth", "height", "overflow", "justifyContent"];
 export const hasBox = (node: Node) => BOX.some((key) => node.style?.[key] !== undefined) || Boolean(node.hidden);
+/** A border of lines above and below only: what a Divider draws, in a row of its own (raise.ts), not a column's border. */
+export const linesOf = (border: unknown): { top?: Json; bottom?: Json } | undefined => {
+  const lines = border as Record<string, Json> | undefined;
+  return lines && !lines.left && !lines.right && (lines.top || lines.bottom) ? { top: lines.top, bottom: lines.bottom } : undefined;
+};
 /** A builder row's hiding, from the node it's made of. */
 export const hiding = (node: Node) => ({ hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined });
 
@@ -45,7 +50,7 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
   if (!arranged && node.mobile?.border !== undefined) place.report.push(`${path}: the builder's row has no border on phones: left out`);
   if (!arranged) sayLeftOut("row", node, path, ["style.padding", "style.gap", "mobile.gap", "style.backgroundColor", "style.border", "mobile.border", "style.alignItems", "props.stackOnMobile", ...TEXT_FOLDED]);
   const stacks = node.props?.stackOnMobile !== false;
-  const rowBorder = (own.style.border as Record<string, Json> | undefined) ?? {};
+  const rowBorder = (!arranged && linesOf(own.style.border) ? undefined : (own.style.border as Record<string, Json> | undefined)) ?? {};
   // A Row's border is its columns' in the builder (below), which fill the row and move with its alignItems.
   if (!arranged && Object.keys(rowBorder).length) {
     const around = Math.max(outer.left, outer.right);
@@ -104,8 +109,16 @@ export function rowOf({ at, put, sayLeftOut, place, childrenOf, stack }: Writer,
   return put(made, merge(merge(values, arranged ? {} : hiddenOf("row", node, ["style.border"])), bandHidden));
 }
 
-/** A row of its own for a box directly in the root or a Section: one column, the box's. */
-export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values): Row {
+/** A column that only keeps space: an invisible line in it, as the builder asks for something to be put in an empty one. */
+const spacer = ({ put }: Writer) =>
+  columnWith({ padding: "0px" }, [put(block("divider"), { border: builderBorder({ top: { width: 1, style: "solid", color: "transparent" } }), width: "100%", textAlign: "center", containerPadding: "0px" })]);
+
+/**
+ * A row of its own for a box directly in the root or a Section: one column, the box's. A builder row has no room at its
+ * sides, so a painted box kept in from them (`inset`) has a column of space either side, which stay beside it on phones.
+ */
+export function boxRowOf(writer: Writer, node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, inset: { left: number; right: number } = { left: 0, right: 0 }): Row {
+  const { at, put, sayLeftOut, stack } = writer;
   const own = at(path);
   sayLeftOut("column", node, path, ["style.padding", "mobile.padding", "style.backgroundColor", "style.border", "mobile.border", "style.borderRadius", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
   const style = node.style ?? {};
@@ -119,8 +132,11 @@ export function boxRowOf({ at, put, sayLeftOut, stack }: Writer, node: Node, pat
     stack(withoutPadding(node), path, own, ZERO)
   );
   const { hidden: _, ...visible } = node;
-  const made = rowWith([1], { padding: cssSides(outer), ...hiding(node), ...band }, [put(column, merge(merge(hiddenOf("column", visible as Node), builderId(node.id, "u_column")), phoneBox(node)))]);
-  return put(made, bandHidden);
+  const box = put(column, merge(merge(hiddenOf("column", visible as Node), builderId(node.id, "u_column")), phoneBox(node)));
+  const fields = { padding: cssSides(outer), ...hiding(node), ...band };
+  const beside = (share: number) => (share ? [{ share, element: spacer(writer) }] : []);
+  const parts = [...beside(inset.left), { share: own.width ?? 0, element: box }, ...beside(inset.right)];
+  return put(parts.length > 1 ? rowWith(parts.map((part) => Math.max(1, Math.round(part.share))), { ...fields, noStackMobile: true }, parts.map((part) => part.element)) : rowWith([1], fields, [box]), bandHidden);
 }
 
 /** Text styles a container passes down, which its blocks take as their own in the builder. */

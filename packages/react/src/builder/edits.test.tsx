@@ -10,13 +10,28 @@ import { describe, expect, it } from "vitest";
 import { Button, Column, Divider, Document, Email, Heading, Html, Image, Link, Menu, PageBreak, Paragraph, render, Row, Section, Social, Text, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign, type DisplayMode } from "./index";
+import { textJsonHtml } from "./text-json";
 
 type Values = Record<string, any>;
 const REMOVED = Symbol("removed");
 type Edit = [field: string, value: unknown, expected: Node[] | ((nodes: Node[]) => void)];
 
 const tree = (element: React.ReactElement): Node => collectTemplate(element).document!.root;
-const designOf = (element: React.ReactElement) => JSON.parse(JSON.stringify(toDesign(element).design));
+/** The design with its paragraphs as the builder's older text tool holds them, as designs saved with it do. */
+function withOlderText(design: any) {
+  for (const row of [...design.body.rows, ...(design.body.headers ?? []), ...(design.body.footers ?? [])]) {
+    for (const column of row.columns) {
+      for (const content of column.contents) {
+        if (content.type !== "paragraph") continue;
+        content.type = "text";
+        content.values.text = textJsonHtml(content.values.textJson).html;
+        delete content.values.textJson;
+      }
+    }
+  }
+  return design;
+}
+const designOf = (element: React.ReactElement) => withOlderText(JSON.parse(JSON.stringify(toDesign(element).design)));
 
 /** The item at a path of the design ("rows.0.columns.0.contents.0", "body"). */
 function itemAt(design: any, path: string): Values {

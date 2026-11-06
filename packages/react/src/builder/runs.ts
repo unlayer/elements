@@ -1,8 +1,8 @@
 /**
  * A text block's runs as the HTML the builder's text tools hold (a heading's, a text's, a button's `text`): words,
  * `<span>` with a run's style, `<sup>`/`<sub>`, `<a>` with its href, target, title and label, `<br>`, merge tags as
- * `{{name}}`. A List is `<ul>`/`<ol>` with no margin, its indent the list's padding and its gap each item's margin.
- * What HTML can't hold (a link's hover) is said in `lost`.
+ * `{{name}}`. A Paragraph's and a List's are its rich text (`textJson`), what its editor saves, each run a text node
+ * in its style. What neither can hold (a link's hover) is said in `lost`.
  */
 import { linkParts, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
 import { cssPx } from "./values";
@@ -22,12 +22,12 @@ const CSS: Record<string, string> = {
   fontFamily: "font-family",
 };
 
-function runCss(style: Record<string, Json> | undefined): string {
+function runCss(style: Record<string, Json> | undefined, escaped: (value: string) => string = escapeHtml): string {
   const out: string[] = [];
   for (const [key, value] of Object.entries(style ?? {})) {
     if (value === undefined || value === null || !CSS[key]) continue;
     const written = key === "fontSize" || key === "letterSpacing" ? cssPx(Number(value)) : key === "fontFamily" ? String(value).replace(/"/g, "'") : String(value);
-    out.push(`${CSS[key]}:${escapeHtml(written)}`);
+    out.push(`${CSS[key]}:${escaped(written)}`);
   }
   return out.join(";");
 }
@@ -72,34 +72,104 @@ export function runsHtml(node: Node, lost: string[] = []): string {
     .join("");
 }
 
-/** A List as the builder's text holds one: `<ul>` or `<ol>`, its indent its padding, its gap above each item but the first. */
-export function listHtml(node: Node, lost: string[] = []): string {
+type Item = Record<string, Json | undefined>;
+
+/** Lexical's bitmask for a raised run. */
+const RAISED: Record<string, number> = { sub: 32, super: 64 };
+const unescaped = (value: string) => value;
+const textItem = (text: string, style: string, format: number): Item => ({ type: "extended-text", version: 1, detail: 0, format, mode: "normal", style, text });
+
+/** A node's runs as rich text's nodes, each run's text in the style and format of the runs around it. */
+function runItems(node: Node, lost: string[], around = "", format = 0): Item[] {
+  return (node.children ?? []).flatMap((child): Item[] => {
+    if (typeof child === "string") return [textItem(child, around, format)];
+    if (Object.keys(child.mobile ?? {}).length) lost.push("phone styles on part of its text");
+    if (child.id) lost.push("id on part of its text");
+    if (child.type === "Link" && child.props?.attrs) lost.push("other attributes on a link");
+    const { verticalAlign, ...style } = child.style ?? {};
+    const own = [around, runCss(style, unescaped)].filter(Boolean).join(";");
+    switch (child.type) {
+      case "LineBreak":
+        return [{ type: "linebreak", version: 1 }];
+      case "MergeTag":
+        return [textItem(`{{${String(child.props?.name ?? "")}}}`, own, format)];
+      case "PageNumber":
+        // The builder has no page numbers: its tokens in their place, read back as them in a Document.
+        return [textItem(child.props?.total ? "{{page_count}}" : "{{page_number}}", own, format)];
+      case "Link": {
+        if (child.hover && Object.keys(child.hover).length) lost.push("a link's hover");
+        const { href, target } = linkParts(child.props?.href as LinkValue);
+        const label = child.props?.["aria-label"];
+        return [
+          {
+            type: "extended-link",
+            version: 1,
+            format: "",
+            indent: 0,
+            direction: null,
+            url: href,
+            target: target ?? null,
+            rel: null,
+            title: typeof child.props?.title === "string" ? child.props.title : undefined,
+            style: runCss(child.style, unescaped) || undefined,
+            customAttrs: typeof label === "string" ? { "aria-label": label } : undefined,
+            children: runItems(child, lost, around, format) as Json[],
+          },
+        ];
+      }
+      default:
+        return runItems(child, lost, own, format | (RAISED[String(verticalAlign)] ?? 0));
+    }
+  });
+}
+
+const richText = (children: Item[]) => JSON.stringify({ root: { type: "root", version: 1, format: "", indent: 0, direction: null, children } });
+
+/** A node's runs as a Paragraph's rich text (`textJson`), one paragraph in `style`. */
+export function paragraphJson(node: Node, lost: string[], style: string): string {
+  const children = runItems(node, lost);
+  return richText(children.length ? [{ type: "extended-paragraph", version: 1, format: "", indent: 0, direction: null, textFormat: 0, textStyle: "", isInlineTool: false, style: style || undefined, children: children as Json[] }] : []);
+}
+
+/** A list's rich text: an item for its words, and one for each list in it, as the builder's editor nests a list. */
+function listItem(node: Node, lost: string[]): Item {
   const numbered = node.props?.type === "number";
-  const tag = numbered ? "ol" : "ul";
-  const start = numbered && node.props?.start !== undefined && node.props.start !== 1 ? ` start="${Number(node.props.start)}"` : "";
-  const indent = typeof node.style?.indent === "number" ? node.style.indent : 24;
-  const gap = typeof node.style?.gap === "number" ? node.style.gap : 0;
   const items = (node.children ?? []).filter((child): child is Node => typeof child !== "string");
-  const html = items
-    .map((item, i) => {
+  const entry = (children: Item[], value: number): Item => ({ type: "extended-listitem", version: 1, format: "", indent: 0, direction: null, value, children: children as Json[] });
+  let value = 0;
+  return {
+    type: "extended-list",
+    version: 1,
+    format: "",
+    indent: 0,
+    direction: null,
+    listType: numbered ? "number" : "bullet",
+    tag: numbered ? "ol" : "ul",
+    start: numbered && node.props?.start !== undefined ? Number(node.props.start) : 1,
+    children: items.flatMap((item) => {
       if (Object.keys(item.style ?? {}).length || item.props?.dir) lost.push("style or direction of a list item's own");
-      // Its words and the lists in it, in their order (words after a list go under it).
-      const parts: string[] = [];
+      const parts: Item[] = [];
       let words: Node["children"] = [];
       const flush = () => {
-        if (words!.length) parts.push(runsHtml({ ...item, children: words }, lost));
+        if (words!.length) parts.push(entry(runItems({ ...item, children: words }, lost), ++value));
         words = [];
       };
+      let nested = false;
       for (const child of item.children ?? []) {
         if (typeof child !== "string" && child.type === "List") {
           flush();
-          parts.push(listHtml(child, lost));
-        } else words.push(child);
+          parts.push(entry([listItem(child, lost)], ++value));
+          nested = true;
+        } else {
+          if (nested && (typeof child !== "string" || child.trim())) lost.push("words after a list in a list item, which are an item of their own");
+          words.push(child);
+        }
       }
       flush();
-      const space = i > 0 && gap ? ` style="margin-top:${cssPx(gap)}"` : "";
-      return `<li${space}>${parts.join("")}</li>`;
-    })
-    .join("");
-  return `<${tag}${start} style="margin:0;padding-left:${cssPx(indent)}">${html}</${tag}>`;
+      return parts;
+    }) as Json[],
+  };
 }
+
+/** A List as a Paragraph's rich text (`textJson`). */
+export const listJson = (node: Node, lost: string[]): string => richText([listItem(node, lost)]);

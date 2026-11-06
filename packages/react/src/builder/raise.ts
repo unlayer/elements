@@ -10,7 +10,7 @@
 import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@unlayer-internal/elements-core";
 import type React from "react";
 import { collectTemplate } from "../primitives/collect";
-import { add, boxRowOf, builderId, gapOf, hasBox, hiding, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
+import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
@@ -123,7 +123,7 @@ export function raise(element: React.ReactElement): Raised {
 
   const writer: Writer = { at, put, sayLeftOut, place, childrenOf, stack };
   const row = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, arranged?: ResolvedNode) => rowOf(writer, node, path, band, outer, bandHidden, arranged);
-  const boxRow = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values) => boxRowOf(writer, node, path, band, outer, bandHidden);
+  const boxRow = (node: Node, path: string, band: Values, outer: Sides, bandHidden: Values, inset?: { left: number; right: number }) => boxRowOf(writer, node, path, band, outer, bandHidden, inset);
 
   /** A one-column row of the builder's holding blocks (content directly in the root, or a Section's). */
   const oneColumn = (blocks: Child[], stackNode: ResolvedNode, band: Values, pad: Sides, bandHidden: Values, sectionHiding: Values = {}): Row => {
@@ -158,10 +158,28 @@ export function raise(element: React.ReactElement): Raised {
       out.push(oneColumn(run, stackNode, band, { ...pad, top, bottom: last ? pad.bottom : 0 }, bandHidden(out.length), sectionHiding));
       run = [];
     };
+    /** A line above or below something, a Divider in a row of its own: a column's border fills the row, and moves with its alignItems. */
+    const lineRow = (line: Json | undefined, space: Sides, node: Node) => {
+      if (!line) return;
+      const divider = put(block("divider"), { border: builderBorder({ top: line as never }), width: "100%", textAlign: "center", containerPadding: cssSides(space) });
+      out.push(put(rowWith([1], { padding: "0px", ...hiding(node), ...band, ...sectionHiding }, [columnWith({ padding: "0px" }, [divider])]), bandHidden(out.length)));
+    };
     children.forEach(({ child, path }, i) => {
       const last = i === children.length - 1;
       const outer = (): Sides => ({ ...pad, top: out.length === 0 ? pad.top : gap, bottom: last ? pad.bottom : 0 });
-      if (child.type === "Column" && !hasBox(child) && hasLayout(child)) {
+      const lines = child.type === "Row" || lineBox(child) ? linesOf(at(path).style.border) : undefined;
+      if (lines && !(child.type === "Row" && unsized(child, path))) {
+        flush(false);
+        const o = outer();
+        const within = { ...o, top: lines.top ? 0 : o.top, bottom: lines.bottom ? 0 : o.bottom };
+        lineRow(lines.top, { ...o, bottom: 0 }, child);
+        if (child.type === "Row") out.push(row(child, path, { ...band, ...sectionHiding }, within, bandHidden(out.length)));
+        else {
+          const { border: _border, ...style } = child.style ?? {};
+          out.push(oneColumn([{ child: { ...child, style }, path }], stackNode, band, within, bandHidden(out.length), sectionHiding));
+        }
+        lineRow(lines.bottom, { ...o, top: 0 }, child);
+      } else if (child.type === "Column" && !hasBox(child) && hasLayout(child)) {
         // A plain stack holding Rows: its children are rows of their own, its padding around them.
         flush(false);
         const o = outer();
@@ -192,11 +210,10 @@ export function raise(element: React.ReactElement): Raised {
         flush(false);
         const o = outer();
         // A builder row has no room at its sides: the space around a box goes into its column, where nothing shows it
-        // isn't around the box. A box that's painted fills its column, so it's as wide as the row: said, not hidden.
+        // isn't around the box. A box that's painted fills its column, so that space is columns of its own beside it.
         const painted = PAINT.some((key) => child.style?.[key] !== undefined || child.mobile?.[key] !== undefined);
-        if (painted && (o.left || o.right)) report.push(`${path}: the builder's row can't keep a painted box in from its sides: the ${o.left || o.right}px around it is left out, so it's as wide as the row`);
-        const inset = painted ? child : { ...child, style: { ...child.style, padding: add(padding(child), { left: o.left, right: o.right }) } };
-        out.push(boxRow(inset, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length)));
+        const box = painted ? child : { ...child, style: { ...child.style, padding: add(padding(child), { left: o.left, right: o.right }) } };
+        out.push(boxRow(box, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length), painted ? { left: o.left, right: o.right } : undefined));
       } else run.push({ child, path });
     });
     flush(true);
@@ -289,7 +306,13 @@ function countRows(children: Child[]): number {
   let count = 0;
   let run = false;
   for (const { child } of children) {
-    if (child.type === "Column" && !hasBox(child) && hasLayout(child)) {
+    // A line above or below it is a row of its own.
+    const lines = child.type === "Row" || lineBox(child) ? linesOf(child.style?.border) : undefined;
+    count += (lines?.top ? 1 : 0) + (lines?.bottom ? 1 : 0);
+    if (lineBox(child) && lines) {
+      count++;
+      run = false;
+    } else if (child.type === "Column" && !hasBox(child) && hasLayout(child)) {
       count += countRows((child.children ?? []).filter((c): c is Node => typeof c !== "string").map((c) => ({ child: c, path: "" })));
       run = false;
     } else if (child.type === "Row" || (child.type === "Column" && (hasBox(child) || !(child.children ?? []).some((c) => typeof c !== "string")) && !hasLayout(child))) {
@@ -305,6 +328,13 @@ function countRows(children: Child[]): number {
   }
   return count;
 }
+
+/** A Column whose only look is lines above or below it, around blocks a builder column can hold. */
+const lineBox = (node: Node): boolean => {
+  if (node.type !== "Column" || hasLayout(node) || !linesOf(node.style?.border)) return false;
+  const { border: _border, ...style } = node.style ?? {};
+  return !hasBox({ ...node, style });
+};
 
 /** Whether a box holds a layout a builder column can't (a Row, a Grid): it's locked instead. */
 const hasLayout = (node: Node): boolean => (node.children ?? []).some((child) => typeof child !== "string" && (child.type === "Row" || child.type === "Grid" || child.type === "Layer" || (child.type === "Column" && hasLayout(child))));

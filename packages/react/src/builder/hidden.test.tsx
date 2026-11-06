@@ -6,10 +6,12 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Document, Email, Heading, Html, Image, Menu, Page, Paragraph, Row, Section, Text, Video } from "../primitives";
+import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Paragraph, Row, Section, Text, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign } from "./index";
 import { BUILDER_KEYS, BUILDER_PHONE_KEYS, HIDDEN } from "./manifest";
+import { outOfMarkup } from "./paint";
+import { textJsonHtml } from "./text-json";
 
 type Values = Record<string, any>;
 type Item = { tool: string; values: Values };
@@ -51,6 +53,10 @@ const everyHidden = [
       <Paragraph style={{ fontStyle: "italic", textTransform: "uppercase", textDecoration: "underline", backgroundColor: "#ffffff", border: "1px solid #000000", borderRadius: 4, width: 300, maxWidth: 400, padding: 8 }} mobile={{ maxWidth: 200 }}>
         Boxed
       </Paragraph>
+      <List style={{ indent: 30, gap: 6 }}>
+        <ListItem>One</ListItem>
+        <ListItem>Two</ListItem>
+      </List>
       <Heading style={{ fontStyle: "italic", textTransform: "lowercase", textDecoration: "line-through", backgroundColor: "#ffffff", border: "1px solid #000000", borderRadius: 4, width: 300, maxWidth: 400, padding: 8 }}>Heading</Heading>
       <Button href="https://x.test" title="Go there" aria-label="Go to x" style={{ textAlign: "left", width: 300, fontStyle: "italic", textTransform: "uppercase", textDecoration: "underline", maxWidth: 400 }}>
         Go
@@ -77,6 +83,9 @@ const everyHidden = [
   </Document>,
 ];
 
+/** What a text block's markup holds of what its tool has no field for. */
+const inMarkup = (values: Record<string, any>) => Object.keys(outOfMarkup(typeof values.textJson === "string" ? textJsonHtml(values.textJson).html : String(values.text ?? "")).values);
+
 describe("hidden properties", () => {
   const written = everyHidden.flatMap((template) => items(toDesign(template).design));
 
@@ -91,7 +100,7 @@ describe("hidden properties", () => {
   });
 
   it("are each written by some template (the manifest lists nothing toDesign() doesn't write)", () => {
-    const seen = new Set(written.flatMap(({ tool, values }) => [...Object.keys(values), ...Object.keys(values._override?.desktop ?? {}), ...Object.keys(values._override?.mobile ?? {})].map((key) => `${tool}.${key}`)));
+    const seen = new Set(written.flatMap(({ tool, values }) => [...Object.keys(values), ...Object.keys(values._override?.desktop ?? {}), ...Object.keys(values._override?.mobile ?? {}), ...inMarkup(values)].map((key) => `${tool}.${key}`)));
     const unwritten = Object.entries(HIDDEN).flatMap(([tool, entries]) => entries.filter((entry) => !seen.has(`${tool}.${entry.key}`)).map((entry) => `${tool}.${entry.key}`));
     expect(unwritten).toEqual([]);
   });
@@ -111,19 +120,10 @@ describe("hidden properties", () => {
   });
 
   it("are written as the builder's editors write values: lengths and sides in px, borders side by side", () => {
-    const paragraph = written.find((item) => item.tool === "text" && item.values.text === "Boxed")!.values;
-    expect(paragraph).toMatchObject({
-      fontStyle: "italic",
-      textTransform: "uppercase",
-      textDecoration: "underline",
-      backgroundColor: "#ffffff",
-      border: { borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: "#000000", borderLeftWidth: "1px" },
-      borderRadius: "4px",
-      width: "300px",
-      maxWidth: "400px",
-      padding: "8px",
-    });
+    const paragraph = written.find((item) => item.tool === "paragraph" && item.values.textJson.includes("Boxed"))!.values;
     expect(paragraph._override.mobile).toEqual({ maxWidth: "200px" });
+    const list = written.find((item) => item.tool === "paragraph" && item.values.textJson.includes("extended-list"))!.values;
+    expect(list).toMatchObject({ indent: "30px", gap: "6px" });
     const button = written.find((item) => item.tool === "button")!.values;
     expect(button).toMatchObject({ buttonTextAlign: "left", textAlign: "left", title: "Go there", "aria-label": "Go to x", size: { autoWidth: false, width: "300px" } });
     // Its title is the builder's accessibility title, a field.
@@ -161,7 +161,7 @@ describe("hidden properties", () => {
     );
     const all = items(design);
     const row = all.find((item) => item.tool === "row")!.values;
-    const [paragraph, button] = all.filter((item) => item.tool === "text" || item.tool === "button").map((item) => item.values);
+    const [paragraph, button] = all.filter((item) => item.tool === "paragraph" || item.tool === "button").map((item) => item.values);
     // The Section's padding and gap are its blocks' spacing; its text style, theirs.
     expect([row.padding, row.backgroundColor, paragraph.containerPadding, button.containerPadding]).toEqual(["0px", "#eeeeee", "24px 24px 4px", "10px 20px 20px"]);
     expect([paragraph.color, paragraph.textAlign, button.textAlign]).toEqual(["#333333", "center", "center"]);
@@ -183,7 +183,7 @@ describe("hidden properties", () => {
     it("keep them where a field is edited on a tool that carries them", () => {
       const design = designOf(heading);
       block(design).values.color = "#ff0000";
-      block(design).values.text = "New title";
+      block(design).values.text = block(design).values.text.replace("Title", "New title");
       expect(back(design).children).toEqual([{ type: "Heading", style: { color: "#ff0000", fontStyle: "italic", backgroundColor: "#fde68a", borderRadius: 8 }, children: ["New title"] }]);
     });
 
@@ -209,16 +209,57 @@ describe("hidden properties", () => {
       ]);
     });
 
+    const text = (
+      <Email>
+        <Paragraph style={{ textTransform: "uppercase", maxWidth: 400, border: { top: "1px solid #000000" } }}>Words</Paragraph>
+      </Email>
+    );
+    const paragraphOf = (html: string, rest = {}) => {
+      const design = designOf(text);
+      const made = block(design);
+      // The builder's export of its rich text, as its editor leaves it after an edit.
+      made.type = "text";
+      delete made.values.textJson;
+      Object.assign(made.values, { text: html, ...rest });
+      return fromDesign(design);
+    };
+
+    it("draw in a Paragraph's own paragraph, which the builder draws, not as values it only keeps", () => {
+      const design = designOf(text);
+      const { values } = block(design);
+      expect(block(design).type).toBe("paragraph");
+      for (const key of ["textTransform", "maxWidth", "border"]) expect(values[key]).toBeUndefined();
+      const [paragraph] = JSON.parse(values.textJson).root.children;
+      expect(paragraph).toMatchObject({ type: "extended-paragraph", style: "text-transform:uppercase;max-width:400px;border-top:1px solid #000000" });
+      expect(back(design).children).toEqual([{ type: "Paragraph", style: { textTransform: "uppercase", maxWidth: 400, border: { top: { width: 1, style: "solid", color: "#000000" } } }, children: ["Words"] }]);
+    });
+
+    it("come back as its editor leaves them: its own spacing and colors, and a copy on each paragraph a new line makes", () => {
+      const same = { textTransform: "uppercase", maxWidth: 400 };
+      expect(tree(paragraphOf('<p style="margin: 0px; text-transform: uppercase; max-width: 400px; line-height: 150%;">Words</p>').element).children).toEqual([{ type: "Paragraph", style: { ...same, lineHeight: 1.5 }, children: ["Words"] }]);
+      expect(tree(paragraphOf('<p style="margin: 0px; text-transform: uppercase; max-width: 400px;">One</p><p style="margin: 0px; text-transform: uppercase; max-width: 400px;">Two</p>').element).children).toEqual([
+        { type: "Paragraph", style: same, children: ["One"] },
+        { type: "Paragraph", style: same, children: ["Two"] },
+      ]);
+      const painted = tree(paragraphOf('<p style="background-color: rgb(221, 221, 221); border-top: 1px solid rgb(0, 0, 0); border-radius: 4px; padding: 24px 8px 0px;">Words</p>').element).children as Node[];
+      expect(painted).toEqual([{ type: "Paragraph", style: { backgroundColor: "#dddddd", border: { top: { width: 1, style: "solid", color: "#000000" } }, borderRadius: 4, padding: { top: 24, right: 8, bottom: 0, left: 8 } }, children: ["Words"] }]);
+    });
+
+    it("are read as markup, and said, where a block's paragraphs don't share them", () => {
+      const { element, report } = paragraphOf('<p style="text-transform: uppercase;">One</p><p style="text-transform: lowercase;">Two</p>');
+      expect((tree(element).children as Node[])[0].type).toBe("Html");
+      expect(report).toEqual([expect.stringContaining("it's an Html block of its markup")]);
+    });
+
     it("are gone where the builder deleted them", () => {
       const design = designOf(heading);
-      delete block(design).values.backgroundColor;
-      delete block(design).values.fontStyle;
+      block(design).values.text = '<span style="display:block;border-radius:8px">Title</span>';
       expect(back(design).children).toEqual([{ type: "Heading", style: { borderRadius: 8 }, children: ["Title"] }]);
     });
 
     it("leave out one that can't be read, and say so", () => {
       const design = designOf(heading);
-      block(design).values.borderRadius = "round";
+      block(design).values.text = '<span style="display:block;font-style:italic;border-radius:round">Title</span>';
       block(design).values.backgroundColor = { not: "a color" };
       const result = fromDesign(design);
       expect(tree(result.element).children).toEqual([{ type: "Heading", style: { fontStyle: "italic" }, children: ["Title"] }]);

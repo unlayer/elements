@@ -1,7 +1,7 @@
 /**
  * The builder's design JSON from the rows, columns and blocks toDesign() makes of a template (raise.ts): each part's
  * values are its tool's defaults with its own fields written in, numbered as the builder numbers them (`u_row_1`,
- * `u_content_text_2`, the design's `counters`), and then its values from the template merged over them. Key for key,
+ * `u_content_paragraph_2`, the design's `counters`), and then its values from the template merged over them. Key for key,
  * it's the design Elements 0.2's renderToJson() wrote for the same parts, which designs saved in the builder since
  * then hold.
  */
@@ -24,7 +24,7 @@ import { merge } from "./hide";
 import type { Values } from "./values";
 
 /** The builder's tools toDesign() writes blocks as, by their type in the design. */
-export type Tool = "heading" | "text" | "button" | "image" | "divider" | "menu" | "social" | "video" | "html" | "page_break";
+export type Tool = "heading" | "paragraph" | "button" | "image" | "divider" | "menu" | "social" | "video" | "html" | "page_break";
 
 /** Where a row or a block is hidden: the builder's `_override.mobile.hideMobile` and `_override.desktop.hideDesktop`. */
 export interface Hiding {
@@ -117,7 +117,7 @@ const BODY = Object.fromEntries(Object.entries(BodyDefaults).filter(([key]) => !
 /** Each tool's values before a block's: the builder's defaults, with what Elements 0.2's components added to them. */
 const TOOLS: Record<Tool, Values> = {
   heading: { ...HeadingDefaults, color: "#000000", fontWeight: 400, text: "Heading" },
-  text: { ...ParagraphDefaults, color: "#000000" },
+  paragraph: { ...ParagraphDefaults, color: "#000000" },
   button: { ...ButtonDefaults, text: "Button" },
   // The placeholder's size without its height, as wide as its column.
   image: { ...ImageDefaults, src: { url: ImageDefaults.src.url, width: ImageDefaults.src.width, autoWidth: true, maxWidth: "100%" } },

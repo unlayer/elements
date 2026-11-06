@@ -15,7 +15,7 @@ import { sayUnread } from "./unread";
 export type DisplayMode = "email" | "web" | "document";
 
 const obj = (value: unknown): Values => (value && typeof value === "object" && !Array.isArray(value) ? (value as Values) : {});
-const arr = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+const arr = (value: unknown): unknown[] => (Array.isArray(value) ? Array.from(value) : []);
 const defined = (record: Record<string, Json | undefined>) => Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined)) as Record<string, Json>;
 /** The strings in a design's value, so many levels down at most: malformed JSON can be any depth. */
 const wordsIn = (value: unknown, depth: number): string[] => (typeof value === "string" ? [value] : depth > 0 && value && typeof value === "object" ? Object.values(value).flatMap((held) => wordsIn(held, depth - 1)) : []);

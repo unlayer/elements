@@ -1,10 +1,11 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { collectTemplate } from "../primitives/collect";
 import { withParagraphMargin } from "./text";
 import { fromDesign, toDesign } from "./index";
+import { textJsonHtml } from "./text-json";
 import { invoice } from "./testing/templates";
 
 type Values = Record<string, any>;
@@ -84,8 +85,8 @@ describe("toDesign", () => {
     expect(design.schemaVersion).toBeGreaterThanOrEqual(28);
     expect([body.headers.length, body.footers.length]).toEqual([1, 1]);
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
-    expect(blocks(design).map((content) => content.type)).toEqual(["heading", "text", "page_break", "text", "page_break", "text", "page_break", "text"]);
-    expect(blocks(design)[1].values.text).toBe("Page {{page_number}} of {{page_count}}");
+    expect(blocks(design).map((content) => content.type)).toEqual(["heading", "paragraph", "page_break", "paragraph", "page_break", "paragraph", "page_break", "paragraph"]);
+    expect(textJsonHtml(blocks(design)[1].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
     expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet")]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
@@ -104,7 +105,7 @@ describe("toDesign", () => {
       </Email>
     );
     const [text, image] = blocks(design).map((content) => content.values);
-    expect(text.text).toBe('<a href="https://x.test/a" target="_blank">a</a> <a href="https://x.test/b">b</a>');
+    expect(textJsonHtml(text.textJson).html).toMatch(/<a href="https:\/\/x\.test\/a" target="_blank">a<\/a> <a href="https:\/\/x\.test\/b">b<\/a>/);
     expect(image.action).toEqual({ name: "web", values: { href: "https://x.test/image", target: "_blank" } });
     expect(JSON.stringify(design)).not.toContain("[object Object]");
   });
@@ -117,7 +118,7 @@ describe("toDesign", () => {
         </Section>
       </Email>
     );
-    expect(blocks(design)[0].values._meta).toEqual({ htmlID: "intro", htmlClassNames: "u_content_text" });
+    expect(blocks(design)[0].values._meta).toEqual({ htmlID: "intro", htmlClassNames: "u_content_paragraph" });
     expect(design.body.values.backgroundColor).toBe("");
   });
 
@@ -136,7 +137,7 @@ describe("toDesign", () => {
     ).toEqual(["root.children[0]: the builder's text holds no a link's hover: left out", "root.children[1]: an image without its size (its src's width and height) takes its own size, and in the builder its column's width"]);
   });
 
-  it("says a painted box in a Section loses the space at its sides, and moves it into an unpainted box's column", () => {
+  it("keeps a painted box in a Section in from its sides with columns of space, and moves the space into an unpainted box's column", () => {
     const template = (style: Record<string, string | number>) => (
       <Email width={480}>
         <Section style={{ padding: [0, 24] }}>
@@ -148,8 +149,12 @@ describe("toDesign", () => {
       </Email>
     );
     const painted = toDesign(template({ backgroundColor: "#eeeeee", padding: 20 }));
-    expect(painted.report).toEqual(["root.children[0].children[1]: the builder's row can't keep a painted box in from its sides: the 24px around it is left out, so it's as wide as the row"]);
-    expect(painted.design.body.rows[1].columns[0].values.padding).toBe("20px");
+    expect(painted.report).toEqual([]);
+    const row = painted.design.body.rows[1];
+    expect(row.cells).toEqual([24, 432, 24]);
+    expect(row.values._override.mobile.noStackMobile).toBe(true);
+    expect(row.columns[1].values).toMatchObject({ padding: "20px", backgroundColor: "#eeeeee" });
+    for (const side of [row.columns[0], row.columns[2]]) expect(side.contents.map((content: any) => [content.type, content.values.border.borderTopColor])).toEqual([["divider", "transparent"]]);
     const plain = toDesign(template({ height: 80, padding: 20 }));
     expect(plain.report).toEqual([]);
     expect(plain.design.body.rows[1].columns[0].values.padding).toBe("20px 44px");
@@ -185,9 +190,55 @@ describe("toDesign", () => {
     expect(toDesign(<Email><Html html="<p>Words</p>" /></Email>).report).toEqual([]);
   });
 
-  it("says where the builder can't draw a Row's border as it's written: on its columns, which fill the row and move with alignItems", () => {
+  it("writes a Paragraph as the builder's Paragraph, its rich text holding its runs: their styles, a link's target, title and label", () => {
+    const { design, report } = toDesign(
+      <Email>
+        <Paragraph>
+          Plain <Span style={{ color: "#ff0000", fontSize: 20 }}>red</Span>
+          <LineBreak />
+          <Link href={{ href: "https://x.test/", target: "_blank" }} title="A title" aria-label="A label" style={{ color: "#00aa00" }}>
+            there
+          </Link>
+        </Paragraph>
+      </Email>
+    );
+    expect(report).toEqual([]);
+    const [block] = blocks(design);
+    expect(block.type).toBe("paragraph");
+    expect(block.values.text).toBeUndefined();
+    const [{ children }] = JSON.parse(block.values.textJson).root.children;
+    expect(children.map((child: any) => [child.type, child.text ?? child.url, child.style])).toEqual([
+      ["extended-text", "Plain ", ""],
+      ["extended-text", "red", "color:#ff0000;font-size:20px"],
+      ["linebreak", undefined, undefined],
+      ["extended-link", "https://x.test/", "color:#00aa00"],
+    ]);
+    const back = collectTemplate(fromDesign(JSON.parse(JSON.stringify(design))).element).document!.root.children![0] as any;
+    expect(back.children[3]).toMatchObject({ type: "Link", props: { href: { href: "https://x.test/", target: "_blank" }, title: "A title", "aria-label": "A label" } });
+  });
+  it("writes lines above and below a Row as Dividers in rows of their own, in from the space around it, level whatever its alignItems", () => {
     const row = (style: Record<string, unknown>) => (
-      <Row style={{ border: { top: "1px solid #000000" }, ...style }}>
+      <Row style={{ border: { top: "1px solid #000000", bottom: "2px dashed #ff0000" }, padding: [14, 0], ...style }}>
+        <Column><Text>a</Text></Column>
+        <Column><Text>b</Text></Column>
+      </Row>
+    );
+    const { design, report } = toDesign(<Email><Section style={{ backgroundColor: "#eeeeee", padding: [10, 48, 20] }}>{row({ alignItems: "end" })}</Section></Email>);
+    expect(report).toEqual([]);
+    const [above, middle, below] = design.body.rows;
+    expect(design.body.rows).toHaveLength(3);
+    expect(above.columns[0].contents[0]).toMatchObject({ type: "divider", values: { containerPadding: "10px 48px 0px", width: "100%", border: { borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: "#000000" } } });
+    expect(below.columns[0].contents[0]).toMatchObject({ type: "divider", values: { containerPadding: "0px 48px 20px", border: { borderTopWidth: "2px", borderTopStyle: "dashed", borderTopColor: "#ff0000" } } });
+    expect(middle.values.padding).toBe("14px 0px 14px 0px");
+    for (const column of middle.columns) expect(column.values.border).toEqual({});
+    // Each row of it is in the Section's band.
+    expect([above, middle, below].map((part) => part.values.backgroundColor)).toEqual(["#eeeeee", "#eeeeee", "#eeeeee"]);
+    // Back and written again, it's the same rows, not more.
+    expect(toDesign(fromDesign(JSON.parse(JSON.stringify(design))).element).design.body.rows).toHaveLength(3);
+  });
+  it("says where the builder can't draw a Row's border as it's written: sides of it on its columns, which fill the row and move with alignItems", () => {
+    const row = (style: Record<string, unknown>) => (
+      <Row style={{ border: { left: "1px solid #000000" }, ...style }}>
         <Column><Text>a</Text></Column>
         <Column><Text>b</Text></Column>
       </Row>
