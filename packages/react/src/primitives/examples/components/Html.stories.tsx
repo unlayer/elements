@@ -1,7 +1,7 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Heading, Html, Section } from "../../index";
-import { FONT, INK } from "./shared";
+import { Column, Heading, Html, Section, Text } from "../../index";
+import { caption, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
   title: "Components/Html",
@@ -19,61 +19,115 @@ export default meta;
 
 const story = asEmailAndPage;
 
+/**
+ * Endpaper (a fictional reading journal that writes to you on Sunday evenings).
+ *
+ * Quiet like a library at closing time: cream paper, Newsreader for the books, Hanken Grotesk for
+ * the numbers, and the oxblood of an old cloth binding where the eye should land.
+ */
+const PAPER = "#F6F1E7";
+const SHEET = "#FFFCF6";
+const INK = "#231F1B";
+const QUIET = "#70675B";
+const RULE = "#E4DBCB";
+const OXBLOOD = "#7C2A24";
+
+const SERIF = "Newsreader, Georgia, 'Times New Roman', serif";
+const SANS = "'Hanken Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+const root = {
+  width: 600,
+  lang: "en-GB",
+  fonts: [
+    { family: "Newsreader", src: "https://fonts.gstatic.com/s/newsreader/v26/cY9AfjOCX1hbuyalUrK4397yjIJFJpc.woff2", format: "woff2", weight: "200 800" },
+    { family: "Newsreader", src: "https://fonts.gstatic.com/s/newsreader/v26/cY9CfjOCX1hbuyalUrK439vCjohCBJWxZA.woff2", format: "woff2", weight: "200 800", style: "italic" },
+    { family: "Hanken Grotesk", src: "https://fonts.gstatic.com/s/hankengrotesk/v12/ieVn2YZDLWuGJpnzaiwFXS9tYtpd59CxCis4.woff2", format: "woff2", weight: "100 900" },
+    MONO_FONT,
+  ],
+  style: { backgroundColor: PAPER, color: INK, fontFamily: SANS, fontSize: 16, lineHeight: 1.55 },
+};
+
+const label = { fontSize: 12, fontWeight: 600, letterSpacing: 1.4, textTransform: "uppercase", color: QUIET } as const;
+
 /** Nothing around it styles what an email's markup holds, so the markup says its own font. */
-const TYPE = "font-family:Arial,Helvetica,sans-serif;color:#1f2933;line-height:1.5";
+const SERIF_TYPE = `font-family:Newsreader,Georgia,'Times New Roman',serif;color:${INK}`;
+const SANS_TYPE = `font-family:'Hanken Grotesk','Helvetica Neue',Helvetica,Arial,sans-serif;color:${INK}`;
 
 /** `Html` is markup written as it is, for what no component says. */
 export const YourOwnHtml = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24 }}>
-      <Html html={`<div style="${TYPE};padding:12px;border:1px dashed #9AA5B1;font-size:14px">Written as it is, <b>nothing in it checked</b>.</div>`} />
+  <Root {...root}>
+    <Section style={{ padding: [44, 32, 48], gap: 18 }} mobile={{ padding: [32, 24, 36], gap: 16 }}>
+      <Text style={label}>Your highlight of the week</Text>
+      <Html
+        html={`<div>
+  <blockquote style="${SERIF_TYPE};margin:0;padding:0 0 0 20px;border-left:2px solid ${OXBLOOD};font-size:27px;line-height:1.3">
+    The river keeps <mark style="background:#EFD9B9;color:inherit;padding:0 3px">no diary</mark> of the bridges it has outlived.
+  </blockquote>
+  <p style="${SANS_TYPE};margin:14px 0 0 22px;font-size:14px;line-height:1.5;color:${QUIET}"><cite style="font-style:italic">The Salt Road</cite>, page 212. Saved on Tuesday at 23:40.</p>
+</div>`}
+      />
+      <Text style={{ ...caption(QUIET), padding: [6, 0, 0] }}>{"<blockquote>, <mark>, <cite>: written as they are, nothing in them checked"}</Text>
     </Section>
   </Root>
 ));
 
 /** A card with a gradient and a shadow, which `style` doesn't have. */
 export const GradientCard = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24 }}>
+  <Root {...root}>
+    <Section style={{ padding: [44, 32, 52], gap: 18 }} mobile={{ padding: [28, 20, 36] }}>
       <Html
-        html={`<div style="${TYPE};padding:32px;border-radius:16px;color:#ffffff;text-align:center;background:linear-gradient(135deg,#0f766e 0%,#334e68 100%);box-shadow:0 10px 25px rgba(15,118,110,.3)">
-  <h2 style="margin:0 0 12px;font-size:24px">A card of your own</h2>
-  <p style="margin:0;line-height:1.6;opacity:.9">A gradient and a shadow, written as CSS.</p>
+        html={`<div style="${SERIF_TYPE};padding:40px 36px 36px;border-radius:6px;color:#FBF2E4;background:linear-gradient(155deg,#5F1D1A 0%,#8E3A28 62%,#B4623A 100%);box-shadow:0 22px 34px -22px rgba(62,20,14,.75)">
+  <div style="${SANS_TYPE};color:#EBCBAA;font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase">Your year in books</div>
+  <div style="margin:18px 0 10px;font-size:92px;line-height:.95;letter-spacing:-3px">41</div>
+  <div style="font-size:23px;line-height:1.28;font-style:italic">books finished, and the longest was the one you nearly gave up on.</div>
 </div>`}
       />
+      <Text style={caption(QUIET)}>A gradient and a shadow, written as CSS</Text>
     </Section>
   </Root>
 ));
 
-const bar = (label: string, percent: number, color: string) => `<div style="margin-bottom:16px">
-  <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:14px"><span>${label}</span><span style="color:#616e7c">${percent}%</span></div>
-  <div style="height:8px;overflow:hidden;border-radius:10px;background:#e4e7eb"><div style="width:${percent}%;height:100%;border-radius:10px;background:${color}"></div></div>
+/** A book on the nightstand: its title, how far in, and a thin bar of that length. */
+const bar = (title: string, percent: number, color: string) => `<div style="margin:0 0 20px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="${SERIF_TYPE};padding:0 0 7px;font-size:19px;line-height:1.25">${title}</td>
+    <td align="right" style="${SANS_TYPE};padding:0 0 7px 12px;font-size:14px;color:${QUIET}">${percent}%</td>
+  </tr></table>
+  <div style="height:4px;background:${RULE};font-size:0;line-height:0"><div style="width:${percent}%;height:4px;background:${color}"></div></div>
 </div>`;
 
 /** Progress bars, next to a heading that's a component: `Html` is one block among others. */
 export const ProgressBars = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24, gap: 16 }}>
-      <Heading level={3} style={{ fontSize: 18 }}>This week's goals</Heading>
-      <Html html={`<div style="${TYPE}">${bar("Orders", 90, "#0f766e") + bar("Signups", 75, "#334e68") + bar("Reviews", 40, "#b7791f")}</div>`} />
+  <Root {...root}>
+    <Section style={{ padding: [40, 24, 44] }} mobile={{ padding: [20, 12, 28] }}>
+      <Column style={{ backgroundColor: SHEET, borderRadius: 4, padding: [36, 36, 16], gap: 24 }} mobile={{ padding: [28, 22, 8], gap: 20 }}>
+        <Heading level={2} style={{ fontFamily: SERIF, fontSize: 32, fontWeight: 400, lineHeight: 1.1, letterSpacing: -0.4 }} mobile={{ fontSize: 28 }}>
+          On your nightstand
+        </Heading>
+        <Html html={`<div>${bar("The Salt Road", 82, OXBLOOD)}${bar("Winter Orchards", 46, OXBLOOD)}${bar("A Short History of Rope", 12, OXBLOOD)}</div>`} />
+      </Column>
     </Section>
   </Root>
 ));
 
+/** One figure of the reader's year, as a cell of markup every mail client reads. */
+const figure = (value: string, what: string, shaded: boolean) =>
+  `<td width="33%" valign="top" style="padding:22px 4px 20px;${shaded ? `background:${SHEET};` : ""}"><div style="${SERIF_TYPE};font-size:30px;line-height:1.1;letter-spacing:-.5px">${value}</div><div style="${SANS_TYPE};margin-top:6px;font-size:13px;line-height:1.3;color:${QUIET}">${what}</div></td>`;
+
+const SO_FAR = "41 books, 11,208 pages, 63 nights in a row";
+
 /** A table of figures in markup every mail client reads: `text` says what it reads as in the plain-text version. */
 export const PlainTextVersion = story((Root) => (
-  <Root width={560} style={{ color: INK, fontFamily: FONT }}>
-    <Section style={{ padding: 24 }}>
+  <Root {...root}>
+    <Section style={{ padding: [44, 32, 48], gap: 20 }} mobile={{ padding: [28, 20, 36], gap: 16 }}>
+      <Heading level={2} style={{ fontFamily: SERIF, fontSize: 32, fontWeight: 400, lineHeight: 1.1, letterSpacing: -0.4 }} mobile={{ fontSize: 28 }}>
+        Your year, so far
+      </Heading>
       <Html
-        text="12k subscribers, 48% opened, 9% clicked"
-        html={`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="${TYPE};text-align:center">
-  <tr>
-    <td style="padding:16px;background:#f5f7fa"><div style="font-size:28px;font-weight:bold;color:#0f766e">12k</div><div style="font-size:12px;color:#616e7c">subscribers</div></td>
-    <td style="padding:16px"><div style="font-size:28px;font-weight:bold;color:#0f766e">48%</div><div style="font-size:12px;color:#616e7c">opened</div></td>
-    <td style="padding:16px;background:#f5f7fa"><div style="font-size:28px;font-weight:bold;color:#0f766e">9%</div><div style="font-size:12px;color:#616e7c">clicked</div></td>
-  </tr>
-</table>`}
+        text={SO_FAR}
+        html={`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="text-align:center;border-top:1px solid ${INK};border-bottom:1px solid ${RULE}"><tr>${figure("41", "books", true)}${figure("11,208", "pages", false)}${figure("63", "nights in a row", true)}</tr></table>`}
       />
+      <Text style={caption(QUIET)}>text: "{SO_FAR}"</Text>
     </Section>
   </Root>
 ));
