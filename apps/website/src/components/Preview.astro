@@ -17,7 +17,7 @@ const { example, width = 680, height = 560, views = ["desktop", "phone", "text",
 const html = previewHtml(example.html);
 const isDocument = example.root === "Document";
 const labels: Record<string, string> = {
-  desktop: isDocument ? "Print" : example.root === "Page" ? "Page" : "Email",
+  desktop: isDocument ? "Print" : example.root === "Page" ? "Page" : example.root === "Canvas" ? "Image" : "Email",
   phone: "Phone",
   text: "Plain text",
   outline: "Outline",

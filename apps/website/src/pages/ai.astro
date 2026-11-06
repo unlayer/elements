@@ -3,9 +3,9 @@ import Base from "../layouts/Base.astro";
 import CodeBlock from "../components/CodeBlock.astro";
 import Cmd from "../components/Cmd.astro";
 import { site } from "../lib/site";
-import { template } from "../lib/examples";
+import { showcase } from "../lib/examples";
 
-const receipt = template("receipt");
+const receipt = showcase.receipt;
 const loop = [
   { n: "01", t: "Write", d: "One way to write each thing: styles in style={{}}, space as gap, text as components. Fewer ways to be wrong." },
   { n: "02", t: "Validate", d: "validate() returns every problem with a code, a path and the fix, without rendering. The agent reads it and corrects itself." },

@@ -133,7 +133,10 @@ async function writeBinary(slug, el, meta) {
   // Nothing is fetched: every image the site hosts is given by the URL the examples use.
   const imgDir = join(root, "public", "img");
   const images = {};
-  for (const f of await readdir(imgDir)) images[`https://hyperelements.dev/img/${f}`] = await readFile(join(imgDir, f));
+  for (const f of await readdir(imgDir, { recursive: true })) {
+    if (!/\.(png|jpe?g|gif|svg)$/i.test(f)) continue;
+    images[`https://hyperelements.dev/img/${f.split("\\").join("/")}`] = await readFile(join(imgDir, f));
+  }
   const pub = join(root, "public", "generated");
   await mkdir(pub, { recursive: true });
   if (slug === "canvas") {

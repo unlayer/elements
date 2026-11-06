@@ -13,7 +13,7 @@ import { showcase, templates } from "../lib/examples";
 const plain = showcase.email.text.split("\n").filter(Boolean).slice(0, 3).join("\n") + "\n…";
 const note = showcase.email.diagnostics.find((d) => d.code === "email/outlook-degraded");
 // The strip mixes outputs: emails, a web page, a printed document.
-const kinds: Record<string, string> = { Email: "Email", Page: "Web page", Document: "PDF" };
+const kinds: Record<string, string> = { Email: "Email", Page: "Web page", Document: "PDF", Canvas: "Image" };
 const items = [
   { ...showcase.page, title: "Product launch", href: "/docs/outputs/page" },
   ...templates.slice(0, 3).map((t) => ({ ...t, href: `/templates/${t.slug}` })),
@@ -176,7 +176,7 @@ Safe to cache and prerender.</span></pre>
       <div class="marquee-track">
         {strip.map((t, i) => (
           <a class="m-card" href={t.href} aria-hidden={i >= items.length ? "true" : undefined} tabindex={i >= items.length ? -1 : undefined}>
-            <Thumb example={t} width={t.root === "Page" ? 900 : t.root === "Document" ? 794 : 620} height={300} />
+            <Thumb example={t} width={t.root === "Canvas" ? 1200 : t.root === "Page" ? 900 : t.root === "Document" ? 860 : 620} height={300} />
             <span class="m-label">{t.title}<em>{kinds[t.root ?? "Email"]}</em></span>
           </a>
         ))}

@@ -10,9 +10,12 @@ export function getStaticPaths() {
 const { t } = Astro.props as { t: Example };
 const others = templates.filter((o) => o.slug !== t.slug);
 const isDoc = t.root === "Document";
+const isCanvas = t.root === "Canvas";
 const name = t.source.match(/export default function (\w+)/)?.[1] ?? "Template";
 const renderSnippet = isDoc
   ? `import { renderPdf } from "@hyper-elements/react/pdf";\nimport ${name} from "./${t.slug}";\n\nconst { pdf } = await renderPdf(<${name} />);`
+  : isCanvas
+  ? `import { renderImage } from "@hyper-elements/react/image";\nimport ${name} from "./${t.slug}";\n\n// fonts: the font files the card uses, as bytes ({ family, src, weight? })\nconst { image } = await renderImage(<${name} />, { fonts });`
   : `import { render } from "@hyper-elements/react";\nimport ${name} from "./${t.slug}";\n\nconst { html, text } = await render(<${name} />);`;
 ---
 <Base title={`${t.title} template`} description={t.description}>
@@ -30,7 +33,7 @@ const renderSnippet = isDoc
   </section>
   <div class="wrap t-body">
     <div class="t-preview panel">
-      <Preview example={t} height={760} width={isDoc ? 820 : 680} views={["desktop", ...(isDoc ? [] : ["phone" as const]), "text", "outline", "diagnostics", "html"]} />
+      <Preview example={t} height={760} width={isDoc ? 820 : isCanvas || t.root === "Page" ? 1200 : 680} views={["desktop", ...(isDoc || isCanvas ? [] : ["phone" as const]), "text", "outline", "diagnostics", "html"]} />
     </div>
     <div class="t-code">
       <CodeBlock code={t.source} file={`${t.slug}.tsx`} />
