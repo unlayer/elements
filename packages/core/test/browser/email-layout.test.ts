@@ -108,6 +108,21 @@ describe("a Layer whose Image is hidden on phones, in Chromium", () => {
     const phone = await measure(375);
     expect([phone.image, phone.height]).toEqual(["none", phone.over]);
   });
+
+  it("keeps a box over the image to its own width, as a page does", async () => {
+    const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 600 };
+    const template = (root: "Email" | "Page", style: Record<string, number>) =>
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Layer", children: [{ type: "Image", props: { src: photo, alt: "" }, style: { width: "100%" } }, { type: "Column", id: "over", style, children: [{ type: "Text", children: ["Words"] }] }] }] } }).html;
+    const width = async (html: string) => {
+      await page.setViewportSize({ width: 1000, height: 800 });
+      await page.setContent(html);
+      return page.evaluate(() => Math.round(document.getElementById("over")!.getBoundingClientRect().width));
+    };
+    for (const [style, expected] of [[{ maxWidth: 200 }, 200], [{ width: 240 }, 240]] as const) {
+      expect(await width(template("Page", style))).toBe(expected);
+      expect(await width(template("Email", style))).toBe(expected);
+    }
+  });
 });
 
 describe("a Section's phone padding, in Chromium", () => {

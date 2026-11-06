@@ -18,7 +18,7 @@ export const VALIGN: Record<string, string> = { start: "top", center: "middle", 
 const ALIGN: Record<string, string | undefined> = { start: undefined, center: "center", end: "right", stretch: undefined };
 export const TEXT_ALIGN: Record<string, string | undefined> = { left: "left", justify: "left", center: "center", right: "right" };
 
-const sized = (node: ResolvedNode) => node.style.width !== undefined || node.style.maxWidth !== undefined;
+export const sized = (node: ResolvedNode) => node.style.width !== undefined || node.style.maxWidth !== undefined;
 
 export const toNumber = (value: Json) => (typeof value === "number" ? value : Number.parseFloat(String(value)));
 

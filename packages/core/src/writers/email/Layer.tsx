@@ -8,7 +8,7 @@
 import { assetParts, type Asset } from "../../kinds";
 import { h, NotOutlook, raw } from "../jsx";
 import type { Component } from "./context";
-import { boxWidth, layerShape, phoneWidth, VALIGN } from "./layout";
+import { boxWidth, layerShape, phoneWidth, sized, VALIGN } from "./layout";
 import { bgcolor, ownBorders, pictureCell, Table } from "./markup";
 import { hiding } from "./styles";
 
@@ -57,7 +57,7 @@ export const Layer: Component = ({ node, style, mobile, fill, render }) => {
               <div class={hiding(base, "block").class} role="img" aria-label={alt} />
             </NotOutlook>
           )}
-          {over && render(over, { fill: style.justifyItems === "stretch" })}
+          {over && render(over, { fill: style.justifyItems === "stretch" && !sized(over) })}
           {picture.close}
         </td>
       </tr>
