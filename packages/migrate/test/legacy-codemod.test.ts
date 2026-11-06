@@ -697,11 +697,10 @@ export const T = () => (
     expect(squash(named.code)).toContain("style={{backgroundColor:bg,color:fg}}");
     expect(named.report.join("\n")).not.toMatch(/buttonColors|hover/);
     expect(errors(named.code, { fg: "#ffffff", bg: "#111111" })).toEqual([]);
-    // A call in one is written once, as the object ran it once.
-    const called = await migrate('export const T = ({ pick }: { pick: () => string }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ backgroundColor: "#111111", color: pick() }}>A</Button></Column></Row></Email>;');
-    expect(squash(called.code).match(/pick\(\)/g)).toHaveLength(1);
-    expect(squash(called.code)).toContain('style={{backgroundColor:"#111111",color:pick()}}');
-    expect(called.report.join("\n")).not.toContain("buttonColors");
+    // Calls in one run in the object's order, which its colors as style keys wouldn't keep: left out, and said.
+    const called = await migrate('export const T = ({ first, second }: { first: () => string; second: () => string }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ color: first(), backgroundColor: second() }}>A</Button></Column></Row></Email>;');
+    expect(called.code).not.toMatch(/first\(\)|second\(\)/);
+    expect(called.report.join("\n")).toContain("this Button's buttonColors are worked out by code ({ color: first(), backgroundColor: second() }), which would run once for each color: they're left out");
     // An object that isn't written out (a spread in it) is read from, by name, where that reads the same again.
     const spread = await migrate('export const T = ({ theme, pick }: { theme: { color: string }; pick: () => object }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ ...theme }}>A</Button><Button href="https://example.com" buttonColors={{ ...pick() }}>B</Button></Column></Row></Email>;');
     expect(squash(spread.code)).toContain("color:{...theme}.color");

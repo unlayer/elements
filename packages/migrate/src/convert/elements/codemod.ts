@@ -1105,9 +1105,11 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   function buttonColors(node: ts.Node, props: Props) {
     const colors = props.get("buttonColors");
     if (!colors) return;
-    // An object written out (`{ color: fg, backgroundColor: theme.bg }`): each color is its own, written once.
+    // An object written out (`{ color: fg, backgroundColor: theme.bg }`) of what reads the same in any order: each color
+    // is its own. Code that does something in one (`{ color: first(), backgroundColor: second() }`) keeps its order only
+    // in the object: it's reported below.
     const object = !isLiteral(colors) && colors.node ? bare(colors.node) : undefined;
-    if (object && ts.isObjectLiteralExpression(object) && object.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)))) {
+    if (object && ts.isObjectLiteralExpression(object) && readsTwice(object) && object.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)))) {
       for (const property of object.properties as ts.NodeArray<ts.PropertyAssignment | ts.ShorthandPropertyAssignment>) {
         const key = (property.name as ts.Identifier).text;
         if (BUTTON_COLORS.includes(key) && !props.has(key)) props.set(key, valueOf(ts.isPropertyAssignment(property) ? property.initializer : property.name));
