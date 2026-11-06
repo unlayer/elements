@@ -62,7 +62,7 @@ export default function PreviewDashboard({
           <div>
             <h1 style={{ fontSize: 24, margin: "0 0 4px" }}>Welcome Email</h1>
             <p style={{ color: "#52525b", margin: 0, fontSize: 14 }}>
-              Rendered on the server with <code>renderToHtml()</code> (
+              Rendered on the server with <code>render()</code> (
               {(initialHtml.length / 1024).toFixed(1)} KB)
             </p>
           </div>

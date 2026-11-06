@@ -1,6 +1,6 @@
 # Send React email with Resend, AWS SES, Postmark, SendGrid, or Nodemailer
 
-Use these integrations to deliver HTML and plain text rendered by `@unlayer/react-elements`. Each provider receives the same [transactional invoice message](./transactional-email.md#create-the-provider-ready-message). Pass the rendered `html` string, including its head styles, to the provider; the provider does not need to render the React tree again.
+Use these integrations to deliver HTML and plain text rendered by `@unlayer/react-elements`. Each provider receives the same [transactional invoice message](./transactional-email.md#create-the-provider-ready-message). `render()` is async, so `deliveryMessage()` is too: await it, then pass the rendered `html` string, including its head styles, to the provider. The provider does not need to render the React tree again.
 
 ## Shared setup
 
@@ -34,9 +34,9 @@ import { Resend } from "resend";
 import { deliveryMessage, requireEnv } from "../message";
 
 const client = new Resend(requireEnv("RESEND_API_KEY"));
-const { data, error } = await client.emails.send(deliveryMessage());
+const { data, error } = await client.emails.send(await deliveryMessage());
 if (error) throw new Error(`Resend: ${error.message}`);
-console.log("Resend accepted:", data?.id);
+console.info("Resend accepted:", data?.id);
 ```
 
 ```bash
@@ -56,7 +56,7 @@ import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { deliveryMessage, requireEnv } from "../message";
 
 const client = new SESv2Client({ region: requireEnv("AWS_REGION") });
-const { from, to, subject, html, text } = deliveryMessage();
+const { from, to, subject, html, text } = await deliveryMessage();
 try {
   const result = await client.send(new SendEmailCommand({
     FromEmailAddress: from,
@@ -71,7 +71,7 @@ try {
       },
     },
   }));
-  console.log("SES accepted:", result.MessageId);
+  console.info("SES accepted:", result.MessageId);
 } finally {
   client.destroy();
 }
@@ -94,7 +94,7 @@ import { ServerClient } from "postmark";
 import { deliveryMessage, requireEnv } from "../message";
 
 const client = new ServerClient(requireEnv("POSTMARK_SERVER_TOKEN"));
-const { from, to, subject, html, text } = deliveryMessage();
+const { from, to, subject, html, text } = await deliveryMessage();
 const result = await client.sendEmail({
   From: from,
   To: to,
@@ -103,7 +103,7 @@ const result = await client.sendEmail({
   TextBody: text,
   MessageStream: "outbound",
 });
-console.log("Postmark accepted:", result.MessageID);
+console.info("Postmark accepted:", result.MessageID);
 ```
 
 ```bash
@@ -123,8 +123,8 @@ import sendgrid from "@sendgrid/mail";
 import { deliveryMessage, requireEnv } from "../message";
 
 sendgrid.setApiKey(requireEnv("SENDGRID_API_KEY"));
-const [response] = await sendgrid.send(deliveryMessage());
-console.log("SendGrid accepted:", response.statusCode, response.headers["x-message-id"]);
+const [response] = await sendgrid.send(await deliveryMessage());
+console.info("SendGrid accepted:", response.statusCode, response.headers["x-message-id"]);
 ```
 
 ```bash
@@ -155,9 +155,9 @@ const transport = nodemailer.createTransport({
   auth: { user: requireEnv("SMTP_USER"), pass: requireEnv("SMTP_PASSWORD") },
 });
 try {
-  const result = await transport.sendMail(deliveryMessage());
+  const result = await transport.sendMail(await deliveryMessage());
   if (result.rejected.length) throw new Error("SMTP rejected the recipient");
-  console.log("SMTP accepted:", result.messageId);
+  console.info("SMTP accepted:", result.messageId);
 } finally {
   transport.close();
 }
@@ -169,4 +169,4 @@ pnpm --filter @unlayer/content-workflows-example send:nodemailer
 
 Expected: `SMTP accepted: <messageId>`.
 
-For PDF attachments, first generate bytes with the [Playwright guide](./react-to-pdf.md), then follow your provider's attachment API and size limits. Design JSON is for the [visual editor](./visual-editing.md), not an email body.
+For PDF attachments, first generate bytes with the [PDF guide](./react-to-pdf.md), then follow your provider's attachment API and size limits. Design JSON is for the [visual editor](./visual-editing.md), not an email body.

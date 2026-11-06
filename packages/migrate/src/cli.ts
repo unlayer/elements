@@ -15,7 +15,7 @@ import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { normalizeWord, StyledDocument } from "@unlayer/convert-core";
+import { normalizeWord, StyledDocument } from "./convert";
 import { parseArgs, type Args } from "./args";
 import { resolutionOrder, type Origin } from "./resolution";
 
@@ -37,10 +37,11 @@ Usage:
   npx @unlayer/migrate <files or folders...> [options]
   npx @unlayer/migrate compare <original> <migrated>
 
-Each template is converted (its props, loops and conditions stay), then
-checked: the original and the migrated template are rendered with the
-template's PreviewProps, every word must be preserved without extra words,
-and the visual editor must get every block. Nothing is written unless you ask:
+Each template is converted to Elements' components, with their styles in
+style={{ }} (its props, loops and conditions stay), then checked: the
+original and the migrated template are rendered with the template's
+PreviewProps, every word must be preserved without extra words, and the
+visual editor must get the template. Nothing is written unless you ask:
 
   --write          Replace each template with its migrated version.
   --out <dir>      Write migrated templates to <dir>, keeping the folder
@@ -63,21 +64,28 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    commit, not committed, or not in a repository) with
                    --write, or with --overwrite. Without it, they're
                    refused, so git can always undo a migration.
-  --from <source>  What to migrate from (default and only: react-email).
+  --from <source>  What to migrate from: react-email (the default), or
+                   elements, templates written with Elements 0.2's
+                   components, rewritten with 0.3.0's: their props, loops
+                   and helpers stay. One template is printed; with --write,
+                   templates are replaced (only ones git can restore, unless
+                   --allow-dirty). What may draw a little differently is
+                   listed (--report writes it).
   -h, --help       Show this help.
   -v, --version    Show the version.
 
-compare checks a template you migrated yourself against the original in the
-same way: rendered with the original's PreviewProps (and each true/false prop
-flipped), every word, link and image must be there, and the visual editor
-must get every block.
+compare checks a template you migrated yourself to Elements' components against
+the original in the same way: rendered with the original's PreviewProps (and
+each true/false prop flipped), every word, link and image must be there, and
+the visual editor must get the template.
 
 Run it from your project folder: templates load with your project's React,
 React Email and TypeScript paths. Exit code 0 when every template converted
 with the same content (what looks different is listed), 1 for a usage error
-or when no templates were found, 2 when a template failed to convert, its
-content differs (with --strict, anything differs), a file couldn't be read,
-or the run couldn't go on.`;
+or when no templates were found, 2 when a template failed to convert (or
+couldn't be written in Elements' components), its content differs (with
+--strict, anything differs), a file couldn't be read, or the run couldn't go
+on.`;
 
 /** What happened to one file. */
 /** A style the migrated template shows differently, with the words it's on. */
@@ -148,7 +156,7 @@ export interface FileResult {
   layout?: Array<{ items: string[]; by: number }>;
   /** How much of the styles the check compared: words, and properties left out because one side couldn't be worked out. */
   styleCoverage?: { words: number; unknown: number };
-  /** Blocks the visual editor wouldn't get. */
+  /** Why the visual editor wouldn't get the template (its design JSON can't be written). */
   designWarnings?: string[];
   /** Problems with a boolean prop flipped (branches the preview props don't take). */
   variants?: Array<CheckParts & { change: string; error?: string }>;
@@ -181,7 +189,7 @@ interface Options {
   allowDirty: boolean;
 }
 
-type Library = typeof import("@unlayer/from-react-email");
+type Library = typeof import("./react-email/index");
 
 export async function main(argv: string[], io: Io, library?: Library): Promise<number> {
   // Ctrl-C (or a kill) is heard for the whole run: once it comes, nothing more is written.
@@ -214,9 +222,13 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (args.positional[0] === "compare") return compare(args.positional.slice(1), args, io, library);
   const from = args.option("from") ?? "react-email";
-  if (from !== "react-email") {
-    io.stderr(`Unknown --from "${from}". Supported: react-email.\n`);
+  if (from !== "react-email" && from !== "elements") {
+    io.stderr(`Unknown --from "${from}". Supported: react-email, elements.\n`);
     return 1;
+  }
+  if (from === "elements" && args.positional.length) {
+    const { migrateLegacy } = await import("./legacy/command");
+    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver, installed: installedElements });
   }
   if (!args.positional.length) {
     // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
@@ -324,7 +336,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr(`${copies}\n`);
     return 1;
   }
-  const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
+  const lib = library ?? ((await import("./react-email/index")) as Library);
   const results: FileResult[] = [...inputs.unreadable, ...listed];
   // Templates another one renders are left for now. With --write, a pass that writes the templates using one may
   // free it (the migrated ones render their own markup): it's tried again, until a pass writes nothing more.
@@ -456,7 +468,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
     if (users.length) {
       io.stdout(
-        `\nStill using a migrated template: render it with renderToHtml() from @unlayer/react-elements, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
+        `\nStill using a migrated template: render it with await render() from @unlayer/react-elements (its html), not React Email's render() (nor a sender's \`react:\` option), which can't render Elements' components; or render it in an Elements template:\n` +
           `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
       );
     }
@@ -893,6 +905,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     try {
       converted = await lib.convertSource(source, { fileName: file, tailwindConfig: tailwind?.config, tailwind: tailwind?.component, loadModule: await moduleLoader(file) });
     } catch (error) {
+      // Converted, but what it's written as can't be moved to the new components (the codemod's own reason).
+      if ((error as Error | undefined)?.name === "NewComponentsError") return { file: name, status: "failed", reason: message(error) };
       return { file: name, status: "failed", reason: convertFailure(message(error)) };
     }
 
@@ -913,7 +927,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       cleanProbeDirectories(dirname(probe), firstCreated);
     };
     const releaseProbe = removedOnExit(removeProbe);
-    let verification: Awaited<ReturnType<Library["verifyConversion"]>>;
+    let verification: Awaited<ReturnType<Library["verifyNewComponents"]>>;
     let design: unknown;
     let mergeTags: { used: string[]; kept: string[] } | undefined;
     try {
@@ -930,10 +944,10 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       const migrated = templateComponent(defaultExport(await importFile(probe, io, release, file)));
       // Checked as exported (memo and forwardRef included), the way users render it.
       const Migrated = migrated?.exported;
-      if (!Migrated) throw new Error("the migrated file has no default export");
+      if (!Migrated) return { file: name, status: "failed", reason: "the template written in the new components has no default export" };
       // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
       const designProps = Object.keys(migrated.props).length ? migrated.props : props;
-      verification = writtenWords(await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps }));
+      verification = writtenWords(await lib.verifyNewComponents(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps, fonts: converted.fonts }));
       // A component that doesn't render <Html> is a shared piece (a footer, a button), not an email:
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
@@ -946,7 +960,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // One with PreviewProps is an email of its own (React Email previews it), with optional content passed in.
       if (options.out === undefined && !previewed && (await sharedPiece(source)) === "shared") return { file: name, status: "skipped", reason: "a layout (it renders content passed to it), not an email template: a shared component, left as it is" };
       design = verification.design;
-      if (options.design && options.mergeTags) {
+      if (options.design && options.mergeTags && verification.design) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design, { source: code, helpers: converted.helpers });
         design = tagged.design;
         mergeTags = tagged;
@@ -961,8 +975,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     }
 
     const report = converted.report;
-    // Content the migration lost or added (or the editor wouldn't get) fails it: that's a converter bug, as anything it
-    // can't map is kept as HTML. How it looks only differs: written and listed, to fix in the editor (not with --strict).
+    // Content the migration lost or added (or the editor wouldn't get) fails it: that's a converter bug, or something the
+    // new components can't hold. How it looks only differs: written and listed, to fix in the editor (not with --strict).
     const lostShown = report.lostShown ?? [];
     const failsContent = contentProblems({ ...verification, lostShown }).length || verification.designWarnings.length || verification.variants.some((v) => v.error || contentProblems(v).length);
     const lostLooks = (report.lostStyles ?? []).filter((style) => !lostShown.includes(style));
@@ -970,6 +984,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       ...lookProblems(verification),
       ...phoneWidths(verification.originalHtml),
       ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
+      // Columns the new components write one under another (their layout comes from code): they move.
+      ...converted.stacked.map((line) => `columns written one under another: ${line}`),
       ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
     // What the migration lists as different (a style it couldn't keep): with --strict, any difference fails.
@@ -985,6 +1001,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       changes: group([
         ...(report.info ?? []),
         ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
+        ...converted.notes.filter((line) => !converted.stacked.includes(line)).map((detail) => ({ reason: "in the new components", detail })),
+        ...verification.designNotes.map((detail) => ({ reason: "in the visual editor", detail })),
         ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it, or an image shows it)", detail: path })),
       ]),
       missingText: verification.missing,
@@ -1005,11 +1023,11 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
 
     const writes: PendingWrite[] = [];
     // Every template is written: one whose content differs too, flagged (git or the original folder keeps it as it was).
-    // With --strict, only one with no difference (or any, with --force).
+    // With --strict, only one with no difference (or any, with --force). A design only where the editor gets the template.
     if (writing && (result.status === "migrated" || !options.strict || options.force)) {
       // With the hash of what's written: a later --overwrite keeps the file once it's edited.
       writes.push({ path: target, text: withContentHash(code), kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
-      if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
+      if (options.design && design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
     return { ...result, writes, code };
   } finally {
@@ -1039,7 +1057,20 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     io.stderr(`${copies}\n`);
     return 1;
   }
-  const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
+  // A template migrated by hand in Elements 0.2's components: 0.3.0 doesn't have them, so it's moved first.
+  const old = await oldElementsImports(migratedPath, await readFile(migratedPath, "utf8"));
+  if (old.length) {
+    const [original, migrated] = paths.map((p) => shellWord(relative(io.cwd, resolve(io.cwd, p))));
+    const names = old.filter((name) => !name.startsWith("@"));
+    const what = [...(names.length ? [`${names.join(", ")} from @unlayer/react-elements`] : []), ...old.filter((name) => name.startsWith("@"))];
+    io.stderr(
+      `${relative(io.cwd, migratedPath)} is written in Elements 0.2's components (it imports ${what.join(", and ")}), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
+        `  npx @unlayer/migrate --from elements ${migrated} --write\n` +
+        `  npx @unlayer/migrate compare ${original} ${migrated}\n`
+    );
+    return 1;
+  }
+  const lib = library ?? ((await import("./react-email/index")) as Library);
   const release: Array<() => void> = [];
   try {
     // Each file loads with its imports resolved from where it is: one that fails is named, with what to do (null).
@@ -1067,9 +1098,9 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const Original: any = original.component;
     const Migrated: any = migrated.exported;
     const props: Record<string, unknown> = original.props;
-    let check: Awaited<ReturnType<Library["verifyConversion"]>>;
+    let check: Awaited<ReturnType<Library["verifyNewComponents"]>>;
     try {
-      check = writtenWords(await lib.verifyConversion(Original, Migrated, { props }));
+      check = writtenWords(await lib.verifyNewComponents(Original, Migrated, { props }));
     } catch (error) {
       const original = await originalFailure(Original, props, io.cwd);
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
@@ -1078,7 +1109,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     // The content must be the same; how it looks is listed (with --strict, it must be the same too).
     const found = [
       ...contentProblems(check),
-      ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
+      ...(check.designWarnings.length ? [editorWouldntGet(check.designWarnings)] : []),
       ...check.variants.filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
     const looks = [...lookProblems(check), ...phoneWidths(check.originalHtml), ...check.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`)];
@@ -1086,7 +1117,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const strict = args.flag("strict");
     if (!found.length && !(strict && looks.length)) {
       const flipped = Object.values(props).filter((v) => typeof v === "boolean").length;
-      io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
+      io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets the template.\n`);
       if (looks.length) io.stdout(`  It looks different:\n${looks.map((p) => `  - ${p}`).join("\n")}\n`);
       return 0;
     }
@@ -1095,6 +1126,39 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   } finally {
     for (const unregister of release.reverse()) unregister();
   }
+}
+
+/**
+ * What a module imports of Elements that 0.3.0 doesn't have: a name its main entry doesn't export (`ColumnLayouts`,
+ * `renderToHtml`: Elements 0.2's), or an entry it doesn't have (`@unlayer/react-elements/legacy`). Types aren't counted.
+ */
+async function oldElementsImports(path: string, source: string): Promise<string[]> {
+  if (!source.includes("@unlayer/react-elements")) return [];
+  const ts = (await import("typescript")).default;
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  const exported = new Set(Object.keys(await import("@unlayer/react-elements")));
+  const found: string[] = [];
+  for (const statement of file.statements) {
+    if (!(ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const specifier = statement.moduleSpecifier.text;
+    if (!/^@unlayer\/react-elements(\/|$)/.test(specifier) || specifier === "@unlayer/react-elements/builder") continue;
+    if (specifier !== "@unlayer/react-elements") {
+      found.push(specifier);
+      continue;
+    }
+    const bindings = ts.isImportDeclaration(statement) ? (statement.importClause?.isTypeOnly ? undefined : statement.importClause?.namedBindings) : statement.exportClause;
+    if (!bindings || ts.isNamespaceImport(bindings) || ts.isNamespaceExport(bindings)) continue;
+    for (const element of bindings.elements) {
+      const name = (element.propertyName ?? element.name).text;
+      if (!element.isTypeOnly && !exported.has(name) && !found.includes(name)) found.push(name);
+    }
+  }
+  return found;
+}
+
+/** A path as one word of a command a shell reads as written (quoted where it has a space or a character a shell reads). */
+function shellWord(path: string): string {
+  return /^[\w@%+=:,./-]+$/.test(path) ? path : `"${path.replace(/(["\\$`])/g, "\\$1")}"`;
 }
 
 /**
@@ -1195,7 +1259,7 @@ function line(result: FileResult): string {
       if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences ? `, ${differences}` : ""}${written}${looks}`;
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
-        ...(result.designWarnings?.length ? [blocksLost(result.designWarnings.length)] : []),
+        ...(result.designWarnings?.length ? [editorWouldntGet(result.designWarnings)] : []),
         ...(result.variants ?? []).filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
       // Its content differs (a converter bug: report it), something else failed the check (what it couldn't verify, a
@@ -1319,7 +1383,7 @@ function markdownReport(results: FileResult[]): string {
       const { words, unknown } = r.styleCoverage;
       lines.push(`Styles compared on ${words} word${words === 1 ? "" : "s"}${unknown ? ` (${unknown} value${unknown === 1 ? " couldn't be worked out, and was" : "s couldn't be worked out, and were"} left out)` : ""}.`, "");
     }
-    if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
+    if (r.designWarnings?.length) lines.push("**The visual editor wouldn't get it:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
       lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");
     }
@@ -1466,9 +1530,9 @@ function phrase(words: string[]): string {
   return words.length > 12 ? `${shown} and ${words.length - 12} more` : shown;
 }
 
-/** Blocks the visual editor wouldn't get: "1 block the editor wouldn't get". */
-function blocksLost(count: number): string {
-  return `${count} block${count === 1 ? "" : "s"} the editor wouldn't get`;
+/** Why the visual editor wouldn't get a template: "the visual editor wouldn't get it: … can't go to the builder". */
+function editorWouldntGet(warnings: string[]): string {
+  return `the visual editor wouldn't get it: ${warnings.join("; ")}`;
 }
 
 /**
@@ -2388,12 +2452,8 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
   const minimum = parseVersion(/^\^(.+)$/.exec(range ?? "")?.[1]); // a workspace link in development: nothing to check
   if (!minimum) return {};
   for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@unlayer/migrate came with"]] as const) {
-    let version: string;
-    try {
-      version = JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version;
-    } catch {
-      continue; // not installed there
-    }
+    const version = elementsVersion(from);
+    if (version === undefined) continue; // not installed there
     const found = parseVersion(version);
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
@@ -2401,6 +2461,20 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@unlayer/react-elements", range!)}${newer}` };
   }
   return {};
+}
+
+/** The version of @unlayer/react-elements a module at `from` loads ("" where its package.json has none), or undefined where it has none. */
+function elementsVersion(from: string): string | undefined {
+  try {
+    return String(JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version ?? "");
+  } catch {
+    return undefined;
+  }
+}
+
+/** The version of @unlayer/react-elements the project a folder is in has installed, or undefined where it has none. */
+export function installedElements(folder: string): string | undefined {
+  return elementsVersion(join(folder, "noop.js"));
 }
 
 /**
@@ -2430,7 +2504,7 @@ function addCommand(folder: string): string {
  * one line per project (the nearest package.json). An Elements outside the supported range stopped the run before.
  */
 function installElements(written: string[], cwd: string): string[] {
-  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.2.0";
+  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.3.0";
   const lines = new Set<string>();
   for (const folder of new Set(written.map((file) => dirname(file)))) {
     // In the node_modules folders above it, as the project's own build finds it (require.resolve here would also read

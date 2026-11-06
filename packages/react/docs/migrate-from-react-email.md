@@ -4,12 +4,14 @@ Move React Email templates to Unlayer Elements to render the same templates as e
 
 ```bash
 npx @unlayer/migrate emails --write --report migration.md
-npm install @unlayer/react-elements
+npm install @unlayer/react-elements@^0.3.0
 ```
 
-Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
+Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template becomes the components from `@unlayer/react-elements`, with its styles in `style={{ }}`, and keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
 
-JavaScript templates keep JavaScript helpers. The document's `dir` and `lang` become `Email`'s `textDirection` and `lang` props. Content with `display: none` stays hidden in an HTML block and is listed in the report.
+JavaScript templates keep JavaScript helpers. The document's `dir` becomes `Email`'s `dir` prop. Its `lang` isn't carried over yet: the report notes it, and you set `lang` on `Email` yourself.
+
+A template that doesn't pass the check in the new components stays in today's components (`--to components` asks for that for every template), and the run and the report say why. For example, it holds a block the converter keeps as HTML (content with `display: none`, markup it can't map), or its `Row` works out its columns at run time. See [what to do about one](#a-template-that-stays-in-todays-components).
 
 ## What the check guarantees
 
@@ -20,7 +22,7 @@ The goal is an editable Unlayer template with the same content, not pixel parity
 - every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order, on desktop and on phones;
 - no new words, links or images may appear;
 - whether they show must be the same, including content the original shows or hides by its props (`isGift && "hidden"`), which the migration can't keep, and words CSS adds or hides (`::before` content, an ellipsis);
-- any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
+- any block the visual editor can't represent fails the check, including on each boolean variant.
 
 **How it looks** (a style, where words sit, CSS the check doesn't read, a phone width other than Elements' 480px) is listed under "looks different", to fix in the editor; the command exits with `0`. With `--strict`, any difference fails a template and it isn't written (unless `--force`).
 
@@ -30,25 +32,33 @@ Code paths these props don't reach (a loop over an empty preview array, a condit
 
 For each template:
 
-- **Editable**: the share of content that became Elements blocks you can edit in the visual editor. The rest is kept as `Html` blocks that render exactly as before.
+- **Editable**: the share of content that became Elements blocks you can edit in the visual editor. The rest is kept as HTML blocks that render exactly as before.
 - **Differences**: what Elements can't express and how it was approximated. Typical ones are responsive classes other than column stacking and the phone settings (`mobile:` colors, `sm:`), hover styles, shadows, column vertical alignment (email columns sit at the top), and fixed widths that scale with the screen on phones.
 - **What the migration did**: changes that don't affect the look (components inlined, a conditional `className` split into one element per class list).
 
 ## Afterwards
 
 ```tsx
-import { renderToHtml, renderToPlainText, renderToJson } from "@unlayer/react-elements";
+import { toDesign } from "@unlayer/react-elements/builder";
+import { render } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
 const element = <Welcome name="Alex" />;
-renderToHtml(element); // send with any provider
-renderToPlainText(element); // the text part
-renderToJson(element); // open in the visual editor with loadDesign()
+const { html, text } = await render(element); // send html with any provider, with text as the text part
+const { design } = toDesign(element); // open in the visual editor with loadDesign()
 ```
 
 `--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (with `--strict`, it still never writes a template that failed the check).
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
+
+## A template that stays in today's components
+
+Such a template imports from `@unlayer/react-elements`, not `/primitives`, so `render()` can't read it: it throws, naming the markup it found. It keeps working with that import's own functions, as it did before. To move it:
+
+1. Replace each block marked `TODO(convert)` with the new components, and give a computed `Row` its columns as numbers, as the report says.
+2. Run `npx @unlayer/migrate <template> --from elements --write`. The [guide to the new components](./migrating-from-0.2.md) lists what it changes.
+3. Check it against the React Email original (from git, if `--write` replaced it) with `npx @unlayer/migrate compare <original> <migrated>`.
 
 ## Open React Email templates in the Unlayer editor
 
@@ -80,8 +90,8 @@ For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading 
 
 - To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md` first, read the report, then run it again with `--write`. Don't rewrite templates by hand when the command can do it: it keeps their logic and checks the result.
 - Exit code `2` means a template failed to convert or lost content: report that to the user with the file and the reason from the report. Don't pass `--force` to hide it.
-- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with Elements components (`Row` > `Column` > content), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
+- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with the new components ([GUIDE.md](../GUIDE.md)), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
 - After converting any template by hand, run the same `compare` before reporting it done.
-- React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Row` > `Column`; `Container` width → `Email` `contentWidth`; `Img` → `Image`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; Tailwind classes → props.
+- React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Section`/`Row`/`Column`; `Container` width → `Email` `width`; `Img` → `Image`, with its file's size in `src={{ src, width, height }}`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; margins → the parent's `gap`; Tailwind classes and inline styles → `style={{ }}`.
 
 For programmatic conversion (from an agent, a build step or a server), see [`@unlayer/migrate/react-email`](../../migrate#programmatic-use).

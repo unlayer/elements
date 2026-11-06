@@ -52,42 +52,26 @@ npm install @unlayer/react-elements
 ```
 
 ```tsx
-import {
-  Email, Row, Column, ColumnLayouts,
-  Heading, Paragraph, Button, renderToHtml
-} from '@unlayer/react-elements';
+import { Button, Column, Email, Heading, Paragraph, render } from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (
-    <Email backgroundColor="#f0f0f0" contentWidth="600px">
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="20px">
-        <Column>
-          <Heading
-            fontSize="24px"
-            fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
-          >
-            Welcome!
-          </Heading>
-          <Paragraph html="Thanks for signing up." fontSize="14px" />
-          <Button
-            href="https://example.com"
-            backgroundColor="#0879A1"
-            color="#ffffff"
-          >
-            Get Started
-          </Button>
-        </Column>
-      </Row>
+    <Email width={600} style={{ backgroundColor: "#f0f0f0", fontFamily: "Arial, Helvetica, sans-serif" }}>
+      <Column style={{ backgroundColor: "#ffffff", padding: 20, gap: 12 }}>
+        <Heading level={1} style={{ fontSize: 24 }}>Welcome!</Heading>
+        <Paragraph style={{ fontSize: 14 }}>Thanks for signing up.</Paragraph>
+        <Button href="https://example.com" style={{ backgroundColor: "#0879A1", color: "#ffffff" }}>Get started</Button>
+      </Column>
     </Email>
   );
 }
 
-// Render to a complete HTML document (<!DOCTYPE ...> to </html>) —
-// email-client-safe shell included, no React hydration markers
-const html = renderToHtml(<WelcomeEmail />);
+// A complete HTML document (<!DOCTYPE ...> to </html>) and its plain text:
+// email-client-safe shell included, no React hydration markers.
+const { html, text } = await render(<WelcomeEmail />);
 ```
 
-**Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install. Write plain JSX, export the HTML or design JSON, and open the result in the Unlayer builder.
+Upgrading from Elements 0.2, whose components aren't in 0.3.0? See [Moving from Elements 0.2](./packages/react/README.md#moving-from-elements-02).
 
 ## Email Client Compatibility Notes
 
@@ -107,17 +91,19 @@ Email clients do not share a modern browser CSS baseline. To keep layout behavio
 Repository evidence:
 
 - `<Email>` is documented and tested as table-based output for email clients: [packages/react/README.md](./packages/react/README.md)
-- The email document shell includes MSO conditionals and Office namespaces: [packages/react/src/utils/document-layouts.ts](./packages/react/src/utils/document-layouts.ts)
+- The email document shell includes MSO conditionals and Office's namespace: [packages/core/src/writers/email/index.tsx](./packages/core/src/writers/email/index.tsx)
 - Golden output asserts table markup and Outlook-specific conditionals (`[if mso]`): [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
 
 ### Known Compatibility Caveats (Current Repo Scope)
 
 - Validation in this repo is renderer-focused and browser-based (snapshots + Chromium E2E). It is not a client-emulator matrix checked into this repository.
+- The email output is checked in Chromium and against a model of Outlook's layout, not in real Outlook.
 - Email responsive stacking depends on head CSS/media queries; this is explicitly exercised by the E2E gate in Chromium, not by an inbox simulator.
 
 Validation references:
 
-- Snapshot coverage (components in email + web modes): [packages/react/src/components/snapshots.test.tsx](./packages/react/src/components/snapshots.test.tsx)
+- Reviewed HTML snapshots of realistic examples: [packages/react/src/regression/previous-release.test.tsx](./packages/react/src/regression/previous-release.test.tsx)
+- Reviewed HTML snapshots of the ways templates are put together: [packages/react/src/regression/patterns.test.tsx](./packages/react/src/regression/patterns.test.tsx)
 - Golden end-to-end template coverage: [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
 - Browser E2E gate and exact assertions: [packages/react/scripts/browser-e2e.mjs](./packages/react/scripts/browser-e2e.mjs)
 
@@ -127,11 +113,10 @@ Elements includes a strict CSP gate that runs the built package under:
 
 - `node --disallow-code-generation-from-strings`
 
-The gate's purpose is to fail if import/render paths evaluate strings (`eval` / `new Function`), including behavior coming from pinned dependencies.
+The gate's purpose is to fail if import/render paths evaluate strings (`eval` / `new Function`).
 
 - CSP probe implementation: [packages/react/scripts/csp-probe.mjs](./packages/react/scripts/csp-probe.mjs)
 - Package script (`test:csp`): [packages/react/package.json](./packages/react/package.json)
-- Pinned exporter dependency source: [pnpm-workspace.yaml](./pnpm-workspace.yaml)
 
 Interpretation guidance:
 
@@ -155,7 +140,7 @@ Generates email-safe HTML, responsive web HTML, and print-ready HTML for PDF gen
 
 ### Visual Builder Compatible
 
-Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor; edited JSON does not regenerate React source. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md).
+`toDesign()` writes a template as Unlayer design JSON, to hand code-authored templates to the visual editor, and `fromDesign()` reads an edited design back as a template. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md).
 
 ### TypeScript First
 
@@ -163,11 +148,11 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Clean HTML Output
 
-`renderToHtml()` generates a complete, production-ready HTML document with no React hydration markers, no framework artifacts, and no client-side JavaScript required. Need to compose the document yourself? `renderToHtmlParts()` returns `{ head, body }` chunks.
+`render()` generates a complete, production-ready HTML document with no React hydration markers, no framework artifacts, and no client-side JavaScript required, along with its plain text. Need to compose the document yourself? It also returns `head`, `body` and `bodyStyle`.
 
-### Lightweight & Tree-Shakeable
+### No Client-Side JavaScript
 
-~12KB gzipped (under 60KB ESM), tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+Tree-shakeable, with zero client-side JavaScript required. Designed for server-side rendering environments.
 
 ## Real-World Use Cases
 
@@ -191,70 +176,75 @@ Publish the same content as an email campaign, a web archive, and a public landi
 
 | Component | Description |
 |-----------|-------------|
-| `<Email>` | Root wrapper — email-safe HTML (tables for Outlook/Gmail) |
-| `<Page>` | Root wrapper — responsive web (div + flexbox) |
-| `<Document>` | Root wrapper — print/PDF optimized |
-| `<Row>` | Layout container with column layout support |
-| `<Column>` | Column inside a Row |
-| `<Button>` | CTA button with hover states and links |
-| `<Heading>` | Heading (h1–h4) |
-| `<Paragraph>` | Rich text with plain text or HTML content |
-| `<Image>` | Responsive image with alt text |
-| `<Divider>` | Horizontal separator |
+| `<Email>` | Root: email-safe HTML (tables for Outlook/Gmail) |
+| `<Page>` | Root: a responsive web page |
+| `<Document>` | Root: print-ready HTML on pages of its size, and PDF with `@unlayer/react-elements/pdf` |
+| `<Canvas>` | Root: an image of a fixed size, with `@unlayer/react-elements/image` |
+| `<Section>` | A band whose background spans the window |
+| `<Row>` | Its children side by side, stacked on phones |
+| `<Column>` | Its children stacked; with a background, a card |
+| `<Grid>` | Its children in columns of equal width, row after row |
+| `<Layer>` | Its children over each other: an image with words on it |
+| `<Heading>` | A heading, `level` 1 to 6 |
+| `<Paragraph>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
+| `<Button>` | A link drawn as a button, with its colors on hover |
+| `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
+| `<Divider>` | A horizontal line |
+| `<List>` | A bulleted or numbered list of `<ListItem>`s |
+| `<Table>` | A table of `<TableRow>`s and `<TableCell>`s, with document headers and footers |
+| `<Video>` | A YouTube or Vimeo video |
 | `<Social>` | Social media icon links |
-| `<Menu>` | Navigation menu |
-| `<Table>` | Data table with repeating document headers and footers |
-| `<PageBreak>` | Force subsequent document content onto a new PDF page |
-| `<Video>` | YouTube/Vimeo embed |
-| `<Html>` | Custom HTML passthrough |
+| `<Menu>` | A line or column of links |
+| `<Svg>` | Shapes drawn in a box of their own |
+| `<Html>` | Markup written as it is, for what no component says |
+| `<PageBreak>`, `<PageHeader>`, `<PageFooter>`, `<PageNumber>` | In a Document: where a page ends, what's on every page, and page numbers |
 
 ## Structure
 
-Components follow a strict hierarchy:
-
 ```
-<Email>              ← sets render mode
-  <Row layout={…}>   ← layout container
-    <Column>         ← must match layout column count
-      <Button />     ← content components
-      <Paragraph />
-    </Column>
-  </Row>
+<Email>            ← the root: Email, Page, Document or Canvas
+  <Section>        ← a band whose background spans the window (optional)
+    <Row>          ← its children side by side, stacked on phones
+      <Column>     ← its children stacked
+        <Heading />
+        <Button />
+      </Column>
+    </Row>
+  </Section>
 </Email>
 ```
+
+Styles go in `style={{ }}`. A root, a `Section` and a `Column` stack what they hold, and the space between blocks is their parent's `gap`.
 
 ## Column Layouts
 
 ```tsx
-import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
+import { Column, Grid, Row } from "@unlayer/react-elements";
 
-// Each Row must contain the matching number of <Column> children.
-<Row layout={ColumnLayouts.OneColumn}>                {/* [1]         → 100% */}
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.TwoEqual}>                 {/* [1,1]       → 50% + 50% */}
+// Equal shares.
+<Row style={{ gap: 16 }}>
   <Column>{/* content */}</Column>
   <Column>{/* content */}</Column>
 </Row>
-<Row layout={ColumnLayouts.TwoWideNarrow}>            {/* [2,1]       → 67% + 33% */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.ThreeEqual}>               {/* [1,1,1]     → 33% each */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
+
+// A set width, and what's left.
+<Row style={{ gap: 16 }}>
+  <Column style={{ width: 180 }}>{/* content */}</Column>
   <Column>{/* content */}</Column>
 </Row>
-<Row layout={ColumnLayouts.FourEqual}>                {/* [1,1,1,1]   → 25% each */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row cells={[3, 1]}>                                  {/* custom ratio */}
-  <Column>{/* content */}</Column>
+
+// Shares of two to one.
+<Row style={{ gap: 16 }}>
+  <Column style={{ flex: 2 }}>{/* content */}</Column>
   <Column>{/* content */}</Column>
 </Row>
+
+// Rows of three, one under another on phones.
+<Grid columns={3} style={{ gap: 16 }}>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Grid>
 ```
 
 ## Documentation
@@ -265,12 +255,9 @@ For the full API reference, component props, design patterns, and common mistake
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
-| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
-| [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
-| [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
-| [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
-| [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
+| [`@unlayer/react-elements`](./packages/react) | React components and renderers, and a `<Document>` as a PDF (`/pdf`) and a `<Canvas>` as PNG or SVG (`/image`), with no browser | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
+| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals; the converter as a library at `@unlayer/migrate/react-email` | Not yet |
+| [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation, layout, and the writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
 
 ## Examples
 
@@ -278,8 +265,9 @@ Runnable projects you can clone and experiment with:
 
 | Example | Description |
 |---------|-------------|
+| [`examples/demo`](./examples/demo) | The demo site (Vite + React): a component gallery and sample templates in each output |
 | [`examples/content-workflows`](./examples/content-workflows) | One React invoice → email + web + real PDF, five email providers, and editable design JSON |
-| [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `renderToHtml()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
+| [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `render()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
 
 ## Development
 
@@ -307,35 +295,36 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements generates its HTML with the same battle-tested engine that powers exports in the [Unlayer editor](https://unlayer.com), an engine used in production by thousands of companies for years. The engine version is pinned per release, and every component's output is locked down by snapshot tests, a golden-template test, and browser-level gates (see below), so upgrades cannot silently change the HTML you ship. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
+Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 
 Every release must pass, in CI:
 
-- **Golden template test:** a full, realistic email rendered through all render pipelines and compared against committed output.
-- **Snapshot tests:** every component rendered in both email and web modes.
+- **Golden template test:** a full, realistic email rendered through all render pipelines and checked by what it draws.
+- **Snapshot tests:** realistic examples and the ways templates are put together, compared with reviewed HTML.
+- **Previous-release tests:** the examples rendered with this build and with the last published release, whose designs, plain text, words, links and images must match.
 - **Browser E2E gate:** complete documents rendered from the built package and verified in headless Chromium: responsive columns stack at the mobile breakpoint, paragraphs compute to true zero margins, RTL text direction propagates, button hover states apply, the preheader stays invisible, no horizontal overflow on mobile, and accessibility basics hold (image alt text, link names, `role="presentation"` on layout tables). The suite includes a negative control that must fail, proving the gate can catch regressions rather than just pass vacuously.
 - **Visual-drift gate:** the computed styles of every Storybook story are fingerprinted at desktop and mobile widths and diffed against a committed baseline, so unintended style changes fail the build with property-level diffs.
 - **Next.js integration test:** a real Next.js 15 app with Server Components builds against the published package artifact.
 
-The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer's editor exports, which land in real inboxes every day. Our templates are tested on Litmus and Email on Acid across major email clients, including Outlook, Gmail, Yahoo, and Apple Mail. For repository-scoped compatibility evidence and caveats, see [Email Client Compatibility Notes](#email-client-compatibility-notes).
+Email mode writes table-based HTML, with Outlook's markup in conditional comments. The output is checked in Chromium and against a model of Outlook's layout, not in real Outlook. For repository-scoped compatibility evidence and caveats, see [Email Client Compatibility Notes](#email-client-compatibility-notes).
 
 ### Is the PDF output a real PDF engine?
 
-Elements itself produces print-ready HTML, not PDF bytes. The [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local PDF pipeline. You can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library. Pagination (page breaks, margins, and headers and footers) is controlled with standard CSS print rules plus your renderer's options.
+`<Document>` renders to print-ready HTML, and [`@unlayer/react-elements/pdf`](./packages/react/docs/render-pdf.md) writes it as a PDF with no browser. You can also use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-ready HTML to any HTML-to-PDF library: the [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local pipeline. A `<Document>` sets its pages with `size`, `margin`, `<PageBreak>`, `<PageHeader>` and `<PageFooter>`.
 
 ### Can I use Elements without the Unlayer platform?
 
-Yes. The package is MIT-licensed, makes no network calls, requires no API key or account, and has no runtime dependency on Unlayer's platform. `renderToHtml()` runs entirely in your own process, and the output is plain, static HTML that you own outright. The platform integrations (design-JSON round-tripping via `renderToJson()` and Custom Tools shared with the visual editor) are strictly opt-in: valuable if you also use the Unlayer builder, ignorable if you don't.
+Yes. The package is MIT-licensed, makes no network calls, requires no API key or account, and has no runtime dependency on Unlayer's platform. `render()` runs entirely in your own process, and the output is plain, static HTML that you own outright. The platform integration (design JSON through `toDesign()` and `fromDesign()`) is strictly opt-in: valuable if you also use the Unlayer builder, ignorable if you don't.
 
 ### Is there a visual editor for Elements?
 
-Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `renderToJson()` exports your component tree as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing. Custom Tools bridge the two as well: the same tool definition renders in the editor and in code. To see it in action, write Elements code in the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) and switch to **Builder**.
+Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `toDesign()` writes your template as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing, and `fromDesign()` reads an edited design back as a template. See [the builder adapter](./packages/react/README.md#to-the-unlayer-builder-and-back) for what the builder can hold.
 
 ### Can I create custom components?
 
-Yes. `registerElementsTool()` turns a custom tool definition into a first-class React component with typed props and full control over its output in each render mode (email, web, and document). See the [Custom Tools documentation](./packages/react/README.md#custom-tools) for a complete example.
+Yes. A function that returns components is a component of your own, and `component()` makes a named block with typed props and its own editors. See [Your own components](./packages/react/README.md#your-own-components) for a complete example.
 
 ## Task Guides
 
@@ -345,7 +334,7 @@ Start with [when to use Elements](./packages/react/docs/README.md), or go direct
 - [Send with Resend, AWS SES, Postmark, SendGrid, or Nodemailer](./packages/react/docs/email-providers.md) — provider setup and complete server-side integrations.
 - [One React invoice to email, web, and PDF](./packages/react/docs/one-template-email-web-pdf.md) — share content across all three output modes.
 - [Generate a real PDF with Playwright](./packages/react/docs/react-to-pdf.md) — print document HTML with Chromium.
-- [Make code and AI-generated templates visually editable](./packages/react/docs/visual-editing.md) — `renderToJson()` → Unlayer `loadDesign()` → edited JSON and HTML.
+- [Make code and AI-generated templates visually editable](./packages/react/docs/visual-editing.md) — `toDesign()` → Unlayer `loadDesign()` → edited JSON and HTML.
 
 The [content workflows example](./examples/content-workflows) contains the executable source behind these guides.
 

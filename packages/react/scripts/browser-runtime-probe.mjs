@@ -2,8 +2,9 @@
 // Browser import/runtime gate for @unlayer/react-elements.
 //
 // The normal browser E2E generates HTML in Node and only loads that HTML into
-// Chromium. This probe instead bundles the shipped package entry and executes
-// renderToHtml() inside Chromium, where Node's global `process` does not exist.
+// Chromium. This probe instead bundles the shipped entries (the main one and
+// /builder) and executes render() and toDesign() inside Chromium, where Node's
+// global `process` does not exist.
 // It catches dependencies that accidentally evaluate process.env at import or
 // render time, which otherwise presents to consumers as a blank browser page.
 
@@ -52,7 +53,7 @@ try {
   browser = await chromium.launch();
 
   // Negative control: prove this is a process-free browser and that the probe
-  // would detect the original exporters failure.
+  // would detect a bundle that reads `process` when it loads.
   const negativePage = await browser.newPage();
   const negativeErrors = [];
   negativePage.on("pageerror", (error) => negativeErrors.push(String(error)));
@@ -86,9 +87,9 @@ try {
   await page.addScriptTag({ path: bundlePath });
   await page.waitForTimeout(0);
 
-  const result = await page.evaluate(() => ({
+  const result = await page.evaluate(async () => ({
     processType: typeof globalThis.process,
-    probe: globalThis.__UNLAYER_ELEMENTS_BROWSER_RUNTIME_PROBE__ ?? null,
+    probe: (await globalThis.__UNLAYER_ELEMENTS_BROWSER_RUNTIME_PROBE__) ?? null,
   }));
 
   if (pageErrors.length > 0) {
@@ -101,17 +102,20 @@ try {
     throw new Error("Browser bundle did not complete the runtime probe");
   }
   if (result.probe.processType !== "undefined") {
-    throw new Error("renderToHtml() ran with an unexpected process global");
+    throw new Error("render() ran with an unexpected process global");
   }
   if (
     typeof result.probe.html !== "string" ||
     !result.probe.html.includes("Browser runtime probe content")
   ) {
-    throw new Error("renderToHtml() did not produce the expected browser HTML");
+    throw new Error("render() did not produce the expected browser HTML");
+  }
+  if (result.probe.rows !== 1) {
+    throw new Error("toDesign() did not produce the expected design");
   }
 
   console.info(
-    "BROWSER_RUNTIME_OK: package imports and renderToHtml() runs in Chromium without a process global",
+    "BROWSER_RUNTIME_OK: package imports, and render() and toDesign() run in Chromium without a process global",
   );
 } catch (error) {
   console.error(

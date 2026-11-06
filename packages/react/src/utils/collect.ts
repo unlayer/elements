@@ -1,45 +1,22 @@
 /**
- * The render that collects a template's Rows, Columns and blocks (see
- * normalize.tsx). While one runs, those components record their props and
- * render markers instead of HTML; React renders everything else (the user's
- * components, Fragments, conditions, Context). A render of Elements' own
- * inside it (a row's HTML, a nested renderToHtml) is under `null`: nothing is
- * collected there. A stack, not React context: Server Components have no
- * context, and a collecting render can start inside another.
+ * What the render that collects a template (src/primitives/collect.tsx) shares with every copy of Elements a process
+ * loads: the stack of collecting renders under way (which server-renderer.ts reads to choose a module of react-dom's;
+ * an Elements 0.2 copy's collecting render pushes onto it too), each render's nonce, and how an async component is
+ * told. A stack, not React context: Server Components have no context, and a collecting render can start inside
+ * another.
  */
-import React from "react";
 
-export type Recorded =
-  | { kind: "row" | "column"; props: Record<string, any> }
-  | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any> }
-  | { kind: "boundary"; element: React.ReactElement };
-
-export interface Collection {
-  /** In each marker, so markup a template writes can't pass for one. */
-  nonce: string;
-  recorded: Recorded[];
-  /** Markup is guarded too, as components are (a render once more after one threw: see normalize.tsx's `collected`). */
-  markup?: boolean;
-  /**
-   * The React Elements' components call isn't the renderer's (a bundler gave them other copies, as Next.js's
-   * server layers can): `useId()` can't tell this render from one inside it, so Rows, Columns and blocks record
-   * while it's collecting.
-   */
-  blind?: boolean;
-}
-
-// Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own): a render one
-// copy starts collects the Rows, Columns and blocks another's template uses.
+// Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own).
 const SHARED = Symbol.for("@unlayer/react-elements/collecting");
-const frames: Array<Collection | null> = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Array<Collection | null>;
+const frames: Array<object | null> = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Array<object | null>;
 
 /** The collecting render under way, if any (and not a render of Elements' own inside it). */
-export function collecting(): Collection | undefined {
+export function collecting(): object | undefined {
   return frames[frames.length - 1] ?? undefined;
 }
 
 /** Runs `run` with `frame` collecting (or, with `null`, nothing collecting). */
-export function within<T>(frame: Collection | null, run: () => T): T {
+export function within<T>(frame: object | null, run: () => T): T {
   frames.push(frame);
   try {
     return run();
@@ -48,27 +25,29 @@ export function within<T>(frame: Collection | null, run: () => T): T {
   }
 }
 
-export const MARK = "unlayer-mark";
+// Shared by every copy of Elements a process loads, as the collecting stack is: no two renders get one nonce.
+const RENDERS = Symbol.for("@unlayer/react-elements/renders");
 
 /**
- * On the Rows, Columns and blocks that record themselves while a template is collected (0.2 and later). One of an
- * older copy (0.1.x, from a package still on it) doesn't, and guard records it in its place (see record.tsx).
+ * A collection's nonce, so markup a template's data holds can't name it: letters, digits and "_", from the count of
+ * the process's renders and its high-resolution clock (when it started, and the time since to a fraction of a
+ * millisecond), which data written before the render can't know. Not random numbers: a framework that prerenders
+ * pages takes `crypto.getRandomValues()` and `Math.random()` for a value that changes the page, and Next.js's Cache
+ * Components (its new apps' default) fail the build on one, but the nonce never reaches the output. `performance` is
+ * what Next.js leaves for timing, and every runtime Elements supports has it.
  */
-export const RECORDS = Symbol.for("@unlayer/react-elements/records");
+export function nonce(): string {
+  const shared = globalThis as Record<symbol, number>;
+  const clock = globalThis.performance;
+  return [(shared[RENDERS] = (shared[RENDERS] ?? 0) + 1), (clock?.timeOrigin ?? 0) * 1e3, (clock?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");
+}
 
-/**
- * The collecting render's `identifierPrefix`: React puts it at the start of every `useId()` there (after its
- * opening `:` or `«`), so a Row, Column or block can tell that render from another one started inside it (a
- * component rendering a block to a string with react-dom), where it renders what it renders instead of a
- * marker. React's own ids never hold a "-", so none of them starts with it.
- */
-export const COLLECTING_ID = "unlayer-collect-";
+/** React's marks on a `memo` and a `forwardRef` component. */
+const MEMO = Symbol.for("react.memo");
+const FORWARD_REF = Symbol.for("react.forward_ref");
 
-/**
- * A marker for what's recorded at `at`: its start ("o"), end ("c"), a component that failed ("f"), or a block.
- * React writes its attributes in this order, which the patterns that find markers in HTML spell out exactly
- * (normalize.tsx): nothing looser, as they run on HTML that holds the template's own.
- */
-export function marker(collection: Collection, at: number, edge?: "o" | "c" | "f"): React.ReactElement {
-  return React.createElement(MARK, { key: `${at}${edge ?? ""}`, "data-n": collection.nonce, "data-i": at, ...(edge ? { "data-e": edge } : {}) });
+/** A component declared `async`: it can't render synchronously, so it isn't called at all. */
+export function isAsyncComponent(type: any): boolean {
+  while (type?.$$typeof === MEMO) type = type.type;
+  return (type?.$$typeof === FORWARD_REF ? type.render : type)?.[Symbol.toStringTag] === "AsyncFunction";
 }

@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import * as lib from "@unlayer/from-react-email";
+import * as lib from "../src/react-email/index";
 import { main, type Io } from "../src/cli";
 
 it.each(["tsx", "jsx"])("migrates a lone array preview with numeric text in %s", async (extension) => {

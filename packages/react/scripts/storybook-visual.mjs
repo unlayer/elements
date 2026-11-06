@@ -34,6 +34,8 @@ const BASELINE_PATH = join(SCRIPTS_DIR, "storybook-visual-baseline.json");
 const UPDATE_BASELINE = process.env.UPDATE_VISUAL_BASELINE === "1";
 const PORT = 6007;
 const VIEWPORTS = { desktop: { width: 1280, height: 900 }, mobile: { width: 400, height: 900 } };
+// On a phone a story's frames are a phone's width too, so what they draw is what a phone gets.
+const STORY_ARGS = { desktop: "", mobile: "&args=width:phone" };
 
 // Computed-style subset captured per element: spec-derived values that are
 // identical across platforms. No geometry — font metrics differ per OS.
@@ -90,15 +92,17 @@ const serverReady = async () => {
  * fails as a change in style does. Identical lines are run-length collapsed
  * so email table repetition doesn't bloat the baseline.
  */
-async function fingerprint(page) {
-  return page.evaluate((props) => {
+async function fingerprint(target, selector = "#storybook-root") {
+  return target.evaluate(({ props, selector }) => {
     const MEANINGFUL = new Set(["P", "H1", "H2", "H3", "H4", "H5", "H6", "A", "IMG", "BUTTON", "UL", "OL", "LI", "TD", "SPAN", "STRONG", "EM"]);
-    const root = document.querySelector("#storybook-root");
+    const root = document.querySelector(selector);
     if (!root) return null;
+    // A rendered template's layout is its boxes, which have no classes of their own to tell them from plumbing.
+    const rendered = selector === "body";
     const lines = [];
     for (const el of root.querySelectorAll("*")) {
       const hasUnlayerClass = [...el.classList].some((c) => c.startsWith("u-") || c.startsWith("u_") || c.startsWith("v-"));
-      if (!MEANINGFUL.has(el.tagName) && !hasUnlayerClass) continue;
+      if (!MEANINGFUL.has(el.tagName) && !hasUnlayerClass && !(rendered && (el.tagName === "DIV" || el.tagName === "TABLE"))) continue;
       const cs = getComputedStyle(el);
       const normalize = (p, v) => {
         if (p !== "fontFamily") return v;
@@ -134,7 +138,22 @@ async function fingerprint(page) {
       else collapsed.push({ line, n: 1 });
     }
     return collapsed.map(({ line, n }) => (n > 1 ? `${n}x ${line}` : line));
-  }, STYLE_PROPS);
+  }, { props: STYLE_PROPS, selector });
+}
+
+/**
+ * The story and what it draws in frames of its own: each render of the new components is its own document (see
+ * src/stories/SideBySide.tsx), whose stylesheet and phone styles only answer the frame.
+ */
+async function storyFingerprint(page) {
+  const lines = await fingerprint(page);
+  if (!lines) return null;
+  // Only those: a video's player, in a frame inside one, is someone else's page.
+  for (const frame of page.frames().filter((frame) => frame.parentFrame() === page.mainFrame() && frame.url() === "about:srcdoc")) {
+    await frame.waitForLoadState("load");
+    lines.push(...((await fingerprint(frame, "body")) ?? ["(no frame body)"]));
+  }
+  return lines;
 }
 
 // The baseline stores each unique fingerprint line once (dict) and each
@@ -186,7 +205,7 @@ try {
   for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
     await page.setViewportSize(viewport);
     for (const id of storyIds) {
-      await page.goto(`http://127.0.0.1:${PORT}/iframe.html?viewMode=story&id=${id}`, { waitUntil: "load" });
+      await page.goto(`http://127.0.0.1:${PORT}/iframe.html?viewMode=story&id=${id}${STORY_ARGS[viewportName]}`, { waitUntil: "load" });
       // #storybook-root is static markup in iframe.html, so it exists before
       // the story renders; wait for rendered children or a cold first load
       // fingerprints an empty root.
@@ -195,7 +214,7 @@ try {
         null,
         { timeout: 10_000 }
       );
-      const fp = await fingerprint(page);
+      const fp = await storyFingerprint(page);
       current[`${id}@${viewportName}`] = fp ?? ["(no root)"];
     }
   }

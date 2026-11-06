@@ -1,15 +1,14 @@
 import React from "react";
+import { render } from "@unlayer/react-elements";
 import WelcomeEmail from "@/emails/welcome-email";
-import { renderEmailToHtml } from "@/utils/render-server";
 
-export function GET() {
-  const html = renderEmailToHtml(
+export async function GET() {
+  const { html } = await render(
     React.createElement(WelcomeEmail, {
       name: "Ada",
       plan: "Pro",
       dashboardUrl: "https://example.com/dashboard",
-    }),
-    { title: "Welcome, Ada" }
+    })
   );
 
   return new Response(html, {

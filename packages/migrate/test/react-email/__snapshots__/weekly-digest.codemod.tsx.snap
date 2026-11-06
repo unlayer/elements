@@ -1,0 +1,331 @@
+/** @jsxRuntime automatic */
+// Migrated from React Email by @unlayer/migrate (codemod mode).
+import {
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Link,
+  Paragraph,
+  Row,
+  Section,
+  Span,
+} from "@unlayer/react-elements";
+import * as React from "react";
+
+interface Article {
+  title: string;
+  excerpt: string;
+  url: string;
+  thumbnailUrl: string;
+  author: string;
+  readTime: string;
+}
+
+interface WeeklyDigestEmailProps {
+  subscriberName: string;
+  weekOf: string;
+  articles: Article[];
+  unsubscribeUrl: string;
+  preferencesUrl: string;
+}
+
+export const WeeklyDigestEmail = ({
+  subscriberName,
+  weekOf,
+  articles,
+  unsubscribeUrl,
+  preferencesUrl,
+}: WeeklyDigestEmailProps) => {
+  return (
+    <Email
+      width={600}
+      previewText={plainText(
+        `${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`,
+      )}
+      style={{
+        backgroundColor: "#f5f5f5",
+        color: "#000000",
+        fontFamily:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
+    >
+      <Section style={{ padding: [24, 0, 0, 0] }}>
+        <Column style={{ padding: "28px 32px 28px 32px", backgroundColor: "#171717" }}>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#a1a1a1",
+              lineHeight: "24px",
+              letterSpacing: "2px",
+            }}
+          >
+            <Span style={{ textTransform: "uppercase" }}>The Weekly Dispatch</Span>
+          </Paragraph>
+          <Heading
+            style={{
+              padding: "6px 0px 0px 0px",
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#ffffff",
+              lineHeight: "32px",
+            }}
+          >
+            Your week in review
+          </Heading>
+          <Paragraph
+            style={{
+              padding: "6px 0px 0px 0px",
+              fontSize: 14,
+              color: "#a1a1a1",
+              lineHeight: "24px",
+            }}
+          >
+            Week of {weekOf}
+          </Paragraph>
+        </Column>
+      </Section>
+      <Section>
+        <Column style={{ padding: "28px 32px 0px 32px", backgroundColor: "#ffffff" }}>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 15,
+              color: "#404040",
+              lineHeight: "24px",
+            }}
+          >
+            Hi {subscriberName}, here are the {articles.length} stories our editors picked for you
+            this week.
+          </Paragraph>
+        </Column>
+      </Section>
+      {articles.map((article, index) => [
+        <Section key={0}>
+          <Row stackOnMobile={false} style={{ backgroundColor: "#ffffff" }}>
+            <Column style={{ width: "27.33%", padding: "24px 0px 0px 32px" }}>
+              <Column style={{ padding: "0px 0px 0px 0px", alignItems: "start" }}>
+                {article.thumbnailUrl || "" ? (
+                  <Image
+                    src={article.thumbnailUrl || ""}
+                    alt={article.title}
+                    style={{ width: "84.85%", maxWidth: 139.15 }}
+                  />
+                ) : null}
+              </Column>
+            </Column>
+            <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#4f39f6",
+                  lineHeight: "24px",
+                  letterSpacing: "1px",
+                }}
+              >
+                <Span
+                  style={{ textTransform: "uppercase" }}
+                >{`${article.author} · ${article.readTime}`}</Span>
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#000000",
+                  lineHeight: "24px",
+                }}
+              >
+                {article.url ? (
+                  <Link
+                    href={{ href: article.url, target: "_blank" }}
+                    style={{
+                      color: "rgb(23,23,23)",
+                      textDecoration: "none",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {article.title}
+                  </Link>
+                ) : (
+                  <Span
+                    style={{
+                      color: "rgb(23,23,23)",
+                      textDecoration: "none",
+                      fontSize: "18px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {article.title}
+                  </Span>
+                )}
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "6px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#525252",
+                  lineHeight: "21px",
+                }}
+              >
+                {article.excerpt}
+              </Paragraph>
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 14,
+                  color: "#000000",
+                  lineHeight: "24px",
+                }}
+              >
+                {article.url ? (
+                  <Link
+                    href={{ href: article.url, target: "_blank" }}
+                    style={{
+                      color: "rgb(79,57,246)",
+                      textDecoration: "underline",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Read more
+                  </Link>
+                ) : (
+                  <Span
+                    style={{
+                      color: "rgb(79,57,246)",
+                      textDecoration: "underline",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Read more
+                  </Span>
+                )}
+              </Paragraph>
+            </Column>
+          </Row>
+        </Section>,
+        <Section key={1}>
+          <Column style={{ padding: "0px 32px 0px 32px", backgroundColor: "#ffffff" }}>
+            {index < articles.length - 1 ? (
+              <Divider style={{ borderTop: "1px solid #e5e5e5", padding: "24px 0px 0px 0px" }} />
+            ) : null}
+            <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+          </Column>
+        </Section>,
+      ])}
+      <Section>
+        <Column style={{ padding: "32px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+        </Column>
+      </Section>
+      <Section style={{ padding: [0, 0, 24, 0] }}>
+        <Column style={{ padding: "24px 32px 24px 32px", backgroundColor: "#fafafa" }}>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 12,
+              color: "#737373",
+              textAlign: "center",
+              lineHeight: "20px",
+            }}
+          >
+            You're receiving this because you subscribed to The Weekly Dispatch.
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "8px 0px 0px 0px",
+              fontSize: 12,
+              color: "#737373",
+              textAlign: "center",
+              lineHeight: "20px",
+            }}
+          >
+            {preferencesUrl ? (
+              <Link
+                href={{ href: preferencesUrl, target: "_blank" }}
+                style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}
+              >
+                Email preferences
+              </Link>
+            ) : (
+              <Span style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}>
+                Email preferences
+              </Span>
+            )}
+            {" · "}
+            {unsubscribeUrl ? (
+              <Link
+                href={{ href: unsubscribeUrl, target: "_blank" }}
+                style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}
+              >
+                Unsubscribe
+              </Link>
+            ) : (
+              <Span style={{ color: "rgb(115,115,115)", textDecoration: "underline" }}>
+                Unsubscribe
+              </Span>
+            )}
+          </Paragraph>
+        </Column>
+      </Section>
+    </Email>
+  );
+};
+
+WeeklyDigestEmail.PreviewProps = {
+  subscriberName: "Sam",
+  weekOf: "September 28, 2026",
+  articles: [
+    {
+      title: "How small teams ship faster with async-first habits",
+      excerpt:
+        "Three teams share the rituals that replaced their daily standups and what they measured along the way.",
+      url: "https://dispatch.example.com/posts/async-first",
+      thumbnailUrl: "https://picsum.photos/seed/async/224/224",
+      author: "Maya Chen",
+      readTime: "6 min read",
+    },
+    {
+      title: "The quiet comeback of plain-text email",
+      excerpt:
+        "Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement.",
+      url: "https://dispatch.example.com/posts/plain-text-email",
+      thumbnailUrl: "https://picsum.photos/seed/plaintext/224/224",
+      author: "Luis Ortega",
+      readTime: "4 min read",
+    },
+    {
+      title: "A practical guide to database migrations without downtime",
+      excerpt:
+        "Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them.",
+      url: "https://dispatch.example.com/posts/zero-downtime-migrations",
+      thumbnailUrl: "https://picsum.photos/seed/migrations/224/224",
+      author: "Anika Rao",
+      readTime: "9 min read",
+    },
+    {
+      title: "Interview: building a design system that people actually use",
+      excerpt:
+        "The lead of a 40-person design org on governance, documentation, and saying no to one-off components.",
+      url: "https://dispatch.example.com/posts/design-system-interview",
+      thumbnailUrl: "https://picsum.photos/seed/designsystem/224/224",
+      author: "Tom Becker",
+      readTime: "12 min read",
+    },
+  ],
+  unsubscribeUrl: "https://dispatch.example.com/unsubscribe?u=abc123",
+  preferencesUrl: "https://dispatch.example.com/preferences?u=abc123",
+} as WeeklyDigestEmailProps;
+
+export default WeeklyDigestEmail;
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
+}

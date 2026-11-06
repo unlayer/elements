@@ -3,10 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import * as converter from "@unlayer/from-react-email";
 
 describe("published migration library", () => {
-  it("packs self-contained declarations and the same API for ESM and CommonJS consumers", () => {
+  it("packs self-contained declarations and the same API for ESM and CommonJS consumers: convertReactEmail and migrateElements", () => {
     const packageRoot = path.resolve(import.meta.dirname, "..");
     // Outside the workspace so private packages cannot accidentally resolve.
     const consumer = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-consumer-"));
@@ -29,23 +28,28 @@ describe("published migration library", () => {
       expect(declarations).toContain("react-email.d.ts");
       expect(declarations).toContain("react-email.d.cts");
       for (const name of declarations) {
-        expect(fs.readFileSync(path.join(target, "dist", name), "utf8"), name)
-          .not.toMatch(/@unlayer\/(from-react-email|convert-core)/);
+        // Self-contained: they import only what a consumer installs, never one of the converters' own modules.
+        const imported = [...fs.readFileSync(path.join(target, "dist", name), "utf8").matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((match) => match[1]);
+        expect(imported.filter((specifier) => !/^(react|react-dom|@react-email\/components|@unlayer\/react-elements(\/builder)?)$/.test(specifier)), name).toEqual([]);
       }
+      expect(declarations).toContain("elements.d.ts");
       for (const extension of ["mts", "cts"]) {
-        fs.writeFileSync(path.join(consumer, `index.${extension}`), `import {
-  convertSource, compareText,
-  type RuntimeOptions, type Conversion, type Verification, type TextProp,
-  type TextCheck, type CodemodOptions, type CodemodResult, type ModuleLoader,
-} from "@unlayer/migrate/react-email";
-type PublicTypes = [RuntimeOptions, Conversion, Verification, TextProp, TextCheck, CodemodOptions, CodemodResult, ModuleLoader];
+        fs.writeFileSync(path.join(consumer, `index.${extension}`), `import { convertReactEmail, NewComponentsError, type RuntimeOptions, type Conversion, type ConversionReport, type EditorFont } from "@unlayer/migrate/react-email";
+import { migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "@unlayer/migrate/elements";
+type PublicTypes = [RuntimeOptions, Conversion, ConversionReport, EditorFont, MigrateElementsOptions, MigrateElementsResult];
 const types: PublicTypes | undefined = undefined;
-const missing: string[] = compareText("<p>Hello</p>", "").missing;
-async function check() {
-  const result = await convertSource("source");
-  const nativeRatio: number = result.report.nativeRatio;
-  const node: Conversion["tree"] = { type: "Paragraph", children: ["Hello"] };
-  console.log(types, missing, nativeRatio, node);
+async function check(Template: () => null) {
+  const conversion = await convertReactEmail(Template);
+  const code: string = conversion.code;
+  const html: string = await conversion.html();
+  const design: Record<string, unknown> = conversion.design();
+  const missing: string[] | undefined = conversion.report.missingText;
+  const intermediate: string = new NewComponentsError("why", "source").intermediate;
+  const migrated = await migrateElements("source", { installed: "0.2.1" });
+  const notes: string[] = migrated.report;
+  const left: boolean | undefined = migrated.current ?? migrated.undecided;
+  const refused: string | undefined = migrated.refused;
+  console.log(types, code, html, design, missing, intermediate, notes, left, refused);
 }
 void check;
 `);
@@ -54,19 +58,27 @@ void check;
       }
       for (const extension of ["mjs", "cjs"]) {
         const imports = extension === "mjs"
-          ? 'import * as api from "@unlayer/migrate/react-email";\nimport React from "react";\nimport { Html, Body, Text } from "@react-email/components";'
-          : 'const api = require("@unlayer/migrate/react-email");\nconst React = require("react");\nconst { Html, Body, Text } = require("@react-email/components");';
+          ? 'import * as api from "@unlayer/migrate/react-email";\nimport * as elements from "@unlayer/migrate/elements";\nimport React from "react";\nimport { Html, Body, Text, Button } from "@react-email/components";'
+          : 'const api = require("@unlayer/migrate/react-email");\nconst elements = require("@unlayer/migrate/elements");\nconst React = require("react");\nconst { Html, Body, Text, Button } = require("@react-email/components");';
         fs.writeFileSync(path.join(consumer, `runtime.${extension}`), `${imports}
 async function main() {
-  const Template = () => React.createElement(Html, null, React.createElement(Body, null, React.createElement(Text, null, "Hello")));
+  const h = React.createElement;
+  const Template = () => h(Html, null, h(Body, null, h(Text, null, "Hello")));
   const conversion = await api.convertReactEmail(Template);
-  const source = 'import { Html, Body, Text } from "@react-email/components"; export default function Template() { return <Html><Body><Text>Hello</Text></Body></Html>; }';
-  const result = await api.convertSource(source);
+  // A link the new components don't write: a typed error, with the template as it was written first.
+  const Refused = () => h(Html, null, h(Body, null, h(Button, { href: "javascript:void(0)" }, "Go")));
+  const error = await api.convertReactEmail(Refused).catch((e) => e);
+  // As in a project on Elements 0.2: nothing in the template is only either's.
+  const migrated = await elements.migrateElements('import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\\nexport const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;', { installed: "0.2.1" });
   console.log(JSON.stringify({
     exports: Object.keys(api).sort(),
+    elements: Object.keys(elements).sort(),
     missing: conversion.report.missingText,
-    nativeRatio: result.report.nativeRatio,
-    check: api.compareText("<p>Hello</p>", conversion.html()).missing,
+    html: (await conversion.html()).includes("Hello"),
+    code: conversion.code.includes('from "@unlayer/react-elements";'),
+    design: conversion.design().body.rows.length > 0,
+    refused: error instanceof api.NewComponentsError && error.intermediate.includes("javascript:void(0)"),
+    migrated: migrated.code.includes("<Section>"),
   }));
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });
@@ -74,10 +86,14 @@ main().catch((error) => { console.error(error); process.exitCode = 1; });
         const ran = spawnSync(process.execPath, [`runtime.${extension}`], { cwd: consumer, encoding: "utf8" });
         expect(ran.status, ran.stderr + ran.stdout).toBe(0);
         expect(JSON.parse(ran.stdout)).toEqual({
-          exports: Object.keys(converter).sort(),
+          exports: ["NewComponentsError", "convertReactEmail"],
+          elements: ["migrateElements"],
           missing: [],
-          nativeRatio: 1,
-          check: [],
+          html: true,
+          code: true,
+          design: true,
+          refused: true,
+          migrated: true,
         });
       }
     } finally {
@@ -122,7 +138,10 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
     const run = (args: string[]) => spawnSync(process.execPath, [path.join(target, "dist/bin.js"), ...args], { cwd: project, encoding: "utf8" });
     const migrated = run(["template.jsx", "--out", "converted", "--design"]);
     expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0);
-    expect(fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8")).toContain("function htmlText(value)");
+    const written = fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8");
+    expect(written).toContain("@unlayer/react-elements");
+    expect(written).toContain("{name}");
+    expect(written).not.toContain("htmlText");
     const compared = run(["compare", "template.jsx", "converted/template.jsx"]);
     expect(compared.status, compared.stderr + compared.stdout).toBe(0);
     expect(fs.readdirSync(project).filter((name) => name.includes("unlayer-migrate"))).toEqual([]);

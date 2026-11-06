@@ -1,2 +1,4 @@
 dist/
-test/.tmp-*/
+.corpus/
+.bench-out/
+test/**/.tmp-*/

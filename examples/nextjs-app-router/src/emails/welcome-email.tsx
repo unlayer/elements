@@ -1,19 +1,20 @@
 import {
-  Email,
-  Row,
-  Column,
-  Heading,
-  Paragraph,
   Button,
+  Column,
   Divider,
-  ColumnLayouts,
+  Email,
+  Heading,
+  Link,
+  Paragraph,
+  Row,
+  Span,
 } from "@unlayer/react-elements";
-import { escapeHtml, requireSafeUrl } from "@/utils/safe";
+import { requireSafeUrl } from "@/utils/safe";
 
-const font = {
-  label: "Sans Serif",
-  value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-};
+const font = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const line = "1px solid #e4e4e7";
+const smallPrint = { fontSize: 13, lineHeight: 1.6, color: "#71717a" };
+const feature = { fontSize: 15, fontWeight: 600, lineHeight: 1.4 } as const;
 
 export interface WelcomeEmailProps {
   /** Recipient's first name */
@@ -29,153 +30,71 @@ export interface WelcomeEmailProps {
  *
  * It is a plain component tree — the props come from wherever your app gets
  * data (a DB row, a webhook payload, a CMS). Nothing here is Next-specific;
- * the same tree can be handed to renderToHtml() from a route handler, a
- * background job, or a test.
+ * the same tree can be handed to render() from a route handler, a background
+ * job, or a test.
  *
- * Because those props are untrusted, dynamic values are escaped before being
- * interpolated into raw HTML and link targets are validated as http(s).
+ * Those props are untrusted. Text goes in as children, and Elements escapes it
+ * when it writes the HTML; the link target is checked here, as http(s).
  */
 export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailProps) {
-  // Props may come from a DB, webhook, or CMS: escape anything interpolated
-  // into the raw `html` prop and reject non-http(s) link targets.
-  const safePlan = escapeHtml(plan);
   const safeDashboardUrl = requireSafeUrl(dashboardUrl);
 
   return (
     <Email
-      backgroundColor="#f4f4f5"
-      textColor="#18181b"
-      contentAlign="center"
-      contentWidth="560px"
-      fontFamily={font}
+      width={560}
+      title={`Welcome, ${name}`}
       previewText={`Your ${plan} workspace is ready, ${name}.`}
+      style={{ backgroundColor: "#f4f4f5", color: "#18181b", fontFamily: font, gap: 20 }}
     >
-      {/* Masthead */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 40px 0px 40px">
-        <Column>
-          <Heading
-            text="ACME"
-            headingType="h4"
-            fontSize="13px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1"
-            letterSpacing="2px"
-            fontFamily={font}
-          />
-        </Column>
-      </Row>
+      {/* The card */}
+      <Column style={{ backgroundColor: "#ffffff", padding: "32px 40px 36px", gap: 24 }}>
+        {/* Masthead */}
+        <Heading level={4} style={{ fontSize: 13, lineHeight: 1, letterSpacing: 2 }}>
+          ACME
+        </Heading>
 
-      {/* Greeting */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 0px 40px">
-        <Column>
-          <Heading
-            text={`Welcome, ${name}`}
-            headingType="h1"
-            fontSize="26px"
-            fontWeight={700}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.25"
-            fontFamily={font}
-          />
-          <Paragraph
-            html={`Your <b>${safePlan}</b> workspace is ready. Invite your team, connect a repository, and ship your first deploy in under five minutes.`}
-            fontSize="15px"
-            color="#52525b"
-            textAlign="left"
-            lineHeight="1.7"
-            fontFamily={font}
-          />
-          <Button
-            text="Open your dashboard"
-            href={safeDashboardUrl}
-            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
-            padding="13px 26px"
-            borderRadius="8px"
-            fontSize="14px"
-            fontWeight={600}
-            textAlign="left"
-            fontFamily={font}
-          />
-        </Column>
-      </Row>
+        {/* Greeting */}
+        <Heading level={1} style={{ fontSize: 26 }}>
+          Welcome, {name}
+        </Heading>
+        <Paragraph style={{ fontSize: 15, lineHeight: 1.7, color: "#52525b" }}>
+          Your <Span style={{ fontWeight: 700 }}>{plan}</Span> workspace is ready. Invite your team, connect a repository, and ship your first deploy in under five minutes.
+        </Paragraph>
+        <Button
+          href={safeDashboardUrl}
+          style={{ backgroundColor: "#18181b", padding: [13, 26], borderRadius: 8, fontWeight: 600 }}
+        >
+          Open your dashboard
+        </Button>
 
-      {/* What's included — two columns */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="28px 40px 0px 40px">
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor="#e4e4e7" borderTopStyle="solid" />
-          <Heading
-            text="Unlimited projects"
-            headingType="h3"
-            fontSize="15px"
-            fontWeight={600}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={font}
-          />
-          <Paragraph
-            html="Spin up as many workspaces as your team needs."
-            fontSize="13px"
-            color="#71717a"
-            textAlign="left"
-            lineHeight="1.6"
-            fontFamily={font}
-          />
-        </Column>
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor="#e4e4e7" borderTopStyle="solid" />
-          <Heading
-            text="Priority support"
-            headingType="h3"
-            fontSize="15px"
-            fontWeight={600}
-            color="#18181b"
-            textAlign="left"
-            lineHeight="1.4"
-            fontFamily={font}
-          />
-          <Paragraph
-            html="Reach a human in under an hour, every day of the week."
-            fontSize="13px"
-            color="#71717a"
-            textAlign="left"
-            lineHeight="1.6"
-            fontFamily={font}
-          />
-        </Column>
-      </Row>
+        <Divider style={{ borderTop: line }} />
 
-      {/* Sign-off */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 36px 40px">
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor="#e4e4e7" borderTopStyle="solid" />
-          <Paragraph
-            html="Questions? Just reply to this email — it reaches the team directly."
-            fontSize="13px"
-            color="#71717a"
-            textAlign="left"
-            lineHeight="1.6"
-            fontFamily={font}
-          />
-        </Column>
-      </Row>
+        {/* What's included — two columns, one under the other on phones */}
+        <Row style={{ gap: 24 }}>
+          <Column style={{ gap: 6 }}>
+            <Heading level={3} style={feature}>
+              Unlimited projects
+            </Heading>
+            <Paragraph style={smallPrint}>Spin up as many workspaces as your team needs.</Paragraph>
+          </Column>
+          <Column style={{ gap: 6 }}>
+            <Heading level={3} style={feature}>
+              Priority support
+            </Heading>
+            <Paragraph style={smallPrint}>Reach a human in under an hour, every day of the week.</Paragraph>
+          </Column>
+        </Row>
+
+        <Divider style={{ borderTop: line }} />
+
+        {/* Sign-off */}
+        <Paragraph style={smallPrint}>Questions? Just reply to this email — it reaches the team directly.</Paragraph>
+      </Column>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 32px 40px">
-        <Column>
-          <Paragraph
-            html='Acme Inc · San Francisco, CA · <a href="#">Unsubscribe</a>'
-            fontSize="11px"
-            color="#a1a1aa"
-            textAlign="center"
-            lineHeight="1.6"
-            fontFamily={font}
-          />
-        </Column>
-      </Row>
+      <Paragraph style={{ padding: "0 40px 32px", fontSize: 11, lineHeight: 1.6, color: "#a1a1aa", textAlign: "center" }}>
+        Acme Inc · San Francisco, CA · <Link href="https://example.com/unsubscribe" style={{ color: "#a1a1aa" }}>Unsubscribe</Link>
+      </Paragraph>
     </Email>
   );
 }

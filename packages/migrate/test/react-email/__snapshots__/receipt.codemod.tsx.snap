@@ -1,0 +1,526 @@
+/** @jsxRuntime automatic */
+// Migrated from React Email by @unlayer/migrate (codemod mode).
+import {
+  Button,
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Link,
+  Paragraph,
+  Row,
+  Section,
+  Span,
+} from "@unlayer/react-elements";
+import * as React from "react";
+
+interface ReceiptItem {
+  name: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  imageUrl: string;
+}
+
+interface ReceiptEmailProps {
+  customerName: string;
+  orderNumber: string;
+  orderDate: string;
+  paymentMethod: string;
+  items: ReceiptItem[];
+  shipping: number;
+  taxRate: number;
+  currency?: string;
+  orderUrl: string;
+}
+
+const formatMoney = (amount: number, currency = "USD") =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+
+export const ReceiptEmail = ({
+  customerName,
+  orderNumber,
+  orderDate,
+  paymentMethod,
+  items,
+  shipping,
+  taxRate,
+  currency = "USD",
+  orderUrl,
+}: ReceiptEmailProps) => {
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const tax = subtotal * taxRate;
+  const total = subtotal + shipping + tax;
+
+  return (
+    <Email
+      width={600}
+      previewText={`Your receipt for order #${plainText(orderNumber)} - ${plainText(formatMoney(total, currency))}`}
+      style={{
+        backgroundColor: "#f3f4f6",
+        color: "#000000",
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif",
+      }}
+    >
+      <Section style={{ padding: [40, 0, 0, 0] }}>
+        <Column
+          style={{
+            padding: "24px 32px 24px 32px",
+            backgroundColor: "#111827",
+            borderRadius: [8, 8, 0, 0],
+          }}
+        >
+          <Column style={{ padding: "0px 0px 0px 0px", alignItems: "start" }}>
+            <Image
+              src={{
+                src: "https://placehold.co/140x36/111827/ffffff?text=Northwind",
+                width: 140,
+                height: 36,
+              }}
+              alt="Northwind"
+              style={{ width: "26.12%", maxWidth: 156.72 }}
+              mobile={{ width: 140 }}
+            />
+          </Column>
+        </Column>
+      </Section>
+      <Section>
+        <Column style={{ padding: "32px 0px 24px 0px", backgroundColor: "#ffffff" }}>
+          <Heading
+            style={{
+              padding: "0px 32px 12px 32px",
+              fontSize: 24,
+              fontWeight: 700,
+              color: "#111827",
+              lineHeight: "32px",
+            }}
+          >
+            Thanks for your order, {customerName}!
+          </Heading>
+          <Paragraph
+            style={{
+              padding: "0px 32px 0px 32px",
+              fontSize: 15,
+              color: "#4b5563",
+              lineHeight: "24px",
+            }}
+          >
+            We've received your payment and are getting your order ready. Here's your receipt for
+            your records.
+          </Paragraph>
+        </Column>
+      </Section>
+      <Section>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
+            <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+          </Column>
+          <Column
+            style={{
+              width: "30.5%",
+              padding: "8px 0px 8px 16px",
+              backgroundColor: "#f9fafb",
+              borderRadius: [6, 0, 0, 6],
+            }}
+          >
+            <Paragraph
+              style={{
+                padding: "8px 0px 2px 0px",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#6b7280",
+                lineHeight: "24px",
+                letterSpacing: 0.55,
+              }}
+            >
+              <Span style={{ textTransform: "uppercase" }}>Order number</Span>
+            </Paragraph>
+            <Paragraph
+              style={{
+                padding: "0px 0px 8px 0px",
+                fontSize: 14,
+                color: "#111827",
+                lineHeight: "24px",
+              }}
+            >
+              #{orderNumber}
+            </Paragraph>
+          </Column>
+          <Column
+            style={{ width: "22.33%", padding: "8px 0px 8px 0px", backgroundColor: "#f9fafb" }}
+          >
+            <Paragraph
+              style={{
+                padding: "8px 0px 2px 0px",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#6b7280",
+                lineHeight: "24px",
+                letterSpacing: 0.55,
+              }}
+            >
+              <Span style={{ textTransform: "uppercase" }}>Order date</Span>
+            </Paragraph>
+            <Paragraph
+              style={{
+                padding: "0px 0px 8px 0px",
+                fontSize: 14,
+                color: "#111827",
+                lineHeight: "24px",
+              }}
+            >
+              {orderDate}
+            </Paragraph>
+          </Column>
+          <Column
+            style={{
+              width: "36.5%",
+              padding: "8px 16px 8px 0px",
+              backgroundColor: "#f9fafb",
+              borderRadius: [0, 6, 6, 0],
+            }}
+          >
+            <Paragraph
+              style={{
+                padding: "8px 0px 2px 0px",
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#6b7280",
+                lineHeight: "24px",
+                letterSpacing: 0.55,
+              }}
+            >
+              <Span style={{ textTransform: "uppercase" }}>Payment method</Span>
+            </Paragraph>
+            <Paragraph
+              style={{
+                padding: "0px 0px 8px 0px",
+                fontSize: 14,
+                color: "#111827",
+                lineHeight: "24px",
+              }}
+            >
+              {paymentMethod}
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
+            <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+          </Column>
+        </Row>
+      </Section>
+      <Section>
+        <Column style={{ padding: "24px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+        </Column>
+      </Section>
+      {items.map((item) => (
+        <Section key={item.name}>
+          <Row stackOnMobile={false}>
+            <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
+              <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+            </Column>
+            <Column
+              style={{ width: "13.33%", padding: "12px 0px 12px 0px", backgroundColor: "#ffffff" }}
+            >
+              <Column style={{ padding: "0px 0px 0px 0px", alignItems: "start" }}>
+                {item.imageUrl || "" ? (
+                  <Image
+                    src={item.imageUrl || ""}
+                    alt={item.name}
+                    style={{ width: "80%", maxWidth: 64 }}
+                  />
+                ) : null}
+              </Column>
+            </Column>
+            <Column
+              style={{ width: "59.33%", padding: "12px 0px 12px 8px", backgroundColor: "#ffffff" }}
+            >
+              <Paragraph
+                style={{
+                  padding: "0px 0px 2px 0px",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#111827",
+                  lineHeight: "24px",
+                }}
+              >
+                {item.name}
+              </Paragraph>
+              {item.description ? (
+                <Paragraph
+                  style={{
+                    padding: "0px 0px 0px 0px",
+                    fontSize: 13,
+                    color: "#6b7280",
+                    lineHeight: "18px",
+                  }}
+                >
+                  {item.description}
+                </Paragraph>
+              ) : null}
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 13,
+                  color: "#6b7280",
+                  lineHeight: "18px",
+                }}
+              >
+                Qty: {item.quantity}
+              </Paragraph>
+            </Column>
+            <Column
+              style={{ width: "16.67%", padding: "12px 0px 12px 0px", backgroundColor: "#ffffff" }}
+            >
+              <Paragraph
+                style={{
+                  padding: "0px 0px 0px 0px",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#111827",
+                  textAlign: "right",
+                  lineHeight: "24px",
+                }}
+              >
+                {formatMoney(item.quantity * item.unitPrice, currency)}
+              </Paragraph>
+            </Column>
+            <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
+              <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
+            </Column>
+          </Row>
+        </Section>
+      ))}
+      <Section>
+        <Column style={{ padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "0px 32px 0px 32px" }} />
+        </Column>
+      </Section>
+      <Section>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 0px 4px 32px",
+                fontSize: 14,
+                color: "#6b7280",
+                lineHeight: "24px",
+              }}
+            >
+              Subtotal
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 32px 4px 0px",
+                fontSize: 14,
+                color: "#111827",
+                textAlign: "right",
+                lineHeight: "24px",
+              }}
+            >
+              {formatMoney(subtotal, currency)}
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
+      <Section>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 0px 4px 32px",
+                fontSize: 14,
+                color: "#6b7280",
+                lineHeight: "24px",
+              }}
+            >
+              Shipping
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 32px 4px 0px",
+                fontSize: 14,
+                color: "#111827",
+                textAlign: "right",
+                lineHeight: "24px",
+              }}
+            >
+              {shipping === 0 ? "Free" : formatMoney(shipping, currency)}
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
+      <Section>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 0px 4px 32px",
+                fontSize: 14,
+                color: "#6b7280",
+                lineHeight: "24px",
+              }}
+            >
+              Tax ({(taxRate * 100).toFixed(2)}%)
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 32px 4px 0px",
+                fontSize: 14,
+                color: "#111827",
+                textAlign: "right",
+                lineHeight: "24px",
+              }}
+            >
+              {formatMoney(tax, currency)}
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
+      <Section>
+        <Column style={{ padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "0px 32px 0px 32px" }} />
+        </Column>
+      </Section>
+      <Section>
+        <Row stackOnMobile={false}>
+          <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 0px 4px 32px",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#111827",
+                lineHeight: "24px",
+              }}
+            >
+              Total
+            </Paragraph>
+          </Column>
+          <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+            <Paragraph
+              style={{
+                padding: "4px 32px 4px 0px",
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#111827",
+                textAlign: "right",
+                lineHeight: "24px",
+              }}
+            >
+              {formatMoney(total, currency)}
+            </Paragraph>
+          </Column>
+        </Row>
+      </Section>
+      <Section>
+        <Column style={{ padding: "28px 0px 0px 0px", backgroundColor: "#ffffff" }}>
+          <Column style={{ padding: "0px 0px 0px 0px", alignItems: "center" }}>
+            <Button
+              href={{ href: orderUrl, target: "_blank" }}
+              style={{
+                backgroundColor: "#111827",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: 600,
+                lineHeight: "120%",
+                padding: "12px 24px 12px 24px",
+                borderRadius: 6,
+              }}
+            >
+              View your order
+            </Button>
+          </Column>
+        </Column>
+      </Section>
+      <Section style={{ padding: [0, 0, 40, 0] }}>
+        <Column
+          style={{
+            padding: "20px 0px 38px 0px",
+            backgroundColor: "#ffffff",
+            borderRadius: [0, 0, 8, 8],
+          }}
+        >
+          <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "0px 32px 20px 32px" }} />
+          <Paragraph
+            style={{
+              padding: "0px 32px 6px 32px",
+              fontSize: 12,
+              color: "#9ca3af",
+              textAlign: "center",
+              lineHeight: "18px",
+            }}
+          >
+            {"Need help with your order? Visit our "}
+            <Link
+              href={{ href: "https://northwind.example.com/help", target: "_blank" }}
+              style={{ color: "#6b7280", textDecoration: "underline" }}
+            >
+              help center
+            </Link>
+            {" or reply to this email."}
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "0px 32px 0px 32px",
+              fontSize: 12,
+              color: "#9ca3af",
+              textAlign: "center",
+              lineHeight: "18px",
+            }}
+          >
+            Northwind Traders · 500 Harbor Way · Seattle, WA 98101
+          </Paragraph>
+        </Column>
+      </Section>
+    </Email>
+  );
+};
+
+ReceiptEmail.PreviewProps = {
+  customerName: "Priya",
+  orderNumber: "10482",
+  orderDate: "Oct 4, 2026",
+  paymentMethod: "Visa ending in 4242",
+  items: [
+    {
+      name: "Merino Wool Beanie",
+      description: "Charcoal / One size",
+      quantity: 1,
+      unitPrice: 34,
+      imageUrl: "https://picsum.photos/seed/beanie/128/128",
+    },
+    {
+      name: "Trail Running Socks (3-pack)",
+      description: "Assorted / Medium",
+      quantity: 2,
+      unitPrice: 24.5,
+      imageUrl: "https://picsum.photos/seed/socks/128/128",
+    },
+    {
+      name: "Insulated Water Bottle",
+      description: "24 oz / Forest green",
+      quantity: 1,
+      unitPrice: 29.99,
+      imageUrl: "https://picsum.photos/seed/bottle/128/128",
+    },
+  ],
+  shipping: 0,
+  taxRate: 0.0875,
+  currency: "USD",
+  orderUrl: "https://northwind.example.com/orders/10482",
+} as ReceiptEmailProps;
+
+export default ReceiptEmail;
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
+}

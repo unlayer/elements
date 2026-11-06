@@ -1,10 +1,10 @@
 /**
- * The server renderer Elements renders with: react-dom/server, as in 0.1.22, loaded the same way and doing nothing
- * when it loads.
+ * The server renderer Elements renders with: react-dom/server, loaded as an app loads it and doing nothing when it
+ * loads.
  *
  * react-dom keeps a render's hook state in its module, so a render started inside another one with the same module
  * breaks the hooks the outer component calls after it (a page rendered with `renderToString` that computes
- * `useMemo(() => renderToJson(<T />))` and then calls `useState`). Apps mostly render with react-dom's streaming
+ * `useMemo(() => toDesign(<T />))` and then calls `useState`). Apps mostly render with react-dom's streaming
  * renderers, another module than the one renderToString is in, so it's rare; where it happens, Elements renders
  * with a second module of react-dom's (React 19's Bun build, the browser one, or Node's when react-dom/server is the
  * browser one), loaded then, only where a synchronous `require` can load it with the same React (Node, Jest, a
@@ -110,24 +110,20 @@ const buildOf = (outer: unknown): Build | undefined => (outer === null ? undefin
 
 /**
  * Runs one Elements render with a build that isn't rendering; every render it makes uses that one. Called from the
- * user's code in a render with a build it has (the app's renderToString, or a component an Elements render collects),
- * it takes another one, which mustn't be rendering either (a third level: it can't). Otherwise (no render under way,
- * the app's streaming render or a client one, or one of Elements' own renders, whose components call no hooks after)
- * it keeps the one it's in.
+ * user's code in a render with a build it has (the app's renderToString, or a component a collecting render on the
+ * stack in collect.ts renders), it takes another one, which mustn't be rendering either (a third level: it can't).
+ * Otherwise (no render under way, the app's streaming render or a client one) it keeps the one it's in.
  */
-export function withBuild<T>(render: () => T, own = false): T {
-  const outer = own ? null : dispatcher();
+export function withBuild<T>(render: () => T): T {
+  const outer = dispatcher();
   let build = current();
-  // Elements' own component (Body, rendered by the app's react-dom/server), which calls no hooks after: the module
-  // it's in, as in 0.1.22 (a browser bundle has no other).
-  const theirs = !own && (using.length === 0 || collecting() !== undefined) ? buildOf(outer) : undefined;
+  const theirs = using.length === 0 || collecting() !== undefined ? buildOf(outer) : undefined;
   const busy: Build[] = [];
   if (theirs) {
     const free = (b: Build) => !same(b, theirs) && !using.some((u) => same(u, b));
     const other = free(defaultBuild) ? defaultBuild : secondBuild(outer);
     // Where none renders with this React (a bundle, Next.js's own react-dom, a test runner's module registry): the
-    // module it's in, as 0.1.22 rendered there. The component calling it then can't call a hook after the call
-    // (React throws, as it did with 0.1.22's renderToHtml).
+    // module it's in. The component calling it then can't call a hook after the call (React throws).
     if (other && free(other)) {
       busy.push(theirs);
       build = other;
@@ -160,5 +156,4 @@ function current(): Build {
   return using[using.length - 1] ?? defaultBuild;
 }
 
-export const renderToStaticMarkup: Build["renderToStaticMarkup"] = (element, options) => current().renderToStaticMarkup(element, options);
 export const renderToString: Build["renderToString"] = (element, options) => current().renderToString(element, options);

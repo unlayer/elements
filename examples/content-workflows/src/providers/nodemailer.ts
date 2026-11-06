@@ -13,9 +13,9 @@ const transport = nodemailer.createTransport({
   auth: { user: requireEnv("SMTP_USER"), pass: requireEnv("SMTP_PASSWORD") },
 });
 try {
-  const result = await transport.sendMail(deliveryMessage());
+  const result = await transport.sendMail(await deliveryMessage());
   if (result.rejected.length) throw new Error("SMTP rejected the recipient");
-  console.log("SMTP accepted:", result.messageId);
+  console.info("SMTP accepted:", result.messageId);
 } finally {
   transport.close();
 }

@@ -1,0 +1,189 @@
+/** @jsxRuntime automatic */
+// Converted from a React Email template by @unlayer/migrate (runtime mode).
+import {
+  Button,
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Link,
+  Paragraph,
+  Section,
+} from "@unlayer/react-elements";
+
+export default function Template() {
+  return (
+    <Email
+      width={560}
+      previewText={"Welcome to {{productName}}, {{firstName}}! Let's get you set up."}
+      style={{
+        backgroundColor: "#f3f4f6",
+        color: "#000000",
+        fontFamily:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
+    >
+      <Section style={{ padding: [40, 0, 0, 0] }}>
+        <Column
+          style={{
+            padding: "40px 32px 0px 32px",
+            backgroundColor: "#ffffff",
+            borderRadius: [8, 8, 0, 0],
+          }}
+        >
+          <Column style={{ padding: "0px 0px 0px 0px", alignItems: "center" }}>
+            <Image
+              src={{
+                src: "https://placehold.co/120x40/4f46e5/ffffff?text=Acme",
+                width: 120,
+                height: 40,
+              }}
+              alt={"{{productName}}"}
+              style={{ width: "24.19%", maxWidth: 135.46 }}
+              mobile={{ width: 120 }}
+            />
+          </Column>
+        </Column>
+      </Section>
+      <Section>
+        <Column style={{ padding: "30px 32px 0px 32px", backgroundColor: "#ffffff" }}>
+          <Heading
+            style={{
+              padding: "0px 0px 30px 0px",
+              fontSize: 24,
+              fontWeight: 600,
+              color: "#101828",
+              textAlign: "center",
+              lineHeight: "normal",
+            }}
+          >
+            {"Welcome to {{productName}}"}
+          </Heading>
+          <Paragraph
+            style={{
+              padding: "0px 0px 16px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "24px",
+            }}
+          >
+            {"Hi {{firstName}},"}
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "24px",
+            }}
+          >
+            Thanks for signing up! Your workspace is ready and you can start building right away.
+            Here are three quick things to try on your first day:
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "16px 0px 0px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "28px",
+            }}
+          >
+            1. Create your first project
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "28px",
+            }}
+          >
+            2. Invite your teammates
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "28px",
+            }}
+          >
+            3. Connect your favorite integrations
+          </Paragraph>
+          <Column style={{ padding: "28px 0px 0px 0px", alignItems: "center" }}>
+            <Button
+              href={{ href: "{{dashboardUrl}}", target: "_blank" }}
+              style={{
+                backgroundColor: "#4f39f6",
+                color: "#ffffff",
+                fontSize: 15,
+                fontWeight: 600,
+                lineHeight: "120%",
+                padding: "12px 24px 12px 24px",
+                borderRadius: 6,
+              }}
+            >
+              Go to your dashboard
+            </Button>
+          </Column>
+        </Column>
+      </Section>
+      <Section style={{ padding: [0, 0, 40, 0] }}>
+        <Column
+          style={{
+            padding: "28px 32px 48px 32px",
+            backgroundColor: "#ffffff",
+            borderRadius: [0, 0, 8, 8],
+          }}
+        >
+          <Paragraph
+            style={{
+              padding: "0px 0px 16px 0px",
+              fontSize: 15,
+              color: "#364153",
+              lineHeight: "24px",
+            }}
+          >
+            {"Want to dig deeper? Our "}
+            <Link
+              href={{ href: "{{docsUrl}}", target: "_blank" }}
+              style={{ color: "rgb(79,57,246)", textDecoration: "underline" }}
+            >
+              documentation
+            </Link>
+            {" covers everything from quickstarts to advanced guides."}
+          </Paragraph>
+          <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "10px 0px 26px 0px" }} />
+          <Paragraph
+            style={{
+              padding: "0px 0px 16px 0px",
+              fontSize: 12,
+              color: "#6a7282",
+              lineHeight: "20px",
+            }}
+          >
+            {"Questions? Just reply to this email or write to "}
+            <Link
+              href={{ href: "mailto:{{supportEmail}}", target: "_blank" }}
+              style={{ color: "rgb(106,114,130)", textDecoration: "underline" }}
+            >
+              {"{{supportEmail}}"}
+            </Link>
+            . We're always happy to help.
+          </Paragraph>
+          <Paragraph
+            style={{
+              padding: "0px 0px 0px 0px",
+              fontSize: 12,
+              color: "#99a1af",
+              lineHeight: "20px",
+            }}
+          >
+            Acme, Inc. · 123 Market Street · San Francisco, CA 94105
+          </Paragraph>
+        </Column>
+      </Section>
+    </Email>
+  );
+}

@@ -2,7 +2,7 @@ import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { deliveryMessage, requireEnv } from "../message";
 
 const client = new SESv2Client({ region: requireEnv("AWS_REGION") });
-const { from, to, subject, html, text } = deliveryMessage();
+const { from, to, subject, html, text } = await deliveryMessage();
 try {
   const result = await client.send(new SendEmailCommand({
     FromEmailAddress: from,
@@ -17,7 +17,7 @@ try {
       },
     },
   }));
-  console.log("SES accepted:", result.MessageId);
+  console.info("SES accepted:", result.MessageId);
 } finally {
   client.destroy();
 }

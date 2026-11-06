@@ -1,5 +1,5 @@
+import { render } from "@unlayer/react-elements";
 import WelcomeEmail from "@/emails/welcome-email";
-import { renderEmailToHtml, renderEmailToPlainText } from "@/utils/render-server";
 import PreviewDashboard from "./PreviewDashboard";
 
 export const metadata = { title: "Email preview" };
@@ -10,12 +10,9 @@ const recipient = {
   dashboardUrl: "https://example.com/dashboard",
 };
 
-export default function EmailPreviewPage() {
-  const email = <WelcomeEmail {...recipient} />;
-
-  // Render on the server using type-bridged helpers
-  const html = renderEmailToHtml(email, { title: `Welcome, ${recipient.name}` });
-  const text = renderEmailToPlainText(email);
+export default async function EmailPreviewPage() {
+  // Rendered on the server: only the strings reach the browser
+  const { html, text } = await render(<WelcomeEmail {...recipient} />);
 
   return (
     <PreviewDashboard

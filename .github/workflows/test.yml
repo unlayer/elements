@@ -6,11 +6,18 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# A new push to a pull request cancels the run still going on its older head.
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Four jobs run side by side, each installing and building the packages, so a run takes as long as its
+# slowest job (the codemod's tests, about four minutes) rather than all of them in a row.
 jobs:
   test:
     name: Run Tests & Coverage
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,47 +54,77 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      # ── DX type contract ────────────────────────────────────────
-      # tsc gate over the agent-friendly prop types (src/dx-types.test-d.tsx).
-      # The build only type-checks the index import graph, so this catches a
-      # relaxed input type being reverted (e.g. the Column `border` regression).
+      # ── Type contract ───────────────────────────────────────────
+      # tsc gate over the components' prop types, render()'s and component()'s
+      # (src/primitives/types.test-d.tsx and the other files in
+      # tsconfig.typecheck.json, which include /pdf and /image and their tests)
+      # and the core's sources. The build only type-checks each entry's import
+      # graph, so this catches a relaxed or broken input type.
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck
+        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck
 
+      # The CLI, the converters (src/react-email, src/convert), their tests and the benchmark.
       - name: Converter typechecks
-        run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
+        run: pnpm --filter @unlayer/migrate typecheck
 
-      # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 118KB.
-      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
-      # the render that collects a template's rows and blocks (one React render,
-      # so hooks, context, Fragments and the user's components work as React
-      # renders them; a component that throws, suspends or is async left out
-      # with a message naming it; markup and blocks rendered to strings inside
-      # the user's components kept), phone device-override CSS, visibility
-      # settings, escaping of the values users give (Heading/Button text,
-      # link URLs, menu text, social links, ids, fonts, the text direction), and
-      # rendering where a bundler gives Elements another copy of React than
-      # react-dom's (Next.js's server layers), and loading a second module of
-      # react-dom's when Elements is called inside a renderToString it renders with,
-      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
-      # The budget tracks the unminified ESM output as a proxy for code volume;
-      # it still flags accidental dependency bundling (any real dep is 10KB+).
-      - name: Check bundle size
+      # ── Bundle size budgets ─────────────────────────────────────
+      # Each entry's ESM bundle against its budget. The budgets track the
+      # unminified ESM output as a proxy for code volume; they still flag
+      # accidental dependency bundling (any real dep is 10KB+).
+
+      # The main entry (the components, dist/primitives.js): about 243KB
+      # unminified ESM. Its core (the components' definitions, validation, layout,
+      # about 115KB), its writers (email, page, print HTML and plain text, about
+      # 97KB), its JSX API (about 17KB) and the render that collects a template
+      # (about 5KB). Raise it on purpose, with what grew.
+      - name: Check main entry bundle size
         run: |
-          BUNDLE="packages/react/dist/index.js"
+          BUNDLE="packages/react/dist/primitives.js"
+          # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
+          test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=118000
-          echo "Bundle: $BUNDLE"
+          MAX_SIZE=244500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
-            echo "::error::Bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
-          echo "✅ Bundle size within budget"
+          echo "✅ Main entry bundle within budget"
 
+      # The builder adapter's entry (/builder: toDesign and fromDesign) has its
+      # own budget: about 397KB unminified ESM. The adapter itself (about 159KB: the
+      # hidden properties' manifest, writing designs over each tool's defaults,
+      # reading designs, their values, runs and rich text, the JSX printer); the core
+      # and writers it lays out and writes locked markup with (about 210KB); the main
+      # entry's JSX API it reads templates with (about 11KB) and the render that
+      # collects them (about 5KB). It imports only its own files, the main entry's
+      # and React (src/builder/imports.test.ts). Raise it on purpose, with what
+      # grew.
+      - name: Check /builder bundle size
+        run: |
+          BUNDLE="packages/react/dist/builder.js"
+          test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
+          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
+          MAX_SIZE=410000
+          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            exit 1
+          fi
+          echo "✅ /builder bundle within budget"
+
+      # The closed @unlayer/exporters isn't a dependency: no package's bundle imports it (a message naming it doesn't count).
+      - name: No bundle imports @unlayer/exporters
+        run: |
+          if grep -lE "(from |import ?\(?|require\()[\"']@unlayer/exporters" packages/*/dist/*.js packages/*/dist/*.cjs; then
+            echo "::error::a bundle imports @unlayer/exporters"
+            exit 1
+          fi
+
+      # Every package's unit tests but migrate's (the codemod's and the converters', their own job) and react's, which
+      # run once, with coverage.
       - name: Run tests
-        run: pnpm test
+        run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
 
       - name: Run test coverage
         run: pnpm test:coverage
@@ -95,16 +132,170 @@ jobs:
       # ── CSP safety gate ─────────────────────────────────────────
       # Imports + renders the built bundle under V8's
       # --disallow-code-generation-from-strings (a CSP without 'unsafe-eval').
-      # HARD gate: fails if this package OR its pinned @unlayer/exporters
-      # evaluates a string at import/render. Stays red until the catalog pins a
-      # CSP-safe (precompiled-template) @unlayer/exporters release.
+      # HARD gate: fails if this package evaluates a string at import/render.
       - name: CSP safety gate
         run: pnpm --filter @unlayer/react-elements test:csp
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          verbose: true
+          
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            packages/*/coverage/
+            coverage/
+          retention-days: 30
+
+  # @unlayer/migrate's tests, the converters' included: the slowest suite (the codemod converts and checks whole
+  # templates).
+  codemod:
+    name: Codemod tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
+      - name: Codemod tests
+        run: pnpm --filter @unlayer/migrate test
+
+  storybook:
+    name: Storybook smoke and visual drift
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
 
       # ── Storybook browser smoke test ────────────────────────────
       # Opens every story in headless Chromium and asserts each component
       # paints visible content with no console / page errors. Runs against the
       # production static build (storybook build → http-server).
+      - name: Storybook smoke test
+        run: pnpm --filter @unlayer/react-elements test-storybook:ci
+
+      # ── Storybook visual-drift gate ─────────────────────────────
+      # Fingerprints the computed styles and the visible text of every story
+      # at desktop and mobile widths (reusing the static build from the smoke
+      # test) and diffs against the committed baseline. Fails naming the
+      # exact stories and properties (or lines of text) that changed —
+      # answers "did any story change?" without paging through them by hand.
+      - name: Storybook visual-drift gate
+        run: pnpm --filter @unlayer/react-elements test:visual
+
+  browser:
+    name: Browser gates and consumer apps
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build packages
+        run: pnpm build
+
       - name: Install Playwright Chromium
         run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
 
@@ -112,6 +303,11 @@ jobs:
         run: |
           pnpm --filter @unlayer/content-workflows-example typecheck
           pnpm --filter @unlayer/content-workflows-example test
+
+      # The demo app (examples/demo) type-checks and builds against the built package: `pnpm build` builds
+      # packages/ only.
+      - name: Demo app builds
+        run: pnpm --filter @unlayer/elements-demo build
 
       # ── Browser import/runtime safety gate ──────────────────────
       # Bundles the shipped package entry as a browser consumer would, then
@@ -130,6 +326,21 @@ jobs:
       - name: Browser E2E gate
         run: pnpm --filter @unlayer/react-elements test:e2e
 
+      # Elements primitives: what Chromium lays out matches the widths the resolver works out,
+      # on desktop and on phones (packages/core/test/browser).
+      - name: Primitives layout gate (web and email)
+        run: pnpm --filter @unlayer-internal/elements-core test:browser
+
+      # A Document's PDF (written by react-pdf, without a browser) laid out as its print HTML is: Chromium measures
+      # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/react/test/pdf/browser).
+      - name: PDF laid out as its print HTML
+        run: pnpm --filter @unlayer/react-elements test:browser test/pdf
+
+      # A Canvas's image (written by Satori and resvg, without a browser) drawn as Chromium draws the Canvas's HTML,
+      # with the same font file: pixel by pixel, the edges of shapes and letters aside (packages/react/test/image/browser).
+      - name: Image drawn as its Canvas's HTML
+        run: pnpm --filter @unlayer/react-elements test:browser test/image
+
       # ── Migration fidelity smoke test ───────────────────────────
       # Converts the committed fixture templates both ways (codemod and
       # runtime) and renders them next to their React Email originals in
@@ -137,29 +348,17 @@ jobs:
       # a word shown at another size on desktop, or words moved (on phones,
       # only for the fixtures that match there).
       - name: Migration fidelity smoke test
-        run: pnpm --filter @unlayer/from-react-email test:fidelity
+        run: pnpm --filter @unlayer/migrate test:fidelity
 
       # ── Migration check vs Chromium (differential) ──────────────
       # 400 fixed seeds: one side of a base (hand-written documents and the
       # fixture templates' renders) is mutated, Chromium decides whether a
       # reader sees the two differently, and the check must fail every pair
-      # it does. Committed fixtures (test/differential/) must still differ in
+      # it does. Committed fixtures (test/react-email/differential/) must still differ in
       # Chromium and fail the check. A false pass writes its pair to
       # .bench-out/differential/ and fails the job.
       - name: Migration check vs Chromium
-        run: pnpm --filter @unlayer/from-react-email test:differential
-
-      - name: Storybook smoke test
-        run: pnpm --filter @unlayer/react-elements test-storybook:ci
-
-      # ── Storybook visual-drift gate ─────────────────────────────
-      # Fingerprints the computed styles and the visible text of every story
-      # at desktop and mobile widths (reusing the static build from the smoke
-      # test) and diffs against the committed baseline. Fails naming the
-      # exact stories and properties (or lines of text) that changed —
-      # answers "did any story change?" without paging through them by hand.
-      - name: Storybook visual-drift gate
-        run: pnpm --filter @unlayer/react-elements test:visual
+        run: pnpm --filter @unlayer/migrate test:differential
 
       # ── Next.js integration test ────────────────────────────────
       # Packs the built react-elements as a tarball and installs it
@@ -209,19 +408,3 @@ jobs:
           npm install --no-save "$TARBALL"
           npm run build
           npm run verify
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-          verbose: true
-          
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-reports
-          path: |
-            packages/*/coverage/
-            coverage/
-          retention-days: 30

@@ -1,6 +1,6 @@
 # @unlayer/react-elements
 
-React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Render email-safe HTML, responsive web HTML, and print-ready HTML for PDF from the same React components. Full SSR support — works with `renderToHtml`, `renderToString`, Next.js, Remix, and any server-side framework.
+React components for transactional emails, email templates, landing pages, invoices, reports and documents. One template renders to email-safe HTML, a responsive web page, print-ready HTML, a PDF or an image, on your own server, with no network calls.
 
 ## Installation
 
@@ -10,517 +10,280 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
-## Quick Start
+## Quick start
+
+Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button } from '@unlayer/react-elements';
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
 
-function WelcomeEmail() {
+export default function Receipt() {
   return (
-    <Email backgroundColor="#f0f0f0" contentWidth="600px">
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="20px">
-        <Column>
-          <Heading
-            fontSize="24px"
-            fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
-          >
-            Hello World
-          </Heading>
-        </Column>
-        <Column>
-          <Paragraph html="Welcome to our newsletter!" fontSize="14px" />
-        </Column>
-      </Row>
-      <Row layout={ColumnLayouts.OneColumn} padding="10px">
-        <Column>
-          <Button
-            href="https://example.com"
-            backgroundColor="#0879A1"
-            color="#ffffff"
-          >
-            Click Me
-          </Button>
-        </Column>
-      </Row>
+    <Email previewText="Your Acme receipt" style={{ backgroundColor: "#f4f4f5", fontFamily: "Inter, Arial, sans-serif", gap: 16 }}>
+      <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
+      <Column style={{ backgroundColor: "#ffffff", padding: 32, gap: 16, borderRadius: 8 }}>
+        <Heading level={1} style={{ fontSize: 24 }} mobile={{ fontSize: 20 }}>
+          Thanks for your order, <MergeTag name="first_name" />
+        </Heading>
+        <Paragraph>
+          Order <Span style={{ fontWeight: 700 }}>#10482</Span> ships tomorrow. <Link href="https://example.com/orders/10482">Track it</Link>.
+        </Paragraph>
+        <Table style={{ cellPadding: [8, 0], rowBorder: "1px solid #e4e4e7" }}>
+          <TableRow header>
+            <TableCell>Item</TableCell>
+            <TableCell style={{ textAlign: "right" }}>Price</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Linen shirt</TableCell>
+            <TableCell style={{ textAlign: "right" }}>$48.00</TableCell>
+          </TableRow>
+        </Table>
+        <Row style={{ gap: 16 }}>
+          <Column>
+            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
+            <Paragraph>Ada Lovelace, London</Paragraph>
+          </Column>
+          <Column>
+            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
+            <List type="number">
+              <ListItem>We pack it</ListItem>
+              <ListItem>You track it</ListItem>
+            </List>
+          </Column>
+        </Row>
+        <Button href="https://example.com/orders/10482" style={{ backgroundColor: "#111827", borderRadius: 6 }} hover={{ backgroundColor: "#374151" }}>
+          View your order
+        </Button>
+      </Column>
+      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
     </Email>
   );
 }
 ```
 
-**Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install, and can open the result in the Unlayer builder.
+```tsx
+import { outline, render, validate } from "@unlayer/react-elements";
 
-## Using with AI agents (Claude, Cursor, etc.)
-
-Assembling these templates in code is something AI coding agents do well. The official **`unlayer-elements`** skill teaches them the strict structure, the canonical prop shapes, the image-sizing model, and the patterns that make generated emails actually look good:
-
-```bash
-npx skills add unlayer/unlayer-skills
+const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
+const { valid } = validate(<Receipt />); // the same checks, without rendering
+console.log(outline(<Receipt />)); // the laid-out template as text: each block, its width, its words
 ```
 
-This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
+To write a template, read [GUIDE.md](./GUIDE.md): how a template is written, and every component on a line. [REFERENCE.md](./REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
 
-Agents can also preview Elements code without installing anything through the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/):
+Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-elements-02).
 
-- Open `https://examples.unlayer.com/examples/elements-playground/#code=<base64url of the code>` to render a snippet. Add `&mode=email|page|document` to pick the output and `&view=preview` to hide the editor.
-- In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), the page registers `render_elements` (code to HTML, design JSON, or plain text) and `show_elements_preview` tools.
+## Using with an AI agent
 
-## Task guides and runnable examples
-
-- [Transactional email in React](https://github.com/unlayer/elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
-- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
-- [One React template to email, web, and PDF](https://github.com/unlayer/elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
-- [React invoice PDF with Playwright](https://github.com/unlayer/elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
-- [React to Unlayer visual editing](https://github.com/unlayer/elements/blob/main/packages/react/docs/visual-editing.md): `renderToJson()`, editor loading, export, and supported tree constraints.
-
-See [when to choose Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/unlayer/elements/tree/main/examples/content-workflows).
-
-## Critical Rules
-
-These props have non-obvious shapes that **must** be followed exactly:
-
-- **fontFamily**: Accepts a plain family-name string (`fontFamily="Georgia"`) or, for a full stack, `{ label, value }` (recommended).
-  ```tsx
-  fontFamily={{ label: "Arial", value: "arial, sans-serif" }}
-  ```
-- **fontWeight**: Accepts a number (`700`), a numeric string (`"700"`), or a CSS keyword (`"bold"`).
-- **fontSize / padding**: Accept a CSS string (`"28px"`, `"20px 40px"`) or a bare number (treated as px: `fontSize={28}` → `28px`).
-- **lineHeight**: Accepts a CSS string (`"1.4"`, `"140%"`) or a bare number (kept **unitless**: `lineHeight={1.4}` → `"1.4"`).
-- **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
-- **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
-- **Image sizing**: `src` is a plain URL string or `{ url, width?, height?, ... }`, where `width`/`height` are the image's **natural** size. By default an image is **responsive** — it fills its container, capped at its natural size. For a **fixed** display size, use a **percent**: `width="50%"` or `maxWidth="50%"`. A px/number `width` is treated as the natural size, so `width="300px"` shows the image at up to 300px (responsive).
-- **Heading level**: `headingType` (or its alias `level`) accepts `h1`–`h6`.
-- **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. `<Paragraph>` supports children for plain text.
-- **Paragraph text**: Use `html` prop for text content (supports inline formatting like `<b>`, `<a>`). Use children for plain text.
-- **Text shows as typed**: Heading and Button children and text placed straight in a Row or Column show markup and entities as written, as React shows text (`{"Terms &amp; Conditions"}` shows `&amp;`; in JSX text, `Terms &amp; Conditions` is already `&`). Put markup in Paragraph's `html` prop or an `<Html>` block, and template syntax with `<` or `>` in it (a Liquid `{% if count > 1 %}`) in the `text` prop. An email service's `<%name%>` tag stays as written, for it to fill in. Menu item text shows markup as typed; in an email, an entity (`&rarr;`) and a single quote stay as written, as in 0.1.22, and a double quote is escaped, also in a template tag (the text is also written in an `aria-label`): write a template's string in single quotes (`{{ name | default: 'you' }}`; in Go templates, backticks).
-- **`text` and `html` props are HTML**: Heading's and Button's `text` prop, like Paragraph's `html` and `<Html>`, is written into the email as given (as in 0.1.22). Put only markup you wrote there: a value a user typed (a name, a message) goes in as children, which show it as text.
-- **Link URLs**: `"`, `<` and `>` are percent-encoded, so a URL can't end its attribute. Fill template tags that contain them (a Liquid filter with quotes) in before rendering; a `<%name%>` tag stays as written.
-- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root) and Fragments work. One that's async, suspends or throws is left out with a console message, and the rest renders. Elements renders the template once, and may call a component once more on its own, to take the HTML it puts in a Column or to say why it failed (the whole template once more when it holds markup React rejects), so keep side effects, like creating a coupon code, out of rendering.
-- **Inside your own render**: `renderToHtml`, `renderToJson` and `renderToPlainText` can run while React renders (a preview page's `useMemo`, a client component, Next.js's server render of one). Inside react-dom/server's own `renderToString`, Elements renders with another of react-dom's modules where a synchronous `require` can load one with your React (CommonJS, Jest, an ES module on Node 20.16+ / 22.3+). Where it can't (a bundle with React in it, some test runners' module registries), it renders with the same module, as 0.1.22 did: call it in the component's body, not in `useMemo` and not before another hook (React keeps a render's hooks in that module), or render first and pass the result as a prop. In Next.js's edge runtime, react-dom can't render at all (React there is React Server Components'): render emails in the Node.js runtime. Waku's Server Components get a `react-dom/server` that can't render either (every release of Elements fails there): render emails in a Client Component.
-
-## Structure: Email/Page/Document > Row > Column > Items
+**With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
 
 ```
-<Email>          ← root wrapper for email-safe HTML (tables)
-<Page>           ← root wrapper for responsive web (div + flexbox)
-<Document>       ← root wrapper for print/PDF
+@node_modules/@unlayer/react-elements/GUIDE.md
+```
 
-  <Row>          ← layout container, use layout={ColumnLayouts.X} or cells={[1,1]}
-    <Column>     ← must match layout column count
-      <Button /> ← item components go inside columns
-      <Paragraph />
-    </Column>
-  </Row>
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
+
+Or install the same guide as an agent skill: `npx skills add unlayer/elements`.
+
+## Structure
+
+```
+<Email>            ← the root: Email, Page, Document or Canvas
+  <Section>        ← a band whose background spans the window (optional)
+    <Row>          ← its children side by side, stacked on phones
+      <Column>     ← its children stacked
+        <Heading />
+        <Paragraph />
+        <Button />
+      </Column>
+    </Row>
+  </Section>
 </Email>
 ```
 
+A root, a `Section` and a `Column` stack what they hold, so a block doesn't need a `Row` around it. There are no margins: space between blocks is their parent's `gap`, and space inside a box is its `padding`.
+
 ## Components
 
-### Root Wrappers
+### Roots
 
-| Component | Description |
+| Component | Renders to |
 |-----------|-------------|
-| `<Email>` | Root wrapper for email-safe HTML (tables for Outlook, Gmail, Yahoo). |
-| `<Page>` | Root wrapper for responsive web display (div + flexbox). |
-| `<Document>` | Root wrapper for print-optimized / PDF rendering. |
+| `<Email>` | Email-safe HTML: tables, with Outlook's markup in conditional comments |
+| `<Page>` | A responsive web page |
+| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@unlayer/react-elements/pdf` |
+| `<Canvas>` | An image of a fixed size, with `@unlayer/react-elements/image` |
 
 ### Layout
 
 | Component | Description |
 |-----------|-------------|
-| `<Row>` | Layout container. Accepts `layout={ColumnLayouts.X}` or `cells={[1, 1]}`. |
-| `<Column>` | Column inside a Row. Number of Columns must match the layout. |
+| `<Section>` | A band across the whole window, directly in an Email or Page |
+| `<Row>` | Its children side by side; stacked on phones |
+| `<Column>` | Its children stacked, with its own spacing and box; with a background, a card |
+| `<Grid>` | Its children in columns of equal width, row after row |
+| `<Layer>` | Its children over each other: an image with words on it |
 
 ### Content
 
 | Component | Description |
 |-----------|-------------|
-| `<Button>` | CTA button with hover states, links, and full styling |
-| `<Paragraph>` | Rich text with `html` (formatted) prop or children (plain text) |
-| `<Heading>` | Heading (h1-h4) with `headingType` prop |
-| `<Image>` | Responsive image with `src` / `altText` props |
-| `<Divider>` | Horizontal rule / separator |
-| `<Social>` | Social media icons with `icons` shorthand array |
-| `<Menu>` | Navigation menu with `items` shorthand array |
-| `<Table>` | Data table with `headers` / `data` shorthands |
-| `<PageBreak>` | Force subsequent document content onto a new PDF page |
-| `<Video>` | Video embed with `videoUrl` shorthand |
-| `<Html>` | Custom HTML passthrough |
+| `<Heading>` | A heading, `level` 1 to 6 |
+| `<Paragraph>`, `<Paragraph>` | A block of text |
+| `<Span>`, `<Link>`, `<LineBreak>`, `<MergeTag>` | Inside text: a styled run, a link, a new line, a value the sending service fills in |
+| `<Button>` | A link drawn as a button, with its colors on hover |
+| `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
+| `<Divider>` | A horizontal line |
+| `<List>`, `<ListItem>` | A bulleted or numbered list |
+| `<Table>`, `<TableRow>`, `<TableCell>` | A table of data |
+| `<Video>` | A YouTube or Vimeo video: its player on a page, its linked thumbnail in an email |
+| `<Social>` | A line of social network icons, each a link |
+| `<Menu>` | A line or column of links |
+| `<Svg>` and its shapes | Shapes drawn in a box of their own |
+| `<Html>` | Markup written as it is, for what no component says |
+| `<PageBreak>`, `<PageHeader>`, `<PageFooter>`, `<PageNumber>` | In a Document: where a page ends, what's on every page, and page numbers |
 
-## Component Reference
+## Columns
 
-### Email
-Root wrapper for email-safe HTML. Same props as Body (without `mode`).
-- `backgroundColor?: string` — `"#F7F8F9"`
-- `contentWidth?: string` — `"500px"`
-- `contentAlign?: string` — `"center"`
-- `fontFamily?: { label: string, value: string }` — `{ label: "Arial", value: "arial,helvetica,sans-serif" }`
-- `textColor?: string` — `"#000000"`
-- `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }`
-- `previewText?: string` — plain text shown in email client inboxes, escaped for HTML. Pass `"Fish & chips"`, not `"Fish &amp; chips"`; entities supplied in the string display literally.
-- `textDirection?: string` — document direction (`"ltr"` or `"rtl"`), kept in design JSON. When opening the design in the editor, also set its direction with `unlayer.setTextDirection(...)`.
-- `lang?: string` — document language, such as `"ar"`; emitted on `<html>` by `renderToHtml`. Language is document metadata and is not stored in design JSON. Renderer options override both props.
-
-### Page
-Root wrapper for responsive web display. Same props as Email.
-
-### Document
-Root wrapper for print/PDF rendering. It accepts the shared Body props plus:
-- `documentSize?: "A3" | "A4" | "A5" | "Legal" | "Letter" | "Tabloid"` — `"A4"`
-- `documentOrientation?: "portrait" | "landscape"` — `"portrait"`
-
-### Row
-Layout container. Must be child of Email/Page/Document/Body.
-- `layout?: ColumnLayout` — use `ColumnLayouts.X`
-- `cells?: number[]` — alternative to layout
-- `backgroundColor?: string`
-- `padding?: string` — `"0px"`
-- `noStackMobile?: boolean` — `false`
-
-### Column
-Must be child of Row. Count must match layout.
-- `padding?: string` — `"10px"`
-- `backgroundColor?: string`
-- `borderRadius?: string`
-
-### Button
-- `text?: string` — `"Button"` (or use children)
-- `href?: string | Href` — plain string auto-wrapped
-- `backgroundColor?: string` — `"#0879A1"`
-- `color?: string` — `"#FFFFFF"`
-- `hoverBackgroundColor?: string`
-- `hoverColor?: string`
-- `fontSize?: string` — `"14px"`
-- `fontWeight?: number` — `400`
-- `fontFamily?: { label: string, value: string }`
-- `padding?: string` — `"10px 20px"`
-- `borderRadius?: string` — `"4px"`
-- `width?: number | string` — display width; `width="100%"` makes the button full-width, `width="200px"` pins it
-- `textAlign?: "left" | "center" | "right"` — `"center"`
-
-### Paragraph
-- `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
-- `children` — plain text shorthand (auto-converted internally)
-- `fontSize?: string` — `"14px"`
-- `color?: string` — `"#000000"`
-- `textAlign?: "left" | "center" | "right"` — `"left"`
-- `lineHeight?: string` — `"140%"`
-- `fontFamily?: { label: string, value: string }`
-
-Use `html` for formatted text, children for plain text.
+A `Column` in a `Row` takes its `width`, or a share of what's left.
 
 ```tsx
-<Paragraph html="Hello <b>bold</b> and <a href='#'>link</a>" fontSize="14px" />
-<Paragraph fontSize="14px">Plain text paragraph</Paragraph>
+import { Column, Grid, Row } from "@unlayer/react-elements";
+
+// Equal shares.
+<Row style={{ gap: 16 }}>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+
+// A set width, and what's left.
+<Row style={{ gap: 16 }}>
+  <Column style={{ width: 180 }}>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+
+// Shares of two to one.
+<Row style={{ gap: 16 }}>
+  <Column style={{ flex: 2 }}>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+
+// Side by side on phones too.
+<Row stackOnMobile={false}>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+
+// Rows of three, one under another on phones.
+<Grid columns={3} style={{ gap: 16 }}>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Grid>
 ```
 
-### Heading
-- `text?: string` — `"Heading"` (or use children)
-- `headingType?: "h1" | "h2" | "h3" | "h4"` — `"h1"`
-- `fontSize?: string` — `"22px"`
-- `fontWeight?: number` — `400`
-- `fontFamily?: { label: string, value: string }`
-- `color?: string` — `"#000000"`
-- `textAlign?: "left" | "center" | "right"` — `"left"`
-- `lineHeight?: string` — `"110%"`
-
-### Divider
-- `borderTopWidth?: string` — `"1px"`
-- `borderTopColor?: string` — `"#BBBBBB"`
-- `borderTopStyle?: string` — `"solid"`
-- `textAlign?: "left" | "center" | "right"` — `"center"`
-
-### Image
-- `src?: string | { url, width?, autoWidth?, maxWidth? }` — string URLs auto-wrapped
-- `altText?: string` — alt text for accessibility
-- `textAlign?: "left" | "center" | "right"` — `"center"`
-- `action?: { name: "web", values: { href, target } }`
-
-### Video
-- `videoUrl?: string` — YouTube/Vimeo URL, auto-parsed
-- `video?: { type: "youtube" | "vimeo", videoId, thumbnail }` — manual control
-
-### Html
-- `html?: string` — `"<p>Custom HTML content</p>"`
-
-### Table
-- `headers?: string[]` — shorthand for column headers
-- `data?: string[][]` — shorthand for row data
-- `columns?: number` — `3`
-- `rows?: number` — `3`
-- `enableHeader?: boolean` — `true`
-- `repeatHeaderOnEachPage?: boolean` — `true`
-- `enableFooter?: boolean` — `false`
-- `repeatFooterOnEachPage?: boolean` — `true`
-
-### PageBreak
-Forces the next block onto a new page in document output. It is inert in email and web output.
+## Rendering
 
 ```tsx
-<Document>
-  <Row>
-    <Column>
-      <Paragraph>Page one</Paragraph>
-      <PageBreak />
-      <Paragraph>Page two</Paragraph>
-    </Column>
-  </Row>
-</Document>
+const { html, text, head, body, bodyStyle, diagnostics } = await render(<Receipt />);
 ```
 
-### Social
-- `icons?: { name: string, url: string }[]` — shorthand
-- `iconType?: "circle" | "rounded" | "squared"` — `"circle"`
-- `iconSize?: number` — `32`
-- `spacing?: number` — `10`
-- `align?: "left" | "center" | "right"` — `"center"`
+- `html` is the whole document, from `<!DOCTYPE html>`, with no React hydration markers and no client-side JavaScript.
+- `text` is the plain-text version.
+- `head`, `body` and `bodyStyle` are for embedding the output in a page of your own.
+- `diagnostics` holds warnings and notes. A template with errors throws an `ElementsError`, whose `diagnostics` give each problem's `code`, `message` and `path`.
 
-### Menu
-- `items?: { text: string, href: string, target?: string }[]` — shorthand
-- `layout?: "horizontal" | "vertical"` — `"horizontal"`
-- `separator?: string` — `"|"`
-- `align?: "left" | "center" | "right"` — `"center"`
+The options are `pretty` (the HTML indented, for reading it), `mergeTag` (how a merge tag is written, by default `{{name}}`) and `classPrefix` (what every class name starts with, for HTML embedded where other CSS is).
 
-## Column Layouts
+`validate()` runs the same checks without rendering, and `outline()` prints the laid-out template, to check the layout without reading the HTML.
 
-Pre-built layouts for common column configurations:
+## One template, every output
+
+Share the content, and give each output its root:
 
 ```tsx
-import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
+import { Button, Column, Document, Email, Heading, Page, Paragraph, render } from "@unlayer/react-elements";
 
-// Each Row must contain the matching number of <Column> children.
-<Row layout={ColumnLayouts.OneColumn}>                {/* [1]       → 100% */}
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.TwoEqual}>                 {/* [1,1]     → 50% + 50% */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.TwoWideNarrow}>            {/* [2,1]     → 67% + 33% */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.TwoNarrowWide}>            {/* [1,2]     → 33% + 67% */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.ThreeEqual}>               {/* [1,1,1]   → 33% each */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.ThreeNarrowWideNarrow}>    {/* [1,2,1]   → 25% + 50% + 25% */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.FourEqual}>                {/* [1,1,1,1] → 25% each */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row layout={ColumnLayouts.FiveEqual}>                {/* [1,1,1,1,1] → 20% each */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-<Row cells={[3, 1]}>                                  {/* Custom ratio */}
-  <Column>{/* content */}</Column>
-  <Column>{/* content */}</Column>
-</Row>
-```
-
-Number of `<Column>` children must match the layout.
-
-## Rendering Modes
-
-Use the semantic wrapper component that matches your target:
-
-```tsx
-<Email>...</Email>       // Email-client safe (tables for Outlook, Gmail, Yahoo)
-<Page>...</Page>         // Responsive web (div + flexbox)
-<Document>...</Document> // Print/PDF optimized
-```
-
-Each wrapper threads the correct mode to all children automatically.
-
-## renderToHtml
-
-Render any element tree to a complete, ready-to-use HTML document — from `<!DOCTYPE ...>` to `</html>` — with no React hydration markers. Perfect for email sending and PDF generation:
-
-```tsx
-import { renderToHtml, Email, Row, Column, ColumnLayouts, Paragraph, Button } from '@unlayer/react-elements';
-
-const html = renderToHtml(
-  <Email backgroundColor="#f4f4f4">
-    <Row layout={ColumnLayouts.OneColumn}>
-      <Column>
-        <Paragraph html="Hello World" fontSize="14px" />
-        <Button
-          backgroundColor="#3b82f6"
-          color="#ffffff"
-        >
-          Click me
-        </Button>
-      </Column>
-    </Row>
-  </Email>,
-  { title: "Welcome" }
-);
-```
-
-The document shell matches the mode: `<Email>` gets the XHTML transitional doctype plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly XHTML shell. Options accept config overrides plus:
-
-- `title` — document `<title>`
-- `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
-
-If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining. This mirrors the editor's [chunk parameters](https://docs.unlayer.com/builder/latest/export-html#chunk-parameters) with two deliberate differences: `tags` is extra (components can contribute head tags, and reassembling from `css` + `js` alone would drop them), and there is no `fonts` chunk (Elements has no font registry — pass font stylesheet URLs via `renderToHtml`'s `fonts` option instead).
-
-```tsx
-const { head, body, css, js, tags } = renderToHtmlParts(<Email>...</Email>);
-// head = css/js/tags pre-assembled; css = raw stylesheet (no <style> wrapper)
-```
-
-## Custom Tools
-
-**A custom tool is the custom component you create.** We keep the editor's term — Custom Tools — because it's the same API across the Builder and Elements, and that shared vocabulary is where the power is: the same definition you pass to the editor's [`unlayer.registerTool`](https://docs.unlayer.com/builder/tools/custom) renders from code too. Elements uses the `renderer.exporters` and `renderer.head` halves of the definition; the editor-only parts (`label`, `icon`, `options`, `Viewer`, `validator`) are accepted and ignored:
-
-```tsx
-import { registerTool, Email, Row, Column, renderToHtml, renderToJson } from '@unlayer/react-elements';
-import { countdownTool } from './countdown-tool'; // the same object you register in the editor
-
-const Countdown = registerTool(countdownTool); // same term, same config as the editor
-
-const tree = (
-  <Email>
-    <Row><Column>
-      <Countdown endTime="2026-08-01T00:00:00Z" digitColor="#e11d48" />
-    </Column></Row>
-  </Email>
+const Invoice = () => (
+  <Column style={{ gap: 12 }}>
+    <Heading level={1} style={{ fontSize: 24 }}>Invoice 2705</Heading>
+    <Paragraph>Thank you for your order.</Paragraph>
+    <Button href="https://example.com/invoices/2705" style={{ backgroundColor: "#111827" }}>View it online</Button>
+  </Column>
 );
 
-renderToHtml(tree);  // renders via YOUR exporters — identical output to editor exports
-renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — opens in the Builder as the real tool
+const email = await render(<Email><Invoice /></Email>);
+const page = await render(<Page><Invoice /></Page>);
+const printed = await render(<Document size="A4" margin={48}><Invoice /></Document>);
 ```
 
-- Props are the tool's `values` (flat), merged over the definition's defaults; `values={{...}}` works as an escape hatch.
-- Modes fall back like the editor: `document` uses the `web` exporter; an email-only tool renders via its `email` exporter everywhere.
-- **Sanitization:** when your config provides `toSafeHtml`, the tool's HTML output is passed through it (matching editor exports). The default config has no sanitizer — configure one if tool values can contain untrusted content.
+`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
 
-## UnlayerProvider
+## Phones and hover
 
-Configure global settings like CDN base URL, merge tags, text direction, and rendering mode:
+`mobile` holds a component's styles on phones, `hidden` shows it on one size only, and `hover` holds its styles under the pointer. Each component's list is in [GUIDE.md](./GUIDE.md).
 
 ```tsx
-import { UnlayerProvider, Email, Row, Column, Social, Menu } from '@unlayer/react-elements';
-
-function App() {
-  return (
-    <UnlayerProvider config={{
-      cdnBaseUrl: "https://my-cdn.example.com",
-      mergeTagState: { firstName: "Jane", company: "Acme" },
-      textDirection: "ltr"
-    }}>
-      <Email>
-        <Row layout={ColumnLayouts.OneColumn}>
-          <Column>
-            <Social icons={[{ name: "Facebook", url: "https://facebook.com/acme" }]} />
-            <Menu items={[{ text: "Home", href: "/" }, { text: "About", href: "/about" }]} />
-          </Column>
-        </Row>
-      </Email>
-    </UnlayerProvider>
-  );
-}
+<Heading style={{ fontSize: 32 }} mobile={{ fontSize: 24, textAlign: "center" }}>Welcome</Heading>
+<Paragraph hidden={{ mobile: true }}>Desktop detail</Paragraph>
+<Paragraph hidden={{ desktop: true }}>Phone detail</Paragraph>
+<Button href="https://example.com" style={{ backgroundColor: "#111827" }} hover={{ backgroundColor: "#374151" }}>Buy</Button>
 ```
 
-**Important:** The root wrapper (`Email`/`Page`/`Document`) bridges the provider context to child components. Components inside `UnlayerProvider` but without a root wrapper won't receive the config.
+## Common design patterns
 
-## Types
-
-All types are exported and sourced from `@unlayer/types`:
+### Header with a logo
 
 ```tsx
-import type {
-  ButtonValues, SocialValues, TableValues,
-  Href, Icons, TextAlign, LinkStyle,
-  SocialIcon, MenuItem,
-  ButtonProps, MenuProps, ImageProps,
-} from '@unlayer/react-elements';
+<Section style={{ backgroundColor: "#ffffff", padding: [24, 40] }}>
+  <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Logo" style={{ width: 120 }} />
+</Section>
 ```
 
-## Common Font Stacks
-
-fontFamily must always be an object. Here are ready-to-use stacks:
+### Accent bar
 
 ```tsx
-const sansFont = { label: "Sans Serif", value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif" };
-const serifFont = { label: "Georgia", value: "Georgia, 'Times New Roman', Times, serif" };
-const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto Mono', monospace" };
+<Divider style={{ borderTop: "3px solid #4f46e5" }} />
 ```
 
-## Common Design Patterns
-
-### Header with Logo
+### Feature grid
 
 ```tsx
-<Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px">
-  <Column>
-    <Image src="https://example.com/logo.png" altText="Logo" textAlign="left" />
+<Grid columns={2} style={{ backgroundColor: "#ffffff", padding: [24, 40], gap: 24 }}>
+  <Column style={{ gap: 4 }}>
+    <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Feature 1</Heading>
+    <Paragraph style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Paragraph>
   </Column>
+  <Column style={{ gap: 4 }}>
+    <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Feature 2</Heading>
+    <Paragraph style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Paragraph>
+  </Column>
+</Grid>
+```
+
+### Metric cards
+
+```tsx
+<Row style={{ gap: 16 }}>
+  <Column style={{ backgroundColor: "#ffffff", padding: 16, borderRadius: 8, textAlign: "center" }}>
+    <Heading level={2} style={{ fontSize: 28, fontWeight: 700, color: "#0f172a" }}>1.2M</Heading>
+    <Paragraph style={{ fontSize: 12, color: "#94a3b8" }}>API calls</Paragraph>
+  </Column>
+  {/* One Column for each metric */}
 </Row>
 ```
 
-### Accent Bar
+### Product card
 
 ```tsx
-<Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0px">
-  <Column>
-    <Divider borderTopWidth="3px" borderTopColor="#4f46e5" borderTopStyle="solid" />
+<Row style={{ backgroundColor: "#ffffff", padding: [20, 40], gap: 16 }}>
+  <Column style={{ width: 160 }}>
+    <Image src={{ src: "https://example.com/product.jpg", width: 320, height: 320 }} alt="Product" style={{ width: "100%" }} />
   </Column>
-</Row>
-```
-
-### Feature Grid (2×2)
-
-```tsx
-<Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px">
-  <Column>
-    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Feature 1</Heading>
-    <Paragraph html="Description of the feature." fontSize="13px" color="#71717a" />
-  </Column>
-  <Column>
-    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Feature 2</Heading>
-    <Paragraph html="Description of the feature." fontSize="13px" color="#71717a" />
-  </Column>
-</Row>
-```
-
-### Metric Cards (3-column)
-
-```tsx
-<Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px">
-  <Column>
-    <Heading headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center">1.2M</Heading>
-    <Paragraph html="API Calls" fontSize="12px" color="#94a3b8" textAlign="center" />
-  </Column>
-  {/* Repeat for each metric */}
-</Row>
-```
-
-### Product Card (image + details)
-
-```tsx
-<Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="20px 40px">
-  <Column>
-    <Image src="https://example.com/product.jpg" altText="Product" />
-  </Column>
-  <Column>
-    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Product Name</Heading>
-    <Paragraph html="Matte White · Medium" fontSize="13px" color="#a1a1aa" />
-    <Heading headingType="h3" fontSize="16px" fontWeight={700} color="#1a1a1a">$89.00</Heading>
+  <Column style={{ gap: 4 }}>
+    <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Product name</Heading>
+    <Paragraph style={{ fontSize: 13, color: "#a1a1aa" }}>Matte white, medium</Paragraph>
+    <Paragraph style={{ fontSize: 16, fontWeight: 700 }}>$89.00</Paragraph>
   </Column>
 </Row>
 ```
@@ -528,38 +291,73 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 ### Footer
 
 ```tsx
-<Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
-  <Column>
-    <Paragraph html="Company Name · City, State" fontSize="12px" color="#a1a1aa" textAlign="center" />
-  </Column>
-</Row>
+<Section style={{ padding: [20, 40, 40, 40] }}>
+  <Paragraph style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center" }}>Company name, City, State</Paragraph>
+</Section>
 ```
 
-## Common Mistakes
+## Your own components
 
-1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children
-2. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
-3. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
-4. **JSX formatting in children** — `<Heading>Hi <b>x</b></Heading>` is flattened to plain text (the formatting is **not** preserved). For inline formatting use `<Paragraph html="Hi <b>x</b>" />`.
-
-> Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
-
-## Phone settings
-
-Rows, columns and content items accept `mobile` settings with the same flat CSS inputs as desktop props. For example:
+A function that returns components is a component of your own, as in [One template, every output](#one-template-every-output). For a named block with typed props and its own editors, use `component()`:
 
 ```tsx
-<Column padding="24px 40px" mobile={{ padding: "16px 20px" }}>
-  <Heading fontSize={32} mobile={{ fontSize: 24, lineHeight: "120%", textAlign: "center" }}>Welcome</Heading>
-  <Image src={{ url: "https://example.com/photo.png", width: 800 }} width="50%" mobile={{ autoWidth: true }} />
-  <Paragraph hideOnMobile>Desktop detail</Paragraph>
-  <Paragraph hideOnDesktop>Phone detail</Paragraph>
-</Column>
+import { Button, Column, Heading, Image, component, prop } from "@unlayer/react-elements";
+
+const ProductCard = component({
+  type: "acme.ProductCard",
+  label: "Product card",
+  props: {
+    name: prop.text({ label: "Name", required: true }),
+    photo: prop.image({ label: "Photo", required: true }),
+    href: prop.link({ label: "Link", required: true }),
+    accent: prop.color({ label: "Accent", default: "#0879a1" }),
+  },
+  render: ({ name, photo, href, accent }) => (
+    <Column style={{ gap: 8 }}>
+      <Image src={photo} alt={name} />
+      <Heading level={3}>{name}</Heading>
+      <Button href={href} style={{ backgroundColor: accent }}>Buy</Button>
+    </Column>
+  ),
+});
 ```
 
-Supported settings are padding, content `containerPadding`, font size, line height, text alignment and image/button width (`width`, `maxWidth`, `autoWidth`), where the component supports them. Numeric padding and font sizes use pixels; numeric line height is a multiplier. Phone CSS applies at 480px and below, matching the editor. `noStackMobile` still controls column stacking separately.
+For markup no component says, `<Html html="…" />` writes it as it is, in an email and on a page, with nothing in it checked or escaped. Put only markup you wrote there.
 
-`hideOnMobile` and `hideOnDesktop` work on rows and content, as in the editor; a column can't be hidden on its own (hide its content or its row). `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs keep them when opened in the visual editor. Image `autoWidth` follows the editor's natural-size cap. Document output keeps its desktop settings.
+## To the Unlayer builder and back
+
+`@unlayer/react-elements/builder`: `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
+
+```tsx
+import { fromDesign, toDesign } from "@unlayer/react-elements/builder";
+
+const { design, report } = toDesign(<Receipt />); // report: what the builder can't hold as it is, one line each
+// …the design is edited in the builder, and saved…
+const { element, code, report: read } = fromDesign(saved, { displayMode: "email" }); // "web" a Page, "document" a Document
+```
+
+The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`. A line height goes in the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px is `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet: a `PageNumber` goes as its token, which the editor's PDF prints as it is, and `report` says so.
+
+## Task guides and runnable examples
+
+- [Transactional email in React](https://github.com/unlayer/elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
+- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
+- [One React template to email, web, and PDF](https://github.com/unlayer/elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
+- [React invoice PDF with Playwright](https://github.com/unlayer/elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
+- [React to Unlayer visual editing](https://github.com/unlayer/elements/blob/main/packages/react/docs/visual-editing.md): `toDesign()`, editor loading, export, and what the builder can hold.
+
+See [when to choose Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/unlayer/elements/tree/main/examples/content-workflows).
+
+## Moving from Elements 0.2
+
+Elements 0.2's components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in 0.3.0: the package's components are these. The codemod moves templates written with them:
+
+```bash
+npx @unlayer/migrate src/emails --from elements   # templates written for Elements 0.2
+npx @unlayer/migrate src/emails                   # React Email templates
+```
+
+It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
 
 ## Development
 

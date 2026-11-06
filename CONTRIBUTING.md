@@ -28,11 +28,16 @@ pnpm test
 
 ```
 packages/
-  react/       → Published package (@unlayer/react-elements)
-  shared/      → Internal shared logic (bundled into react, not published)
-  demo/        → Demo application
+  react/       → Published package (@unlayer/react-elements), with a Document written as a PDF (/pdf) and a
+                 Canvas as PNG or SVG (/image) as entries of their own
+  core/        → Component definitions, validation, layout, and the writers (src/writers/: email, page and print
+                 HTML, plain text; src/pdf/ and src/image/: the PDF and image writers, with their own entries);
+                 bundled into react, not published
+  migrate/     → The migration CLI (@unlayer/migrate), with the React Email converter (src/react-email/) and what
+                 converters share (src/convert/)
+examples/      → The demo application (demo/) and runnable examples
 tests/
-  nextjs-integration/  → Integration test with Next.js 15 + Server Components
+  nextjs-integration/  → Integration test with Next.js 15 + Server Components (next14-, next16-, jest-integration/: more consumers)
 ```
 
 ## Development Workflow
@@ -70,34 +75,29 @@ pnpm storybook:hub
 
 ## Architecture Overview
 
-### Component Factory
+### Components
 
-Most content components (Button, Heading, Paragraph, etc.) are created via `createItemComponent()` in `packages/react/src/utils/create-component.tsx`. This factory:
-
-- Maps flat "semantic" props to the nested structure expected by `@unlayer/exporters`
-- Attaches a render function used by `renderToJson()`
-- Handles children-as-text shorthand
-
-To add a new component, use the factory — don't create components from scratch.
+The components are made from their definitions in `packages/core/src/components.ts` (props, styles, children, support
+per output, editors): `packages/react/src/primitives/components.tsx` turns each into a React component whose props'
+types come from the same definition that validates them. To add a component, define it in core and give each output
+a writer (`packages/core/src/writers/{email,page}/`); see `packages/core/README.md`.
 
 ### Rendering Pipeline
 
 ```
-JSX props → mapSemanticProps() → nested values
-  → ReactDOMServer.renderToString() → innerHTML
-  → BodyExporter[mode]() → final HTML
+JSX → one React render collects the template (packages/react/src/primitives/collect.tsx)
+  → packages/core checks it and lays it out (each block's width)
+  → its writers (packages/core/src/writers) write the email, page or print HTML and the plain text
 ```
 
-Three modes: `email` (table-based), `web` (div + flexbox), `document` (print).
+`render()` writes the output its root says (`<Email>`, `<Page>`, `<Document>`, `<Canvas>`); `toDesign()` and
+`fromDesign()` (`@unlayer/react-elements/builder`) take a template to the Unlayer builder's design JSON and back.
 
 ### Key Dependencies
 
-| Package | Role |
-|---------|------|
-| `@unlayer/exporters` | Converts component values to HTML for each render mode |
-| `@unlayer/types` | TypeScript types for all component value shapes |
-
-These are pinned in `pnpm-workspace.yaml` via the catalog feature and updated automatically by the `update-deps` workflow.
+The published package has no dependencies of its own: React and react-dom are peers, and the private workspace
+package (`packages/core`) is bundled into it. The HTML is written in this repository (`packages/core/src/writers`),
+and each builder tool's default values are in `packages/react/src/builder/tool-defaults.ts`.
 
 ## Pull Request Guidelines
 
@@ -107,7 +107,7 @@ These are pinned in `pnpm-workspace.yaml` via the catalog feature and updated au
 - The CI pipeline checks:
   - TypeScript compilation
   - Unit tests
-  - Bundle size budget (ESM must be < 60KB)
+  - Bundle size budgets (set in `.github/workflows/test.yml`)
   - Next.js integration test (Server Components)
 
 ### Versioning
@@ -121,9 +121,8 @@ Version bumps are automatic on merge to `main`. To control the bump type, add a 
 ## Code Style
 
 - TypeScript strict mode
-- Use the `createItemComponent` factory for new content components
-- Follow existing naming conventions: `Component.tsx`, `Component.test.tsx`, `Component.stories.tsx`
-- Keep the shared package framework-agnostic — no React imports
+- Follow existing naming conventions: `name.ts`, `name.test.ts`, stories in `*.stories.tsx`
+- Keep `packages/core` framework-agnostic — no React imports (the writers' JSX writes strings)
 
 ## Questions?
 

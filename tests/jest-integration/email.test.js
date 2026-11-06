@@ -2,22 +2,39 @@
 // first build threw when it was imported there ("TextEncoder is not defined"), where 0.1.22 rendered.
 const React = require("react");
 const { renderToString } = require("react-dom/server");
-const { Email, Row, Column, Paragraph, renderToHtml, renderToJson } = require("@unlayer/react-elements");
+const { Email, Paragraph, render } = require("@unlayer/react-elements");
+const { toDesign } = require("@unlayer/react-elements/builder");
 
 const h = React.createElement;
-const email = h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Hello jest"))));
+const email = h(Email, null, h(Paragraph, null, "Hello jest"));
 
-test("renders an email and its design", () => {
-  expect(renderToHtml(email)).toContain("Hello jest");
-  expect(renderToJson(email).body.rows).toHaveLength(1);
+test("renders an email and its design", async () => {
+  expect((await render(email)).html).toContain("Hello jest");
+  expect(toDesign(email).design.body.rows).toHaveLength(1);
 });
 
 test("works out a design inside a page's react-dom/server render, and the page's hooks keep working", () => {
-  // Elements loads another of react-dom's modules with Jest's require, so it renders with the test's React.
   function Page() {
-    const rows = React.useMemo(() => renderToJson(email).body.rows.length, []);
+    const rows = React.useMemo(() => toDesign(email).design.body.rows.length, []);
     const [open] = React.useState(false);
     return h("pre", null, `${rows} rows, open=${open}`);
   }
   expect(renderToString(h(Page))).toBe("<pre>1 rows, open=false</pre>");
+});
+
+test("the main entry is the new components, and today's aren't in the package", () => {
+  const main = require("@unlayer/react-elements");
+  expect(typeof main.render).toBe("function");
+  expect(main.renderToHtml).toBeUndefined();
+  expect(() => require("@unlayer/react-elements/legacy")).toThrow();
+});
+
+test("renders a template in the new components, and takes it to the builder's design (/builder)", async () => {
+  const {Email, Heading, Paragraph, render} = require("@unlayer/react-elements");
+  const { toDesign } = require("@unlayer/react-elements/builder");
+  const template = h(Email, null, h(Heading, null, "Hello jest"), h(Paragraph, null, "New components"));
+  const { html, text } = await render(template);
+  expect(html).toContain("Hello jest");
+  expect(text).toContain("New components");
+  expect(toDesign(template).design.body.rows.length).toBeGreaterThan(0);
 });

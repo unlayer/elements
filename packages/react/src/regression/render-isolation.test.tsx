@@ -1,31 +1,35 @@
 /**
- * One render never leaks into the next: data read by a component, an element
- * kept between renders, and the order renders run in don't carry over, and the
- * same input always gives the same output.
+ * One render never leaks into the next: data read by a component, an element kept between renders, and the order
+ * renders run in don't carry over, and the same input always gives the same output. render(), validate(),
+ * outline() and toDesign() collect a template with one React render each (src/primitives/collect.tsx), in a scope
+ * of their own (src/utils/render-scope.ts).
  */
 import { describe, expect, it, vi } from "vitest";
 import React, { memo, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
-import { renderRowToJson, renderToJson } from "../utils/render-to-json";
-import { Email, Row, Column, Paragraph, Html } from "../index";
+import { Email, Html, Page, Paragraph, outline, prepare, render, validate } from "../primitives/index";
+import { toDesign } from "../builder/index";
 
 let user = "Alice";
-const Greeting = () => <Row><Column><Paragraph>Hi {user}</Paragraph></Column></Row>;
+const Greeting = () => <Paragraph>Hi {user}</Paragraph>;
 const MemoGreeting = memo(Greeting);
 const HookGreeting = () => {
   const [prefix] = useState("Hello");
-  return <Row><Column><Paragraph>{prefix} {user}</Paragraph></Column></Row>;
+  return <Paragraph>{prefix} {user}</Paragraph>;
 };
 const kept = { plain: <Greeting />, memo: <MemoGreeting />, hooks: <HookGreeting />, fragment: <><Greeting /></> };
 
+/** Everything a template becomes: its HTML, plain text, layout and design. */
+const outputs = async (template: () => React.ReactElement) => {
+  const { html, text } = await render(template());
+  return [html, text, outline(template()), JSON.stringify(toDesign(template()).design)];
+};
+
 describe.each(Object.keys(kept) as Array<keyof typeof kept>)("an element kept between renders (%s)", (kind) => {
-  const email = () => <Email>{kept[kind]}</Email>;
-  it("shows the data of each render", () => {
+  it("shows the data of each render", async () => {
     for (const name of ["Alice", "Bob", "Carol"]) {
       user = name;
-      const outputs = [renderToHtml(email()), renderToHtmlParts(email()).body, renderToPlainText(email()), JSON.stringify(renderToJson(email()))];
-      for (const output of outputs) {
+      for (const output of await outputs(() => <Email>{kept[kind]}</Email>)) {
         expect(output).toContain(name);
         for (const other of ["Alice", "Bob", "Carol"].filter((n) => n !== name)) expect(output).not.toContain(other);
       }
@@ -34,116 +38,111 @@ describe.each(Object.keys(kept) as Array<keyof typeof kept>)("an element kept be
 });
 
 describe("renders", () => {
-  const first = () => <Email previewText="First"><Row><Column><Paragraph>First email</Paragraph></Column></Row></Email>;
-  const second = () => <Email><Row><Column><Paragraph textAlign="center">Second email</Paragraph><Paragraph>And more</Paragraph></Column></Row></Email>;
+  const first = () => <Email previewText="First"><Paragraph>First email</Paragraph></Email>;
+  const second = () => <Page><Paragraph style={{ textAlign: "center" }}>Second page</Paragraph><Paragraph>And more</Paragraph></Page>;
 
-  it("give the same output for the same input, every time", () => {
+  it("give the same output for the same input, every time", async () => {
     user = "Alice";
-    for (const make of [first, second, () => <Email>{kept.plain}{kept.hooks}</Email>]) {
-      expect(renderToHtml(make())).toBe(renderToHtml(make()));
-      expect(JSON.stringify(renderToJson(make()))).toBe(JSON.stringify(renderToJson(make())));
-    }
+    for (const make of [first, second, () => <Email>{kept.plain}{kept.hooks}</Email>]) expect(await outputs(make)).toEqual(await outputs(make));
   });
 
-  it("don't depend on what was rendered before, in any order", () => {
-    const alone = { first: renderToHtml(first()), second: renderToHtml(second()), design: JSON.stringify(renderToJson(second())) };
-    renderToJson(first());
-    expect(renderToHtml(second())).toBe(alone.second);
-    renderToHtml(second());
-    expect(renderToHtml(first())).toBe(alone.first);
-    renderToHtmlParts(first());
-    expect(JSON.stringify(renderToJson(second()))).toBe(alone.design);
+  it("don't depend on what was rendered before, in any order", async () => {
+    const alone = { first: await outputs(first), second: await outputs(second) };
+    toDesign(first());
+    expect(await outputs(second)).toEqual(alone.second);
+    await render(second());
+    validate(second());
+    expect(await outputs(first)).toEqual(alone.first);
+    outline(first());
+    expect(await outputs(second)).toEqual(alone.second);
   });
 });
 
 describe("useId() in components", () => {
   // A component that links to its own anchor, as a table of contents or a form label does.
-  const Section = ({ to }: { to: string }) => {
+  const Anchor = ({ to }: { to: string }) => {
     const id = useId();
-    return <Html html={`<a id="${id}" href="${to}">${to}</a>`} />;
-  };
-  const SectionRow = ({ to }: { to: string }) => {
-    const id = useId();
-    return <Row><Column><Html html={`<a id="${id}" href="${to}">${to}</a>`} /></Column></Row>;
+    return (
+      <Html>
+        <a id={id} href={to}>
+          {to}
+        </a>
+      </Html>
+    );
   };
   const email = () => (
     <Email>
-      <Row><Column><Section to="/one" /><Section to="/two" /></Column></Row>
-      <SectionRow to="/three" />
-      <SectionRow to="/four" />
+      <Anchor to="/one" />
+      <Anchor to="/two" />
+      <Anchor to="/three" />
     </Email>
   );
-  const ids = (html: string) => [...html.matchAll(/<a id="([^"]+)"/g)].map((m) => m[1]);
+  const ids = (html: string) => [...html.replace(/\\"/g, '"').matchAll(/<a id="([^"]+)"/g)].map((m) => m[1]);
 
-  it("gives each component its own ids", () => {
-    for (const html of [renderToHtml(email()), renderToHtmlParts(email()).body, renderToStaticMarkup(email()), JSON.stringify(renderToJson(email()))]) {
-      const found = ids(html.replace(/\\"/g, '"'));
-      expect(found).toHaveLength(4);
-      expect(new Set(found).size).toBe(4);
+  it("gives each component its own ids", async () => {
+    for (const html of [(await render(email())).html, JSON.stringify(toDesign(email()).design)]) {
+      const found = ids(html);
+      expect(found).toHaveLength(3);
+      expect(new Set(found).size).toBe(3);
     }
   });
 
-  it("gives an element placed twice its own ids in each place", () => {
-    const section = <SectionRow to="/again" />;
-    const html = renderToHtml(<Email>{section}{section}<Row><Column><Section to="/one" /></Column></Row></Email>);
-    const found = ids(html);
+  it("gives an element placed twice its own ids in each place", async () => {
+    const anchor = <Anchor to="/again" />;
+    const found = ids((await render(<Email>{anchor}{anchor}<Anchor to="/one" /></Email>)).html);
     expect(found).toHaveLength(3);
     expect(new Set(found).size).toBe(3);
   });
 
-  it("gives the same ids on every render", () => {
-    expect(renderToHtml(email())).toBe(renderToHtml(email()));
-    expect(renderToStaticMarkup(email())).toBe(renderToStaticMarkup(email()));
-    expect(ids(renderToHtml(email()))).toEqual(ids(renderToStaticMarkup(email())));
-    // A row on its own too.
-    const row = <Row><Column><Section to="/one" /><Section to="/two" /></Column></Row>;
-    expect(JSON.stringify(renderRowToJson(row))).toBe(JSON.stringify(renderRowToJson(row)));
+  it("gives the same ids on every render", async () => {
+    expect(ids((await render(email())).html)).toEqual(ids((await render(email())).html));
+    expect(JSON.stringify(toDesign(email()).design)).toBe(JSON.stringify(toDesign(email()).design));
   });
 
-  it("gives template components inside each other their own ids", () => {
+  it("gives template components inside each other their own ids", async () => {
     const Inner = ({ outer }: { outer: string }) => {
       const id = useId();
-      return <Email><Row><Column><Html html={`<a id="${outer}" href="/outer">outer</a><a id="${id}" href="/inner">inner</a>`} /></Column></Row></Email>;
+      return (
+        <Email>
+          <Html>
+            <a id={outer} href="/outer">outer</a>
+            <a id={id} href="/inner">inner</a>
+          </Html>
+        </Email>
+      );
     };
     const Outer = () => <Inner outer={useId()} />;
-    const found = ids(renderToHtml(<Outer />));
+    const found = ids((await render(<Outer />)).html);
     expect(found).toHaveLength(2);
     expect(new Set(found).size).toBe(2);
   });
 });
 
-describe("an email rendered inside a component", () => {
+describe("a component that renders while the template is collected", () => {
   const Count = ({ n }: { n: number }) => {
     const [value] = useState(n);
     return <Paragraph>{`Count ${value}`}</Paragraph>;
   };
-  // Renders another email (a signature), with Elements or with react-dom itself.
-  const Signature = () => <Html html={renderToHtmlParts(<Email><Row><Column><Paragraph>Signed</Paragraph><Count n={9} /></Column></Row></Email>).body} />;
-  const Bold = () => <Html html={renderToStaticMarkup(<b>Bold bit</b>)} />;
-  const SignedBy = () => {
-    const [who] = useState("Ada");
-    return <Html html={renderToHtmlParts(<Email><Row><Column><Paragraph>{`Signed ${who}`}</Paragraph></Column></Row></Email>).body} />;
-  };
 
-  it("renders a component that runs a render of react-dom's own before its hooks (as email libraries do)", () => {
+  it("renders when it runs a render of react-dom's own before its hooks (as email libraries do)", async () => {
     const Late = () => {
       const bold = renderToStaticMarkup(<b>bold</b>);
       const [text] = useState("Still here");
       return <Paragraph>{`${text} ${bold.length}`}</Paragraph>;
     };
-    const email = <Email><Row><Column><Paragraph>First</Paragraph><Late /></Column></Row></Email>;
-    expect(renderToHtml(email)).toContain("Still here 11");
-    expect(JSON.stringify(renderToJson(email))).toContain("Still here 11");
+    const email = () => <Email><Paragraph>First</Paragraph><Late /><Count n={2} /></Email>;
+    expect((await render(email())).text).toBe("First\n\nStill here 11\n\nCount 2");
+    expect(JSON.stringify(toDesign(email()).design)).toContain("Still here 11");
   });
 
-  it("leaves the components after it in the column, and their hooks, as they were", () => {
+  it("leaves the components after it, and their hooks, as they were", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const email = <Email><Row><Column><Count n={1} /><Signature /><Count n={2} /><SignedBy /><Bold /><Count n={3} /></Column><Column><Count n={4} /></Column></Row></Email>;
-      const html = renderToHtml(email);
-      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Count 9", "Signed Ada", "Bold bit"]) expect(html.split(text).length - 1, text).toBe(1);
-      const design = JSON.stringify(renderToJson(email));
-      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Signed Ada"]) expect(design, text).toContain(text);
+      const Bold = () => <Html html={renderToStaticMarkup(<b>Bold bit</b>)} />;
+      const email = <Email><Count n={1} /><Bold /><Count n={2} /><Bold /><Count n={3} /></Email>;
+      const { html, text } = await render(email);
+      for (const words of ["Count 1", "Count 2", "Count 3"]) expect(text.split(words).length - 1, words).toBe(1);
+      expect(html.split("Bold bit").length - 1).toBe(2);
       expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
@@ -155,7 +154,7 @@ describe("a render", () => {
   // A prerendered page that reads one of these changes with each build: Next.js's Cache Components (its new apps'
   // default since 16) fail the build on one. 0.2.0 asked crypto.getRandomValues() for each render's nonce, so no
   // email could be rendered in a page Next.js prerenders.
-  it("reads no random numbers and not the date", () => {
+  it("reads no random numbers and not the date", async () => {
     const sources: Array<[object, string]> = [[globalThis.crypto, "getRandomValues"], [globalThis.crypto, "randomUUID"], [Math, "random"], [Date, "now"]];
     const spies = sources.filter(([owner, name]) => typeof (owner as Record<string, unknown>)?.[name] === "function").map(([owner, name]) => vi.spyOn(owner as any, name as any));
     expect(spies).toHaveLength(4);
@@ -163,14 +162,15 @@ describe("a render", () => {
       const email = () => (
         <Email previewText="Hi">
           {kept.hooks}
-          <Row><Column><Paragraph>Text</Paragraph><Html html="<p>Kept</p>" /></Column></Row>
+          <Paragraph>Text</Paragraph>
+          <Html html="<p>Kept</p>" />
         </Email>
       );
-      renderToHtml(email());
-      renderToHtmlParts(email());
-      renderToPlainText(email());
-      renderToJson(email());
-      renderRowToJson(<Row><Column><Paragraph>Row</Paragraph></Column></Row>);
+      await render(email());
+      validate(email());
+      outline(email());
+      prepare(email());
+      toDesign(email());
       for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     } finally {
       for (const spy of spies) spy.mockRestore();
@@ -178,19 +178,18 @@ describe("a render", () => {
   });
 
   // Its nonce comes from the clock and a count of renders: where the clock stands still (fake timers) or there's
-  // none, an email renders as it does with one, and so does an email rendered inside a component of it.
-  it("renders the same where the clock stands still or there's none", () => {
+  // none, a template renders as it does with one, and so does a template worked out inside a component of it.
+  it("renders the same where the clock stands still or there's none", async () => {
     const Inner = () => {
-      const inner = renderToHtml(<Email><Row><Column><Paragraph>Inner email</Paragraph></Column></Row></Email>);
-      return <Html html={inner.includes("Inner email") ? "<p>Inner ok</p>" : "<p>Inner missing</p>"} />;
+      const inner = outline(<Email><Paragraph>Inner email</Paragraph></Email>);
+      return <Paragraph>{inner.includes("Inner email") ? "Inner ok" : "Inner missing"}</Paragraph>;
     };
-    const email = () => <Email><Row><Column><Paragraph>Outer</Paragraph><Inner /></Column></Row></Email>;
-    const outputs = () => [renderToHtml(email()), JSON.stringify(renderToJson(email())), renderToPlainText(email())];
-    const expected = outputs();
-    expect(expected[0]).toContain("Inner ok");
+    const email = () => <Email><Paragraph>Outer</Paragraph><Inner /></Email>;
+    const expected = await outputs(email);
+    expect(expected[1]).toContain("Inner ok");
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);
     try {
-      expect(outputs()).toEqual(expected);
+      expect(await outputs(email)).toEqual(expected);
     } finally {
       now.mockRestore();
     }
@@ -198,7 +197,7 @@ describe("a render", () => {
     delete (globalThis as { performance?: unknown }).performance;
     try {
       expect(globalThis.performance).toBeUndefined();
-      expect(outputs()).toEqual(expected);
+      expect(await outputs(email)).toEqual(expected);
     } finally {
       Object.defineProperty(globalThis, "performance", clock);
     }

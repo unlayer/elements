@@ -1,0 +1,362 @@
+import { checkTarget, parseDocument, resolveDocument, type ResolvedNode, lineHeightPx } from "../src";
+
+const resolve = (root: unknown) => resolveDocument(parseDocument({ root }));
+const child = (node: ResolvedNode, ...path: number[]): ResolvedNode => path.reduce((n, i) => n.children[i] as ResolvedNode, node);
+
+describe("widths", () => {
+  it("gives the root's children its width, and a Section its own padding inside it", () => {
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [{ type: "Section", style: { padding: 24 }, children: [{ type: "Paragraph", children: ["Hi"] }] }, { type: "Divider" }],
+    });
+    expect(diagnostics).toEqual([]);
+    expect([root.width, root.contentWidth]).toEqual([600, 600]);
+    expect([child(root, 0).width, child(root, 0).contentWidth]).toEqual([600, 552]);
+    expect(child(root, 0, 0).width).toBe(552);
+    expect(child(root, 1).width).toBe(600);
+  });
+
+  it("leaves a Row's children shown only on phones out of its desktop widths, and as wide as the Row", () => {
+    const { root } = resolve({
+      type: "Email",
+      children: [{ type: "Row", style: { gap: 20 }, children: [{ type: "Column" }, { type: "Column", hidden: { desktop: true } }, { type: "Column" }] }],
+    });
+    expect([0, 1, 2].map((i) => child(root, 0, i).width)).toEqual([290, 600, 290]);
+  });
+
+  it("shares a Row's width after its gaps and fixed children, in whole px that add up", () => {
+    const { root } = resolve({
+      type: "Email",
+      props: { width: 601 },
+      children: [
+        {
+          type: "Row",
+          style: { gap: 20, padding: [0, 10] },
+          children: [{ type: "Column", style: { width: 100 } }, { type: "Column" }, { type: "Column", style: { flex: 2 } }],
+        },
+      ],
+    });
+    const row = child(root, 0);
+    expect(row.contentWidth).toBe(581);
+    const widths = row.children.map((c) => (c as ResolvedNode).width);
+    // 581 - 40 of gaps - 100 = 441, shared 1:2
+    expect(widths).toEqual([100, 147, 294]);
+    expect(widths.reduce((a, b) => a! + b!, 0)! + 40).toBe(581);
+  });
+
+  it("takes percentages of the width the parent has", () => {
+    const { root } = resolve({ type: "Email", children: [{ type: "Row", children: [{ type: "Column", style: { width: "25%" } }, { type: "Column" }] }] });
+    expect(child(root, 0).children.map((c) => (c as ResolvedNode).width)).toEqual([150, 450]);
+  });
+
+  it("subtracts padding and border from the content width", () => {
+    const { root } = resolve({ type: "Email", children: [{ type: "Column", style: { padding: 20, border: "2px solid #000" } }] });
+    expect([child(root, 0).width, child(root, 0).contentWidth]).toEqual([600, 556]);
+  });
+
+  it("sizes images by their own size, no wider than their parent, and leaves unknown sizes unknown", () => {
+    const { root } = resolve({
+      type: "Email",
+      children: [
+        { type: "Image", props: { src: { src: "https://example.com/a.png", width: 200 } } },
+        { type: "Image", props: { src: { src: "https://example.com/b.png", width: 2000 } } },
+        { type: "Image", props: { src: "https://example.com/c.png" } },
+        { type: "Image", props: { src: "https://example.com/d.png" }, style: { width: "50%" } },
+        { type: "Button", props: { href: "#" }, children: ["Go"] },
+        { type: "Link", props: { href: "#" }, children: [{ type: "Image", props: { src: { src: "https://example.com/e.png", width: 120 } } }] },
+      ],
+    });
+    expect(root.children.map((c) => (c as ResolvedNode).width)).toEqual([200, 600, null, 300, null, 120]);
+    expect(child(root, 2).available).toBe(600);
+  });
+
+  it("sizes an image in a link inside text by the text's width", () => {
+    const image = (width: number) => ({ type: "Image", props: { src: { src: "https://example.com/a.png", width } } });
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "Column",
+          style: { width: 300 },
+          children: [
+            { type: "Paragraph", children: ["see ", { type: "Link", props: { href: "#" }, children: [image(1000)] }] },
+            { type: "Paragraph", children: [{ type: "Span", children: [{ type: "Link", props: { href: "#" }, children: [image(100)] }] }] },
+          ],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    expect(child(root, 0, 0, 1, 0).width).toBe(300);
+    // The Link around it is a run of the text: no width of its own.
+    expect(child(root, 0, 0, 1).width).toBeNull();
+    expect(child(root, 0, 1, 0, 0, 0).width).toBe(100);
+  });
+
+  it("warns when children are wider than their parent, and when flex is on a child of something else", () => {
+    const { diagnostics } = resolve({
+      type: "Email",
+      children: [
+        { type: "Row", children: [{ type: "Column", style: { width: 400 } }, { type: "Column", style: { width: 300 } }] },
+        { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 700 } },
+        { type: "Paragraph", style: { flex: 2 } },
+      ],
+    });
+    expect(diagnostics.map((d) => [d.code, d.path]).sort()).toEqual([
+      ["layout/overflow", "root.children[1]"],
+      ["layout/shrunk", "root.children[0]"],
+      ["style/ignored", "root.children[2].style.flex"],
+    ]);
+  });
+
+  it("stacks Rows on phones by default in an Email or Page", () => {
+    expect(child(resolve({ type: "Email", children: [{ type: "Row" }] }).root, 0).props.stackOnMobile).toBe(true);
+    expect(child(resolve({ type: "Email", children: [{ type: "Row", props: { stackOnMobile: false } }] }).root, 0).props.stackOnMobile).toBe(false);
+  });
+});
+
+describe("text styles", () => {
+  it("inherits from the root down, under each component's own defaults", () => {
+    const { root } = resolve({
+      type: "Email",
+      style: { fontFamily: "Inter, Arial, sans-serif", color: "#333333" },
+      children: [
+        {
+          type: "Column",
+          style: { textAlign: "center" },
+          children: [
+            { type: "Heading", props: { level: 2 }, children: ["Title"] },
+            { type: "Paragraph", style: { fontSize: 14 }, children: ["Body ", { type: "Link", props: { href: "#" }, children: ["link"] }] },
+            { type: "Button", props: { href: "#" }, children: ["Go"] },
+          ],
+        },
+      ],
+    });
+    const heading = child(root, 0, 0);
+    expect(heading.text).toMatchObject({ fontFamily: "Inter, Arial, sans-serif", color: "#333333", fontSize: 24, fontWeight: 700, textAlign: "center", lineHeightPx: 30 });
+    const paragraph = child(root, 0, 1);
+    expect(paragraph.text).toMatchObject({ fontSize: 14, fontWeight: 400, lineHeight: 1.5, lineHeightPx: 21 });
+    // The font's own line height, where something needs a number for it.
+    expect(lineHeightPx("normal", 20)).toBe(24);
+    const link = child(root, 0, 1, 1);
+    expect(link.text).toMatchObject({ fontSize: 14, color: "#0000ee" });
+    expect(link.style.textDecoration).toBe("underline");
+    expect(child(root, 0, 2).text).toMatchObject({ color: "#ffffff", fontSize: 14, lineHeightPx: 16.8 });
+  });
+
+  it("applies prop defaults", () => {
+    const { root } = resolve({ type: "Email", children: [{ type: "Heading", children: ["x"] }, { type: "Image", props: { src: "https://example.com/a.png" } }] });
+    expect(child(root, 0).props.level).toBe(1);
+    expect(child(root, 0).text.fontSize).toBe(32);
+    expect(child(root, 1).props.alt).toBe("");
+    expect(root.props.width).toBe(600);
+  });
+});
+
+describe("checkTarget", () => {
+  it("reports a component a target doesn't render once, what's in it with it, and why where its definition says", () => {
+    const document = parseDocument({ root: { type: "Email", children: [{ type: "Paragraph", children: ["x"] }] } });
+    expect(checkTarget(document, "email")).toEqual([]);
+    expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root"]);
+    const drawing = parseDocument({ root: { type: "Email", children: [{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { r: 10 } }, { type: "Rect", props: { width: 4, height: 4 } }] }] } });
+    expect(checkTarget(drawing, "email").map((d) => [d.path, d.message])).toEqual([
+      ["root.children[0]", "A Svg can't be rendered to email: Gmail and classic Outlook don't show inline SVG; use an Image of it (a PNG) instead"],
+    ]);
+  });
+});
+
+describe("lists and tables", () => {
+  it("gives a List's items its width less the markers' column, and a nested List its item's", () => {
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "List",
+          style: { padding: [0, 10], indent: 30 },
+          children: [{ type: "ListItem", children: ["a", { type: "List", children: [{ type: "ListItem", children: ["b"] }] }] }],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    const list = child(root, 0);
+    expect([list.width, list.contentWidth]).toEqual([600, 580]);
+    expect(child(list, 0).width).toBe(550);
+    const nested = child(list, 0, 1);
+    expect(nested.width).toBe(550);
+    // Its own markers' column: the default 24px.
+    expect(child(nested, 0).width).toBe(526);
+  });
+
+  it("sizes a Table's columns from its cells, shares the rest, and spans cells across columns", () => {
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "Table",
+          style: { cellPadding: 8, border: "1px solid #ccc", rowBorder: "1px solid #eee" },
+          children: [
+            { type: "TableRow", props: { header: true }, children: [{ type: "TableCell", style: { width: "50%" } }, { type: "TableCell" }, { type: "TableCell", style: { width: 100 } }] },
+            { type: "TableRow", children: [{ type: "TableCell", props: { colSpan: 2 }, children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1000 } } }] }, { type: "TableCell", style: { padding: 0 } }] },
+          ],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    const table = child(root, 0);
+    // 600 less the 1px border each side: 299 for 50%, 100 fixed, 199 for the free column.
+    expect(table.columns).toEqual([299, 199, 100]);
+    expect([0, 1, 2].map((i) => child(table, 0, i).width)).toEqual([299, 199, 100]);
+    expect(child(table, 1, 0).width).toBe(498);
+    // A cell's padding is the table's unless it sets its own; an image in it fits inside it.
+    expect(child(table, 1, 0).contentWidth).toBe(482);
+    expect(child(table, 1, 0, 0).width).toBe(482);
+    expect(child(table, 1, 1).contentWidth).toBe(100);
+    // The table's line between rows is each cell's bottom border, but in the last row.
+    expect(child(table, 0, 0).style.border).toEqual({ bottom: { width: 1, style: "solid", color: "#eeeeee" } });
+    expect(child(table, 1, 0).style.border).toBeUndefined();
+    // A header row's cells are bold.
+    expect(child(table, 0, 0).text.fontWeight).toBe(700);
+    expect(child(table, 1, 0).text.fontWeight).toBe(400);
+  });
+
+  it("grows columns that all have a width and leave room, in proportion, to fill the table", () => {
+    const { root } = resolve({
+      type: "Page",
+      props: { width: 600 },
+      children: [
+        {
+          type: "Table",
+          children: [
+            { type: "TableRow", children: [{ type: "TableCell", style: { width: 100 }, children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 250 } } }] }, { type: "TableCell", style: { width: 200 } }] },
+          ],
+        },
+      ],
+    });
+    const table = child(root, 0);
+    expect(table.columns).toEqual([200, 400]);
+    expect(child(table, 0, 0).width).toBe(200);
+    expect(child(table, 0, 0, 0).width).toBe(200);
+  });
+
+  it("wraps a Row only where its output draws more than one line", () => {
+    const row = (root: string, props: Record<string, unknown> = {}) =>
+      child(
+        resolve({
+          type: root,
+          props: root === "Canvas" ? { width: 600, height: 300 } : { width: 600 },
+          children: [{ type: "Row", props, style: { flexWrap: "wrap" }, children: [{ type: "Column", style: { width: 400 } }, { type: "Column", style: { width: 400 } }] }],
+        }).root,
+        0
+      ).children.map((column) => (column as { width: number }).width);
+    expect(row("Page")).toEqual([400, 400]);
+    expect(row("Email", { stackOnMobile: false })).toEqual([400, 400]);
+    // An Email's Row that stacks stays on one line on desktop; a PDF and an image draw one line, narrowed to fit.
+    expect(row("Email")).toEqual([300, 300]);
+    expect(row("Canvas")).toEqual([300, 300]);
+  });
+
+  it("rounds columns given as a share before sharing the rest, so the columns add up to the table", () => {
+    const { root } = resolve({
+      type: "Email",
+      props: { width: 640 },
+      children: [{ type: "Table", style: { border: "1px solid #ccc" }, children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: "40%" } }, { type: "TableCell" }, { type: "TableCell", style: { width: 120 } }] }] }],
+    });
+    expect(child(root, 0).columns).toEqual([255, 263, 120]);
+    // The px column keeps its px and the share its share, in any window: the one with no width takes what's left.
+    expect(child(root, 0).columnSizes).toEqual(["share", "free", "px"]);
+  });
+
+  it("warns where a Table's columns are wider than it, and shrinks them in proportion, as they're drawn", () => {
+    const { root, diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 200 } }, { type: "TableCell", style: { width: 200 } }] }] }] });
+    expect(diagnostics.map((d) => d.code)).toEqual(["layout/overflow"]);
+    expect(child(root, 0).columns).toEqual([300, 150, 150]);
+  });
+});
+
+describe("stretching stacks", () => {
+  it("widens children that take their own size to the stack's width, up to their maximum", () => {
+    const { root } = resolve({
+      type: "Email",
+      style: { alignItems: "stretch" },
+      children: [
+        { type: "Button", props: { href: "#" }, children: ["Go"] },
+        { type: "Image", props: { src: { src: "https://example.com/a.png", width: 100 } }, style: { maxWidth: 400 } },
+        { type: "Button", props: { href: "#" }, style: { width: 120 }, children: ["Fixed"] },
+      ],
+    });
+    expect([0, 1, 2].map((i) => child(root, i).width)).toEqual([600, 400, 120]);
+  });
+});
+
+describe("Row widths, as browser flexbox gives them", () => {
+  const row = (children: unknown[], style: Record<string, unknown> = {}) => {
+    const { root, diagnostics } = resolve({ type: "Email", children: [{ type: "Row", style, children }] });
+    return { widths: child(root, 0).children.map((c) => (c as ResolvedNode).width), codes: diagnostics.map((d) => d.code) };
+  };
+  const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style });
+
+  it("gives what a child's maximum leaves to the others", () => {
+    expect(row([column({ maxWidth: 100 }), column()])).toEqual({ widths: [100, 500], codes: [] });
+    expect(row([column({ maxWidth: 100 }), column()], { gap: 20 })).toEqual({ widths: [100, 480], codes: [] });
+    expect(row([column({ maxWidth: 100 }), column({ flex: 2 }), column()])).toEqual({ widths: [100, 333, 167], codes: [] });
+  });
+
+  it("takes what a child's minimum needs from the others", () => {
+    expect(row([column({ minWidth: 400 }), column()])).toEqual({ widths: [400, 200], codes: [] });
+    expect(row([column({ width: 200 }), column({ minWidth: 300 }), column()])).toEqual({ widths: [200, 300, 100], codes: [] });
+    expect(row([column({ minWidth: "50%" }), column(), column()], { gap: 10 })).toEqual({ widths: [300, 140, 140], codes: [] });
+  });
+
+  it("shares what's left after padding, as flex-basis 0 does", () => {
+    expect(row([column({ padding: [0, 30] }), column()])).toEqual({ widths: [330, 270], codes: [] });
+  });
+
+  it("narrows children with a width that don't fit, in proportion to their width inside their padding", () => {
+    expect(row([column({ width: 400 }), column({ width: 300 })])).toEqual({ widths: [343, 257], codes: ["layout/shrunk"] });
+    // An image with its own size (flex none) keeps it.
+    expect(row([column({ width: 500 }), { type: "Image", props: { src: { src: "https://example.com/a.png", width: 200 } }, style: { flex: "none" } }])).toEqual({ widths: [400, 200], codes: ["layout/shrunk"] });
+  });
+
+  it("gives an Svg the size it says, as the Page draws it (flex: none), and the rest to the others", () => {
+    const { root } = resolve({ type: "Page", props: { width: 600 }, children: [{ type: "Row", style: { gap: 10 }, children: [{ type: "Svg", props: { width: 28, height: 28 }, children: [] }, column(), column({ width: 200 })] }] });
+    expect(child(root, 0).children.map((c) => (c as ResolvedNode).width)).toEqual([28, 352, 200]);
+    // Its drawing is the size it says, its padding around it; a stretching stack doesn't widen it, and a narrower one
+    // doesn't narrow it: it overflows, as on the page.
+    const svg = { type: "Svg", props: { width: 100, height: 50 }, style: { padding: 10 }, children: [] };
+    const stacked = (style: Record<string, unknown>) => {
+      const { root, diagnostics } = resolve({ type: "Page", props: { width: 600 }, children: [{ type: "Column", style, children: [svg] }] });
+      return [(child(root, 0).children[0] as ResolvedNode).width, diagnostics.map((d) => d.code)];
+    };
+    expect(stacked({})).toEqual([120, []]);
+    expect(stacked({ alignItems: "stretch" })).toEqual([120, []]);
+    expect(stacked({ width: 80 })).toEqual([120, ["layout/overflow"]]);
+  });
+
+  it("leaves a child that takes its own size unknown where its size isn't known, the others the room past its padding", () => {
+    // The Button's label can't be measured: its padding (20px each side) is the least it takes.
+    expect(row([{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["Go"] }, column()])).toEqual({ widths: [null, 560], codes: [] });
+  });
+
+  it("reports minimums that can't fit, by how much", () => {
+    const { widths, codes } = row([column({ minWidth: 400 }), column({ minWidth: 300 })]);
+    expect(widths).toEqual([400, 300]);
+    expect(codes).toEqual(["layout/overflow"]);
+    expect(resolve({ type: "Email", children: [{ type: "Row", children: [column({ minWidth: 400 }), column({ minWidth: 300 })] }] }).diagnostics[0].message).toContain("need 100px more");
+  });
+});
+
+describe("text direction", () => {
+  it("starts a right-to-left template's text on the right, and a block's on its own side, unless aligned", () => {
+    const { root } = resolve({
+      type: "Email",
+      props: { dir: "rtl" },
+      children: [
+        { type: "Paragraph", children: ["inherits right"] },
+        { type: "Paragraph", props: { dir: "ltr" }, children: ["left"] },
+        { type: "Paragraph", props: { dir: "ltr" }, style: { textAlign: "center" }, children: ["center"] },
+      ],
+    });
+    expect([root, child(root, 0), child(root, 1), child(root, 2)].map((n) => n.text.textAlign)).toEqual(["right", "right", "left", "center"]);
+    expect(resolve({ type: "Email", props: { dir: "rtl" }, style: { textAlign: "left" }, children: [] }).root.text.textAlign).toBe("left");
+  });
+});
+

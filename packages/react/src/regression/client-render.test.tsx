@@ -1,12 +1,12 @@
 /**
- * User components among an email's blocks, rendered on the client (a live
- * preview re-renders the email): each keeps its own hooks, as when React
- * renders it, whatever is added, removed or moved around it.
+ * Templates with components of the user's own, and Elements called from an app that renders on the client (a live
+ * preview): each component keeps its own hooks and ids, and the app's hooks keep working after Elements' render.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import React, { act, useId, useState } from "react";
+import React, { act, useId, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Column, Email, Html, Paragraph, Row, renderToHtml, renderToPlainText } from "../index";
+import { Email, Html, Paragraph, outline, render, type RenderResult } from "../primitives/index";
+import { toDesign } from "../builder/index";
 
 // Renders run inside act(), as React's testing setup expects.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,82 +19,71 @@ afterEach(() => {
   root = host = undefined;
 });
 
-/** Renders on the client and returns the text it shows each time `next` is called with new props. */
-function mount<P extends object>(Template: (props: P) => React.ReactElement) {
-  host = document.createElement("div");
-  document.body.appendChild(host);
-  root = createRoot(host);
-  return (props: P) => {
-    act(() => root!.render(<Template {...props} />));
-    const shown = host!.cloneNode(true) as HTMLElement;
-    shown.querySelectorAll("style, title").forEach((node) => node.remove());
-    return (shown.textContent ?? "").replace(/\s+/g, " ").trim();
-  };
-}
-
-function Banner() {
-  const [text] = useState("BANNER");
-  return <Row><Column><Paragraph>{text}</Paragraph></Column></Row>;
-}
-function Footer() {
-  const [text] = useState("FOOTER");
-  return <Row><Column><Paragraph>{text}</Paragraph></Column></Row>;
-}
-
-describe("components among the email's rows, on the client", () => {
-  it("one shown under a condition: each render shows what React shows, with no hook errors", () => {
-    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    const show = mount(({ banner }: { banner: boolean }) => (
-      <Email>{banner && <Banner />}<Row><Column><Paragraph>MAIN COPY</Paragraph></Column></Row><Footer /></Email>
-    ));
-    expect([show({ banner: false }), show({ banner: true }), show({ banner: false })]).toEqual(["MAIN COPY FOOTER", "BANNER MAIN COPY FOOTER", "MAIN COPY FOOTER"]);
-    expect(errors).not.toHaveBeenCalled();
-    errors.mockRestore();
-  });
-
-  it("a keyed list with state, reordered: each item keeps its own", () => {
-    function Item({ name }: { name: string }) {
-      const [label] = useState(() => name.toUpperCase());
-      return <Row><Column><Paragraph>{label}</Paragraph></Column></Row>;
-    }
-    const show = mount(({ items }: { items: string[] }) => <Email>{items.map((name) => <Item key={name} name={name} />)}</Email>);
-    expect(show({ items: ["apple", "banana"] })).toBe("APPLE BANANA");
-    expect(show({ items: ["banana", "apple"] })).toBe("BANANA APPLE");
-  });
-});
-
-describe("components among the email's rows, rendered once", () => {
-  it("give useId() values that don't repeat the template's", () => {
+describe("components of a template, rendered once", () => {
+  it("give useId() values that don't repeat the template's", async () => {
     function Badge() {
       const id = useId();
-      return <Row><Column><Html html={`<span id="${id}">badge</span>`} /></Column></Row>;
+      return <Html><span id={id}>badge</span></Html>;
     }
     function Welcome() {
       const id = useId();
-      return <Email><Row><Column><Html html={`<span id="${id}">welcome</span>`} /></Column></Row><Badge /></Email>;
+      return (
+        <Email>
+          <Html><span id={id}>welcome</span></Html>
+          <Badge />
+        </Email>
+      );
     }
-    const ids = [...renderToHtml(<Welcome />).matchAll(/<span id="([^"]+)">/g)].map((m) => m[1]);
+    const ids = [...(await render(<Welcome />)).html.matchAll(/<span id="([^"]+)">/g)].map((m) => m[1]);
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
   });
 
-  it("show state a component sets while rendering, among the rows and in a column", () => {
+  it("show state a component sets while rendering, once, and take no id from a block after it", async () => {
     function Counter({ label }: { label: string }) {
       const [n, setN] = useState(0);
       if (n < 2) setN(n + 1);
       return <Paragraph>{`${label} n=${n}`}</Paragraph>;
     }
-    const AsRow = () => <Row><Column><Counter label="row" /></Column></Row>;
-    function InColumn() {
-      const [n, setN] = useState(0);
-      if (n < 2) setN(n + 1);
-      return <Paragraph>{`col n=${n}`}</Paragraph>;
+    const email = (
+      <Email>
+        <Counter label="first" />
+        <Paragraph id="after">after</Paragraph>
+        <Counter label="last" />
+      </Email>
+    );
+    // React runs those renders again: what they wrote the first time isn't written twice.
+    expect((await render(email)).text).toBe("first n=2\n\nafter\n\nlast n=2");
+    expect(outline(email).match(/n=\d/g)).toEqual(["n=2", "n=2"]);
+    expect(JSON.stringify(toDesign(email).design).match(/n=\d/g)).toEqual(["n=2", "n=2"]);
+  });
+});
+
+describe("an app that renders on the client (a live preview)", () => {
+  it("works out the template's design, layout and HTML while it renders, and uses hooks after", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let rendered: Promise<RenderResult> | undefined;
+      const template = <Email><Paragraph>Previewed</Paragraph></Email>;
+      function Preview({ zoom }: { zoom: number }) {
+        const { design } = useMemo(() => toDesign(template), []);
+        const laidOut = useMemo(() => outline(template), []);
+        rendered = useMemo(() => render(template), []);
+        const [label] = useState("rows");
+        return <p>{`${design.body.rows.length} ${label}, ${laidOut.includes("Previewed")}, zoom=${zoom}`}</p>;
+      }
+      host = document.createElement("div");
+      document.body.appendChild(host);
+      root = createRoot(host);
+      act(() => root!.render(<Preview zoom={1} />));
+      expect(host.textContent).toBe("1 rows, true, zoom=1");
+      // Rendered again with new props, the hooks keep their state.
+      act(() => root!.render(<Preview zoom={2} />));
+      expect(host.textContent).toBe("1 rows, true, zoom=2");
+      expect((await rendered!).text).toBe("Previewed");
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
     }
-    const email = <Email><AsRow /><Row><Column><InColumn /><Paragraph>after</Paragraph></Column></Row></Email>;
-    expect(renderToPlainText(email)).toContain("row n=2");
-    expect(renderToPlainText(email)).toContain("col n=2");
-    // The column's blocks keep their ids when React runs its render again.
-    const ids = [...renderToHtml(email).matchAll(/id="(u_[a-z_]+_\d+)"/g)].map((m) => m[1]);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 });

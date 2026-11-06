@@ -1,0 +1,464 @@
+/**
+ * Designs from outside the adapter: ones the real builder saved, read as expected; malformed JSON, read without
+ * throwing into a template that renders; and a design's size, against what the builder itself saves.
+ */
+import { generateHtmlFromTextJson } from "./lexical";
+import { JSDOM } from "jsdom";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import React from "react";
+import { describe, expect, it } from "vitest";
+import { spotify as codemodSpotify } from "../primitives/testing/codemod-examples";
+import * as jsxRuntime from "react/jsx-runtime";
+import ts from "typescript";
+import type { Node } from "@unlayer-internal/elements-core";
+import * as primitives from "../primitives";
+import { render, validate } from "../primitives";
+import { collectTemplate } from "../primitives/collect";
+import { fromDesign, toDesign, type DisplayMode } from "./index";
+import { HIDDEN } from "./manifest";
+import { seen, type Seen } from "./testing/reader";
+import { everyTool, invoice, sample, TEMPLATES } from "./testing/templates";
+
+const tree = (element: React.ReactElement): Node => collectTemplate(element).document!.root;
+
+/** Printed code run as a module, with the components it imports: the element its component returns. */
+function run(code: string): React.ReactElement {
+  const js = ts.transpileModule(code, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const module = { exports: {} as { default: () => React.ReactElement } };
+  const modules: Record<string, unknown> = { "@unlayer/react-elements": primitives, "react/jsx-runtime": jsxRuntime };
+  new Function("require", "module", "exports", js)((name: string) => modules[name], module, module.exports);
+  return module.exports.default();
+}
+
+const fixture = (name: string) => JSON.parse(readFileSync(join(__dirname, "__fixtures__/designs", `${name}.json`), "utf8"));
+
+/** Where what a reader gets differs, as "block 3 (Button) own". */
+function differing(a: Seen[], b: Seen[]): string[] {
+  const close = (x: unknown, y: unknown): boolean => {
+    if (typeof x === "number" && typeof y === "number") return Math.abs(x - y) <= 1;
+    if (x && y && typeof x === "object" && typeof y === "object") return [...new Set([...Object.keys(x), ...Object.keys(y)])].every((k) => close((x as never)[k], (y as never)[k]));
+    return JSON.stringify(x) === JSON.stringify(y);
+  };
+  if (a.length !== b.length) return [`${a.length} blocks, then ${b.length}`];
+  return a.flatMap((block, i) => [...new Set([...Object.keys(block), ...Object.keys(b[i])])].filter((key) => !close((block as never)[key], (b[i] as never)[key])).map((key) => `block ${i} (${block.kind}) ${key}`));
+}
+
+describe("designs the real builder saved", () => {
+  // Designs the earlier adapter wrote (its node of each item in values._elements, which isn't read now), loaded in
+  // the real builder and saved by it. Each reads as the template it was written from, but for what that adapter kept
+  // only in its payload, and the values the builder gave what it didn't write (its own defaults).
+  const cases: Array<[string, React.ReactElement, DisplayMode, string[]]> = [
+    [
+      "sample.saved-in-builder",
+      sample,
+      "email",
+      [
+        // The heading's background and corners, and the image's corners (blocks 0 and 4), were in the payload only;
+        // the earlier adapter wrote every link to open a new window, Elements 0.2's components' default (1 and 3).
+        "block 0 (Heading) own",
+        "block 1 (Paragraph) runs",
+        "block 3 (Button) own",
+        "block 4 (Image) own",
+      ],
+    ],
+    ["every-tool.saved-in-builder", everyTool, "email", ["block 0 (Heading) own", "block 2 (Button) own", "block 3 (Link) own", "block 5 (Paragraph) runs", "block 11 (Paragraph) hidden"]],
+    // The body had no background written: the builder's grey.
+    ["invoice.saved-in-builder", invoice, "document", [0, 1, 2, 3, 4, 5, 6].map((i) => `block ${i} (${i === 1 ? "Heading" : "Paragraph"}) behind`)],
+    // A heading's words changed in the builder's editor; the button's hover is the builder's default (white on blue);
+    // the logo's width is from before the example's images followed the editor's.
+    ["SpotifyPremiumWelcome.edited-in-builder", <codemodSpotify.SpotifyPremiumWelcome key="spotify" />, "email", ["block 0 (Image) width", "block 3 (Heading) runs", "block 5 (Button) own"]],
+  ];
+  for (const [name, template, displayMode, expected] of cases) {
+    it(`reads ${name} as the template it was written from`, () => {
+      const back = fromDesign(fixture(name), { displayMode });
+      expect(back.report).toEqual([]);
+      expect(differing(seen(template), seen(back.element))).toEqual(expected);
+    });
+  }
+
+  it("reads the edit in the edited one as the builder made it: only the heading's words", () => {
+    const back = fromDesign(fixture("SpotifyPremiumWelcome.edited-in-builder"));
+    const heading = seen(back.element)[3];
+    expect(heading.runs!.map((run) => run.text)).toEqual(["Premium starts today."]);
+    expect(seen(<codemodSpotify.SpotifyPremiumWelcome />)[3].runs!.map((run) => run.text)).toEqual(["Premium is yours. Welcome."]);
+  });
+});
+
+describe("text as the builder's editors write it", () => {
+  // paragraphs.builder-editor: a text block as the builder's editor writes one (each `<p>` with its margins of 0, its
+  // direction, its alignment, an empty line's `<br>`, an indent), and one as its older editor wrote them (each `<p>`
+  // with its line height and no margins: the builder's export resets them, `p { margin: 0 }`).
+  const padding = (top: number, bottom: number, left = 10) => ({ top, right: 10, bottom, left });
+  const line = (children: Node["children"], top: number, bottom: number, style: Record<string, unknown> = {}, left = 10): Node => ({ type: "Paragraph", style: { fontSize: 14, lineHeight: 1.4, ...style, padding: padding(top, bottom, left) } as never, children });
+
+  it("reads each paragraph as a Paragraph, spaced as the builder spaces them: by their margins, none unless their own", () => {
+    const back = fromDesign(fixture("paragraphs.builder-editor"));
+    expect(back.report).toEqual([]);
+    expect((tree(back.element).children as Node[]).slice(0, 7)).toEqual([
+      line(["First line"], 10, 0),
+      line([{ type: "Span", style: { fontWeight: 700 }, children: ["Second"] }, " line"], 0, 0, { textAlign: "center" }),
+      line(["\u200b"], 0, 0),
+      line(["Indented"], 0, 10, {}, 50),
+      line(["One"], 10, 0),
+      line(["\u00a0"], 0, 0),
+      line(["Two"], 0, 10),
+    ]);
+  });
+
+  // The third block, a paragraph (the builder's rich-text tool, written from its rich text), has links as the editor
+  // saves them, each with a rel of noopener and noreferrer only.
+  it("reads links in rich text, with the rel the editor gives them, as Links in the text's runs", async () => {
+    const design = fixture("paragraphs.builder-editor");
+    const textJson = design.body.rows[0].columns[0].contents[2].values.textJson;
+    expect(generateHtmlFromTextJson(textJson)).toContain('<a href="https://x.test/guide" target="_blank" rel="noopener noreferrer">guide</a>');
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const text = (tree(back.element).children as Node[])[7];
+    expect(text).toEqual(
+      line(["Read the ", { type: "Link", props: { href: { href: "https://x.test/guide", target: "_blank" } }, children: ["guide"] }, " or ", { type: "Link", props: { href: { href: "https://x.test/faq", target: "_self" } }, children: ["FAQ"] }], 10, 10)
+    );
+    // Drawn with the same href, target and rel (Elements' own on a link opening a new window; on one opening in its
+    // own, noopener and noreferrer change nothing).
+    const links = [...new JSDOM((await render(back.element)).html).window.document.querySelectorAll("a")].map((a) => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
+    // (The third text's links, the first two drawn.)
+    expect(links.slice(0, 2)).toEqual([
+      ["https://x.test/guide", "_blank", "noopener noreferrer"],
+      ["https://x.test/faq", "_self", null],
+    ]);
+    // Another rel (nofollow) is one a Link doesn't write: the text is its markup.
+    design.body.rows[0].columns[0].contents[2].values.textJson = textJson.replace('"noopener noreferrer"', '"noopener nofollow"');
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
+  });
+
+  // The fourth block's (a paragraph's) rich text has links as the editor saves them (ExtendedLinkNode's JSON: an `extended-link`, one
+  // with a title, a style and the builder's link value, one it made as it was typed) and Lexical's automatic links
+  // (`autolink`, one its writer unlinked), which the shared generator writes as their words only.
+  it("reads the editor's links in rich text (extended-link, autolink) as Links, with their href, target, title and style", () => {
+    const design = fixture("paragraphs.builder-editor");
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    expect((tree(back.element).children as Node[])[8]).toEqual(
+      line(
+        [
+          "Read ",
+          { type: "Link", props: { href: { href: "https://x.test/docs", target: "_blank" }, title: "Read the docs" }, style: { color: "#ff0000" }, children: ["the docs"] },
+          ", ",
+          { type: "Link", props: { href: { href: "https://x.test/faq", target: "_blank" } }, children: ["x.test/faq"] },
+          ", ",
+          { type: "Link", props: { href: "https://x.test/help", title: "Help" }, children: ["x.test/help"] },
+          " or x.test/old",
+        ],
+        10,
+        10
+      )
+    );
+    // What a Link can't hold that the editor draws on one (a click handler) keeps the text as markup, as for any link.
+    const values = design.body.rows[0].columns[0].contents[3].values;
+    values.textJson = values.textJson.replace('"onClick":""', '"onClick":"track()"');
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("a link with no href, or with attributes a Link doesn't take): it's an Html block of its markup")]);
+  });
+
+  // The fifth block's (a paragraph's) rich text has the editor's own nodes, as their exportJSON shapes them: a merge tag
+  // (merge_tag) in bold, a heading in text (extended-heading), and a bulleted list (extended-list) whose last item
+  // nests one (as the editor nests a list: an item of its own, with no marker). The shared generator writes the merge
+  // tag as nothing, the heading's words without its tag and the list's words without it.
+  it("reads the editor's own nodes in rich text (a merge tag, a heading, a list) as MergeTag, Heading and List", async () => {
+    const design = fixture("paragraphs.builder-editor");
+    const back = fromDesign(design);
+    expect(back.report).toEqual([]);
+    const pad = (top: number, bottom: number) => ({ top, right: 10, bottom, left: 10 });
+    expect((tree(back.element).children as Node[]).slice(9)).toEqual([
+      line(["Hi ", { type: "Span", style: { fontWeight: 700 }, children: [{ type: "MergeTag", props: { name: "first_name" } }] }, ","], 10, 0),
+      // An h2 as the browser draws one in 14px text at 140%: 1.5 times its size, bold, its margins 0.83em of its own,
+      // its line the text's (19.6px).
+      { type: "Heading", props: { level: 2 }, style: { fontSize: 21, fontWeight: 700, lineHeight: "19.6px", padding: pad(17.43, 0) }, children: ["Your order"] },
+      {
+        type: "List",
+        style: { fontSize: 14, lineHeight: 1.4, indent: 40, padding: pad(17.43, 24) },
+        children: [
+          { type: "ListItem", children: ["Shoes"] },
+          { type: "ListItem", children: ["Socks", { type: "List", style: { indent: 40 }, children: [{ type: "ListItem", children: ["Wool"] }] }] },
+        ],
+      },
+    ]);
+    // The merge tag is written as the editor writes it, for the sending service to fill in.
+    expect((await render(back.element)).html).toContain("{{first_name}}");
+  });
+
+  it("never drops a node of the editor's it doesn't read: its text is read, else its markup, and said", () => {
+    const design = fixture("paragraphs.builder-editor");
+    const values = design.body.rows[0].columns[0].contents[4].values;
+    const json = JSON.parse(values.textJson);
+    const words = json.root.children[0].children;
+    // A node of the editor's own with attributes (custom_node) is its element, as the editor writes it: markup.
+    words.push({ detail: 0, format: 0, mode: "normal", style: "", text: "VIP", type: "custom_node", version: 1, attributes: { "data-segment": "vip" }, tagName: "span" });
+    values.textJson = JSON.stringify(json);
+    const custom = fromDesign(design);
+    expect(custom.report).toEqual([expect.stringContaining("it's an Html block of its markup")]);
+    expect(JSON.stringify(tree(custom.element))).toContain('<span data-segment=\\"vip\\">VIP</span>');
+    // A node it doesn't know: the block's text (the builder's export of its rich text) where it has one, else its
+    // markup without that node; said either way.
+    words.splice(-1, 1, { type: "equation", version: 1, equation: "x^2", inline: true });
+    values.textJson = JSON.stringify(json);
+    values.text = "<p>Hi {{first_name}}, x²</p>";
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("its rich text has nodes Elements doesn't read (equation): its text, the builder's export of it, is read")]);
+    delete values.text;
+    expect(fromDesign(design).report).toEqual([expect.stringContaining("rich text nodes Elements doesn't read (equation), left out of it): it's an Html block of its markup")]);
+  });
+});
+
+describe("what the builder draws around a design's rows", () => {
+  const row = (text: string) => ({ cells: [1], columns: [{ contents: [{ type: "text", values: { text: `<p>${text}</p>` } }], values: {} }], values: {} });
+  const body = { rows: [row("Middle")], headers: [row("Top")], footers: [row("Bottom")], values: {} };
+
+  it("draws a header and a footer as rows in an Email and a Page, as the builder does", async () => {
+    for (const displayMode of ["email", "web"] as const) {
+      const { element, report } = fromDesign({ body }, { displayMode });
+      const { html } = await render(element);
+      const at = ["Top", "Middle", "Bottom"].map((word) => html.indexOf(word));
+      expect(at.every((place) => place >= 0)).toBe(true);
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect(report).toEqual([]);
+    }
+  });
+
+  it("draws one with a background of its own as a Section, as a row is", () => {
+    const banded = { ...row("Top"), values: { backgroundColor: "#ff0000" } };
+    const types = tree(fromDesign({ body: { rows: [banded], headers: [banded], values: {} } }, { displayMode: "email" }).element).children!.map((child) => (child as Node).type);
+    expect(types).toEqual(["Section", "Section"]);
+  });
+
+  it("keeps a Document's in its PageHeader and PageFooter", () => {
+    const types = tree(fromDesign({ body }, { displayMode: "document" }).element).children!.map((child) => (child as Node).type);
+    expect(types[0]).toBe("PageHeader");
+    expect(types[types.length - 1]).toBe("PageFooter");
+  });
+
+  it("gives text it keeps as markup no margins, as the builder's stylesheet does", async () => {
+    const text = '<p style="font-size: 14px; line-height: 140%;">One</p><p style="font-size: 14px; margin-top: 8px;">Two</p>';
+    const { element, report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "text", values: { text } }], values: {} }], values: {} }], values: {} } });
+    expect(report.join()).toContain("it's an Html block of its markup");
+    const { html } = await render(element);
+    expect(html).toContain('<p style="margin:0;font-size: 14px; line-height: 140%;">One</p>');
+    expect(html).toContain('<p style="margin:0;font-size: 14px; margin-top: 8px;">Two</p>');
+  });
+
+  it("says a design tag, which the builder fills in, is written as it is", () => {
+    const { report } = fromDesign({ body: { rows: [row("Hi [[name]], [[name]] and [[ city ]]")], values: {} } });
+    expect(report).toEqual(["body: [[name]], [[ city ]]: design tags are filled in by the builder, from what it's given: written as they are"]);
+  });
+
+  it("says what an older design hides is left out, which the builder moves when it opens one", () => {
+    const hiding = (values: Record<string, unknown>) => fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "text", values: { text: "<p>x</p>", ...values } }], values: {} }], values: {} }], values: {} } }).report;
+    const said = expect.stringContaining("written as an older design's");
+    expect(hiding({ hideMobile: true })).toEqual([said]);
+    expect(hiding({ hideDesktop: true })).toEqual([said]);
+    expect(hiding({ hideMobile: false, _override: { mobile: { hideMobile: true } } })).toEqual([]);
+    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [], values: { hideMobile: true } }], values: {} } }).report).toContainEqual(said);
+  });
+
+  it("says a web font the builder loads from a stylesheet is left out", () => {
+    const font = (label: string) => ({ label, value: `'${label}',sans-serif`, url: `https://fonts.googleapis.com/css?family=${label}:400,700` });
+    const { report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "heading", values: { text: "x", fontFamily: font("Montserrat") } }, { type: "text", values: { text: "<p>y</p>", fontFamily: { label: "Arial", value: "arial,helvetica,sans-serif" } } }], values: {} }], values: {} }], values: { fontFamily: font("Rubik") } } });
+    expect(report).toEqual(["body: Rubik, Montserrat: web fonts the builder loads from a stylesheet, which a root doesn't take (its fonts are font files): left out, so text shows in the next font of its stack"]);
+  });
+
+  it("says a table isn't read, which Elements has a component for", () => {
+    const { report } = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "table", values: {} }], values: {} }], values: {} }], values: {} } });
+    expect(report).toEqual(["rows[0].columns[0].contents[0]: a table of the builder's isn't read into a Table yet: left out"]);
+  });
+});
+
+describe("malformed design JSON", () => {
+  /** A seeded random number generator (mulberry32). */
+  const random = (seed: number) => {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  const ODD: unknown[] = [null, undefined, 0, -1, 1e9, NaN, "", "x", "__proto__", "constructor", "toString", true, [], [null], {}, { __proto__: { x: 1 } }, { constructor: 1 }, JSON.parse('{"toString":null}'), JSON.parse('{"valueOf":1,"toString":"x"}'), "javascript:alert(1)", "<script>x</script>", "10px 20px 30px 40px 50px", { value: 5 }];
+
+  /** The design with one value somewhere replaced by something odd. */
+  function damaged(design: any, seed: number): any {
+    const next = random(seed);
+    const copy = JSON.parse(JSON.stringify(design));
+    const paths: Array<[any, string]> = [];
+    const walk = (value: any) => {
+      if (!value || typeof value !== "object") return;
+      for (const key of Object.keys(value)) {
+        paths.push([value, key]);
+        walk(value[key]);
+      }
+    };
+    walk(copy);
+    for (let i = 0; i < 3; i++) {
+      const [holder, key] = paths[Math.floor(next() * paths.length)];
+      const odd = ODD[Math.floor(next() * ODD.length)];
+      if (next() < 0.2) holder["__proto__" + (i ? i : "")] = odd;
+      else holder[key] = odd;
+    }
+    return copy;
+  }
+
+  it("is read without throwing, into a template that validates, what it can't read said", async () => {
+    const designs = Object.values(TEMPLATES).map((template) => toDesign(template).design);
+    for (let seed = 1; seed <= 300; seed++) {
+      const design = damaged(designs[seed % designs.length], seed);
+      const back = fromDesign(design);
+      const { diagnostics } = validate(back.element);
+      expect([seed, diagnostics.filter((d) => d.severity === "error")]).toEqual([seed, []]);
+      expect(typeof back.code).toBe("string");
+      if (seed % 50 === 0) await render(back.element);
+    }
+  });
+
+  it("leaves out only a link Elements refuses (a file's, a script's): the rest of its block is kept, and the template renders", async () => {
+    const block = (content: unknown) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [content] }] }] } });
+    const ok = { name: "web", values: { href: "https://x.test" } };
+    const designs = {
+      image: block({ type: "image", values: { src: { url: "https://x.test/a.png", width: 100, height: 100 }, action: { name: "web", values: { href: "file:///x" } } } }),
+      menu: block({ type: "menu", values: { menu: { items: [{ key: "1", text: "A", link: { name: "web", values: { href: "javascript:alert(1)" } } }, { key: "2", text: "B", link: ok }] } } }),
+      social: block({ type: "social", values: { icons: { iconType: "circle", icons: [{ name: "Facebook", url: "data:text/html,x" }, { name: "X", url: "https://x.test" }] } } }),
+    };
+    const read = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, fromDesign(design)]));
+    for (const { element } of Object.values(read)) {
+      expect(validate(element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+      await render(element);
+    }
+    expect(tree(read.image.element).children).toEqual([{ type: "Column", style: { padding: { top: 10, right: 10, bottom: 10, left: 10 }, alignItems: "center" }, children: [{ type: "Image", props: { src: { src: "https://x.test/a.png", width: 100, height: 100 } } }] }]);
+    expect(read.image.report).toEqual(['root.children[0].children[0]: its href "file:///x" isn\'t one Elements writes: what it holds without it']);
+    expect(((tree(read.menu.element).children as Node[])[0].children![0] as Node).props!.items).toEqual([{ text: "A", href: "#" }, { text: "B", href: "https://x.test" }]);
+    expect(read.menu.report).toEqual(['root.children[0].children[0]: its items[0]\'s link "javascript:alert(1)" isn\'t one Elements writes: it\'s "#"']);
+    expect(((tree(read.social.element).children as Node[])[0].children![0] as Node).props!.icons).toEqual([{ name: "Facebook", href: "#" }, { name: "X", href: "https://x.test" }]);
+  });
+
+  it("passes a design's markup through toSafeHtml where one is given: an html block's, a text's, a text kept as markup", async () => {
+    const block = (content: unknown) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [content] }] }] } });
+    const script = "<script>alert(1)</script>";
+    const strip = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, "");
+    for (const content of [{ type: "html", values: { html: `${script}Hi` } }, { type: "text", values: { text: `${script}Hi` } }, { type: "text", values: { text: `<marquee>Hi</marquee>${script}` } }]) {
+      const design = block(content);
+      expect((await render(fromDesign(design).element)).html).toContain(script);
+      const safe = (await render(fromDesign(design, { toSafeHtml: strip }).element)).html;
+      expect(safe).not.toContain("<script");
+      expect(safe).toContain("Hi");
+    }
+  });
+
+  it("leaves out a value whose own toString or valueOf isn't a function (which can't be read as text), wherever it is, and says so", () => {
+    const odd = () => JSON.parse('{"toString":null}');
+    const design = toDesign(TEMPLATES.sample).design as any;
+    const [first, second] = design.body.rows[0].columns[0].contents;
+    first.values.containerPadding = odd();
+    second.values.fontSize = odd();
+    design.body.rows[0].values.padding = odd();
+    design.body.rows[0].columns[0].values.padding = odd();
+    design.body.values.contentWidth = odd();
+    design.body.values.textColor = JSON.parse('{"valueOf":null,"toString":"x"}');
+    let back: ReturnType<typeof fromDesign> | undefined;
+    expect(() => (back = fromDesign(design))).not.toThrow();
+    expect(validate(back!.element).diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+    expect(back!.report.filter((line) => line.includes("toString or valueOf"))).toEqual(
+      ["body.rows[0].columns[0].contents[0].values.containerPadding", "body.rows[0].columns[0].contents[1].values.fontSize", "body.rows[0].columns[0].values.padding", "body.rows[0].values.padding", "body.values.contentWidth", "body.values.textColor"].map((path) => `${path}: a value whose own toString or valueOf isn't a function can't be read: left out`)
+    );
+  });
+
+  it("reads rich text whose passthrough isn't HTML (`{\"__html\": 42}`) as the block's text, or as nothing, and says so: the rest of the design is read", () => {
+    const design = (values: Record<string, unknown>) => ({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "text", values: { text: "Kept block" } }, { type: "paragraph", values }] }] }] } });
+    const withText = fromDesign(design({ text: "Its own words", textJson: '{"__html":42}' }));
+    expect(validate(withText.element).valid).toBe(true);
+    expect(withText.code).toContain("Kept block");
+    expect(withText.code).toContain("Its own words");
+    expect(withText.report.join("\n")).toContain("rich text that isn't the editor's");
+    const without = fromDesign(design({ textJson: '{"__html":42}' }));
+    expect(validate(without.element).valid).toBe(true);
+    expect(without.code).toContain("Kept block");
+    expect(without.report.join("\n")).toContain("rich text that isn't the editor's");
+  });
+
+  it("reads markup nested deeper than any text's as an Html block, and says so, rather than running out of stack", async () => {
+    const nested = (open: string, close: string, n: number) => open.repeat(n) + "x" + close.repeat(n);
+    for (const [type, key, text] of [["text", "text", nested("<ul><li>a", "</li></ul>", 1000)], ["text", "text", nested("<b>", "</b>", 3000)], ["button", "text", nested("<b>", "</b>", 3000)]]) {
+      const back = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type, values: { [key]: text } }] }] }] } });
+      expect(back.report).toEqual(expect.arrayContaining([expect.stringContaining("markup nested more than 64 deep")]));
+      await render(back.element);
+    }
+  });
+
+  it("reads JSON that isn't a design as an empty template, and says so", () => {
+    for (const design of [null, "x", 5, [], {}, { body: 5 }, { body: { rows: "x" } }, { body: { rows: [null, 5, { columns: "x" }, { columns: [null, { contents: [null, { type: "constructor", values: 5 }, { type: "__proto__" }] }] }] } }]) {
+      const back = fromDesign(design);
+      expect(validate(back.element).valid).toBe(true);
+      expect(back.report.length).toBeGreaterThan(0);
+    }
+    expect(fromDesign({ body: { rows: [{ columns: [{ contents: [{ type: "timer", values: {} }] }] }] } }).report).toEqual(["rows[0].columns[0].contents[0]: a timer of the builder's has no component in Elements: left out"]);
+  });
+
+  it("writes no code from a design's data: the code it prints, run, is the template it gives", () => {
+    const design = toDesign(TEMPLATES.sample).design as any;
+    const [, text] = design.body.rows[0].columns[0].contents;
+    text.values.text = '"}; globalThis.ran = 1; {"<a href="javascript:alert(1)">x</a> {`${globalThis.ran = 2}`}';
+    design.body.values.accessibilityTitle = '"/><script>globalThis.ran = 3</script>';
+    design.body.rows[0].columns[0].contents[0].values._meta = { htmlID: 'a"} onload={() => (globalThis.ran = 4)} x={"' };
+    const designs = [design, ...Object.values(TEMPLATES).map((template) => toDesign(template).design)];
+    for (const each of designs) {
+      const back = fromDesign(each, { name: "Template" });
+      expect(tree(run(back.code))).toEqual(tree(back.element));
+    }
+    expect((globalThis as { ran?: number }).ran).toBeUndefined();
+  });
+});
+
+describe("a design's size", () => {
+  /** What the builder saves beside what toDesign() writes (from the designs it saved): its own defaults on every item. */
+  const SAVES: Record<string, Record<string, unknown>> = {
+    body: fixture("every-tool.saved-in-builder").body.values,
+    row: { hideDesktop: false },
+    content: { anchor: "", hideDesktop: false, displayCondition: null, _styleGuide: null, locked: false },
+  };
+  /** The design as the builder itself would save the same layout: no hidden properties, and the builder's own defaults. */
+  function builderSaves(design: any): any {
+    const copy = JSON.parse(JSON.stringify(design));
+    const strip = (tool: string, values: Record<string, any>, saves: Record<string, unknown>) => {
+      for (const { key, path } of HIDDEN[tool] ?? []) {
+        if (path.startsWith("hidden.")) continue;
+        delete values[key];
+        delete values._override?.mobile?.[key];
+      }
+      for (const [key, value] of Object.entries(saves)) if (!(key in values) && !key.startsWith("_elements")) values[key] = value;
+    };
+    strip("body", copy.body.values, Object.fromEntries(Object.entries(SAVES.body).filter(([key]) => key.startsWith("popup"))));
+    for (const rows of [copy.body.rows, copy.body.headers ?? [], copy.body.footers ?? []]) {
+      for (const row of rows) {
+        strip("row", row.values, SAVES.row);
+        for (const column of row.columns) {
+          strip("column", column.values, {});
+          for (const content of column.contents) strip(content.type, content.values, SAVES.content);
+        }
+      }
+    }
+    return copy;
+  }
+  const size = (value: unknown) => JSON.stringify(value).length;
+
+  it("is at most about 1.1 times what the builder saved for the same template", () => {
+    for (const [name, template] of [["sample", sample], ["every-tool", everyTool], ["invoice", invoice]] as const) {
+      const saved = JSON.parse(JSON.stringify(fixture(`${name}.saved-in-builder`), (key, value) => (key === "_elements" ? undefined : value)));
+      expect([name, size(toDesign(template).design) <= 1.1 * size(saved)]).toEqual([name, true]);
+    }
+  });
+
+  it("is at most about 1.1 times what the builder would save for the same layout, hidden properties and all", () => {
+    for (const [name, template] of Object.entries(TEMPLATES)) {
+      const design = toDesign(template).design;
+      const ratio = size(design) / size(builderSaves(design));
+      expect([name, ratio <= 1.1]).toEqual([name, true]);
+    }
+  });
+});

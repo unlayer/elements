@@ -146,10 +146,10 @@ jobs:
             ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
-            ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
+            ELEMENTS=$(changed 'v*' packages/react packages/core pnpm-workspace.yaml)
             # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
             # release the converter supports), not the newest, so an Elements release doesn't republish it.
-            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
+            MIGRATE=$(changed 'migrate-v*' packages/migrate pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
           if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
@@ -302,8 +302,8 @@ jobs:
       - name: Pre-publish summary
         working-directory: packages/react
         run: |
-          CATALOG=$(grep -A10 "catalog:" ../../pnpm-workspace.yaml | grep "@unlayer" | sed 's/^ *//' | tr '\n' ', ')
-          BUNDLE_SIZE=$(wc -c < dist/index.js | tr -d ' ')
+          MAIN_SIZE=$(wc -c < dist/primitives.js | tr -d ' ')
+          BUILDER_SIZE=$(wc -c < dist/builder.js | tr -d ' ')
           FILE_COUNT=$(find dist -type f | wc -l | tr -d ' ')
 
           echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
@@ -314,13 +314,13 @@ jobs:
           echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Auth** | Trusted publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Dependencies** | ${CATALOG} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **ESM bundle** | ${BUNDLE_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Main entry (ESM)** | ${MAIN_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| **/builder (ESM)** | ${BUILDER_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| **Files in dist** | ${FILE_COUNT} |" >> $GITHUB_STEP_SUMMARY
 
-      # Two-step publish: pnpm pack resolves catalog: protocol to real
+      # Two-step publish: pnpm pack resolves the workspace: protocol to real
       # version numbers, then npm publish handles OIDC trusted publishing.
-      # npm publish alone does NOT understand catalog: and would ship broken deps.
+      # npm publish alone does NOT understand workspace: and would ship a broken manifest.
       # No --provenance flag yet: the repository is public now, so it can be added.
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react

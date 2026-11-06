@@ -1,0 +1,179 @@
+/**
+ * The email in Chromium: every box as wide as the resolver worked out on
+ * desktop, with the stylesheet and without it (Gmail drops `<style>` for some
+ * accounts: the email must be right without it), and Rows stacked on phones,
+ * by the stylesheet and, without it, by the fluid-hybrid columns alone.
+ */
+import { chromium, type Browser, type Page } from "playwright";
+import { resolveDocument, type ResolvedNode } from "../../src";
+import { emailSupport, renderEmail, renderTemplate } from "../../src/writers";
+import { template } from "./fixture";
+
+const resolved = resolveDocument(template("Email"));
+const { html, diagnostics: written } = renderEmail(resolved);
+const diagnostics = [...emailSupport(resolved.root), ...written];
+
+let browser: Browser;
+let page: Page;
+
+beforeAll(async () => {
+  browser = await chromium.launch();
+  page = await browser.newPage();
+});
+afterAll(async () => browser?.close());
+
+type Box = { width: number; left: number; top: number; shown: boolean };
+
+async function boxes(viewport: number, { style = true } = {}): Promise<Record<string, Box>> {
+  await page.setViewportSize({ width: viewport, height: 900 });
+  await page.setContent(html);
+  if (!style) await page.evaluate(() => document.querySelectorAll("style").forEach((element) => element.remove()));
+  return page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll("[id]")].map((element) => {
+        const box = element.getBoundingClientRect();
+        return [element.id, { width: box.width, left: box.left, top: box.top, shown: box.width > 0 && box.height >= 0 && (element as HTMLElement).offsetParent !== null }];
+      })
+    )
+  );
+}
+
+function sized(node: ResolvedNode, into: ResolvedNode[] = []): ResolvedNode[] {
+  if (node.width !== null && node.type !== "Email" && node.type !== "Section" && node.id) into.push(node);
+  for (const child of node.children) if (typeof child !== "string") sized(child, into);
+  return into;
+}
+
+describe("email layout in Chromium", () => {
+  it("renders with no warnings for this template", () => {
+    expect(diagnostics.filter((d) => d.severity !== "info")).toEqual([]);
+  });
+
+  for (const style of [true, false]) {
+    it(`gives every box the width the resolver worked out, on desktop${style ? "" : ", without the stylesheet"}`, async () => {
+      const measured = await boxes(1280, { style });
+      const expected = sized(resolved.root);
+      expect(expected.length).toBeGreaterThan(10);
+      for (const node of expected) expect([node.id, Math.round(measured[node.id!].width)]).toEqual([node.id, node.width]);
+      // A Section spans the window.
+      for (const id of ["section_1", "section_2"]) expect(measured[id].width).toBe(1280);
+    });
+  }
+
+  it("stacks Rows full-width and hides what's hidden, on phones", async () => {
+    const measured = await boxes(375);
+    expect(measured["desktop-only"].shown).toBe(false);
+    // The Row's content: 375 less its 10px padding each side; its children one under another.
+    for (const id of ["column_1", "column_2"]) expect(Math.round(measured[id].width)).toBe(355);
+    expect(measured.column_2.top).toBeGreaterThan(measured.column_1.top);
+    expect(measured.row_1.width).toBe(375);
+  });
+
+  it("still stacks without the stylesheet: the columns wrap where they don't fit, inside the screen", async () => {
+    const measured = await boxes(375, { style: false });
+    expect(measured.column_2.top).toBeGreaterThan(measured.column_1.top);
+    for (const [id, box] of Object.entries(measured)) {
+      if (id.startsWith("section_")) continue;
+      expect([id, box.left + box.width <= 375.5]).toEqual([id, true]);
+    }
+  });
+
+  it("shows the hidden-on-phones column on desktop, beside the others", async () => {
+    const measured = await boxes(1280);
+    expect(measured["desktop-only"].shown).toBe(true);
+    expect(measured["desktop-only"].top).toBe(measured.column_1.top);
+  });
+});
+
+describe("a Layer whose Image is hidden on phones, in Chromium", () => {
+  it("draws the image on desktop, and on phones only what's over it, as tall as that is", async () => {
+    const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 600 };
+    const { html } = renderTemplate({
+      root: {
+        type: "Email",
+        props: { width: 600 },
+        children: [{ type: "Layer", id: "hero", children: [{ type: "Image", props: { src: photo, alt: "Sea" }, style: { width: "100%" }, hidden: { mobile: true } }, { type: "Paragraph", id: "over", children: ["Summer sale"] }] }],
+      },
+    });
+    const measure = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(html);
+      return page.evaluate(() => {
+        const cell = document.querySelector("#hero td[background]")!;
+        return { image: getComputedStyle(cell).backgroundImage, height: Math.round(cell.getBoundingClientRect().height), over: Math.round(document.getElementById("over")!.getBoundingClientRect().height) };
+      });
+    };
+    const desktop = await measure(1280);
+    expect([desktop.image.startsWith("url("), desktop.height]).toEqual([true, 300]);
+    const phone = await measure(375);
+    expect([phone.image, phone.height]).toEqual(["none", phone.over]);
+  });
+
+  it("keeps a box over the image to its own width, as a page does", async () => {
+    const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 600 };
+    const template = (root: "Email" | "Page", style: Record<string, number>) =>
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Layer", children: [{ type: "Image", props: { src: photo, alt: "" }, style: { width: "100%" } }, { type: "Column", id: "over", style, children: [{ type: "Paragraph", children: ["Words"] }] }] }] } }).html;
+    const width = async (html: string) => {
+      await page.setViewportSize({ width: 1000, height: 800 });
+      await page.setContent(html);
+      return page.evaluate(() => Math.round(document.getElementById("over")!.getBoundingClientRect().width));
+    };
+    for (const [style, expected] of [[{ maxWidth: 200 }, 200], [{ width: 240 }, 240]] as const) {
+      expect(await width(template("Page", style))).toBe(expected);
+      expect(await width(template("Email", style))).toBe(expected);
+    }
+  });
+});
+
+describe("a Section's phone padding, in Chromium", () => {
+  it("moves the content in from the sides phones set, with or without desktop side padding", async () => {
+    const band = (id: string, style: Record<string, unknown>, mobile: Record<string, unknown>) => ({ type: "Section", style, mobile, children: [{ type: "Paragraph", id, children: ["Words in a band"] }] });
+    const { html } = renderTemplate({
+      root: {
+        type: "Email",
+        props: { width: 600 },
+        children: [band("sides", { padding: [36, 48] }, { padding: [24, 20] }), band("none", { padding: [36, 0] }, { padding: [24, 16, 24, 20] }), band("kept", { padding: [36, 48] }, { padding: [24, 48] })],
+      },
+    });
+    const measure = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(html);
+      return page.evaluate(() => Object.fromEntries(["sides", "none", "kept"].map((id) => [id, (({ left, right }) => [Math.round(left), Math.round(right)])(document.getElementById(id)!.getBoundingClientRect())])));
+    };
+    // On desktop the 600px content sits in the middle of 1280: 340 to 940, less its own side padding.
+    expect(await measure(1280)).toEqual({ sides: [388, 892], none: [340, 940], kept: [388, 892] });
+    // On a phone the content is the window, less the sides phones set.
+    expect(await measure(375)).toEqual({ sides: [20, 355], none: [20, 359], kept: [48, 327] });
+  });
+});
+
+describe("a Video on phones, in Chromium", () => {
+  const thumbnail = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 675 };
+  const template = (root: "Email" | "Page", style: Record<string, unknown>, mobile?: Record<string, unknown>) =>
+    renderTemplate({ root: { type: root, props: { width: 512 }, children: [{ type: "Video", id: "film", props: { src: "https://youtu.be/dQw4w9WgXcQ", title: "A film", thumbnail }, style, ...(mobile ? { mobile } : {}) }] } }).html;
+  /** Where the video is, and how wide: in an email the thumbnail inside its link, on a page its player's box. */
+  const box = async (html: string, viewport: number) => {
+    await page.setViewportSize({ width: viewport, height: 900 });
+    await page.setContent(html);
+    return page.evaluate(() => {
+      const film = document.getElementById("film")!;
+      const { left, width } = (film.querySelector("img") ?? film).getBoundingClientRect();
+      return [Math.round(left), Math.round(width)];
+    });
+  };
+
+  for (const [name, style, mobile, phone] of [
+    ["its phone width in %", { width: 320 }, { width: "100%" }, [0, 375]],
+    ["its phone width in px", { width: 320 }, { width: 100 }, [0, 100]],
+    ["its phone maximum", { width: 320 }, { maxWidth: 100 }, [0, 100]],
+    ["a percentage of its place", { width: "50%" }, undefined, [0, 188]],
+    ["a percentage up to a maximum", { width: "50%", maxWidth: 200 }, undefined, [0, 188]],
+  ] as const) {
+    it(`takes ${name}, as the page does, and leaves desktop as it was`, async () => {
+      const [email, web] = [template("Email", style, mobile), template("Page", style, mobile)];
+      expect(await box(web, 375)).toEqual(phone);
+      expect(await box(email, 375)).toEqual(phone);
+      expect(await box(email, 1000)).toEqual(await box(web, 1000));
+    });
+  }
+});

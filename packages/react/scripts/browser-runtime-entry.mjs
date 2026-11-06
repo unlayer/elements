@@ -1,24 +1,12 @@
 import React from "react";
-import { Column, Email, Paragraph, Row, renderToHtml } from "../dist/index.js";
+import { Email, Paragraph, render } from "../dist/primitives.js";
+import { toDesign } from "../dist/builder.js";
 
-const tree = React.createElement(
-  Email,
-  null,
-  React.createElement(
-    Row,
-    null,
-    React.createElement(
-      Column,
-      null,
-      React.createElement(Paragraph, null, "Browser runtime probe content"),
-    ),
-  ),
-);
+const h = React.createElement;
+const tree = h(Email, { title: "Browser runtime probe" }, h(Paragraph, null, "Browser runtime probe content"));
 
-globalThis.__UNLAYER_ELEMENTS_BROWSER_RUNTIME_PROBE__ = {
-  html: renderToHtml(tree, {
-    mode: "email",
-    title: "Browser runtime probe",
-  }),
+globalThis.__UNLAYER_ELEMENTS_BROWSER_RUNTIME_PROBE__ = render(tree).then(({ html }) => ({
+  html,
+  rows: toDesign(tree).design.body.rows.length,
   processType: typeof globalThis.process,
-};
+}));

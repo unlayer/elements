@@ -1,27 +1,8 @@
 /**
- * Escape a string before interpolating it into an email body.
- *
- * The Elements package renders the `html` prop verbatim, so any dynamic
- * value (a DB row, webhook payload, CMS field) must be escaped to prevent
- * markup injection.
- */
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => escapeMap[char]);
-}
-
-const escapeMap: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-/**
  * Validate that a URL is safe to use as a link target in an email.
  *
- * Rejects non-http(s) schemes such as `javascript:` that email clients and
- * the receiving application may otherwise preserve.
+ * Elements refuses links that run scripts (`javascript:`) when it renders. This
+ * is stricter, for a value that comes from outside: an absolute http(s) URL only.
  */
 export function requireSafeUrl(value: string): string {
   let url: URL;
