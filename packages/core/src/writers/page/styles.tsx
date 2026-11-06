@@ -3,6 +3,7 @@ import type { Json } from "../../model";
 import type { ResolvedNode } from "../../resolve";
 import { rule } from "../jsx";
 import { border, css, insets, length, textValue, type Declarations } from "../shared/css";
+import { phoneWidthInRow } from "../shared/phone-width";
 import { FLEX_ALIGN } from "./layout";
 
 const OVERRIDE: Record<string, (value: Json) => Declarations> = {
@@ -27,7 +28,7 @@ function declarationsOf(values: Record<string, Json>): Declarations {
 }
 
 /** The classes of the stylesheet's rules for the node (phone styles, hiding, hover, stacking), if any. */
-export function classesFor(node: ResolvedNode): string | undefined {
+export function classesFor(node: ResolvedNode, parent: ResolvedNode): string | undefined {
   const classes: string[] = [];
   if (node.mobile) {
     // A Divider's length is its line's.
@@ -35,6 +36,10 @@ export function classesFor(node: ResolvedNode): string | undefined {
     if (Object.keys(rest).length) classes.push(rule("phone", `&{${css(declarationsOf(rest), true)}}`));
     const line = node.type === "Divider" && node.style.padding !== undefined ? ">hr" : "";
     if (width !== undefined) classes.push(rule("phone", `&${line}{${css(declarationsOf({ width }), true)}}`));
+    // In a Row kept side by side its flex basis wins over a width (rowPlacement), but where it's of its own size and has none.
+    const own = node.style.width === undefined && (node.style.flex === "none" || node.style.flex === 0);
+    const basis = own ? undefined : length(phoneWidthInRow(node, parent));
+    if (basis !== undefined) classes.push(rule("phone", `&{flex:0 1 ${basis}!important}`));
   }
   classes.push(...hidingClasses(node.hidden));
   if (node.hover) classes.push(rule("all", `&:hover{${css(declarationsOf(node.hover), true)}}`, "hover"));

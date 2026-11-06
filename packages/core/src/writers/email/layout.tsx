@@ -180,8 +180,8 @@ export const gapOf = (props: Props) => (typeof props.style.gap === "number" ? pr
 export const phoneGapOf = (props: Props) => (typeof props.mobile.gap === "number" ? props.mobile.gap : gapOf(props));
 export const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
-/** A child that shares its Row (no width of its own, a flex). */
-const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
+/** A child that shares its Row on phones (no width of its own, a flex). */
+export const sharing = (child: ResolvedNode) => child.width !== null && child.style.width === undefined && child.mobile?.width === undefined && child.style.flex !== "none" && child.style.flex !== 0;
 
 /**
  * Each child's width on phones in a side-by-side Row whose children share it: a table shares its width out by its

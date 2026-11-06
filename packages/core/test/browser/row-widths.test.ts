@@ -123,6 +123,100 @@ describe("a Row kept side by side, on phones", () => {
     };
     expect(await boxes(renderEmail(template("Email")).html)).toEqual(await boxes(renderPage(template("Page")).html));
   });
+
+  /** Each box's place across the window: [left, width]. */
+  const places = async (html: string, viewport: number, ids: string[]) => {
+    const page = await browser.newPage({ viewport: { width: viewport, height: 800 } });
+    await page.setContent(html);
+    const found = await page.evaluate((ids) => ids.map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ x, width }) => [Math.round(x), Math.round(width)]), ids);
+    await page.close();
+    return found;
+  };
+  const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 280, height: 140 };
+  const text = { type: "Text", children: ["x"] };
+  const CHILD = (id: string, style: Record<string, unknown>, mobile?: Record<string, unknown>) => ({ type: "Column", id, style, ...(mobile ? { mobile } : {}), children: [text] });
+
+  // At 375 wide. Where the child's phone width goes, and what its neighbours do with the room that leaves.
+  const PHONE_WIDTHS: Array<[string, unknown[], Record<string, unknown>, Record<string, unknown>, number[][]]> = [
+    ["a fixed child, narrower", [CHILD("a", { width: 280 }, { width: 100 }), CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["a fixed child, wider", [CHILD("a", { width: 100 }, { width: 280 }), CHILD("b", {})], {}, {}, [[0, 280], [280, 95]]],
+    ["a sharing child", [CHILD("a", {}, { width: 100 }), CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["a sharing child, among three", [CHILD("a", {}, { width: 100 }), CHILD("b", {}), CHILD("c", {})], {}, {}, [[0, 100], [100, 138], [238, 138]]],
+    ["a percentage, with a gap", [CHILD("a", { width: 280 }, { width: "30%" }), CHILD("b", {})], { gap: 10 }, {}, [[0, 113], [123, 253]]],
+    ["a child of its own size", [CHILD("a", { flex: "none" }, { width: 100 }), CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["children that each have one, with room left", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], {}, {}, [[0, 100], [100, 120]]],
+    ["children that each have one, at the Row's end", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], { justifyContent: "end" }, {}, [[155, 100], [255, 120]]],
+    ["children that each have one, in the Row's center", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], { justifyContent: "center" }, {}, [[78, 100], [178, 120]]],
+    ["a Text", [{ type: "Text", id: "a", style: { width: 280 }, mobile: { width: 100 }, children: ["x"] }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["an Image", [{ type: "Image", id: "a", props: { src: photo, alt: "" }, style: { width: 280 }, mobile: { width: 100 } }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["a Button", [{ type: "Button", id: "a", props: { href: "#" }, style: { width: 280 }, mobile: { width: 100 }, children: ["Go"] }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["a Row", [{ type: "Row", id: "a", props: { stackOnMobile: false }, style: { width: 280 }, mobile: { width: "40%" }, children: [CHILD("c", {})] }, CHILD("b", {})], {}, {}, [[0, 150], [150, 225]]],
+    ["a Row that wraps, the child on a line of its own", [CHILD("a", { width: 280 }, { width: "100%" }), CHILD("b", { width: 200 })], { flexWrap: "wrap" }, {}, [[0, 375], [0, 200]]],
+    ["a Row that wraps, the children on one line", [CHILD("a", { width: 280 }, { width: 100 }), CHILD("b", { width: 280 }, { width: "30%" })], { flexWrap: "wrap" }, {}, [[0, 100], [100, 113]]],
+  ];
+  for (const [name, children, style, props, expected] of PHONE_WIDTHS) {
+    it(`takes a child's phone width: ${name}, as on the page, and leaves desktop as it was`, async () => {
+      const template = (root: "Page" | "Email") => renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false, ...props }, style, children }] } }).html;
+      const ids = children.map((child) => (child as { id: string }).id);
+      expect(await places(template("Page"), 375, ids)).toEqual(expected);
+      expect(await places(template("Email"), 375, ids)).toEqual(expected);
+      expect(await places(template("Email"), 1000, ids)).toEqual(await places(template("Page"), 1000, ids));
+    });
+  }
+
+  it("takes a child's phone width beside a child of its own size, as on the page", async () => {
+    const template = (root: "Page" | "Email", width: unknown) =>
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, children: [CHILD("a", { flex: "none" }, { width }), { type: "Link", id: "b", props: { href: "#" }, style: { flex: "none" }, children: ["Read"] }] }] } }).html;
+    for (const [width, expected] of [[100, 100], [20, 20]] as const) {
+      const page = await places(template("Page", width), 375, ["a", "b"]);
+      expect(page[0]).toEqual([0, expected]);
+      expect(await places(template("Email", width), 375, ["a", "b"])).toEqual(page);
+    }
+  });
+
+  it("keeps a padded Divider's phone width on its line, in its place", async () => {
+    const template = (root: "Page" | "Email") =>
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, children: [{ type: "Divider", id: "a", style: { width: 280, padding: [0, 10] }, mobile: { width: "50%" } }, CHILD("b", {})] }] } }).html;
+    expect(await places(template("Page"), 375, ["a", "b"])).toEqual([[0, 280], [280, 95]]);
+    expect(await places(template("Email"), 375, ["a", "b"])).toEqual([[0, 280], [280, 95]]);
+  });
+
+  it("keeps a wide child's width beside a child of its own size, inside the screen on phones", async () => {
+    const link = { type: "Link", id: "b", props: { href: "#" }, style: { flex: "none" }, children: ["Read"] };
+    const template = (root: "Page" | "Email", width: number) => renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, children: [CHILD("a", { width }), link] }] } }).html;
+    const seen = async (html: string, viewport: number) => {
+      const page = await browser.newPage({ viewport: { width: viewport, height: 800 } });
+      await page.setContent(html);
+      const found = await page.evaluate(() => ({ a: Math.round(document.getElementById("a")!.getBoundingClientRect().width), scroll: document.documentElement.scrollWidth }));
+      await page.close();
+      return found;
+    };
+    for (const width of [300, 500]) {
+      expect(await seen(template("Email", width), 1000)).toEqual({ a: width, scroll: 1000 });
+      for (const viewport of [375, 320]) {
+        const { a } = await seen(template("Page", width), viewport);
+        const email = await seen(template("Email", width), viewport);
+        expect(email.scroll).toBeLessThanOrEqual(viewport);
+        expect(Math.abs(email.a - a)).toBeLessThanOrEqual(2);
+      }
+    }
+    // Where it and what's beside it don't fit the email, a minimum would push the email past its width.
+    const full = renderTemplate({ root: { type: "Email", props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, children: [CHILD("a", { width: 560 }), { ...link, children: ["Read the whole of the story here"] }] }] } }).html;
+    expect((await seen(full, 640)).scroll).toBeLessThanOrEqual(640);
+  });
+
+  it("keeps a child's width beside a child of its own size", async () => {
+    for (const other of [
+      { type: "Button", id: "b", props: { href: "#" }, style: { flex: "none" }, children: ["Go"] },
+      { type: "Link", id: "b", props: { href: "#" }, style: { flex: "none" }, children: ["Read"] },
+      { type: "Column", id: "b", style: { flex: "none" }, children: [text] },
+    ]) {
+      for (const [viewport, expected] of [[1000, 64], [375, 64]] as const) {
+        const template = (root: "Page" | "Email") => renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, children: [CHILD("a", { width: 64 }), other] }] } }).html;
+        expect([(await places(template("Page"), viewport, ["a"]))[0][1], (await places(template("Email"), viewport, ["a"]))[0][1]]).toEqual([expected, expected]);
+      }
+    }
+  });
 });
 
 describe("a Grid kept side by side, on phones", () => {

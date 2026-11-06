@@ -100,7 +100,7 @@ function propsOf(node: ResolvedNode, parent: ResolvedNode, placement: Declaratio
     style: node.style,
     parent,
     placement,
-    classes: () => classesFor(node),
+    classes: () => classesFor(node, parent),
     children: () => {
       // Text and the runs in it; else the nodes it lays out, each placed by its layout.
       if (node.definition.children.text) return <>{node.children.map((child) => (typeof child === "string" ? child : render(child, [])))}</>;

@@ -13,14 +13,20 @@
  */
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
-import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, toNumber, valignOf } from "./layout";
+import { boxWidth, gapOf, phoneGapOf, phoneShares, phoneWidth, sharing, toNumber, valignOf } from "./layout";
 import { bgcolor, ownBorders, Table, TABLE } from "./markup";
 import { gapCell, spacer } from "./spacers";
 import { hiding } from "./styles";
 import { fontFamily } from "../shared/css";
+import { oneLineWidth } from "../shared/estimate";
 import { gapsBefore, gapShown } from "../shared/gaps";
+import { phoneWidthInRow } from "../shared/phone-width";
+import type { ResolvedNode } from "../../resolve";
 
 const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "right" };
+
+/** A child whose phone width is its cell's or its div's: what's in it fills that, or a percentage would count twice. */
+const filling = (child: ResolvedNode, own: unknown): ResolvedNode => (own === undefined ? child : { ...child, mobile: { ...child.mobile, width: "100%" } });
 
 export const Row: Component = (props) => {
   const { node, style, mobile, fill } = props;
@@ -80,9 +86,10 @@ function fluidHybrid(props: Props, stacks: boolean, words: boolean): Html {
       {children.map((child, index) => {
         const width = child.width ?? undefined;
         const hidden = hiding(child, "inline-block");
+        const own = phoneWidthInRow(child, node);
         const column = (
-          <div class={hidden.class} phone={phoneSize} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width, fontSize: node.text.fontSize }, hidden.style]}>
-            {render(child, { fill: width !== undefined })}
+          <div class={hidden.class} phone={[phoneSize, phoneWidth(own)]} style={[{ display: "inline-block", verticalAlign: valign, width: width !== undefined ? "100%" : undefined, maxWidth: width, fontSize: node.text.fontSize }, hidden.style]}>
+            {render(filling(child, own), { fill: width !== undefined })}
           </div>
         );
         // What's hidden on desktop isn't in Outlook's table.
@@ -125,8 +132,21 @@ function sideBySide(props: Props): Html {
   // one, the empty cells take all the room (half each, around centered children) and the gaps can't give theirs
   // up, so the table packs the children where flexbox does.
   const packed = left && placed.some((child) => child.width === null);
-  const filler = <td width={packed ? (justify === "center" ? "50%" : "100%") : undefined} />;
+  // Beside them a cell shrinks to its content whatever its width: a minimum holds it, where that can't push the Row past
+  // its width. On phones, where it could (it looks too wide for a small phone to be sure), the cells hold their widths
+  // as far as they fit, and the room goes to the children of their own size rather than the empty cells.
+  const line = packed ? oneLineWidth(node) : 0;
+  const tight = line > 240;
   const children = node.children.filter(isNode).filter(shown);
+  // Children of their own widths on phones leave room there, where they use it all on desktop: a cell only phones have takes it.
+  const room = !left && children.some((child) => phoneWidthInRow(child, node) !== undefined) && !children.some((child) => !child.hidden?.mobile && sharing(child));
+  const filler = room ? (
+    <NotOutlook>
+      <td class={hiding({ hidden: { desktop: true } }, "table-cell").class} style={{ display: "none" }} />
+    </NotOutlook>
+  ) : (
+    <td phone={tight ? { width: "auto" } : undefined} width={packed ? (justify === "center" ? "50%" : "100%") : undefined} />
+  );
   const gaps = gapsBefore(children);
   const shares = packed ? undefined : phoneShares(children, phoneGap);
   // Whether the gaps on phones are the cells' padding: not beside a child of its own size.
@@ -134,6 +154,10 @@ function sideBySide(props: Props): Html {
   const cells = children.map((child, index) => {
     const width = child.width ?? undefined;
     const hidden = hiding(child, "table-cell");
+    const own = phoneWidthInRow(child, node);
+    const held = packed && typeof child.style.width === "number" && line <= (node.contentWidth ?? 0) ? width : undefined;
+    // Its phone width is its cell's, which would otherwise keep its desktop width.
+    const phone = own !== undefined ? { width: own, minWidth: packed ? (typeof own === "number" ? own : 0) : undefined } : tight && held !== undefined ? { minWidth: 0 } : undefined;
     // A child whose size only the client knows is as wide as its content on one line, as a flex item of its own size
     // is on the page: beside the empty cells that take the room, its cell would otherwise shrink to its longest word.
     const cell = (
@@ -141,10 +165,10 @@ function sideBySide(props: Props): Html {
         class={hidden.class}
         width={width}
         valign={valign}
-        phone={shares?.get(child)}
-        style={[{ width, whiteSpace: child.width === null ? "nowrap" : undefined }, hidden.style]}
+        phone={[shares?.get(child), phone]}
+        style={[{ width, minWidth: held, whiteSpace: child.width === null ? "nowrap" : undefined }, hidden.style]}
       >
-        {render(child, { fill: width !== undefined })}
+        {render(filling(child, own), { fill: width !== undefined })}
       </td>
     );
     return (
@@ -158,9 +182,9 @@ function sideBySide(props: Props): Html {
   return (
     <Table width="100%">
       <tr>
-        {left && (justify === "end" || justify === "center") && filler}
+        {(left || room) && (justify === "end" || justify === "center") && filler}
         {cells}
-        {left && justify !== "end" && filler}
+        {(left || room) && justify !== "end" && filler}
       </tr>
     </Table>
   );
