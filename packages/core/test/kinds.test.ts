@@ -103,6 +103,13 @@ describe("fonts", () => {
     expect(value(fontFaces(), once)).toEqual(once);
     rejects(fontFaces(), [{ family: "Inter", src: "https://x.test/a.woff2", weight: [900, 100] }]);
   });
+  it("takes a variable font's weight range as two weights, as its type and its JSON schema say", () => {
+    const face = { family: "Inter Variable", src: "https://fonts.example.com/inter.woff2", weight: [100, 900] as const };
+    expect(value(fontFaces(), [face])).toEqual([{ ...face, weight: [100, 900] }]);
+    const weight = (fontFaces().jsonSchema() as { items: { properties: { weight: { anyOf: Array<Record<string, unknown>> } } } }).items.properties.weight;
+    expect(weight.anyOf).toContainEqual({ type: "array", items: { type: "integer", minimum: 1, maximum: 1000 }, minItems: 2, maxItems: 2 });
+    for (const range of [[100], [100, 400, 900], [100.5, 900], [0, 900]]) rejects(fontFaces(), [{ ...face, weight: range }]);
+  });
 
   it("rejects what would break out of CSS", () => {
     rejects(fontFamily(), "Arial; } body { color: red");

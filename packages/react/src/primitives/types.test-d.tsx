@@ -12,6 +12,7 @@ export const ok = (
       { family: "Inter", src: "https://fonts.example.com/inter-400.woff2", weight: 400 },
       { family: "Inter", src: "https://fonts.example.com/inter-700.woff2", weight: "bold", style: "normal" },
       { family: "Inter Variable", src: "https://fonts.example.com/inter.woff2", weight: "100 900", format: "woff2" },
+      { family: "Inter Variable", src: "https://fonts.example.com/inter-italic.woff2", weight: [100, 900], style: "italic" },
     ]}
     style={{ backgroundColor: "#f4f4f4", gap: 16, fontFamily: "Inter, Arial, sans-serif" }}
   >
@@ -65,6 +66,8 @@ export const weight = <Text style={{ fontWeight: 450 }}>x</Text>;
 // A web font is the root's, not a fontFamily's.
 // @ts-expect-error fontFamily is a stack
 export const fontInStyle = <Text style={{ fontFamily: { name: "Inter", src: "https://fonts.example.com/inter.woff2" } }}>x</Text>;
+// @ts-expect-error a variable font's range is two weights, its lowest and its highest
+export const threeWeights = <Email fonts={[{ family: "Inter", src: "https://fonts.example.com/inter.woff2", weight: [100, 400, 900] }]} />;
 // @ts-expect-error a font's format is woff2, woff, truetype or opentype
 export const wrongFormat = <Email fonts={[{ family: "Inter", src: "https://fonts.example.com/inter.eot", format: "eot" }]} />;
 // @ts-expect-error a Span is raised or lowered: baseline, super or sub

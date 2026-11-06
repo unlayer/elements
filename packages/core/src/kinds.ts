@@ -513,8 +513,8 @@ export type FontFaceInput = {
   src: string;
   /** The file's format; from its extension where not given. */
   format?: FontFormat;
-  /** The weight this file draws (400, "bold"), or the range a variable font covers ("100 900"). */
-  weight?: FontWeightInput | number | `${number} ${number}`;
+  /** The weight this file draws (400, "bold"), or the range a variable font covers ("100 900" or [100, 900]). */
+  weight?: FontWeightInput | number | `${number} ${number}` | readonly [number, number];
   style?: "normal" | "italic";
 };
 export type FontFace = { family: string; src: string; format?: FontFormat; weight?: number | [number, number]; style?: "normal" | "italic" };
@@ -613,7 +613,7 @@ export function fontFaces(): Kind<FontFaceInput[], FontFace[]> {
           family: { type: "string", minLength: 1 },
           src: { type: "string", minLength: 1 },
           format: { enum: [...FONT_FORMATS] },
-          weight: { anyOf: [{ type: "number", minimum: 1, maximum: 1000 }, { type: "string" }] },
+          weight: { anyOf: [{ type: "number", minimum: 1, maximum: 1000 }, { type: "string" }, { type: "array", items: { type: "integer", minimum: 1, maximum: 1000 }, minItems: 2, maxItems: 2 }] },
           style: { enum: ["normal", "italic"] },
         },
         additionalProperties: false,
