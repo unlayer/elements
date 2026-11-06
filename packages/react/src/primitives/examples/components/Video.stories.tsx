@@ -7,7 +7,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Email, Heading, Paragraph, Row, Section, Text, Video } from "../../index";
+import { Button, Column, Email, Heading, Paragraph, Row, Section, Video } from "../../index";
 import { drawing } from "./kit-d";
 
 const CHALK = "#F2F0EB";
@@ -68,10 +68,10 @@ const BENCH = `<rect width="512" height="288" fill="${STEEL}"/><rect x="330" y="
 const masthead = (right: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end" }}>
     <Column>
-      <Text style={{ fontSize: 18, fontWeight: 800, letterSpacing: 3, lineHeight: 1.2 }}>LARCH</Text>
+      <Paragraph style={{ fontSize: 18, fontWeight: 800, letterSpacing: 3, lineHeight: 1.2 }}>LARCH</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...CAPTION, textAlign: "right" }}>{right}</Text>
+      <Paragraph style={{ ...CAPTION, textAlign: "right" }}>{right}</Paragraph>
     </Column>
   </Row>
 );
@@ -113,9 +113,9 @@ export const Widths = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [32, 24], gap: 12, alignItems: "center" }}>
       <Video src={FILM} thumbnail={thumbnail(Root, BENCH)} title="Cutting the tubes" style={{ width: 320 }} mobile={{ width: "100%" }} />
-      <Text style={{ ...CAPTION, textAlign: "center" }}>width: 320, the whole width on phones</Text>
+      <Paragraph style={{ ...CAPTION, textAlign: "center" }}>width: 320, the whole width on phones</Paragraph>
       <Video src={FILM} thumbnail={thumbnail(Root, PASS)} title="The first ride" style={{ width: "50%" }} />
-      <Text style={{ ...CAPTION, textAlign: "center" }}>width: "50%", half the space</Text>
+      <Paragraph style={{ ...CAPTION, textAlign: "center" }}>width: "50%", half the space</Paragraph>
     </Section>
   </Root>
 ));
@@ -124,7 +124,7 @@ export const Widths = story((Root) => (
 export const ProductLaunch = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ backgroundColor: GRAPHITE, color: CHALK, padding: [44, 32, 40], gap: 10 }} mobile={{ padding: [32, 24] }}>
-      <Text style={{ ...CAPTION, color: ON_DARK }}>New for 2027 · Frame no. 2</Text>
+      <Paragraph style={{ ...CAPTION, color: ON_DARK }}>New for 2027 · Frame no. 2</Paragraph>
       <Heading level={1} style={{ ...TITLE, fontSize: 56, letterSpacing: -1.6 }} mobile={{ fontSize: 42 }}>
         The Tern 2.
       </Heading>

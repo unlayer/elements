@@ -30,7 +30,7 @@ export interface Seen {
 const ZERO: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
 const pad = (node: ResolvedNode): Insets => (node.style.padding as Insets | undefined) ?? ZERO;
 const line = (node: ResolvedNode, side: "top" | "right" | "bottom" | "left") => ((node.style.border as Record<string, { width: number } | undefined> | undefined)?.[side]?.width ?? 0);
-const LEAVES = new Set(["Text", "Paragraph", "Heading", "Button", "Image", "Divider", "Video", "List", "Table", "Html", "Svg", "Layer"]);
+const LEAVES = new Set(["Paragraph", "Paragraph", "Heading", "Button", "Image", "Divider", "Video", "List", "Table", "Html", "Svg", "Layer"]);
 /** What the builder holds as markup (an HTML block): its box is read, not what's in it. */
 const MARKUP = new Set(["Table", "Html", "Svg", "Layer"]);
 /** A link as a reader follows it: where it goes, and whether it opens a new window. */
@@ -157,12 +157,12 @@ export function seen(element: React.ReactElement, { markup = new Set<string>() }
       const lineWidth = node.type === "Divider" ? lengthOf(node, room - p.left - p.right) : null;
       const lineAt = node.type === "Divider" && lineWidth !== null ? ({ center: (room - p.left - p.right - lineWidth) / 2, right: room - p.left - p.right - lineWidth } as Record<string, number>)[parent.text.textAlign] ?? 0 : 0;
       out.push({
-        kind: node.type === "Text" || linkOfWords ? "Paragraph" : opaque ? "Markup" : node.type,
+        kind: node.type === "Paragraph" || linkOfWords ? "Paragraph" : opaque ? "Markup" : node.type,
         x: round(x + lineAt + (boxed ? 0 : p.left + line(node, "left"))),
         // A Link of words on its own wraps where its place does.
         width: linkOfWords ? round(room) : lineWidth !== null ? round(lineWidth) : node.width === null ? null : round(node.width - (boxed ? 0 : p.left + p.right + line(node, "left") + line(node, "right"))),
         above: round(pending + (boxed ? 0 : p.top + line(node, "top"))),
-        ...(!opaque && (["Text", "Paragraph", "Heading", "Button", "List"].includes(node.type) || linkOfWords) ? { runs: runs(node, linkOfWords) } : {}),
+        ...(!opaque && (["Paragraph", "Paragraph", "Heading", "Button", "List"].includes(node.type) || linkOfWords) ? { runs: runs(node, linkOfWords) } : {}),
         own,
         behind,
         ...visible,

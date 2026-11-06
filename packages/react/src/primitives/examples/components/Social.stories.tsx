@@ -8,7 +8,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Link, Paragraph, Row, Section, Social, Span, Text } from "../../index";
+import { Column, Heading, Link, Paragraph, Row, Section, Social, Span } from "../../index";
 
 const PAGE = "#FAF6EE";
 const INK = "#1E1B18";
@@ -62,7 +62,7 @@ const ICONS = [
 const spec = (caption: string, icons: ReactNode) => (
   <Row stackOnMobile={false} style={{ alignItems: "center", padding: [14, 0], border: { top: LINE } }}>
     <Column>
-      <Text style={CAPTION}>{caption}</Text>
+      <Paragraph style={CAPTION}>{caption}</Paragraph>
     </Column>
     <Column style={{ width: 190 }}>{icons}</Column>
   </Row>
@@ -92,19 +92,19 @@ export const Sizes = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [36, 24], gap: 28, textAlign: "center" }}>
       <Column style={{ gap: 12 }}>
-        <Text style={{ ...VOICE, fontSize: 26 }}>Come and find us.</Text>
+        <Paragraph style={{ ...VOICE, fontSize: 26 }}>Come and find us.</Paragraph>
         <Social icons={ICONS} size={48} style={{ gap: 20 }} mobile={{ gap: 8 }} />
-        <Text style={CAPTION}>size: 48 · gap: 20 · on phones, gap: 8</Text>
+        <Paragraph style={CAPTION}>size: 48 · gap: 20 · on phones, gap: 8</Paragraph>
       </Column>
       <Column style={{ gap: 10, padding: [24, 0, 0], border: { top: LINE } }}>
-        <Text style={{ ...VOICE, fontSize: 18 }}>Yours, among the shelves,</Text>
+        <Paragraph style={{ ...VOICE, fontSize: 18 }}>Yours, among the shelves,</Paragraph>
         <Social icons={ICONS} size={32} style={{ gap: 12 }} />
-        <Text style={CAPTION}>size: 32 · gap: 12</Text>
+        <Paragraph style={CAPTION}>size: 32 · gap: 12</Paragraph>
       </Column>
       <Column style={{ gap: 8, padding: [24, 0, 0], border: { top: LINE } }}>
-        <Text style={{ fontSize: 13, color: QUIET }}>Dog-ear Books, 12 Cooper’s Yard, Norwich</Text>
+        <Paragraph style={{ fontSize: 13, color: QUIET }}>Dog-ear Books, 12 Cooper’s Yard, Norwich</Paragraph>
         <Social icons={ICONS} size={24} style={{ gap: 6 }} />
-        <Text style={CAPTION}>size: 24 · gap: 6</Text>
+        <Paragraph style={CAPTION}>size: 24 · gap: 6</Paragraph>
       </Column>
     </Section>
   </Root>
@@ -114,19 +114,19 @@ export const Sizes = story((Root) => (
 export const Alignment = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [32, 24, 12], gap: 10 }}>
-      <Text style={{ ...VOICE, fontSize: 20 }}>Yours, Ruth, at the till.</Text>
+      <Paragraph style={{ ...VOICE, fontSize: 20 }}>Yours, Ruth, at the till.</Paragraph>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "start" }} />
-      <Text style={CAPTION}>justifyContent: "start"</Text>
+      <Paragraph style={CAPTION}>justifyContent: "start"</Paragraph>
     </Section>
     <Section style={{ padding: [20, 24], gap: 10, textAlign: "center" }}>
-      <Text style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>Come and say hello.</Text>
+      <Paragraph style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>Come and say hello.</Paragraph>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "center" }} />
-      <Text style={CAPTION}>justifyContent: "center"</Text>
+      <Paragraph style={CAPTION}>justifyContent: "center"</Paragraph>
     </Section>
     <Section style={{ padding: [12, 24, 32], gap: 10, textAlign: "right" }}>
-      <Text style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>12 Cooper’s Yard, Norwich.</Text>
+      <Paragraph style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>12 Cooper’s Yard, Norwich.</Paragraph>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "end" }} />
-      <Text style={CAPTION}>justifyContent: "end"</Text>
+      <Paragraph style={CAPTION}>justifyContent: "end"</Paragraph>
     </Section>
   </Root>
 ));

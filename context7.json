@@ -23,7 +23,7 @@
   ],
   "rules": [
     "Install @unlayer/react-elements. A template has one root: <Email>, <Page>, <Document> (print/PDF) or <Canvas> (an image).",
-    "A root, a Section and a Column stack their children; a Row puts its Columns side by side and stacks them on phones. Text goes in Heading, Paragraph or Text, with Span, Link, LineBreak and MergeTag inside them; no raw HTML outside an Html block.",
+    "A root, a Section and a Column stack their children; a Row puts its Columns side by side and stacks them on phones. Text goes in Heading or Paragraph, with Span, Link, LineBreak and MergeTag inside them; no raw HTML outside an Html block.",
     "Styles go in style={{ ... }}, never as props, and a number is px. There are no margins: space between blocks is their parent's gap, space inside a box its padding.",
     "await render(element) returns { html, text, diagnostics } for the output its root says, and rejects with an ElementsError listing the template's problems; validate(element) checks a template without rendering it. toDesign() from @unlayer/react-elements/builder returns Unlayer design JSON that the Unlayer editor opens with loadDesign(), and fromDesign() reads one back as a template.",
     "Start with packages/react/docs/README.md for task selection. Runnable transactional email, provider, PDF, and visual editing recipes are in packages/react/docs/ and examples/content-workflows/.",

@@ -7,7 +7,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, Image, Paragraph, Row, Section, Text } from "../../index";
+import { Button, Column, Heading, Image, Paragraph, Row, Section } from "../../index";
 import { drawing } from "./kit-d";
 
 const PLASTER = "#F6F2EA";
@@ -63,7 +63,7 @@ const story = asEmailAndPage;
 const CHIP = { padding: "54px 12px 10px", lineHeight: 1.3 } as const;
 const chip = (name: string, color: string, ink = PLASTER) => (
   <Column key={name} style={{ ...CHIP, backgroundColor: color, color: ink }}>
-    <Text style={{ fontSize: 13, fontWeight: 500 }}>{name}</Text>
+    <Paragraph style={{ fontSize: 13, fontWeight: 500 }}>{name}</Paragraph>
   </Column>
 );
 
@@ -79,14 +79,14 @@ export const SetWidthAndTheRest = story((Root) => (
       <Row style={{ gap: 16 }}>
         <Column style={{ width: 180, gap: 10 }}>
           <Column style={{ height: 132, backgroundColor: RUST_HILL }} />
-          <Text style={CAPTION}>width: 180</Text>
+          <Paragraph style={CAPTION}>width: 180</Paragraph>
         </Column>
         <Column style={{ gap: 8, padding: [16, 18], backgroundColor: BONE, borderRadius: 2 }}>
           <Heading level={3} style={{ ...NAME, fontSize: 24 }}>
             Rust Hill
           </Heading>
           <Paragraph style={{ fontSize: 15 }}>Iron oxide in a chalky base. It’s terracotta by day, and goes the brown of an old saddle after dark.</Paragraph>
-          <Text style={CAPTION}>the rest, with a box of its own</Text>
+          <Paragraph style={CAPTION}>the rest, with a box of its own</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -105,10 +105,10 @@ export const Shares = story((Root) => (
       <Row style={{ gap: 8 }}>{[chip("Yellow Earth", YELLOW_EARTH, SOOT), chip("Rust Hill", RUST_HILL), chip("Chalk Blue", CHALK_BLUE, SOOT), chip("Flax", FLAX, SOOT)]}</Row>
       <Row style={{ gap: 8 }}>
         <Column style={{ ...CHIP, flex: 1, backgroundColor: OLD_MOSS, color: PLASTER }}>
-          <Text style={{ fontFamily: MONO, fontSize: 12 }}>flex: 1</Text>
+          <Paragraph style={{ fontFamily: MONO, fontSize: 12 }}>flex: 1</Paragraph>
         </Column>
         <Column style={{ ...CHIP, flex: 2, backgroundColor: RUST_HILL, color: PLASTER }}>
-          <Text style={{ fontFamily: MONO, fontSize: 12 }}>flex: 2</Text>
+          <Paragraph style={{ fontFamily: MONO, fontSize: 12 }}>flex: 2</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -120,8 +120,8 @@ const placed = (name: string, color: string, alignItems: "start" | "center" | "e
   <Row stackOnMobile={false} style={{ gap: 16, alignItems, padding: [12, 0], border: { top: `1px solid ${RULE}` } }}>
     <Column style={{ width: 88, height: 88, backgroundColor: color }} />
     <Column style={{ gap: 2 }}>
-      <Text style={{ ...NAME, fontSize: 22 }}>{name}</Text>
-      <Text style={CAPTION}>alignItems: "{alignItems}"</Text>
+      <Paragraph style={{ ...NAME, fontSize: 22 }}>{name}</Paragraph>
+      <Paragraph style={CAPTION}>alignItems: "{alignItems}"</Paragraph>
     </Column>
   </Row>
 );
@@ -135,8 +135,8 @@ export const Alignment = story((Root) => (
       {placed("Old Moss", OLD_MOSS, "end")}
       <Row style={{ justifyContent: "end", padding: [16, 0, 0], border: { top: `1px solid ${SOOT}` } }}>
         <Column style={{ width: 200 }}>
-          <Text style={{ fontWeight: 600, textAlign: "right" }}>From £48 for 2.5 litres</Text>
-          <Text style={{ ...CAPTION, textAlign: "right" }}>justifyContent: "end"</Text>
+          <Paragraph style={{ fontWeight: 600, textAlign: "right" }}>From £48 for 2.5 litres</Paragraph>
+          <Paragraph style={{ ...CAPTION, textAlign: "right" }}>justifyContent: "end"</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -147,26 +147,26 @@ export const Alignment = story((Root) => (
 export const KeptOnPhones = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [28, 24], gap: 16 }}>
-      <Text style={CAPTION}>A Row: stacks on phones</Text>
+      <Paragraph style={CAPTION}>A Row: stacks on phones</Paragraph>
       <Row style={{ gap: 12 }}>
         <Column style={{ gap: 4, padding: [16, 18], backgroundColor: BONE }}>
-          <Text style={{ ...NAME, fontSize: 22 }}>Matt</Text>
-          <Text style={{ fontSize: 14, color: QUIET }}>For walls and ceilings. Hides a multitude.</Text>
+          <Paragraph style={{ ...NAME, fontSize: 22 }}>Matt</Paragraph>
+          <Paragraph style={{ fontSize: 14, color: QUIET }}>For walls and ceilings. Hides a multitude.</Paragraph>
         </Column>
         <Column style={{ gap: 4, padding: [16, 18], backgroundColor: BONE }}>
-          <Text style={{ ...NAME, fontSize: 22 }}>Eggshell</Text>
-          <Text style={{ fontSize: 14, color: QUIET }}>For wood and metal. Wipes clean.</Text>
+          <Paragraph style={{ ...NAME, fontSize: 22 }}>Eggshell</Paragraph>
+          <Paragraph style={{ fontSize: 14, color: QUIET }}>For wood and metal. Wipes clean.</Paragraph>
         </Column>
       </Row>
-      <Text style={{ ...CAPTION, padding: [8, 0, 0] }}>stackOnMobile={"{false}"}: stays side by side</Text>
+      <Paragraph style={{ ...CAPTION, padding: [8, 0, 0] }}>stackOnMobile={"{false}"}: stays side by side</Paragraph>
       <Row stackOnMobile={false} style={{ gap: 12 }}>
         <Column style={{ gap: 2, padding: [16, 18], backgroundColor: SOOT, color: PLASTER }}>
-          <Text style={{ fontSize: 13 }}>2.5 litres</Text>
-          <Text style={{ ...NAME, fontSize: 28 }}>£48</Text>
+          <Paragraph style={{ fontSize: 13 }}>2.5 litres</Paragraph>
+          <Paragraph style={{ ...NAME, fontSize: 28 }}>£48</Paragraph>
         </Column>
         <Column style={{ gap: 2, padding: [16, 18], backgroundColor: SOOT, color: PLASTER }}>
-          <Text style={{ fontSize: 13 }}>5 litres</Text>
-          <Text style={{ ...NAME, fontSize: 28 }}>£84</Text>
+          <Paragraph style={{ fontSize: 13 }}>5 litres</Paragraph>
+          <Paragraph style={{ ...NAME, fontSize: 28 }}>£84</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -195,12 +195,12 @@ export const Wrapping = story((Root) => (
       </Heading>
       <Row stackOnMobile={false} style={{ gap: 18, flexWrap: "wrap" }}>
         {FAMILIES.map(([family, color]) => (
-          <Text key={family} style={{ flex: "none", padding: [8, 2, 4], fontSize: 15, fontWeight: 500, border: { bottom: `3px solid ${color}` } }}>
+          <Paragraph key={family} style={{ flex: "none", padding: [8, 2, 4], fontSize: 15, fontWeight: 500, border: { bottom: `3px solid ${color}` } }}>
             {family}
-          </Text>
+          </Paragraph>
         ))}
       </Row>
-      <Text style={{ ...CAPTION, padding: [6, 0, 0] }}>flexWrap: "wrap" · stackOnMobile={"{false}"}</Text>
+      <Paragraph style={{ ...CAPTION, padding: [6, 0, 0] }}>flexWrap: "wrap" · stackOnMobile={"{false}"}</Paragraph>
     </Section>
   </Root>
 ));
@@ -221,7 +221,7 @@ export const PictureAndWords = story((Root) => (
           <Image src={ROOM} alt="A corner of a room painted in Rust Hill, with an arched doorway, a black stool and a white jug of twigs" style={{ width: "100%" }} />
         </Column>
         <Column style={{ gap: 12, alignItems: "start" }}>
-          <Text style={CAPTION}>No. 41</Text>
+          <Paragraph style={CAPTION}>No. 41</Paragraph>
           <Heading level={3} style={{ ...NAME, fontSize: 30 }} mobile={{ fontSize: 24 }}>
             Rust Hill, in a north room
           </Heading>

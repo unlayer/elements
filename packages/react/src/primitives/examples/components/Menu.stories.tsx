@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Image, Menu, Paragraph, Row, Section, Social, Text } from "../../index";
+import { Column, Heading, Image, Menu, Paragraph, Row, Section, Social } from "../../index";
 import { caption, drawing, MONO, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -68,9 +68,9 @@ const RECORD = drawing(
 export const WithSocialIcons = story((Root) => (
   <Root {...root} style={{ ...root.style, backgroundColor: BLACK, color: BONE }}>
     <Section style={{ padding: [52, 24, 56], gap: 24, alignItems: "center", textAlign: "center" }} mobile={{ padding: [40, 20, 44], gap: 20 }}>
-      <Text style={{ ...wordmark, fontSize: 56 }} mobile={{ fontSize: 34 }}>
+      <Paragraph style={{ ...wordmark, fontSize: 56 }} mobile={{ fontSize: 34 }}>
         Cratewell
-      </Text>
+      </Paragraph>
       <Menu
         items={[
           { text: "Mail order", href: `${SITE}/mail-order` },
@@ -97,7 +97,7 @@ export const WithSocialIcons = story((Root) => (
 /** A menu with what it's set to, in a quiet line over it. */
 const shelf = (written: string, menu: JSX.Element) => (
   <Column style={{ gap: 8, padding: [20, 0], border: { top: `1px solid ${RULE}` } }}>
-    <Text style={{ ...caption(QUIET), textAlign: "center" }}>{written}</Text>
+    <Paragraph style={{ ...caption(QUIET), textAlign: "center" }}>{written}</Paragraph>
     {menu}
   </Column>
 );
@@ -127,7 +127,7 @@ export const Vertical = story((Root) => (
           <Image src={RECORD} alt="A black record from above, with an orange label" style={{ width: "100%" }} mobile={{ width: 220, alignSelf: "center" }} />
         </Column>
         <Column style={{ gap: 12 }}>
-          <Text style={{ fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: DIM, textTransform: "uppercase" }}>In the shop</Text>
+          <Paragraph style={{ fontFamily: MONO, fontSize: 12, letterSpacing: 1, color: DIM, textTransform: "uppercase" }}>In the shop</Paragraph>
           <Menu items={ITEMS} layout="vertical" style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 700, lineHeight: 1.1, color: BONE, padding: [6, 0], justifyContent: "start" }} />
         </Column>
       </Row>
@@ -138,7 +138,7 @@ export const Vertical = story((Root) => (
 /** A band of the shop's colors, with its links where `justifyContent` puts them. */
 const band = (backgroundColor: string, color: string, justifyContent: "start" | "center" | "end", textAlign: "left" | "center" | "right", padding: [number, number, number, number]) => (
   <Column style={{ backgroundColor, color, padding: [22, 24, 24], gap: 10, textAlign }} mobile={{ padding: [18, 12, 20] }}>
-    <Text style={caption(color)}>justifyContent: "{justifyContent}"</Text>
+    <Paragraph style={caption(color)}>justifyContent: "{justifyContent}"</Paragraph>
     <Menu items={ITEMS} style={{ justifyContent, padding, color, fontSize: 16, fontWeight: 500 }} />
   </Column>
 );
@@ -161,7 +161,7 @@ export const NavigationBar = story((Root) => (
       <Menu items={ITEMS} style={{ color: BONE, fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: [12, 16] }} />
     </Section>
     <Section style={{ padding: [44, 32, 52], gap: 16 }} mobile={{ padding: [32, 24, 36] }}>
-      <Text style={{ fontFamily: MONO, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: STICKER }}>Friday 6 November</Text>
+      <Paragraph style={{ fontFamily: MONO, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: STICKER }}>Friday 6 November</Paragraph>
       <Heading level={1} style={{ ...wordmark, fontSize: 44, lineHeight: 1.04 }} mobile={{ fontSize: 34 }}>
         Forty crates from a shut pressing plant
       </Heading>

@@ -6,8 +6,9 @@
  */
 import { describe, expect, it } from "vitest";
 import React from "react";
-import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, Row, Section, Social, Span, Table, TableCell, TableRow, Text, Video, render } from "../primitives/index";
+import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, Row, Section, Social, Span, Table, TableCell, TableRow, Video, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
+import { textJsonHtml } from "../builder/text-json";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -38,7 +39,7 @@ function injected(html: string): string[] {
 const CASES: Record<string, (v: string) => React.ReactNode> = {
   "Paragraph text": (v) => <Paragraph>{v}</Paragraph>,
   "Heading text": (v) => <Heading>{v}</Heading>,
-  "Text and Span text": (v) => <Text>{v} <Span style={{ fontWeight: "bold" }}>{v}</Span></Text>,
+  "Text and Span text": (v) => <Paragraph>{v} <Span style={{ fontWeight: "bold" }}>{v}</Span></Paragraph>,
   "Button text": (v) => <Button href="https://example.com">{v}</Button>,
   "Button link": (v) => <Button href={`https://example.com/${v}`}>Go</Button>,
   "Button title and label": (v) => <Button href="https://example.com" title={v} aria-label={v}>Go</Button>,
@@ -54,7 +55,7 @@ const CASES: Record<string, (v: string) => React.ReactNode> = {
   "Table cells": (v) => <Table><TableRow header><TableCell>{v}</TableCell></TableRow><TableRow><TableCell>{v}</TableCell></TableRow></Table>,
   "MergeTag name": (v) => <Paragraph>Hi <MergeTag name={v} /></Paragraph>,
   "an Html block's plain text": (v) => <Html html="<b>Kept</b>" text={v} />,
-  "text in a Fragment, deep in a Section": (v) => <Section><Row><Column><Text><>{v}</>{[v, v]}</Text></Column></Row></Section>,
+  "text in a Fragment, deep in a Section": (v) => <Section><Row><Column><Paragraph><>{v}</>{[v, v]}</Paragraph></Column></Row></Section>,
 };
 const ROOT_PROPS: Record<string, (v: string) => Record<string, unknown>> = {
   title: (v) => ({ title: v }),
@@ -106,7 +107,8 @@ describe("the builder's design", () => {
       if (Array.isArray(value)) value.forEach(visit);
       else if (value && typeof value === "object") {
         const { type, values } = value as { type?: string; values?: Record<string, unknown> };
-        if (values && (type === "text" || type === "heading" || type === "button") && typeof values.text === "string") out.push(values.text);
+        if (values && (type === "heading" || type === "button") && typeof values.text === "string") out.push(values.text);
+        if (values && type === "paragraph" && typeof values.textJson === "string") out.push(textJsonHtml(values.textJson).html);
         if (values && type === "html" && typeof values.html === "string") out.push(values.html);
         Object.values(value).forEach(visit);
       }

@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { renderToString } from "react-dom/server";
-import { Column, Email, Paragraph, Row, Text, outline, render } from "../primitives/index";
+import { Column, Email, Paragraph, Row, outline, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 const Ctx = createContext("default");
@@ -16,6 +16,7 @@ const Ctx = createContext("default");
 const designWords = (design: unknown): string[] => {
   const out: string[] = [];
   const visit = (value: unknown, key?: string) => {
+    if (typeof value === "string" && key === "textJson") visit(JSON.parse(value));
     if (typeof value === "string" && key === "text") out.push(...value.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean));
     else if (Array.isArray(value)) value.forEach((v) => visit(v));
     else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) visit(v, k);
@@ -26,7 +27,7 @@ const designWords = (design: unknown): string[] => {
 
 const CASES: Record<string, { template: () => React.ReactElement; words: string[] }> = {
   "an Email in a Fragment": { template: () => <><Email><Paragraph>In a fragment</Paragraph></Email></>, words: ["In", "a", "fragment"] },
-  "numbers and strings among a text's children": { template: () => <Email><Text>{42}{" loose "}{"end"}</Text></Email>, words: ["42", "loose", "end"] },
+  "numbers and strings among a text's children": { template: () => <Email><Paragraph>{42}{" loose "}{"end"}</Paragraph></Email>, words: ["42", "loose", "end"] },
   "a Set of blocks": { template: () => <Email>{new Set([<Paragraph key="1">First item</Paragraph>, <Paragraph key="2">Second item</Paragraph>]) as never}</Email>, words: ["First", "item", "Second", "item"] },
   "nested arrays of Rows": {
     template: () => <Email>{[[<Row key="1"><Column><Paragraph>Deep one</Paragraph></Column></Row>], [<Row key="2"><Column><Paragraph>Deep two</Paragraph></Column></Row>]]}</Email>,
@@ -35,7 +36,7 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
   "a component returning a string in a text": {
     template: () => {
       const S = () => "plain string" as never;
-      return <Email><Text>Kept <S /></Text></Email>;
+      return <Email><Paragraph>Kept <S /></Paragraph></Email>;
     },
     words: ["Kept", "plain", "string"],
   },

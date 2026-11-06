@@ -2,7 +2,7 @@
  * Type contract of the primitives (checked by `pnpm typecheck`): their props'
  * types come from the component definitions that validate them.
  */
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Span, Text } from "./index";
+import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Span } from "./index";
 
 export const ok = (
   <Email
@@ -24,7 +24,7 @@ export const ok = (
     </Heading>
     <Row stackOnMobile={false} style={{ gap: 20 }}>
       <Column style={{ width: "40%", padding: "8px 16px", border: "1px solid #ccc", borderRadius: 4 }}>
-        <Text>Left</Text>
+        <Paragraph>Left</Paragraph>
       </Column>
       <Column style={{ flex: 2 }}>
         <Paragraph dir="rtl">
@@ -55,17 +55,17 @@ export const level = <Heading level={7}>x</Heading>;
 export const em = <Column style={{ width: "2em" }} />;
 
 // @ts-expect-error no margins: space between siblings is the parent's gap
-export const margin = <Text style={{ margin: 8 }}>x</Text>;
+export const margin = <Paragraph style={{ margin: 8 }}>x</Paragraph>;
 
 // @ts-expect-error an Image has no text color
 export const imageColor = <Image src="https://example.com/a.png" style={{ color: "#000" }} />;
 
 // @ts-expect-error font weights are 100 to 900 in hundreds
-export const weight = <Text style={{ fontWeight: 450 }}>x</Text>;
+export const weight = <Paragraph style={{ fontWeight: 450 }}>x</Paragraph>;
 
 // A web font is the root's, not a fontFamily's.
 // @ts-expect-error fontFamily is a stack
-export const fontInStyle = <Text style={{ fontFamily: { name: "Inter", src: "https://fonts.example.com/inter.woff2" } }}>x</Text>;
+export const fontInStyle = <Paragraph style={{ fontFamily: { name: "Inter", src: "https://fonts.example.com/inter.woff2" } }}>x</Paragraph>;
 // @ts-expect-error a variable font's range is two weights, its lowest and its highest
 export const threeWeights = <Email fonts={[{ family: "Inter", src: "https://fonts.example.com/inter.woff2", weight: [100, 400, 900] }]} />;
 // @ts-expect-error a font's format is woff2, woff, truetype or opentype

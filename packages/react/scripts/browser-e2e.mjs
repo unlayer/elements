@@ -59,7 +59,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const React = (await import("react")).default;
-const { render, Email, Page, Document, Row, Column, Paragraph, Heading, Button, Divider, Image, Layer, Text } = await import("../dist/primitives.js");
+const {render, Email, Page, Document, Row, Column, Paragraph, Heading, Button, Divider, Image, Layer} = await import("../dist/primitives.js");
 const { toDesign } = await import("../dist/builder.js");
 
 /** A template's HTML, as render() writes it. */
@@ -451,7 +451,7 @@ async function checkRowSidePadding(page) {
  * centered by its margins: in a flex box those shrink it to its words, unless it has a width.
  */
 async function checkLockedBlock(page) {
-  const { design } = toDesign(h(Page, { width: 1000 }, h(Layer, { style: { height: 100 } }, h(Text, null, "Locked"))));
+  const { design } = toDesign(h(Page, { width: 1000 }, h(Layer, { style: { height: 100 } }, h(Paragraph, null, "Locked"))));
   const block = design.body.rows.flatMap((row) => row.columns.flatMap((column) => column.contents)).find((content) => content.type === "html");
   const problems = [];
   for (const display of ["block", "flex", "grid"]) {

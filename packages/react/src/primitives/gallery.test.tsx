@@ -80,7 +80,7 @@ describe("the gallery and the stress templates", () => {
     };
     const seen = new Map<string, Set<string>>();
     for (const { template } of cases) used(template, seen, (template.type as { displayName?: string }).displayName ?? "");
-    const onScreens = ["Section", "Row", "Column", "Grid", "Layer", "Text", "Paragraph", "Heading", "Link", "Button", "Image", "Divider", "List", "ListItem", "Table", "TableRow", "TableCell", "Video", "Social", "Menu", "Html", "Span", "LineBreak", "MergeTag"];
+    const onScreens = ["Section", "Row", "Column", "Grid", "Layer", "Paragraph", "Paragraph", "Heading", "Link", "Button", "Image", "Divider", "List", "ListItem", "Table", "TableRow", "TableCell", "Video", "Social", "Menu", "Html", "Span", "LineBreak", "MergeTag"];
     for (const name of onScreens) expect([name, [...(seen.get(name) ?? [])].filter((root) => root === "Email" || root === "Page").sort()]).toEqual([name, ["Email", "Page"]]);
     for (const name of ["Svg", "Rect", "Circle", "Ellipse", "Line", "Polygon", "Path", "PageBreak", "PageHeader", "PageFooter", "PageNumber", "Canvas", "Document"]) expect([name, seen.has(name)]).toEqual([name, true]);
   });

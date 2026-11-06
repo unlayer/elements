@@ -39,7 +39,6 @@ import { Span } from "./Span";
 import { Table } from "./Table";
 import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
-import { Text } from "./Text";
 import { Video } from "./Video";
 
 export type { PageOptions } from "./context";
@@ -72,7 +71,6 @@ const COMPONENTS: Record<string, Component> = {
   DocumentPage: Column,
   PageNumber,
   Svg,
-  Text,
   Paragraph,
   Heading,
   Span,

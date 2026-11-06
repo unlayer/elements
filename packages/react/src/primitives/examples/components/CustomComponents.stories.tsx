@@ -6,7 +6,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, component, Divider, Email, Heading, Image, Paragraph, prop, Row, Section, Text, type EmailProps } from "../../index";
+import { Button, Column, component, Divider, Email, Heading, Image, Paragraph, prop, Row, Section, type EmailProps } from "../../index";
 
 const PAPER = "#F7F3EA";
 const CARD = "#FFFDF8";
@@ -44,10 +44,10 @@ const serif = (fontSize: number) => ({ fontFamily: SERIF, fontWeight: 500, fontS
 const masthead = (page: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 10], border: { bottom: `1px solid ${INK}` } }}>
     <Column style={{ width: 140 }}>
-      <Text style={{ ...serif(26), fontStyle: "italic", lineHeight: "28px" }}>Long Shelf</Text>
+      <Paragraph style={{ ...serif(26), fontStyle: "italic", lineHeight: "28px" }}>Long Shelf</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...label, textAlign: "right" }}>{page}</Text>
+      <Paragraph style={{ ...label, textAlign: "right" }}>{page}</Paragraph>
     </Column>
   </Row>
 );
@@ -95,8 +95,8 @@ const Countdown = component({
           [minutes, "Mins"],
         ].map(([value, unit]) => (
           <Column key={unit} style={{ width: 92, padding: [8, 0, 12], gap: 2, backgroundColor: INK, color: CARD, borderRadius: 2, textAlign: "center" }}>
-            <Text style={{ ...serif(46), lineHeight: 1.25 }}>{value}</Text>
-            <Text style={{ ...label, fontSize: 11, color: DIM }}>{unit}</Text>
+            <Paragraph style={{ ...serif(46), lineHeight: 1.25 }}>{value}</Paragraph>
+            <Paragraph style={{ ...label, fontSize: 11, color: DIM }}>{unit}</Paragraph>
           </Column>
         ))}
       </Row>
@@ -106,7 +106,7 @@ const Countdown = component({
 
 /** A countdown from its props: with their defaults, and with its own. */
 export const CountdownTimer = story(
-  `import { Column, component, Email, Heading, prop, Row, Section, Text } from "@unlayer/react-elements";
+  `import { Column, component, Email, Heading, prop, Row, Section, Paragraph } from "@unlayer/react-elements";
 
 const Countdown = component({
   type: "longshelf.Countdown",
@@ -256,9 +256,9 @@ const Rating = component({
     showScore: prop.boolean({ label: "Show the score", default: false }),
   },
   render: ({ score, size, showScore }) => (
-    <Text style={{ fontSize: size === "large" ? 30 : 16, lineHeight: 1.2, letterSpacing: size === "large" ? 3 : 1, color: GOLD }}>
+    <Paragraph style={{ fontSize: size === "large" ? 30 : 16, lineHeight: 1.2, letterSpacing: size === "large" ? 3 : 1, color: GOLD }}>
       {"★".repeat(score) + "☆".repeat(5 - score) + (showScore ? ` ${score} of 5` : "")}
-    </Text>
+    </Paragraph>
   ),
 });
 
@@ -267,13 +267,13 @@ const review = (rating: ReactElement, words: string, from: string) => (
   <Column style={{ gap: 6, padding: [16, 0], border: { top: `1px solid ${RULE}` } }}>
     {rating}
     <Paragraph style={{ ...serif(21), fontWeight: 400, lineHeight: 1.25, letterSpacing: 0 }}>{words}</Paragraph>
-    <Text style={note}>{from}</Text>
+    <Paragraph style={note}>{from}</Paragraph>
   </Column>
 );
 
 /** A rating worked out from its props in `render`: a number, a choice of sizes, and a switch. */
 export const WorkedOutFromProps = story(
-  `import { component, Email, prop, Section, Text } from "@unlayer/react-elements";
+  `import { component, Email, prop, Section, Paragraph } from "@unlayer/react-elements";
 
 const Rating = component({
   type: "longshelf.Rating",
@@ -284,9 +284,9 @@ const Rating = component({
     showScore: prop.boolean({ label: "Show the score", default: false }),
   },
   render: ({ score, size, showScore }) => (
-    <Text style={{ fontSize: size === "large" ? 30 : 16, color: "#B0872E" }}>
+    <Paragraph style={{ fontSize: size === "large" ? 30 : 16, color: "#B0872E" }}>
       {"★".repeat(score) + "☆".repeat(5 - score) + (showScore ? \` \${score} of 5\` : "")}
-    </Text>
+    </Paragraph>
   ),
 });
 
@@ -308,7 +308,7 @@ const template = (
           <Heading level={2} style={serif(38)}>
             Low Water
           </Heading>
-          <Text style={{ fontSize: 15, color: QUIET }}>Ines Varga. Our book of the month, by a long way.</Text>
+          <Paragraph style={{ fontSize: 15, color: QUIET }}>Ines Varga. Our book of the month, by a long way.</Paragraph>
         </Column>
         <Column>
           {review(<Rating score={4} showScore />, "I read it on a train, and missed my stop.", "Priya, Gloucester")}
@@ -330,7 +330,7 @@ const Hero = component({
   },
   render: ({ title, kicker, background }) => (
     <Section style={{ backgroundColor: background, color: CARD, padding: [52, 24, 56], gap: 10, textAlign: "center" }} mobile={{ padding: [40, 20, 44] }}>
-      <Text style={{ ...label, color: DIM }}>{kicker}</Text>
+      <Paragraph style={{ ...label, color: DIM }}>{kicker}</Paragraph>
       <Heading level={1} style={{ ...serif(60), fontStyle: "italic" }} mobile={{ fontSize: 48 }}>
         {title}
       </Heading>
@@ -340,7 +340,7 @@ const Hero = component({
 
 /** `placement: "section"` makes a custom component a band of its own: it goes where a `Section` goes, and renders one. */
 export const AWholeSection = story(
-  `import { component, Email, Heading, Paragraph, prop, Section, Text } from "@unlayer/react-elements";
+  `import { component, Email, Heading, Paragraph, prop, Section } from "@unlayer/react-elements";
 
 const Hero = component({
   type: "longshelf.Hero",
@@ -353,7 +353,7 @@ const Hero = component({
   },
   render: ({ title, kicker, background }) => (
     <Section style={{ backgroundColor: background, color: "#FFFDF8", padding: [52, 24, 56], textAlign: "center" }}>
-      <Text>{kicker}</Text>
+      <Paragraph>{kicker}</Paragraph>
       <Heading level={1} style={{ fontSize: 60, fontStyle: "italic" }}>{title}</Heading>
     </Section>
   ),
@@ -373,7 +373,7 @@ const template = (
       <Hero title="New arrivals" />
       <Section style={{ padding: [36, 44], gap: 10 }} mobile={{ padding: [28, 22] }}>
         <Paragraph style={{ ...serif(24), fontWeight: 400, lineHeight: 1.3, letterSpacing: 0, textAlign: "center" }}>Eleven books came in this week, three of them first novels, and one that Maud has already put aside for herself.</Paragraph>
-        <Text style={{ ...note, textAlign: "center" }}>The band above and the one below are each one Hero: it goes where a Section goes.</Text>
+        <Paragraph style={{ ...note, textAlign: "center" }}>The band above and the one below are each one Hero: it goes where a Section goes.</Paragraph>
       </Section>
       <Hero title="Last chance" kicker="The winter sale" background={CLOTH} />
     </Root>

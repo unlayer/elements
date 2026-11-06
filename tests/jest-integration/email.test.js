@@ -30,9 +30,9 @@ test("the main entry is the new components, and today's aren't in the package", 
 });
 
 test("renders a template in the new components, and takes it to the builder's design (/builder)", async () => {
-  const { Email, Heading, Text, render } = require("@unlayer/react-elements");
+  const {Email, Heading, Paragraph, render} = require("@unlayer/react-elements");
   const { toDesign } = require("@unlayer/react-elements/builder");
-  const template = h(Email, null, h(Heading, null, "Hello jest"), h(Text, null, "New components"));
+  const template = h(Email, null, h(Heading, null, "Hello jest"), h(Paragraph, null, "New components"));
   const { html, text } = await render(template);
   expect(html).toContain("Hello jest");
   expect(text).toContain("New components");

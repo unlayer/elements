@@ -4,7 +4,7 @@
     "u_column": 34,
     "u_content_image": 4,
     "u_content_heading": 1,
-    "u_content_text": 29,
+    "u_content_paragraph": 29,
     "u_content_divider": 11,
     "u_content_button": 1
   },
@@ -145,7 +145,7 @@
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 32px",
                   "fontSize": "15px",
@@ -160,8 +160,8 @@
                   },
                   "color": "#4b5563",
                   "_meta": {
-                    "htmlID": "u_content_text_1",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_1",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -174,7 +174,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "We've received your payment and are getting your order ready. Here's your receipt for your records."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"We've received your payment and are getting your order ready. Here's your receipt for your records.\"}]}]}}"
                 }
               }
             ],
@@ -273,7 +273,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
@@ -288,8 +288,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_2",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_2",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -302,11 +302,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0.55px",
-                  "text": "<span style=\"text-transform:uppercase\">Order number</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Order number\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
@@ -321,8 +321,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_3",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_3",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -335,7 +335,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "#{{orderNumber}}"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"#{{orderNumber}}\"}]}]}}"
                 }
               }
             ],
@@ -355,7 +355,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
@@ -370,8 +370,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_4",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_4",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -384,11 +384,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0.55px",
-                  "text": "<span style=\"text-transform:uppercase\">Order date</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Order date\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
@@ -403,8 +403,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_5",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_5",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -417,7 +417,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "{{orderDate}}"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"{{orderDate}}\"}]}]}}"
                 }
               }
             ],
@@ -437,7 +437,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "8px 0px 2px",
                   "fontSize": "11px",
@@ -452,8 +452,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_6",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_6",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -466,11 +466,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0.55px",
-                  "text": "<span style=\"text-transform:uppercase\">Payment method</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Payment method\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 8px",
                   "fontSize": "14px",
@@ -485,8 +485,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_7",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_7",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -499,7 +499,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "{{paymentMethod}}"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"{{paymentMethod}}\"}]}]}}"
                 }
               }
             ],
@@ -693,7 +693,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
@@ -708,8 +708,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_8",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_8",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -722,11 +722,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "Merino Wool Beanie"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Merino Wool Beanie\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -741,8 +741,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_9",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_9",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -755,11 +755,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Charcoal / One size"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Charcoal / One size\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -774,8 +774,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_10",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_10",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -788,7 +788,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Qty: 1"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Qty: 1\"}]}]}}"
                 }
               }
             ],
@@ -808,7 +808,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -823,8 +823,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_11",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_11",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -837,7 +837,7 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "$34.00"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$34.00\"}]}]}}"
                 }
               }
             ],
@@ -1031,7 +1031,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
@@ -1046,8 +1046,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_12",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_12",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1060,11 +1060,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "Trail Running Socks (3-pack)"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Trail Running Socks (3-pack)\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -1079,8 +1079,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_13",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_13",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1093,11 +1093,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Assorted / Medium"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Assorted / Medium\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -1112,8 +1112,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_14",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_14",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1126,7 +1126,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Qty: 2"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Qty: 2\"}]}]}}"
                 }
               }
             ],
@@ -1146,7 +1146,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -1161,8 +1161,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_15",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_15",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1175,7 +1175,7 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "$49.00"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$49.00\"}]}]}}"
                 }
               }
             ],
@@ -1369,7 +1369,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 2px",
                   "fontSize": "15px",
@@ -1384,8 +1384,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_16",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_16",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1398,11 +1398,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "Insulated Water Bottle"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Insulated Water Bottle\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -1417,8 +1417,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_17",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_17",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1431,11 +1431,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "24 oz / Forest green"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"24 oz / Forest green\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "13px",
@@ -1450,8 +1450,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_18",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_18",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1464,7 +1464,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Qty: 1"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Qty: 1\"}]}]}}"
                 }
               }
             ],
@@ -1484,7 +1484,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -1499,8 +1499,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_19",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_19",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1513,7 +1513,7 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "0px",
-                  "text": "$29.99"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$29.99\"}]}]}}"
                 }
               }
             ],
@@ -1693,7 +1693,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
@@ -1708,8 +1708,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_20",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_20",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1722,7 +1722,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Subtotal"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Subtotal\"}]}]}}"
                 }
               }
             ],
@@ -1742,7 +1742,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
@@ -1757,8 +1757,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_21",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_21",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1771,7 +1771,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "$112.99"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$112.99\"}]}]}}"
                 }
               }
             ],
@@ -1835,7 +1835,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
@@ -1850,8 +1850,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_22",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_22",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1864,7 +1864,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Shipping"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Shipping\"}]}]}}"
                 }
               }
             ],
@@ -1884,7 +1884,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
@@ -1899,8 +1899,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_23",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_23",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1913,7 +1913,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Free"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Free\"}]}]}}"
                 }
               }
             ],
@@ -1977,7 +1977,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "14px",
@@ -1992,8 +1992,8 @@
                   },
                   "color": "#6b7280",
                   "_meta": {
-                    "htmlID": "u_content_text_24",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_24",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2006,7 +2006,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Tax (8.75%)"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Tax (8.75%)\"}]}]}}"
                 }
               }
             ],
@@ -2026,7 +2026,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "14px",
@@ -2041,8 +2041,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_25",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_25",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2055,7 +2055,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "$9.89"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$9.89\"}]}]}}"
                 }
               }
             ],
@@ -2194,7 +2194,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 0px 4px 32px",
                   "fontSize": "16px",
@@ -2209,8 +2209,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_26",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_26",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2223,7 +2223,7 @@
                   },
                   "fontWeight": 700,
                   "letterSpacing": "0px",
-                  "text": "Total"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Total\"}]}]}}"
                 }
               }
             ],
@@ -2243,7 +2243,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "4px 32px 4px 0px",
                   "fontSize": "18px",
@@ -2258,8 +2258,8 @@
                   },
                   "color": "#111827",
                   "_meta": {
-                    "htmlID": "u_content_text_27",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_27",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2272,7 +2272,7 @@
                   },
                   "fontWeight": 700,
                   "letterSpacing": "0px",
-                  "text": "$122.88"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"$122.88\"}]}]}}"
                 }
               }
             ],
@@ -2455,7 +2455,7 @@
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 32px 6px",
                   "fontSize": "12px",
@@ -2470,8 +2470,8 @@
                   },
                   "color": "#9ca3af",
                   "_meta": {
-                    "htmlID": "u_content_text_28",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_28",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2484,11 +2484,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Need help with your order? Visit our <a href=\"https://northwind.example.com/help\" target=\"_blank\" style=\"color:#6b7280;text-decoration:underline\">help center</a> or reply to this email."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Need help with your order? Visit our \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://northwind.example.com/help\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#6b7280;text-decoration:underline\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"help center\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\" or reply to this email.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 32px",
                   "fontSize": "12px",
@@ -2503,8 +2503,8 @@
                   },
                   "color": "#9ca3af",
                   "_meta": {
-                    "htmlID": "u_content_text_29",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_29",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -2517,7 +2517,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Northwind Traders · 500 Harbor Way · Seattle, WA 98101"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Northwind Traders · 500 Harbor Way · Seattle, WA 98101\"}]}]}}"
                 }
               }
             ],

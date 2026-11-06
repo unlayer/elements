@@ -4,7 +4,7 @@
     "u_column": 3,
     "u_content_image": 1,
     "u_content_heading": 1,
-    "u_content_text": 8,
+    "u_content_paragraph": 8,
     "u_content_button": 1,
     "u_content_divider": 1
   },
@@ -145,7 +145,7 @@
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 16px",
                   "fontSize": "15px",
@@ -160,8 +160,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_1",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_1",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -174,11 +174,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Hi {{firstName}},"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hi {{firstName}},\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -193,8 +193,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_2",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_2",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -207,11 +207,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Thanks for signing up! Your workspace is ready and you can start building right away. Here are three quick things to try on your first day:"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Thanks for signing up! Your workspace is ready and you can start building right away. Here are three quick things to try on your first day:\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "16px 0px 0px",
                   "fontSize": "15px",
@@ -226,8 +226,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_3",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_3",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -240,11 +240,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "1. Create your first project"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"1. Create your first project\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -259,8 +259,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_4",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_4",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -273,11 +273,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "2. Invite your teammates"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"2. Invite your teammates\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -292,8 +292,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_5",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_5",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -306,7 +306,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "3. Connect your favorite integrations"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"3. Connect your favorite integrations\"}]}]}}"
                 }
               },
               {
@@ -408,7 +408,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 16px",
                   "fontSize": "15px",
@@ -423,8 +423,8 @@
                   },
                   "color": "#364153",
                   "_meta": {
-                    "htmlID": "u_content_text_6",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_6",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -437,7 +437,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Want to dig deeper? Our <a href=\"{{docsUrl}}\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline\">documentation</a> covers everything from quickstarts to advanced guides."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Want to dig deeper? Our \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"{{docsUrl}}\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#4f39f6;text-decoration:underline\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"documentation\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\" covers everything from quickstarts to advanced guides.\"}]}]}}"
                 }
               },
               {
@@ -463,7 +463,7 @@
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px 0px 16px",
                   "fontSize": "12px",
@@ -478,8 +478,8 @@
                   },
                   "color": "#6a7282",
                   "_meta": {
-                    "htmlID": "u_content_text_7",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_7",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -492,11 +492,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Questions? Just reply to this email or write to <a href=\"mailto:{{supportEmail}}\" target=\"_blank\" style=\"color:#6a7282;text-decoration:underline\">{{supportEmail}}</a>. We're always happy to help."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Questions? Just reply to this email or write to \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"mailto:{{supportEmail}}\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#6a7282;text-decoration:underline\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"{{supportEmail}}\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\". We're always happy to help.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "12px",
@@ -511,8 +511,8 @@
                   },
                   "color": "#99a1af",
                   "_meta": {
-                    "htmlID": "u_content_text_8",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_8",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -525,7 +525,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Acme, Inc. · 123 Market Street · San Francisco, CA 94105"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Acme, Inc. · 123 Market Street · San Francisco, CA 94105\"}]}]}}"
                 }
               }
             ],

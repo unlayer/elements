@@ -8,7 +8,7 @@
  * columns: the dates, the addresses and the table's figures all start on them.
  */
 import type { ReactNode } from "react";
-import { Column, Document, Grid, Heading, LineBreak, PageFooter, PageNumber, Paragraph, Rect, Row, Span, Svg, Table, TableCell, TableRow, Text } from "../../index";
+import { Column, Document, Grid, Heading, LineBreak, PageFooter, PageNumber, Paragraph, Rect, Row, Span, Svg, Table, TableCell, TableRow } from "../../index";
 
 const INK = "#1C1B19";
 const QUIET = "#6B675F";
@@ -31,8 +31,8 @@ const label = { fontFamily: SANS, fontSize: 9.5, fontWeight: 600, lineHeight: 1.
 /** A label over a value, the dates' and the addresses' unit. */
 const field = (name: string, value: ReactNode, accent = false) => (
   <Column style={{ gap: 6 }}>
-    <Text style={label}>{name}</Text>
-    <Text style={{ fontSize: 14, lineHeight: 1.45, color: accent ? GREEN : INK, fontWeight: accent ? 600 : 400 }}>{value}</Text>
+    <Paragraph style={label}>{name}</Paragraph>
+    <Paragraph style={{ fontSize: 14, lineHeight: 1.45, color: accent ? GREEN : INK, fontWeight: accent ? 600 : 400 }}>{value}</Paragraph>
   </Column>
 );
 
@@ -68,7 +68,7 @@ const total = (name: string, amount: string, last = false) => (
 /** A section of the time summary: its label over a rule. */
 const part = (name: string, children: ReactNode) => (
   <Column style={{ gap: 16 }}>
-    <Text style={{ ...label, color: INK, padding: [0, 0, 8], border: { bottom: hairline(INK) } }}>{name}</Text>
+    <Paragraph style={{ ...label, color: INK, padding: [0, 0, 8], border: { bottom: hairline(INK) } }}>{name}</Paragraph>
     {children}
   </Column>
 );
@@ -86,15 +86,15 @@ const BAR = WIDTH - 196 - 96 - 2 * GAP;
 const phase = ([name, hours]: [string, number]) => (
   <Row key={name} style={{ alignItems: "center", gap: GAP }}>
     <Column style={{ width: 196 }}>
-      <Text style={{ fontSize: 13.5 }}>{name}</Text>
+      <Paragraph style={{ fontSize: 13.5 }}>{name}</Paragraph>
     </Column>
     <Svg width={BAR} height={10} title={`${hours} hours`}>
       <Rect width={Math.round((hours / 64) * BAR)} height={10} style={{ fill: hours === 64 ? GREEN : SAGE }} />
     </Svg>
     <Column style={{ width: 96 }}>
-      <Text style={{ fontSize: 13.5, textAlign: "right" }}>
+      <Paragraph style={{ fontSize: 13.5, textAlign: "right" }}>
         {hours} h <Span style={{ color: QUIET }}>· {Math.round((hours / HOURS) * 100)}%</Span>
-      </Text>
+      </Paragraph>
     </Column>
   </Row>
 );
@@ -124,11 +124,11 @@ const weeks = (
     </Svg>
     <Grid columns={WEEKS.length} style={{ gap: 0 }}>
       {WEEKS.map(([week, hours]) => (
-        <Text key={week} style={{ textAlign: "center", fontSize: 13.5, lineHeight: 1.35 }}>
+        <Paragraph key={week} style={{ textAlign: "center", fontSize: 13.5, lineHeight: 1.35 }}>
           {hours} h
           <LineBreak />
           <Span style={{ fontFamily: SANS, fontSize: 10, color: QUIET }}>{week}</Span>
-        </Text>
+        </Paragraph>
       ))}
     </Grid>
   </Column>
@@ -161,15 +161,15 @@ export const pellAshbyInvoice = (
       {/* Letterhead */}
       <Row style={{ alignItems: "start", gap: GAP }}>
         <Column style={{ gap: 4 }}>
-          <Text style={{ fontSize: 25, fontWeight: 500, letterSpacing: -0.5, lineHeight: 1 }}>Pell & Ashby</Text>
-          <Text style={label}>Architects</Text>
+          <Paragraph style={{ fontSize: 25, fontWeight: 500, letterSpacing: -0.5, lineHeight: 1 }}>Pell & Ashby</Paragraph>
+          <Paragraph style={label}>Architects</Paragraph>
         </Column>
         <Column>
-          <Text style={{ fontFamily: SANS, fontSize: 10.5, lineHeight: 1.6, color: QUIET, textAlign: "right" }}>
+          <Paragraph style={{ fontFamily: SANS, fontSize: 10.5, lineHeight: 1.6, color: QUIET, textAlign: "right" }}>
             14 Calvert Mews, London E2 7LL
             <LineBreak />
             +44 20 7946 0321 · studio@pellashby.example
-          </Text>
+          </Paragraph>
         </Column>
       </Row>
 
@@ -179,10 +179,10 @@ export const pellAshbyInvoice = (
           <Heading level={1} style={{ fontSize: 84, fontWeight: 300, lineHeight: 0.95, letterSpacing: -2.5 }}>
             Invoice
           </Heading>
-          <Text style={{ fontSize: 18, fontStyle: "italic", color: QUIET, lineHeight: 1.35 }}>
+          <Paragraph style={{ fontSize: 18, fontStyle: "italic", color: QUIET, lineHeight: 1.35 }}>
             Hawthorn Lane House, Stage 4
             <LineBreak />1 September to 31 October 2026
-          </Text>
+          </Paragraph>
         </Column>
         <Column style={{ width: HALF }}>
           {field(
@@ -234,10 +234,10 @@ export const pellAshbyInvoice = (
     <Document.Page style={{ gap: 36 }}>
       <Row style={{ alignItems: "end", gap: GAP, padding: [0, 0, 12], border: { bottom: hairline() } }}>
         <Column>
-          <Text style={{ fontSize: 17, fontWeight: 500, letterSpacing: -0.3, lineHeight: 1 }}>Pell & Ashby</Text>
+          <Paragraph style={{ fontSize: 17, fontWeight: 500, letterSpacing: -0.3, lineHeight: 1 }}>Pell & Ashby</Paragraph>
         </Column>
         <Column>
-          <Text style={{ ...label, textAlign: "right" }}>Invoice PA-0114 · Time summary</Text>
+          <Paragraph style={{ ...label, textAlign: "right" }}>Invoice PA-0114 · Time summary</Paragraph>
         </Column>
       </Row>
 
@@ -270,12 +270,12 @@ export const pellAshbyInvoice = (
     <PageFooter style={{ padding: [12, 0, 0], border: { top: hairline() } }}>
       <Row style={{ gap: GAP }}>
         <Column>
-          <Text style={{ fontFamily: SANS, fontSize: 9.5, color: QUIET }}>Pell & Ashby Architects Ltd · Registered in England and Wales, 09412873 · VAT GB 318 4471 02</Text>
+          <Paragraph style={{ fontFamily: SANS, fontSize: 9.5, color: QUIET }}>Pell & Ashby Architects Ltd · Registered in England and Wales, 09412873 · VAT GB 318 4471 02</Paragraph>
         </Column>
         <Column style={{ width: 64 }}>
-          <Text style={{ fontFamily: SANS, fontSize: 9.5, color: QUIET, textAlign: "right" }}>
+          <Paragraph style={{ fontFamily: SANS, fontSize: 9.5, color: QUIET, textAlign: "right" }}>
             <PageNumber /> of <PageNumber total />
-          </Text>
+          </Paragraph>
         </Column>
       </Row>
     </PageFooter>

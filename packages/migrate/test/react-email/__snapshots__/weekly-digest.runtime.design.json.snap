@@ -2,7 +2,7 @@
   "counters": {
     "u_row": 10,
     "u_column": 14,
-    "u_content_text": 21,
+    "u_content_paragraph": 21,
     "u_content_heading": 1,
     "u_content_image": 4,
     "u_content_divider": 3
@@ -17,7 +17,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "12px",
@@ -32,8 +32,8 @@
                   },
                   "color": "#a1a1a1",
                   "_meta": {
-                    "htmlID": "u_content_text_1",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_1",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -46,7 +46,7 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "2px",
-                  "text": "<span style=\"text-transform:uppercase\">The Weekly Dispatch</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"The Weekly Dispatch\"}]}]}}"
                 }
               },
               {
@@ -84,7 +84,7 @@
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
@@ -99,8 +99,8 @@
                   },
                   "color": "#a1a1a1",
                   "_meta": {
-                    "htmlID": "u_content_text_2",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_2",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -113,7 +113,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Week of {{weekOf}}"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Week of {{weekOf}}\"}]}]}}"
                 }
               }
             ],
@@ -170,7 +170,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "15px",
@@ -185,8 +185,8 @@
                   },
                   "color": "#404040",
                   "_meta": {
-                    "htmlID": "u_content_text_3",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_3",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -199,7 +199,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week.\"}]}]}}"
                 }
               }
             ],
@@ -305,7 +305,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "11px",
@@ -320,8 +320,8 @@
                   },
                   "color": "#4f39f6",
                   "_meta": {
-                    "htmlID": "u_content_text_4",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_4",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -334,11 +334,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Maya Chen · 6 min read</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Maya Chen · 6 min read\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -353,8 +353,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_5",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_5",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -367,11 +367,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">How small teams ship faster with async-first habits</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/async-first\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"How small teams ship faster with async-first habits\"}]}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
@@ -386,8 +386,8 @@
                   },
                   "color": "#525252",
                   "_meta": {
-                    "htmlID": "u_content_text_6",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_6",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -400,11 +400,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Three teams share the rituals that replaced their daily standups and what they measured along the way."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Three teams share the rituals that replaced their daily standups and what they measured along the way.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -419,8 +419,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_7",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_7",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -433,7 +433,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/async-first\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/async-first\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read more\"}]}]}]}}"
                 }
               }
             ],
@@ -620,7 +620,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "11px",
@@ -635,8 +635,8 @@
                   },
                   "color": "#4f39f6",
                   "_meta": {
-                    "htmlID": "u_content_text_8",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_8",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -649,11 +649,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Luis Ortega · 4 min read</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Luis Ortega · 4 min read\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -668,8 +668,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_9",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_9",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -682,11 +682,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">The quiet comeback of plain-text email</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/plain-text-email\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"The quiet comeback of plain-text email\"}]}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
@@ -701,8 +701,8 @@
                   },
                   "color": "#525252",
                   "_meta": {
-                    "htmlID": "u_content_text_10",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_10",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -715,11 +715,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -734,8 +734,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_11",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_11",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -748,7 +748,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/plain-text-email\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/plain-text-email\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read more\"}]}]}]}}"
                 }
               }
             ],
@@ -935,7 +935,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "11px",
@@ -950,8 +950,8 @@
                   },
                   "color": "#4f39f6",
                   "_meta": {
-                    "htmlID": "u_content_text_12",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_12",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -964,11 +964,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Anika Rao · 9 min read</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Anika Rao · 9 min read\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -983,8 +983,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_13",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_13",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -997,11 +997,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">A practical guide to database migrations without downtime</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/zero-downtime-migrations\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"A practical guide to database migrations without downtime\"}]}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
@@ -1016,8 +1016,8 @@
                   },
                   "color": "#525252",
                   "_meta": {
-                    "htmlID": "u_content_text_14",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_14",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1030,11 +1030,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -1049,8 +1049,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_15",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_15",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1063,7 +1063,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/zero-downtime-migrations\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/zero-downtime-migrations\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read more\"}]}]}]}}"
                 }
               }
             ],
@@ -1250,7 +1250,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "11px",
@@ -1265,8 +1265,8 @@
                   },
                   "color": "#4f39f6",
                   "_meta": {
-                    "htmlID": "u_content_text_16",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_16",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1279,11 +1279,11 @@
                   },
                   "fontWeight": 600,
                   "letterSpacing": "1px",
-                  "text": "<span style=\"text-transform:uppercase\">Tom Becker · 12 min read</span>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"text-transform:uppercase\",\"text\":\"Tom Becker · 12 min read\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -1298,8 +1298,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_17",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_17",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1312,11 +1312,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" target=\"_blank\" style=\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\">Interview: building a design system that people actually use</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/design-system-interview\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#171717;text-decoration:none;font-size:18px;font-weight:700\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Interview: building a design system that people actually use\"}]}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "6px 0px 0px",
                   "fontSize": "14px",
@@ -1331,8 +1331,8 @@
                   },
                   "color": "#525252",
                   "_meta": {
-                    "htmlID": "u_content_text_18",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_18",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1345,11 +1345,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "The lead of a 40-person design org on governance, documentation, and saying no to one-off components."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"The lead of a 40-person design org on governance, documentation, and saying no to one-off components.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "14px",
@@ -1364,8 +1364,8 @@
                   },
                   "color": "#000000",
                   "_meta": {
-                    "htmlID": "u_content_text_19",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_19",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1378,7 +1378,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"https://dispatch.example.com/posts/design-system-interview\" target=\"_blank\" style=\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\">Read more</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://dispatch.example.com/posts/design-system-interview\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#4f39f6;text-decoration:underline;font-size:14px;font-weight:600\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read more\"}]}]}]}}"
                 }
               }
             ],
@@ -1441,7 +1441,7 @@
           {
             "contents": [
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "0px",
                   "fontSize": "12px",
@@ -1456,8 +1456,8 @@
                   },
                   "color": "#737373",
                   "_meta": {
-                    "htmlID": "u_content_text_20",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_20",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1470,11 +1470,11 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "You're receiving this because you subscribed to The Weekly Dispatch."
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"You're receiving this because you subscribed to The Weekly Dispatch.\"}]}]}}"
                 }
               },
               {
-                "type": "text",
+                "type": "paragraph",
                 "values": {
                   "containerPadding": "8px 0px 0px",
                   "fontSize": "12px",
@@ -1489,8 +1489,8 @@
                   },
                   "color": "#737373",
                   "_meta": {
-                    "htmlID": "u_content_text_21",
-                    "htmlClassNames": "u_content_text"
+                    "htmlID": "u_content_paragraph_21",
+                    "htmlClassNames": "u_content_paragraph"
                   },
                   "selectable": true,
                   "draggable": true,
@@ -1503,7 +1503,7 @@
                   },
                   "fontWeight": 400,
                   "letterSpacing": "0px",
-                  "text": "<a href=\"{{preferencesUrl}}\" target=\"_blank\" style=\"color:#737373;text-decoration:underline\">Email preferences</a> · <a href=\"{{unsubscribeUrl}}\" target=\"_blank\" style=\"color:#737373;text-decoration:underline\">Unsubscribe</a>"
+                  "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"{{preferencesUrl}}\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#737373;text-decoration:underline\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Email preferences\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\" · \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"{{unsubscribeUrl}}\",\"target\":\"_blank\",\"rel\":null,\"style\":\"color:#737373;text-decoration:underline\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Unsubscribe\"}]}]}]}}"
                 }
               }
             ],

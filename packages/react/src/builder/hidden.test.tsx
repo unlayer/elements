@@ -6,7 +6,7 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Paragraph, Row, Section, Text, Video } from "../primitives";
+import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Paragraph, Row, Section, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign } from "./index";
 import { BUILDER_KEYS, BUILDER_PHONE_KEYS, HIDDEN } from "./manifest";
@@ -68,18 +68,18 @@ const everyHidden = [
     </Section>
     <Row style={{ borderRadius: 8, width: 500, minWidth: 300, maxWidth: 560, height: 200, overflow: "hidden", justifyContent: "center", flexWrap: "wrap" }}>
       <Column style={{ justifyContent: "end", minWidth: 100, maxWidth: 400, height: 100, overflow: "hidden" }} hidden={{ desktop: true }}>
-        <Text>A</Text>
+        <Paragraph>A</Paragraph>
       </Column>
       <Column hidden={{ mobile: true }}>
-        <Text>B</Text>
+        <Paragraph>B</Paragraph>
       </Column>
     </Row>
   </Email>,
   <Page key="page" description="A page">
-    <Text>Page</Text>
+    <Paragraph>Page</Paragraph>
   </Page>,
   <Document key="document" margin={[10, 20, 30, 40]}>
-    <Text>Document</Text>
+    <Paragraph>Document</Paragraph>
   </Document>,
 ];
 
@@ -199,7 +199,7 @@ describe("hidden properties", () => {
       const from = designOf(heading);
       const into = designOf(
         <Email>
-          <Text>Other</Text>
+          <Paragraph>Other</Paragraph>
         </Email>
       );
       into.body.rows[0].columns[0].contents.push(block(from));

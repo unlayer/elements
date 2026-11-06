@@ -186,7 +186,7 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Grid>` | Its children in columns of equal width, row after row |
 | `<Layer>` | Its children over each other: an image with words on it |
 | `<Heading>` | A heading, `level` 1 to 6 |
-| `<Paragraph>`, `<Text>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
+| `<Paragraph>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
 | `<Button>` | A link drawn as a button, with its colors on hover |
 | `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
 | `<Divider>` | A horizontal line |

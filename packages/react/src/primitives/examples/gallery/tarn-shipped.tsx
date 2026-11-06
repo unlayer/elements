@@ -5,7 +5,7 @@
  * and a celadon green taken from the studio's glaze. Each piece is shown as its glaze, a circle,
  * as a bowl looks from above, instead of a photograph. The parcel's progress is four thin bars.
  */
-import { Button, Column, Email, Heading, LineBreak, Link, Paragraph, Row, Section, Span, Text } from "../../index";
+import { Button, Column, Email, Heading, LineBreak, Link, Paragraph, Row, Section, Span } from "../../index";
 
 const STONE = "#ECE7DF";
 const CARD = "#FFFDF9";
@@ -26,13 +26,13 @@ const label = { fontSize: 12, fontWeight: 600, letterSpacing: 1.4, textTransform
 const step = (name: string, date: string, done: boolean) => (
   <Column style={{ gap: 10 }}>
     <Column style={{ height: 4, backgroundColor: done ? CELADON : RULE }} />
-    <Text style={{ fontSize: 13, lineHeight: 1.35, color: done ? INK : QUIET, fontWeight: done ? 600 : 400 }} mobile={{ fontSize: 12 }}>
+    <Paragraph style={{ fontSize: 13, lineHeight: 1.35, color: done ? INK : QUIET, fontWeight: done ? 600 : 400 }} mobile={{ fontSize: 12 }}>
       {name}
       <Span style={{ fontWeight: 400, color: QUIET }}>
         <LineBreak />
         {date}
       </Span>
-    </Text>
+    </Paragraph>
   </Column>
 );
 
@@ -41,13 +41,13 @@ const piece = (glaze: string, rim: string, name: string, detail: string, price: 
   <Row stackOnMobile={false} style={{ alignItems: "center", gap: 20, padding: [16, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 14 }}>
     <Column style={{ width: 48, height: 48, backgroundColor: glaze, borderRadius: 24, border: `1px solid ${rim}` }} />
     <Column style={{ gap: 2 }}>
-      <Text style={{ fontFamily: SERIF, fontSize: 18, lineHeight: 1.3 }} mobile={{ fontSize: 16 }}>
+      <Paragraph style={{ fontFamily: SERIF, fontSize: 18, lineHeight: 1.3 }} mobile={{ fontSize: 16 }}>
         {name}
-      </Text>
-      <Text style={{ fontSize: 13, color: QUIET }}>{detail}</Text>
+      </Paragraph>
+      <Paragraph style={{ fontSize: 13, color: QUIET }}>{detail}</Paragraph>
     </Column>
     <Column style={{ width: 68 }}>
-      <Text style={{ fontSize: 15, textAlign: "right" }}>{price}</Text>
+      <Paragraph style={{ fontSize: 15, textAlign: "right" }}>{price}</Paragraph>
     </Column>
   </Row>
 );
@@ -57,10 +57,10 @@ const piece = (glaze: string, rim: string, name: string, detail: string, price: 
 const sum = (name: string, amount: string, total = false) => (
   <Row stackOnMobile={false} style={{ alignItems: "end" }}>
     <Column>
-      <Text style={{ fontSize: total ? 15 : 14, lineHeight: total ? "19px" : "22px", color: total ? INK : QUIET, fontWeight: total ? 600 : 400 }}>{name}</Text>
+      <Paragraph style={{ fontSize: total ? 15 : 14, lineHeight: total ? "19px" : "22px", color: total ? INK : QUIET, fontWeight: total ? 600 : 400 }}>{name}</Paragraph>
     </Column>
     <Column style={{ width: 120 }}>
-      <Text style={{ textAlign: "right", fontFamily: total ? SERIF : SANS, fontSize: total ? 24 : 14, lineHeight: total ? "26px" : "22px" }}>{amount}</Text>
+      <Paragraph style={{ textAlign: "right", fontFamily: total ? SERIF : SANS, fontSize: total ? 24 : 14, lineHeight: total ? "26px" : "22px" }}>{amount}</Paragraph>
     </Column>
   </Row>
 );
@@ -81,20 +81,20 @@ export const tarnShipped = (
     <Section style={{ padding: [40, 0, 48], gap: 24 }} mobile={{ padding: [20, 12, 32], gap: 20 }}>
       <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 8] }} mobile={{ padding: [0, 12] }}>
         <Column>
-          <Text style={{ fontFamily: SERIF, fontSize: 30, fontStyle: "italic", lineHeight: 1, letterSpacing: -0.5 }}>
+          <Paragraph style={{ fontFamily: SERIF, fontSize: 30, fontStyle: "italic", lineHeight: 1, letterSpacing: -0.5 }}>
             <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
               Tarn
             </Link>
-          </Text>
+          </Paragraph>
         </Column>
         <Column>
-          <Text style={{ ...label, textAlign: "right" }}>Order TC-20418</Text>
+          <Paragraph style={{ ...label, textAlign: "right" }}>Order TC-20418</Paragraph>
         </Column>
       </Row>
 
       <Column style={{ backgroundColor: CARD, borderRadius: 4, padding: [48, 48, 40], gap: 36 }} mobile={{ padding: [32, 22, 28], gap: 28 }}>
         <Column style={{ gap: 16 }}>
-          <Text style={label}>Shipped 5 November</Text>
+          <Paragraph style={label}>Shipped 5 November</Paragraph>
           <Heading level={1} style={{ fontFamily: SERIF, fontSize: 42, fontWeight: 400, lineHeight: 1.08, letterSpacing: -1 }} mobile={{ fontSize: 32, letterSpacing: -0.6 }}>
             Packed in straw,
             <LineBreak />
@@ -122,7 +122,7 @@ export const tarnShipped = (
         </Button>
 
         <Column>
-          <Text style={{ ...label, padding: [0, 0, 12] }}>In the box</Text>
+          <Paragraph style={{ ...label, padding: [0, 0, 12] }}>In the box</Paragraph>
           {piece("#B9D2C6", "#9DB9AC", "Tea bowls, celadon", "A pair, 9 cm across", "£64.00")}
           {piece("#EFEBE2", "#D8D1C4", "Serving bowl, ash\u00a0white", "24 cm across", "£58.00")}
           {piece("#3B2A22", "#2A1D17", "Pouring jug, tenmoku", "Holds 600 ml", "£46.00")}
@@ -135,22 +135,22 @@ export const tarnShipped = (
 
         <Row style={{ gap: 24, padding: [24, 0, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 20 }}>
           <Column style={{ gap: 6 }}>
-            <Text style={label}>Delivering to</Text>
-            <Text style={{ fontSize: 15, lineHeight: 1.55 }}>
+            <Paragraph style={label}>Delivering to</Paragraph>
+            <Paragraph style={{ fontSize: 15, lineHeight: 1.55 }}>
               Ada Whitlock
               <LineBreak />
               14 Rookery Lane, Didsbury
               <LineBreak />
               Manchester M20 6RG
-            </Text>
+            </Paragraph>
           </Column>
           <Column style={{ gap: 6 }}>
-            <Text style={label}>Paid with</Text>
-            <Text style={{ fontSize: 15, lineHeight: 1.55 }}>
+            <Paragraph style={label}>Paid with</Paragraph>
+            <Paragraph style={{ fontSize: 15, lineHeight: 1.55 }}>
               Visa ending 0417
               <LineBreak />
               on 2 November 2026
-            </Text>
+            </Paragraph>
           </Column>
         </Row>
 
@@ -159,13 +159,13 @@ export const tarnShipped = (
         </Paragraph>
       </Column>
 
-      <Text style={{ fontSize: 13, lineHeight: 1.6, color: QUIET, padding: [0, 8] }} mobile={{ padding: [0, 12] }}>
+      <Paragraph style={{ fontSize: 13, lineHeight: 1.6, color: QUIET, padding: [0, 8] }} mobile={{ padding: [0, 12] }}>
         Tarn Ceramics, Unit 4, Mytholm Works, Hebden Bridge HX7 6DL. Questions about your order? Reply to this email, or{" "}
         <Link href={`${SITE}/returns`} style={{ color: INK }}>
           read about returns
         </Link>
         .
-      </Text>
+      </Paragraph>
     </Section>
   </Email>
 );

@@ -1316,7 +1316,7 @@ T.PreviewProps = { name: "Ana", note: "Thanks!", stars: ["https://example.com/s1
       expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.designWarnings]).toEqual([[], [], [], [], []]);
       // The text with images in it is an Html block of its markup (the new components' text holds no image), the text
       // with lines stays editable text, and the component of the template's own is an Html block.
-      expect(blockTypes(check.design)).toEqual(["html", "html", "text", "html"]);
+      expect(blockTypes(check.design)).toEqual(["html", "html", "paragraph", "html"]);
     }
   });
 
@@ -1337,7 +1337,7 @@ T.PreviewProps = { name: "Ana" };`;
       const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
       // A name that's only read stays editable text.
-      expect(blockTypes(check.design)).toEqual(["html", "text"]);
+      expect(blockTypes(check.design)).toEqual(["html", "paragraph"]);
     }
   });
 
@@ -1374,7 +1374,7 @@ T.PreviewProps = { name: "Ana" };`;
       const check = await verifyNewComponents(Original, Migrated, { props });
       expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
       // The greeting stays editable text; a count that's 0 shows "0", as React shows it, in its kept block.
-      expect(blockTypes(check.design)).toEqual(["text", "html"]);
+      expect(blockTypes(check.design)).toEqual(["paragraph", "html"]);
     }
   });
 

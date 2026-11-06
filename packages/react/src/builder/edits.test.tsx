@@ -7,7 +7,7 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Divider, Document, Email, Heading, Html, Image, Link, Menu, PageBreak, Paragraph, render, Row, Section, Social, Text, Video } from "../primitives";
+import { Button, Column, Divider, Document, Email, Heading, Html, Image, Link, Menu, PageBreak, Paragraph, render, Row, Section, Social, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign, type DisplayMode } from "./index";
 import { textJsonHtml } from "./text-json";
@@ -201,7 +201,7 @@ describe("an edit in the builder", () => {
   });
 
   const row = (holder: Values | undefined, children: Node[] = hello()): Node[] => (holder ? [{ ...holder, children } as Node] : children);
-  fields("row", <Email><Text>Hello</Text></Email>, "rows.0", {
+  fields("row", <Email><Paragraph>Hello</Paragraph></Email>, "rows.0", {
     backgroundColor: ["#eeeeee", row({ type: "Section", style: { backgroundColor: "#eeeeee" } }), "", row(undefined), row(undefined)],
     columnsBackgroundColor: ["#ffffff", row({ type: "Row", style: { backgroundColor: "#ffffff" } }, [{ type: "Column", children: hello() }]), "", row(undefined), row(undefined)],
     // A row's side padding set in the builder is kept (the earlier adapter's review).
@@ -219,10 +219,10 @@ describe("an edit in the builder", () => {
     <Email>
       <Row>
         <Column>
-          <Text>A</Text>
+          <Paragraph>A</Paragraph>
         </Column>
         <Column>
-          <Text>B</Text>
+          <Paragraph>B</Paragraph>
         </Column>
       </Row>
     </Email>
@@ -244,7 +244,7 @@ describe("an edit in the builder", () => {
   const body = (props?: Values, style?: Values, type = "Email"): Node[] => [{ type, ...(props ? { props } : {}), ...(style ? { style } : {}), children: hello() }];
   /** The body with its block's own text style. */
   const own = ([root]: Node[], style: Values): Node[] => [{ ...root, children: hello(style) }];
-  fields("body", <Email><Text>Hello</Text></Email>, "body", {
+  fields("body", <Email><Paragraph>Hello</Paragraph></Email>, "body", {
     contentWidth: ["700px", body({ width: 700 }), "500px", body({ width: 500 }), body({ width: 500 })],
     backgroundColor: ["#f0f0f0", body(undefined, { backgroundColor: "#f0f0f0" }), "#F7F8F9", body(undefined, { backgroundColor: "#f7f8f9" }), body(undefined, { backgroundColor: "#f7f8f9" })],
     // A block's own text style is its field: the body's change doesn't change it.
@@ -256,7 +256,7 @@ describe("an edit in the builder", () => {
     accessibilityTitle: ["Welcome", body({ title: "Welcome" }), "", body(), body()],
     textDirection: ["rtl", body({ dir: "rtl" }), "ltr", body({ dir: "ltr" }), body()],
   });
-  fields("document's body", <Document><Text>Hello</Text></Document>, "body", {
+  fields("document's body", <Document><Paragraph>Hello</Paragraph></Document>, "body", {
     documentSize: ["Letter", body({ size: "Letter" }, undefined, "Document"), "A4", body(undefined, undefined, "Document"), body(undefined, undefined, "Document")],
     documentOrientation: ["landscape", body({ orientation: "landscape" }, undefined, "Document"), "portrait", body(undefined, undefined, "Document"), body(undefined, undefined, "Document")],
     documentMargin: ["30px", body({ margin: { top: 30, right: 30, bottom: 30, left: 30 } }, undefined, "Document"), "96px", body({ margin: { top: 96, right: 96, bottom: 96, left: 96 } }, undefined, "Document"), body({ margin: { top: 96, right: 96, bottom: 96, left: 96 } }, undefined, "Document")],
@@ -269,7 +269,7 @@ describe("an edit the earlier adapter's reviews found lost", () => {
       <Email>
         <Row>
           <Column>
-            <Text>A</Text>
+            <Paragraph>A</Paragraph>
           </Column>
         </Row>
       </Email>
@@ -296,11 +296,11 @@ describe("an edit the earlier adapter's reviews found lost", () => {
         <Row>
           <Column style={{ padding: 20 }} />
           <Column>
-            <Text>B</Text>
+            <Paragraph>B</Paragraph>
           </Column>
         </Row>
         <Column style={{ padding: [30, 0, 30, 0] }} />
-        <Text>After</Text>
+        <Paragraph>After</Paragraph>
       </Email>
     );
     const [row, space] = tree(fromDesign(toDesign(template).design).element).children as Node[];
@@ -334,7 +334,7 @@ describe("an edit the earlier adapter's reviews found lost", () => {
   it("keeps the alignment and spacing of an image, a button and a divider made in the builder (the builder's own values, no others)", () => {
     const design = designOf(
       <Email>
-        <Text>Start</Text>
+        <Paragraph>Start</Paragraph>
       </Email>
     );
     design.body.rows[0].columns[0].contents.push(
@@ -352,7 +352,7 @@ describe("an edit the earlier adapter's reviews found lost", () => {
   it("keeps the size of an image made with autoWidth", () => {
     const design = designOf(
       <Email>
-        <Text>Start</Text>
+        <Paragraph>Start</Paragraph>
       </Email>
     );
     design.body.rows[0].columns[0].contents.push({ type: "image", values: { src: { url: "https://x.test/small.png", width: 120, height: 60, autoWidth: true, maxWidth: "100%" }, containerPadding: "0px", textAlign: "left" } });
@@ -363,14 +363,14 @@ describe("an edit the earlier adapter's reviews found lost", () => {
     const from = designOf(
       <Email>
         <Section style={{ backgroundColor: "#eeeeee" }}>
-          <Text>Copied</Text>
+          <Paragraph>Copied</Paragraph>
         </Section>
       </Email>
     );
     const into = designOf(
       <Email>
         <Section style={{ backgroundColor: "#eeeeee" }}>
-          <Text>Own</Text>
+          <Paragraph>Own</Paragraph>
         </Section>
       </Email>
     );
@@ -385,7 +385,7 @@ describe("an edit the earlier adapter's reviews found lost", () => {
     const design = designOf(
       <Email>
         <Column style={{ backgroundColor: "#ffeeee", padding: 12 }}>
-          <Text>In the box</Text>
+          <Paragraph>In the box</Paragraph>
         </Column>
       </Email>
     );
@@ -398,9 +398,9 @@ describe("an edit the earlier adapter's reviews found lost", () => {
   it("reads a page break deleted between two pages as one page", () => {
     const design = designOf(
       <Document>
-        <Text>One</Text>
+        <Paragraph>One</Paragraph>
         <PageBreak />
-        <Text>Two</Text>
+        <Paragraph>Two</Paragraph>
       </Document>
     );
     expect((tree(fromDesign(design).element).children as Node[]).map((node) => node.type)).toEqual(["Paragraph", "PageBreak", "Paragraph"]);

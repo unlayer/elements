@@ -188,7 +188,7 @@ describe("to the builder and back", () => {
   });
 
   it("writes a page on its own without that width", async () => {
-    const { body } = await primitives.render(<primitives.Page width={600}><primitives.Text>Words</primitives.Text></primitives.Page>);
+    const { body } = await primitives.render(<primitives.Page width={600}><primitives.Paragraph>Words</primitives.Paragraph></primitives.Page>);
     expect(body).toMatch(/^<main style="max-width:600px;margin:0 auto;/);
   });
 

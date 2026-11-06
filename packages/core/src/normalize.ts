@@ -323,7 +323,7 @@ function readChildren(input: unknown, definition: ComponentDefinition, path: str
         if (typeof last === "string") out[out.length - 1] = last + child;
         else out.push(child);
       } else if (child.trim()) {
-        d.error("children/text-not-allowed", `Text can't go straight in a ${definition.type}: put it in a Text, Paragraph or Heading`, at, id);
+        d.error("children/text-not-allowed", `Text can't go straight in a ${definition.type}: put it in a Paragraph or Heading`, at, id);
       }
       return;
     }

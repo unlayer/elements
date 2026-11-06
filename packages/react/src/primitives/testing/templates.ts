@@ -69,9 +69,9 @@ export function generate(seed: number, root: Root): Tree {
   });
 
   const block = (): Tree => {
-    switch (r.pick(["Text", "Paragraph", "Heading", "Button", "Link", "List", "Table", "Menu", "Divider", "Image", "Video"] as const)) {
-      case "Text":
-        return { type: "Text", children: inline() };
+    switch (r.pick(["Paragraph", "Paragraph", "Heading", "Button", "Link", "List", "Table", "Menu", "Divider", "Image", "Video"] as const)) {
+      case "Paragraph":
+        return { type: "Paragraph", children: inline() };
       case "Paragraph":
         return { type: "Paragraph", children: inline() };
       case "Heading":
@@ -132,12 +132,12 @@ export function generate(seed: number, root: Root): Tree {
       return { type: "Canvas", props: { width: 600, height: 4000 }, children: body() };
     case "Document": {
       const children: Tree[] = [];
-      if (r.chance(0.4)) children.push({ type: "PageHeader", children: [{ type: "Text", children: [word()] }] });
+      if (r.chance(0.4)) children.push({ type: "PageHeader", children: [{ type: "Paragraph", children: [word()] }] });
       for (let page = r.int(1, 2); page > 0; page--) {
         children.push(...body());
         if (page > 1) children.push({ type: "PageBreak" });
       }
-      if (r.chance(0.4)) children.push({ type: "PageFooter", children: [{ type: "Text", children: [word(), " ", { type: "PageNumber" }] }] });
+      if (r.chance(0.4)) children.push({ type: "PageFooter", children: [{ type: "Paragraph", children: [word(), " ", { type: "PageNumber" }] }] });
       return { type: "Document", children };
     }
   }

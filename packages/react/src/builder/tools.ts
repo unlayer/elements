@@ -86,7 +86,6 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
   };
   switch (node.type) {
     case "Heading":
-    case "Text":
     case "Paragraph":
     case "List": {
       if (holdsImage(node)) return place.locked(node, path, "an Image in a run of text isn't something the builder's text holds", around);
@@ -282,7 +281,7 @@ function inText(html: string, text: Record<string, Json>): string {
   return css.length ? `<div style="${css.join(";")}">${html}</div>` : html;
 }
 
-const TOOLS: Record<string, string> = { Heading: "heading", Text: "paragraph", Paragraph: "paragraph", List: "paragraph", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html" };
+const TOOLS: Record<string, string> = { Heading: "heading", Paragraph: "paragraph", List: "paragraph", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html" };
 
 /** An id the template gives a block, as the builder's (its element's id). */
 const meta = (id: string | undefined, tool = "html"): Values => (id ? { _meta: { htmlID: id, htmlClassNames: `u_content_${tool}` } } : {});

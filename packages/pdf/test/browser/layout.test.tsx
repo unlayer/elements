@@ -6,7 +6,7 @@
  */
 import { chromium } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section, Text } from "@unlayer/react-elements";
+import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section } from "@unlayer/react-elements";
 import { renderPdf } from "../../src";
 
 /** Each line by its first word (each a different one). */
@@ -15,32 +15,32 @@ const LINES = ["Quarterly", "Results", "Region", "Revenue", "North", "$1.2M", "S
 const report = (
   <Document size="Letter" margin={[48, 64]} style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 12, lineHeight: 1.4 }}>
     <PageHeader style={{ padding: [0, 0, 16, 0] }}>
-      <Text style={{ fontSize: 10, color: "#555555", textAlign: "center" }}>Quarterly report</Text>
+      <Paragraph style={{ fontSize: 10, color: "#555555", textAlign: "center" }}>Quarterly report</Paragraph>
     </PageHeader>
     <Heading level={2}>Results</Heading>
     <Section style={{ padding: [16, 24], backgroundColor: "#f3f4f6", gap: 8 }}>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Text style={{ fontWeight: 700 }}>Region</Text>
+          <Paragraph style={{ fontWeight: 700 }}>Region</Paragraph>
         </Column>
         <Column>
-          <Text style={{ fontWeight: 700, textAlign: "right" }}>Revenue</Text>
+          <Paragraph style={{ fontWeight: 700, textAlign: "right" }}>Revenue</Paragraph>
         </Column>
       </Row>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Text>North</Text>
+          <Paragraph>North</Paragraph>
         </Column>
         <Column>
-          <Text style={{ textAlign: "right" }}>$1.2M</Text>
+          <Paragraph style={{ textAlign: "right" }}>$1.2M</Paragraph>
         </Column>
       </Row>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Text>South</Text>
+          <Paragraph>South</Paragraph>
         </Column>
         <Column>
-          <Text style={{ textAlign: "right" }}>$0.9M</Text>
+          <Paragraph style={{ textAlign: "right" }}>$0.9M</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -51,9 +51,9 @@ const report = (
       </Button>
     </Column>
     <PageFooter>
-      <Text style={{ fontSize: 10, textAlign: "right" }}>
+      <Paragraph style={{ fontSize: 10, textAlign: "right" }}>
         Page <PageNumber /> of <PageNumber total />
-      </Text>
+      </Paragraph>
     </PageFooter>
   </Document>
 );

@@ -1095,7 +1095,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     });
     // In a box with its text's styles, which the markup takes from around it.
     if (kept) return element("Column", [styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], [element("Html", [attr("html", props.get("html"))])]);
-    return element(tag, [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
+    return element("Paragraph", [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
   }
 
   /**
@@ -1499,8 +1499,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const nbsp = (text: string) => `{${JSON.stringify(`\u00a0${text}`).replace(/\u00a0/g, "\\u00a0")}}`;
     const linkColor = color(props, "linkColor") ?? lit("#0068A5");
     const children = links.flatMap((item, index) => [
-      ...(index && separator ? [element("Text", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
-      element("Text", box(), [element("Link", [attr("href", lit(item.href || { href: "" })), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
+      ...(index && separator ? [element("Paragraph", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
+      element("Paragraph", box(), [element("Link", [attr("href", lit(item.href || { href: "" })), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
     ]);
     return element(
       "Row",

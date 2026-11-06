@@ -15,7 +15,7 @@ pnpm add @unlayer/react-elements
 Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (
@@ -40,11 +40,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
-            <Text>Ada Lovelace, London</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
+            <Paragraph>Ada Lovelace, London</Paragraph>
           </Column>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Next steps</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -55,7 +55,7 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
+      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
     </Email>
   );
 }
@@ -129,7 +129,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 | Component | Description |
 |-----------|-------------|
 | `<Heading>` | A heading, `level` 1 to 6 |
-| `<Paragraph>`, `<Text>` | A block of text |
+| `<Paragraph>`, `<Paragraph>` | A block of text |
 | `<Span>`, `<Link>`, `<LineBreak>`, `<MergeTag>` | Inside text: a styled run, a link, a new line, a value the sending service fills in |
 | `<Button>` | A link drawn as a button, with its colors on hover |
 | `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
@@ -267,7 +267,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 <Row style={{ gap: 16 }}>
   <Column style={{ backgroundColor: "#ffffff", padding: 16, borderRadius: 8, textAlign: "center" }}>
     <Heading level={2} style={{ fontSize: 28, fontWeight: 700, color: "#0f172a" }}>1.2M</Heading>
-    <Text style={{ fontSize: 12, color: "#94a3b8" }}>API calls</Text>
+    <Paragraph style={{ fontSize: 12, color: "#94a3b8" }}>API calls</Paragraph>
   </Column>
   {/* One Column for each metric */}
 </Row>
@@ -282,8 +282,8 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
   </Column>
   <Column style={{ gap: 4 }}>
     <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Product name</Heading>
-    <Text style={{ fontSize: 13, color: "#a1a1aa" }}>Matte white, medium</Text>
-    <Text style={{ fontSize: 16, fontWeight: 700 }}>$89.00</Text>
+    <Paragraph style={{ fontSize: 13, color: "#a1a1aa" }}>Matte white, medium</Paragraph>
+    <Paragraph style={{ fontSize: 16, fontWeight: 700 }}>$89.00</Paragraph>
   </Column>
 </Row>
 ```
@@ -292,7 +292,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 
 ```tsx
 <Section style={{ padding: [20, 40, 40, 40] }}>
-  <Text style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center" }}>Company name, City, State</Text>
+  <Paragraph style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center" }}>Company name, City, State</Paragraph>
 </Section>
 ```
 

@@ -14,7 +14,7 @@ loops and conditions; what it can't move is listed, and that file is left as it 
 `^0.2.1` doesn't install 0.3.0; `>=0.2`, `0.x` or `*` does.
 
 - New: the components, each with typed props and styles: `Section`, `Row`, `Column`, `Grid`, `Heading`, `Paragraph`,
-  `Text`, `Span`, `Link`, `List`, `Button`, `Image`, `Divider`, `Menu`, `Social`, `Video`, `Table`, `Html`, page
+  `Span`, `Link`, `List`, `Button`, `Image`, `Divider`, `Menu`, `Social`, `Video`, `Table`, `Html`, page
   headers, footers and numbers for a `Document`, and shapes for a `Canvas`. `component()` and `prop()` make your own.
 - New: `validate()` and `outline()` check a template without rendering it; `render()` returns its diagnostics.
 - New: `Html`, markup written as it is (the builder's HTML block), given as `html` or as JSX in it.

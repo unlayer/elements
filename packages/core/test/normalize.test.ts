@@ -76,7 +76,7 @@ describe("checkDocument", () => {
           type: "Email",
           children: [
             { type: "Section", style: { backgroundColor: "#111" }, children: [{ type: "Image", props: { src: "https://example.com/logo.png" } }] },
-            { type: "Text", children: ["Hi"] },
+            { type: "Paragraph", children: ["Hi"] },
             { type: "Link", props: { href: "https://example.com" }, children: [{ type: "Image", props: { src: "https://example.com/a.png" } }] },
           ],
         })
@@ -98,7 +98,7 @@ describe("checkDocument", () => {
   });
 
   it("checks styles, and says what to use instead of CSS it doesn't take", () => {
-    const { diagnostics } = checkDocument(doc({ type: "Email", children: [{ type: "Text", style: { margin: 10, color: "nope", fontSize: "1em" } }] }));
+    const { diagnostics } = checkDocument(doc({ type: "Email", children: [{ type: "Paragraph", style: { margin: 10, color: "nope", fontSize: "1em" } }] }));
     expect(diagnostics.map((d) => d.code)).toEqual(["style/unknown", "style/invalid", "style/invalid"]);
     expect(diagnostics[0].message).toMatch(/gap/);
   });
@@ -128,10 +128,10 @@ describe("checkDocument", () => {
   });
 
   it("allows phone styles and hiding under an Email or Page only, for the properties that take them", () => {
-    expect(codes(doc({ type: "Email", children: [{ type: "Text", mobile: { fontSize: 14, color: "#000" }, hidden: { desktop: true } }] }))).toEqual([
+    expect(codes(doc({ type: "Email", children: [{ type: "Paragraph", mobile: { fontSize: 14, color: "#000" }, hidden: { desktop: true } }] }))).toEqual([
       "mobile/not-allowed",
     ]);
-    expect(codes(doc({ type: "Email", children: [{ type: "Text", hidden: { mobile: true, desktop: true } }] }))).toEqual(["hidden/everywhere"]);
+    expect(codes(doc({ type: "Email", children: [{ type: "Paragraph", hidden: { mobile: true, desktop: true } }] }))).toEqual(["hidden/everywhere"]);
   });
 
   it("allows hover styles only where the component has them", () => {
@@ -147,12 +147,12 @@ describe("checkDocument", () => {
   });
 
   it("reports unknown types and keys", () => {
-    expect(codes(doc({ type: "Email", children: [{ type: "Body" }, { type: "Text", styles: {} }] }))).toEqual(["node/unknown-type", "node/unknown-key"]);
+    expect(codes(doc({ type: "Email", children: [{ type: "Body" }, { type: "Paragraph", styles: {} }] }))).toEqual(["node/unknown-type", "node/unknown-key"]);
   });
 
   it("keeps list items in Lists and table rows and cells in Tables", () => {
     const { diagnostics } = checkDocument({
-      root: { type: "Email", children: [{ type: "ListItem", children: ["x"] }, { type: "Table", children: [{ type: "TableCell" }] }, { type: "List", children: [{ type: "Text" }] }] },
+      root: { type: "Email", children: [{ type: "ListItem", children: ["x"] }, { type: "Table", children: [{ type: "TableCell" }] }, { type: "List", children: [{ type: "Paragraph" }] }] },
     });
     expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
       ["children/not-allowed", "root.children[0]"],

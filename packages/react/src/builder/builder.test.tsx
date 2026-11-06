@@ -1,6 +1,6 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, Text } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { collectTemplate } from "../primitives/collect";
 import { withParagraphMargin } from "./text";
@@ -21,13 +21,13 @@ describe("toDesign", () => {
   }
 
   it("writes what no tool shows as an HTML block of the new engine's markup, and says so", () => {
-    const Card = component({ type: "acme.Card", label: "Card", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Text>{title}</Text> });
+    const Card = component({ type: "acme.Card", label: "Card", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Paragraph>{title}</Paragraph> });
     const { design, report } = toDesign(
       <Page width={600}>
         <Heading>Summer sale</Heading>
         <Layer style={{ height: 200, alignItems: "center" }}>
           <Image src={{ src: "https://example.com/hero.png", width: 1200, height: 400 }} alt="Sea" style={{ width: "100%" }} />
-          <Text>Up to 40% off</Text>
+          <Paragraph>Up to 40% off</Paragraph>
         </Layer>
         <Svg width={20} height={20}>
           <Rect width={20} height={20} />
@@ -40,7 +40,7 @@ describe("toDesign", () => {
         <Row>
           <Column>
             <Column style={{ backgroundColor: "#eeeeee" }}>
-              <Text>A box in a column</Text>
+              <Paragraph>A box in a column</Paragraph>
             </Column>
           </Column>
         </Row>
@@ -65,7 +65,7 @@ describe("toDesign", () => {
       <Page width={600}>
         <Grid columns={3} style={{ gap: 20 }}>
           {["a", "b", "c", "d"].map((word) => (
-            <Text key={word}>{word}</Text>
+            <Paragraph key={word}>{word}</Paragraph>
           ))}
         </Grid>
       </Page>
@@ -89,7 +89,7 @@ describe("toDesign", () => {
     expect(textJsonHtml(blocks(design)[1].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
     expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet")]);
     // A margin that differs from side to side: the widest, the sides hidden.
-    const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
+    const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Paragraph>A</Paragraph><PageBreak /><Paragraph>B</Paragraph></Document>).design.body.values;
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
   });
 
@@ -141,9 +141,9 @@ describe("toDesign", () => {
     const template = (style: Record<string, string | number>) => (
       <Email width={480}>
         <Section style={{ padding: [0, 24] }}>
-          <Text>above</Text>
+          <Paragraph>above</Paragraph>
           <Column style={style}>
-            <Text>x</Text>
+            <Paragraph>x</Paragraph>
           </Column>
         </Section>
       </Email>
@@ -219,8 +219,8 @@ describe("toDesign", () => {
   it("writes lines above and below a Row as Dividers in rows of their own, in from the space around it, level whatever its alignItems", () => {
     const row = (style: Record<string, unknown>) => (
       <Row style={{ border: { top: "1px solid #000000", bottom: "2px dashed #ff0000" }, padding: [14, 0], ...style }}>
-        <Column><Text>a</Text></Column>
-        <Column><Text>b</Text></Column>
+        <Column><Paragraph>a</Paragraph></Column>
+        <Column><Paragraph>b</Paragraph></Column>
       </Row>
     );
     const { design, report } = toDesign(<Email><Section style={{ backgroundColor: "#eeeeee", padding: [10, 48, 20] }}>{row({ alignItems: "end" })}</Section></Email>);
@@ -239,8 +239,8 @@ describe("toDesign", () => {
   it("says where the builder can't draw a Row's border as it's written: sides of it on its columns, which fill the row and move with alignItems", () => {
     const row = (style: Record<string, unknown>) => (
       <Row style={{ border: { left: "1px solid #000000" }, ...style }}>
-        <Column><Text>a</Text></Column>
-        <Column><Text>b</Text></Column>
+        <Column><Paragraph>a</Paragraph></Column>
+        <Column><Paragraph>b</Paragraph></Column>
       </Row>
     );
     expect(toDesign(<Email>{row({})}</Email>).report).toEqual([]);
@@ -253,7 +253,7 @@ describe("toDesign", () => {
     expect(() =>
       toDesign(
         <Canvas width={600} height={315}>
-          <Text>Hi</Text>
+          <Paragraph>Hi</Paragraph>
         </Canvas>
       )
     ).toThrow("the builder edits an Email, a Page or a Document, not a Canvas");
@@ -264,10 +264,10 @@ describe("toDesign", () => {
     const { design } = toDesign(
       <Email>
         <Section style={{ backgroundColor: "#eeeeee", border: "2px solid #000000", padding: 10 }} hidden={{ mobile: true }}>
-          <Text>One</Text>
+          <Paragraph>One</Paragraph>
           <Row>
             <Column>
-              <Text>Two</Text>
+              <Paragraph>Two</Paragraph>
             </Column>
           </Row>
           <PageFooterless />
@@ -283,7 +283,7 @@ describe("toDesign", () => {
 
 /** Another run of blocks after a Row. */
 function PageFooterless() {
-  return <Text>Three</Text>;
+  return <Paragraph>Three</Paragraph>;
 }
 
 describe("a link's window", () => {
@@ -307,30 +307,30 @@ describe("what the builder can't hold", () => {
   const said = (element: React.ReactElement) => toDesign(element).report.join("\n");
 
   it("keeps an Image in a run of text, as an HTML block of its own", () => {
-    const { design, report } = toDesign(<Email><Text>Rated <Image src={{ src: "https://x.test/s.png", width: 80, height: 16 }} alt="five stars" /> by customers</Text></Email>);
+    const { design, report } = toDesign(<Email><Paragraph>Rated <Image src={{ src: "https://x.test/s.png", width: 80, height: 16 }} alt="five stars" /> by customers</Paragraph></Email>);
     expect(report.join("\n")).toContain("an Image in a run of text");
     expect(JSON.stringify(design)).toContain("five stars");
   });
 
   it("says what it leaves out of text", () => {
     expect(said(<Email><List><ListItem style={{ color: "#654321" }}>a</ListItem></List></Email>)).toContain("list item");
-    expect(said(<Email><Text>a <Span mobile={{ fontSize: 20 }}>b</Span></Text></Email>)).toContain("phone styles");
-    expect(said(<Email><Text><Link href="#" attrs={{ "data-x": "1" }}>b</Link></Text></Email>)).toContain("other attributes");
-    expect(said(<Email><Text><Link id="x" href="#">b</Link></Text></Email>)).toContain("id on part of its text");
+    expect(said(<Email><Paragraph>a <Span mobile={{ fontSize: 20 }}>b</Span></Paragraph></Email>)).toContain("phone styles");
+    expect(said(<Email><Paragraph><Link href="#" attrs={{ "data-x": "1" }}>b</Link></Paragraph></Email>)).toContain("other attributes");
+    expect(said(<Email><Paragraph><Link id="x" href="#">b</Link></Paragraph></Email>)).toContain("id on part of its text");
   });
 
   it("says a Row's and a Section's border on phones, and a plain Column's phone values, are left out", () => {
-    expect(said(<Email><Row mobile={{ border: "1px solid #000" }}><Column><Text>a</Text></Column></Row></Email>)).toContain("no border on phones");
-    expect(said(<Email><Section mobile={{ border: "1px solid #000" }}><Text>a</Text></Section></Email>)).toContain("no border on phones");
-    expect(said(<Email><Column><Column mobile={{ padding: 4 }}><Text>a</Text></Column></Column></Email>)).toContain("no phone values");
+    expect(said(<Email><Row mobile={{ border: "1px solid #000" }}><Column><Paragraph>a</Paragraph></Column></Row></Email>)).toContain("no border on phones");
+    expect(said(<Email><Section mobile={{ border: "1px solid #000" }}><Paragraph>a</Paragraph></Section></Email>)).toContain("no border on phones");
+    expect(said(<Email><Column><Column mobile={{ padding: 4 }}><Paragraph>a</Paragraph></Column></Column></Email>)).toContain("no phone values");
   });
 
   it("takes what it can: a header's background, a Column's corners and the ids of rows and columns", () => {
     const back = (element: React.ReactElement, displayMode: "email" | "document" = "email") => JSON.stringify(collectTemplate(fromDesign(JSON.parse(JSON.stringify(toDesign(element).design)), { displayMode }).element).document!.root);
-    expect(back(<Document><PageHeader style={{ backgroundColor: "#123456" }}><Text>H</Text></PageHeader><Text>x</Text></Document>, "document")).toContain("#123456");
-    expect(back(<Email><Column style={{ backgroundColor: "#eeeeee", borderRadius: { topLeft: 1, topRight: 2, bottomRight: 3, bottomLeft: 4 } }}><Text>a</Text></Column></Email>)).toContain('"topLeft":1');
-    expect(back(<Email><Row id="plans"><Column id="left"><Text>a</Text></Column><Column><Text>b</Text></Column></Row></Email>)).toContain('"id":"left"');
-    expect(back(<Email><Section id="pricing"><Text>a</Text></Section></Email>)).toContain('"id":"pricing"');
+    expect(back(<Document><PageHeader style={{ backgroundColor: "#123456" }}><Paragraph>H</Paragraph></PageHeader><Paragraph>x</Paragraph></Document>, "document")).toContain("#123456");
+    expect(back(<Email><Column style={{ backgroundColor: "#eeeeee", borderRadius: { topLeft: 1, topRight: 2, bottomRight: 3, bottomLeft: 4 } }}><Paragraph>a</Paragraph></Column></Email>)).toContain('"topLeft":1');
+    expect(back(<Email><Row id="plans"><Column id="left"><Paragraph>a</Paragraph></Column><Column><Paragraph>b</Paragraph></Column></Row></Email>)).toContain('"id":"left"');
+    expect(back(<Email><Section id="pricing"><Paragraph>a</Paragraph></Section></Email>)).toContain('"id":"pricing"');
   });
 });
 
@@ -364,9 +364,9 @@ describe("a design read back", () => {
 
 describe("a page number", () => {
   it("says the editor's PDF prints its token, as the builder has no page numbers yet", () => {
-    const { report } = toDesign(<Document><PageFooter><Text>Page <PageNumber /></Text></PageFooter><Text>x</Text></Document>);
+    const { report } = toDesign(<Document><PageFooter><Paragraph>Page <PageNumber /></Paragraph></PageFooter><Paragraph>x</Paragraph></Document>);
     expect(report.join("\n")).toContain("the builder has no page numbers yet");
-    expect(toDesign(<Document><Text>x</Text></Document>).report.join("\n")).not.toContain("page numbers");
+    expect(toDesign(<Document><Paragraph>x</Paragraph></Document>).report.join("\n")).not.toContain("page numbers");
   });
 });
 
@@ -374,13 +374,13 @@ describe("a line height", () => {
   const field = (element: React.ReactElement) => blocks(toDesign(<Email>{element}</Email>).design)[0].values as { lineHeight: string; _override?: { mobile?: { lineHeight?: string } } };
 
   it("is a whole percentage in the builder's field, rounded up, as Chromium draws only a percentage's whole part", () => {
-    expect(field(<Text style={{ fontSize: 13, lineHeight: "24px" }}>x</Text>).lineHeight).toBe("185%");
-    expect(field(<Text style={{ fontSize: 14, lineHeight: 1.625 }}>x</Text>).lineHeight).toBe("163%");
-    expect(field(<Text style={{ fontSize: 16, lineHeight: "24px" }}>x</Text>).lineHeight).toBe("150%");
+    expect(field(<Paragraph style={{ fontSize: 13, lineHeight: "24px" }}>x</Paragraph>).lineHeight).toBe("185%");
+    expect(field(<Paragraph style={{ fontSize: 14, lineHeight: 1.625 }}>x</Paragraph>).lineHeight).toBe("163%");
+    expect(field(<Paragraph style={{ fontSize: 16, lineHeight: "24px" }}>x</Paragraph>).lineHeight).toBe("150%");
   });
 
   it("is one on phones too", () => {
-    expect(field(<Text mobile={{ lineHeight: 1.625 }}>x</Text>)._override?.mobile?.lineHeight).toBe("163%");
+    expect(field(<Paragraph mobile={{ lineHeight: 1.625 }}>x</Paragraph>)._override?.mobile?.lineHeight).toBe("163%");
   });
 });
 

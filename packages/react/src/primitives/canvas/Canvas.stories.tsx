@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { Canvas, Circle, Column, Ellipse, Grid, Heading, Line, LineBreak, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Span, Svg, Text, type EmailProps } from "../index";
+import { Canvas, Circle, Column, Ellipse, Grid, Heading, Line, LineBreak, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Span, Svg, type EmailProps } from "../index";
 import { LiveEditor } from "../../stories/LiveEditor";
 import { code } from "../../stories/SideBySide";
 
@@ -63,8 +63,8 @@ export const SocialCard = drawn(
         <Svg width={26} height={26} viewBox="0 0 40 40" title="Umbra" style={{ flex: "none" }}>
           {mark}
         </Svg>
-        <Text style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>Umbra</Text>
-        <Text style={{ ...label, textAlign: "right" }}>Tonight, 6 November</Text>
+        <Paragraph style={{ fontSize: 16, fontWeight: 700, letterSpacing: -0.2 }}>Umbra</Paragraph>
+        <Paragraph style={{ ...label, textAlign: "right" }}>Tonight, 6 November</Paragraph>
       </Row>
       <Column style={{ gap: 8 }}>
         <Heading level={1} style={{ fontSize: 46, fontWeight: 600, lineHeight: 1.04, letterSpacing: -1.8 }}>
@@ -72,7 +72,7 @@ export const SocialCard = drawn(
           <LineBreak />
           over Kielder.
         </Heading>
-        <Text style={{ fontSize: 16, color: DIM }}>Orion rises at 21:40, and the moon is down by midnight.</Text>
+        <Paragraph style={{ fontSize: 16, color: DIM }}>Orion rises at 21:40, and the moon is down by midnight.</Paragraph>
       </Column>
     </Column>
     <Svg width={600} height={102} viewBox="0 10 600 102" title="Hills and pines along the horizon, under a few stars">
@@ -93,11 +93,11 @@ export const SocialCard = drawn(
 /** A layout in the image: `padding`, `gap` and `alignItems` on the `Canvas`, and `justifyContent` to center it in the height. */
 export const Banner = drawn(
   <Canvas width={600} height={200} fonts={FONTS} title="The Perseids peak on Wednesday" style={{ backgroundColor: AURORA, color: NIGHT, fontFamily: SANS, padding: 24, gap: 8, alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-    <Text style={{ ...label, color: NIGHT }}>Tuesday night into Wednesday</Text>
+    <Paragraph style={{ ...label, color: NIGHT }}>Tuesday night into Wednesday</Paragraph>
     <Heading level={2} style={{ fontSize: 36, fontWeight: 600, lineHeight: 1.1, letterSpacing: -1.2 }}>
       The Perseids are at their peak.
     </Heading>
-    <Text style={{ fontSize: 15 }}>Up to sixty meteors an hour, best after midnight.</Text>
+    <Paragraph style={{ fontSize: 15 }}>Up to sixty meteors an hour, best after midnight.</Paragraph>
   </Canvas>,
   600,
   200
@@ -125,7 +125,7 @@ export const Shapes = drawn(
       {/* Line: the horizon */}
       <Line x1={0} y1={104} x2={560} y2={104} style={{ stroke: DIM, strokeWidth: 1.5 }} />
     </Svg>
-    <Text style={label}>Circle · Path · Polygon · Ellipse · Rect · Line</Text>
+    <Paragraph style={label}>Circle · Path · Polygon · Ellipse · Rect · Line</Paragraph>
   </Canvas>,
   600,
   190
@@ -142,10 +142,10 @@ export const ShapeStyles = drawn(
       <Circle cx={500} cy={50} r={40} style={{ fill: AURORA, opacity: 0.5 }} />
     </Svg>
     <Grid columns={4} stackOnMobile={false} style={{ gap: 0 }}>
-      <Text style={label}>fill, rx</Text>
-      <Text style={label}>stroke, rx</Text>
-      <Text style={label}>fill, stroke</Text>
-      <Text style={label}>opacity</Text>
+      <Paragraph style={label}>fill, rx</Paragraph>
+      <Paragraph style={label}>stroke, rx</Paragraph>
+      <Paragraph style={label}>fill, stroke</Paragraph>
+      <Paragraph style={label}>opacity</Paragraph>
     </Grid>
   </Canvas>,
   600,
@@ -162,8 +162,8 @@ export const ViewBox = drawn(
         </Svg>
       ))}
       <Column style={{ gap: 6 }}>
-        <Text style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3 }}>One drawing, three sizes</Text>
-        <Text style={label}>viewBox 0 0 40 40</Text>
+        <Paragraph style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3 }}>One drawing, three sizes</Paragraph>
+        <Paragraph style={label}>viewBox 0 0 40 40</Paragraph>
       </Column>
     </Row>
   </Canvas>,
@@ -190,7 +190,7 @@ export const Chart = drawn(
       <Heading level={2} style={{ fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
         Clear hours, by night
       </Heading>
-      <Text style={{ ...label, textAlign: "right" }}>Kielder, 6 to 12 Nov</Text>
+      <Paragraph style={{ ...label, textAlign: "right" }}>Kielder, 6 to 12 Nov</Paragraph>
     </Row>
     <Column style={{ gap: 8 }}>
       <Svg width={PLOT} height={154} viewBox={`0 0 ${PLOT} 154`} title="Clear hours each night: best on Sunday, with eight and a half" style={{ padding: 8, backgroundColor: "#121D20", border: `1px solid ${RIDGE}`, borderRadius: 6 }}>
@@ -201,9 +201,9 @@ export const Chart = drawn(
       </Svg>
       <Grid columns={NIGHTS.length} stackOnMobile={false} style={{ gap: 0, padding: [0, 9] }}>
         {NIGHTS.map(({ day, hours }) => (
-          <Text key={day} style={{ ...label, textAlign: "center", color: hours === 8.5 ? AURORA : DIM }}>
+          <Paragraph key={day} style={{ ...label, textAlign: "center", color: hours === 8.5 ? AURORA : DIM }}>
             {day}
-          </Text>
+          </Paragraph>
         ))}
       </Grid>
     </Column>
@@ -225,7 +225,7 @@ export const SvgOnAPage = drawn(
             Umbra
           </Heading>
           <Paragraph style={{ fontSize: 15, color: DIM }}>A forecast for people who look up.</Paragraph>
-          <Text style={{ ...label, padding: [6, 0, 0] }}>An Svg among the page’s blocks</Text>
+          <Paragraph style={{ ...label, padding: [6, 0, 0] }}>An Svg among the page’s blocks</Paragraph>
         </Column>
       </Row>
     </Section>

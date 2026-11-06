@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import React, { createContext, useContext } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, component, ElementsError, Email, Heading, Image, Page, prop, render, Row, Section, Text, validate } from "./index";
+import { Button, Column, component, ElementsError, Email, Heading, Image, Page, prop, render, Row, Section, Paragraph, validate } from "./index";
 import { describeComponent, type ExpandProps } from "@unlayer-internal/elements-core";
 import { collectTemplate } from "./collect";
 
@@ -125,13 +125,13 @@ describe("component()", () => {
     const children = validate(
       <Page>
         <WithChildren name="a" photo="https://example.com/a.png" href="#">
-          <Text>x</Text>
+          <Paragraph>x</Paragraph>
         </WithChildren>
       </Page>
     );
     expect(children.diagnostics.map((d) => d.code)).toEqual(["children/not-allowed"]);
 
-    const Wrong = component({ type: "acme.Wrong", label: "Wrong", props: {}, render: () => <Text style={{ margin: 4 } as never}>x</Text> });
+    const Wrong = component({ type: "acme.Wrong", label: "Wrong", props: {}, render: () => <Paragraph style={{ margin: 4 } as never}>x</Paragraph> });
     await expect(render(<Page><Wrong /></Page>)).rejects.toThrow(ElementsError);
     // A Hero goes where a Section goes.
     expect(validate(<Page><Column><Hero title="x" /></Column></Page>).diagnostics.map((d) => d.code)).toEqual(["children/not-allowed"]);
@@ -145,7 +145,7 @@ describe("component()", () => {
         lines: prop.number({ label: "Lines", min: 1, max: 4, integer: true, default: 1 }),
         indent: prop.length({ label: "Indent", min: 0, default: 0 }),
       },
-      render: ({ lines, indent }) => <Text style={{ padding: [0, 0, 0, indent], lineHeight: lines * 1.5 }}>{"x"}</Text>,
+      render: ({ lines, indent }) => <Paragraph style={{ padding: [0, 0, 0, indent], lineHeight: lines * 1.5 }}>{"x"}</Paragraph>,
     });
     const { html } = await render(<Page><Spacer lines={2} indent={12} /></Page>);
     expect(html).toContain("line-height:3;");
@@ -195,7 +195,7 @@ describe("component()", () => {
 
   it("can't share its type with another custom component in one template", async () => {
     const card = (label: string) =>
-      component({ type: "acme.Card", label, props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Text>{`${label}: ${title}`}</Text> });
+      component({ type: "acme.Card", label, props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Paragraph>{`${label}: ${title}`}</Paragraph> });
     const [A, B] = [card("A"), card("B")];
     const template = (
       <Page>
@@ -209,7 +209,7 @@ describe("component()", () => {
     expect(validate(<Page><A title="one" /><A title="two" /></Page>).valid).toBe(true);
     // component() called in a component makes one per render: the message says where to call it.
     const Product = ({ title }: { title: string }) => {
-      const Inline = component({ type: "acme.Inline", label: "Inline", props: { title: prop.text({ label: "Title", required: true }) }, render: (props) => <Text>{props.title}</Text> });
+      const Inline = component({ type: "acme.Inline", label: "Inline", props: { title: prop.text({ label: "Title", required: true }) }, render: (props) => <Paragraph>{props.title}</Paragraph> });
       return <Inline title={title} />;
     };
     const twice = validate(<Page><Product title="one" /><Product title="two" /></Page>);

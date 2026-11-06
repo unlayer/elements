@@ -70,10 +70,10 @@ function structure(node: ResolvedNode, d: Diagnostics): void {
         id
       );
     }
-    // A Link or a line of Text is as wide as its text in a cell of its own, in Outlook too (today's Menu writes its
+    // A Link or a line of text in a Paragraph is as wide as its text in a cell of its own, in Outlook too (today's Menu writes its
     // links so): only a box whose size isn't known needs a width.
     for (const child of node.children.filter(isNode).filter(shown)) {
-      if (child.width === null && child.type !== "Link" && child.type !== "Text") {
+      if (child.width === null && child.type !== "Link" && child.type !== "Paragraph") {
         d.warning("email/width", `This ${child.type} takes its own size in a Row, and its size isn't known: give it a width, so Outlook can lay the Row out`, `${child.path}.style.width`, child.id);
       }
     }

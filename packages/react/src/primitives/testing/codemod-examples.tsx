@@ -13,7 +13,6 @@ import {
   Section,
   Social,
   Span,
-  Text,
 } from "../index";
 
 // main's examples/AirbnbConfirmation.fixture.tsx
@@ -887,42 +886,42 @@ export const brew = (() => {
               stackOnMobile={false}
               style={{ flexWrap: "wrap", justifyContent: "center", fontSize: 14, lineHeight: 1.2 }}
             >
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://example.com/subscribe"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   Subscribe
                 </Link>
-              </Text>
-              <Text
+              </Paragraph>
+              <Paragraph
                 hidden={{ mobile: true }}
                 style={{ flex: "none", padding: [5, 15], color: "#444444" }}
               >
                 {"\u00a0·"}
-              </Text>
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              </Paragraph>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://example.com/archive"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   {"\u00a0Archive"}
                 </Link>
-              </Text>
-              <Text
+              </Paragraph>
+              <Paragraph
                 hidden={{ mobile: true }}
                 style={{ flex: "none", padding: [5, 15], color: "#444444" }}
               >
                 {"\u00a0·"}
-              </Text>
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              </Paragraph>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://example.com/unsubscribe"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   {"\u00a0Unsubscribe"}
                 </Link>
-              </Text>
+              </Paragraph>
             </Row>
           </Column>
         </Section>
@@ -1396,42 +1395,42 @@ export const digest = (() => {
               stackOnMobile={false}
               style={{ flexWrap: "wrap", justifyContent: "center", fontSize: 14, lineHeight: 1.2 }}
             >
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://linear.app/docs"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   Docs
                 </Link>
-              </Text>
-              <Text
+              </Paragraph>
+              <Paragraph
                 hidden={{ mobile: true }}
                 style={{ flex: "none", padding: [5, 15], color: "#444444" }}
               >
                 {"\u00a0•"}
-              </Text>
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              </Paragraph>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://linear.app/blog"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   {"\u00a0Blog"}
                 </Link>
-              </Text>
-              <Text
+              </Paragraph>
+              <Paragraph
                 hidden={{ mobile: true }}
                 style={{ flex: "none", padding: [5, 15], color: "#444444" }}
               >
                 {"\u00a0•"}
-              </Text>
-              <Text style={{ flex: "none", padding: [5, 15] }}>
+              </Paragraph>
+              <Paragraph style={{ flex: "none", padding: [5, 15] }}>
                 <Link
                   href="https://linear.app/careers"
                   style={{ color: "#0068A5", textDecoration: "none" }}
                 >
                   {"\u00a0Careers"}
                 </Link>
-              </Text>
+              </Paragraph>
             </Row>
           </Column>
         </Section>

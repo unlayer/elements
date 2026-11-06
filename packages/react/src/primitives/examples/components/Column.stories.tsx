@@ -6,7 +6,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, showing, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, Image, LineBreak, Link, List, ListItem, Page, Paragraph, Row, Section, Text, type EmailProps } from "../../index";
+import { Button, Column, Heading, Image, LineBreak, Link, List, ListItem, Page, Paragraph, Row, Section, type EmailProps } from "../../index";
 
 const OAT = "#F4EEE3";
 const CARD = "#FFFCF6";
@@ -40,10 +40,10 @@ const serif = (fontSize: number) => ({ fontFamily: SERIF, fontWeight: 400, fontS
 const masthead = (what: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 12], border: { bottom: `1px solid ${ESPRESSO}` } }}>
     <Column style={{ width: 110 }}>
-      <Text style={{ ...serif(24), lineHeight: "26px" }}>Sundial</Text>
+      <Paragraph style={{ ...serif(24), lineHeight: "26px" }}>Sundial</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...label, textAlign: "right" }}>{what}</Text>
+      <Paragraph style={{ ...label, textAlign: "right" }}>{what}</Paragraph>
     </Column>
   </Row>
 );
@@ -67,12 +67,12 @@ const story = asEmailAndPage;
 /** A coffee on a card: where it's from, its name, how it tastes, and a note on the card's box. */
 const coffee = (origin: string, name: string, tastes: string, noted: string) => (
   <>
-    <Text style={label}>{origin}</Text>
+    <Paragraph style={label}>{origin}</Paragraph>
     <Heading level={3} style={serif(26)}>
       {name}
     </Heading>
     <Paragraph style={{ fontSize: 15, color: QUIET }}>{tastes}</Paragraph>
-    <Text style={{ ...note, padding: [6, 0, 0] }}>{noted}</Text>
+    <Paragraph style={{ ...note, padding: [6, 0, 0] }}>{noted}</Paragraph>
   </>
 );
 
@@ -111,12 +111,12 @@ const bag = (alignItems: "start" | "center" | "end", textAlign: "left" | "center
       <Heading level={3} style={serif(32)}>
         {size}
       </Heading>
-      <Text style={{ fontSize: 14, color: QUIET }}>{price}, whole bean</Text>
+      <Paragraph style={{ fontSize: 14, color: QUIET }}>{price}, whole bean</Paragraph>
     </Column>
     <Button href={`${SITE}/bags/${size}`} style={{ backgroundColor: ESPRESSO, color: CARD, fontSize: 14, fontWeight: 600, padding: [10, 20], borderRadius: 3 }} hover={{ backgroundColor: "#46362C" }}>
       Add
     </Button>
-    <Text style={{ ...note, padding: [4, 0, 0] }}>“{alignItems}”</Text>
+    <Paragraph style={{ ...note, padding: [4, 0, 0] }}>“{alignItems}”</Paragraph>
   </Column>
 );
 
@@ -137,7 +137,7 @@ export const Alignment = story((Root) => (
 /** A roast on the scale: a panel of its color, a set height, and its words where `justifyContent` says. */
 const roast = (justifyContent: "start" | "center" | "end", backgroundColor: string, color: string, name: string, tastes: string) => (
   <Column key={name} style={{ height: 260, gap: 6, padding: 20, backgroundColor, color, borderRadius: 4, justifyContent }}>
-    <Text style={{ ...note, color }}>“{justifyContent}”</Text>
+    <Paragraph style={{ ...note, color }}>“{justifyContent}”</Paragraph>
     <Heading level={3} style={serif(30)}>
       {name}
     </Heading>
@@ -163,11 +163,11 @@ export const HeightAndJustify = showing(
 /** One plan's card: `dark` turns it into the featured one. */
 const plan = (name: string, price: string, features: string[], dark = false) => (
   <Column key={name} style={{ gap: 14, padding: [24, 20], borderRadius: 8, alignItems: "stretch", backgroundColor: dark ? ESPRESSO : CARD, color: dark ? CARD : ESPRESSO }}>
-    <Text style={{ ...label, color: dark ? DIM : QUIET }}>{name}</Text>
+    <Paragraph style={{ ...label, color: dark ? DIM : QUIET }}>{name}</Paragraph>
     <Paragraph style={{ ...serif(46), lineHeight: 1 }}>
       {price}
     </Paragraph>
-    <Text style={{ fontSize: 13, color: dark ? DIM : QUIET }}>a month, cancel any time</Text>
+    <Paragraph style={{ fontSize: 13, color: dark ? DIM : QUIET }}>a month, cancel any time</Paragraph>
     <List style={{ gap: 6, fontSize: 14, lineHeight: 1.4, indent: 16, padding: [10, 0, 6], border: { top: `1px solid ${dark ? "#4B3D34" : RULE}` } }}>
       {features.map((feature) => (
         <ListItem key={feature}>{feature}</ListItem>
@@ -218,7 +218,7 @@ const stat = (figure: string, what: string) => (
 export const Stats = story((Root) => (
   <Root width={640} fonts={fonts} style={{ ...text, backgroundColor: ESPRESSO }}>
     <Section style={{ backgroundColor: ESPRESSO, color: CARD, padding: [40, 24, 44], gap: 28 }} mobile={{ padding: [32, 16, 36], gap: 24 }}>
-      <Text style={{ ...label, color: DIM, textAlign: "center" }}>Sundial’s year, in four numbers</Text>
+      <Paragraph style={{ ...label, color: DIM, textAlign: "center" }}>Sundial’s year, in four numbers</Paragraph>
       <Row stackOnMobile={false} style={{ gap: 16 }} mobile={{ gap: 8 }}>
         {stat("38", "farms we buy from")}
         {stat("4", "days from roast to door")}
@@ -231,11 +231,11 @@ export const Stats = story((Root) => (
 
 /** A link in the sidebar. */
 const contents = (href: string, title: ReactNode) => (
-  <Text style={{ fontSize: 14, lineHeight: 1.4, padding: [8, 0, 0], border: { top: `1px solid ${RULE}` } }}>
+  <Paragraph style={{ fontSize: 14, lineHeight: 1.4, padding: [8, 0, 0], border: { top: `1px solid ${RULE}` } }}>
     <Link href={`${SITE}/letter/31#${href}`} style={{ color: ESPRESSO, textDecoration: "none" }} hover={{ textDecoration: "underline" }}>
       {title}
     </Link>
-  </Text>
+  </Paragraph>
 );
 
 /** An article beside a tinted sidebar: the sidebar has a set `width`, and the article takes what's left. */
@@ -245,7 +245,7 @@ export const Sidebar = story((Root) => (
       {masthead("The letter, No. 31")}
       <Row style={{ gap: 32 }} mobile={{ gap: 24 }}>
         <Column style={{ width: 168, gap: 8, padding: 18, backgroundColor: OAT, borderRadius: 4 }}>
-          <Text style={{ ...label, padding: [0, 0, 4] }}>In this issue</Text>
+          <Paragraph style={{ ...label, padding: [0, 0, 4] }}>In this issue</Paragraph>
           {contents("blends", "Why we stopped blending")}
           {contents("water", "Your tap water, tested")}
           {contents("kayanza", "A week in Kayanza")}
@@ -255,11 +255,11 @@ export const Sidebar = story((Root) => (
             Why we stopped blending
           </Heading>
           <Paragraph style={{ fontSize: 16, lineHeight: 1.65 }}>A blend hides a bad harvest. For nine years that suited us, because it meant the same bag all year. Then Ana sent us a single lot from Huila, and we couldn’t improve it by adding anything.</Paragraph>
-          <Text style={{ fontSize: 15, fontWeight: 600 }}>
+          <Paragraph style={{ fontSize: 15, fontWeight: 600 }}>
             <Link href={`${SITE}/letter/31#blends`} style={{ color: ESPRESSO }}>
               Read the rest
             </Link>
-          </Text>
+          </Paragraph>
         </Column>
       </Row>
     </Section>

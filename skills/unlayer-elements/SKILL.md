@@ -23,7 +23,7 @@ A project may have templates written for Elements 0.2: they import `Body`, `Colu
 - Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `"12px 24px"`. A box's text styles are inherited by what it holds.
 - There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.
 - A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.
-- Text is components, not HTML: `Heading level={1}`, `Paragraph` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.
+- Text is components, not HTML: `Heading level={1}` and `Paragraph` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.
 - `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.
 - Lists: `<List type="number">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.
 - Phones: `mobile={{ fontSize: 20 }}` (the styles listed under "Phones"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: "#374151" }}` (those under "Hover").
@@ -43,7 +43,7 @@ Each of these made an agent's first try fail:
 ## A whole template
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (
@@ -68,11 +68,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
-            <Text>Ada Lovelace, London</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
+            <Paragraph>Ada Lovelace, London</Paragraph>
           </Column>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Next steps</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -83,7 +83,7 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
+      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
     </Email>
   );
 }
@@ -111,8 +111,7 @@ export default function Receipt() {
 ### Blocks
 
 - **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
-- **Text**: A block of text with no meaning of its own (a div). Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
-- **Paragraph**: A paragraph of text. Holds text, inline. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
+- **Paragraph**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text), attrs (attributes). Style: text, box, textDecoration (none|underline|line-through), boxSizing (border-box|content-box), alignSelf (start|center|end), flex. Hover: color, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, alignSelf.
 - **Image**: An image in the content. Without a width it takes its own size, no wider than its parent. Props: src* (asset), alt (text), title (text). Style: width, maxWidth, height, border, borderRadius, flex, alignSelf (start|center|end), verticalAlign (top|middle). Phones: width, maxWidth, border, alignSelf.

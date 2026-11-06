@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, Image, Layer, LineBreak, Paragraph, Row, Section, Span, Text } from "../../index";
+import { Button, Column, Heading, Image, Layer, LineBreak, Paragraph, Row, Section, Span } from "../../index";
 import { caption, drawing, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -77,7 +77,7 @@ export const WordsOverAPicture = story((Root) => (
       <Layer style={{ height: 460, alignItems: "start" }}>
         <Image src={DAWN} alt="Four ridges of fell, one behind another, under a low rust-coloured sun" style={{ width: "100%" }} />
         <Column style={{ padding: [44, 44, 0], gap: 14, alignItems: "start" }} mobile={{ padding: [32, 24, 0] }}>
-          <Text style={label}>Wayfell maps, autumn</Text>
+          <Paragraph style={label}>Wayfell maps, autumn</Paragraph>
           <Heading level={1} style={{ fontFamily: SERIF, fontSize: 60, fontWeight: 400, lineHeight: 1, letterSpacing: -0.5 }} mobile={{ fontSize: 46 }}>
             Into the hills
           </Heading>
@@ -89,9 +89,9 @@ export const WordsOverAPicture = story((Root) => (
           </Button>
         </Column>
       </Layer>
-      <Text style={{ ...caption(QUIET), padding: [0, 0, 16] }} mobile={{ padding: [0, 24, 16] }}>
+      <Paragraph style={{ ...caption(QUIET), padding: [0, 0, 16] }} mobile={{ padding: [0, 24, 16] }}>
         height: 460, and the picture covers it
-      </Text>
+      </Paragraph>
     </Section>
   </Root>
 ));
@@ -106,10 +106,10 @@ const NORTH_RIDGE = fells(1104, 560, "#D8DED2", `<circle cx="440" cy="136" r="58
 /** One fact about a route: its number over what it counts. */
 const fact = (figure: string, what: string) => (
   <Column style={{ gap: 2 }}>
-    <Text style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1.1 }} mobile={{ fontSize: 24 }}>
+    <Paragraph style={{ fontFamily: SERIF, fontSize: 28, lineHeight: 1.1 }} mobile={{ fontSize: 24 }}>
       {figure}
-    </Text>
-    <Text style={{ fontSize: 13, color: QUIET }}>{what}</Text>
+    </Paragraph>
+    <Paragraph style={{ fontSize: 13, color: QUIET }}>{what}</Paragraph>
   </Column>
 );
 
@@ -123,7 +123,7 @@ export const Caption = story((Root) => (
           <Paragraph style={{ padding: [10, 16], backgroundColor: PINE, color: BONE, fontSize: 14, lineHeight: 1.4 }}>Harrow Fell from the north, last April</Paragraph>
         </Layer>
         <Column style={{ gap: 6, padding: [0, 4] }}>
-          <Text style={{ ...label, color: RUST }}>Route 14</Text>
+          <Paragraph style={{ ...label, color: RUST }}>Route 14</Paragraph>
           <Heading level={2} style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, lineHeight: 1.15 }}>
             Harrow Fell by the north ridge
           </Heading>
@@ -160,13 +160,13 @@ const hour = (picture: { src: string; width: number; height: number }, alt: stri
     <Image src={picture} alt={alt} style={{ width: "100%" }} />
     <Row stackOnMobile={false} style={{ padding: [14, 20], alignItems: "center", color }}>
       <Column>
-        <Text style={{ fontFamily: SERIF, fontSize: 24, lineHeight: 1.1 }}>
+        <Paragraph style={{ fontFamily: SERIF, fontSize: 24, lineHeight: 1.1 }}>
           {name}
           <Span style={{ fontFamily: SANS, fontSize: 14 }}> {time}</Span>
-        </Text>
+        </Paragraph>
       </Column>
       <Column style={{ width: 170 }} mobile={{ width: 142 }}>
-        <Text style={{ ...caption(color), textAlign: "right" }}>alignItems: "{alignItems}"</Text>
+        <Paragraph style={{ ...caption(color), textAlign: "right" }}>alignItems: "{alignItems}"</Paragraph>
       </Column>
     </Row>
   </Layer>
@@ -207,15 +207,15 @@ export const OnPhones = story((Root) => (
     <Section style={{ gap: 12 }}>
       <Layer style={{ height: 280, alignItems: "center", color: BONE, fontFamily: SERIF, fontSize: 44, lineHeight: 1.08 }} mobile={{ fontSize: 30, textAlign: "center" }}>
         <Image src={NIGHT} alt="Black ridges under a clear, starry night" style={{ width: "100%" }} />
-        <Text style={{ padding: [0, 44] }} mobile={{ padding: [0, 28] }}>
+        <Paragraph style={{ padding: [0, 44] }} mobile={{ padding: [0, 28] }}>
           Walk until the map
           <LineBreak />
           runs out.
-        </Text>
+        </Paragraph>
       </Layer>
-      <Text style={{ ...caption(QUIET), padding: [0, 0, 16] }} mobile={{ padding: [0, 24, 16], textAlign: "center" }}>
+      <Paragraph style={{ ...caption(QUIET), padding: [0, 0, 16] }} mobile={{ padding: [0, 24, 16], textAlign: "center" }}>
         fontSize: 44, on phones 30 and centered
-      </Text>
+      </Paragraph>
     </Section>
   </Root>
 ));

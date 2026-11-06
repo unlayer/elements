@@ -6,7 +6,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Table, TableCell, TableRow, Text, type EmailProps, type SectionProps } from "../../index";
+import { Column, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Table, TableCell, TableRow, type EmailProps, type SectionProps } from "../../index";
 
 const FOG = "#F0EFE8";
 const INK = "#18211E";
@@ -50,10 +50,10 @@ const band = (children: ReactNode, style: SectionProps["style"] = {}) => (
 const masthead = (issue = "No. 14 · Winter") => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 8], border: { bottom: `1px solid ${INK}` } }}>
     <Column style={{ width: 150 }}>
-      <Text style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.6, lineHeight: "28px" }}>Strandline</Text>
+      <Paragraph style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.6, lineHeight: "28px" }}>Strandline</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...label, color: INK, textAlign: "right" }}>{issue}</Text>
+      <Paragraph style={{ ...label, color: INK, textAlign: "right" }}>{issue}</Paragraph>
     </Column>
   </Row>
 );
@@ -78,11 +78,11 @@ const story = asEmailAndPage;
 const specimen = (level: 1 | 2 | 3 | 4 | 5 | 6, size: number, heading: ReactNode) => (
   <Row style={{ gap: 12, padding: [14, 0, 16], ...(level > 1 && { border: { top: `1px solid ${RULE}` } }) }} mobile={{ gap: 6 }}>
     <Column style={{ width: 72 }}>
-      <Text style={{ ...note, lineHeight: "18px" }}>
+      <Paragraph style={{ ...note, lineHeight: "18px" }}>
         level {level}
         <LineBreak />
         {size} px
-      </Text>
+      </Paragraph>
     </Column>
     <Column>{heading}</Column>
   </Row>
@@ -137,7 +137,7 @@ export const Styles = story((Root) => (
             Read it all online
           </Heading>
         </Column>
-        <Text style={note}>Capitals, large and tight, a lighter weight, a color, another font, a line under: all in style</Text>
+        <Paragraph style={note}>Capitals, large and tight, a lighter weight, a color, another font, a line under: all in style</Paragraph>
       </>
     )}
   </Root>
@@ -164,7 +164,7 @@ export const Alignment = story((Root) => (
           <Heading level={3} style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.2, maxWidth: 260 }}>
             Every tide on the south-west coast
           </Heading>
-          <Text style={note}>textAlign: "left", "center", "right"; maxWidth: 260</Text>
+          <Paragraph style={note}>textAlign: "left", "center", "right"; maxWidth: 260</Paragraph>
         </Column>
       </>
     )}
@@ -188,7 +188,7 @@ export const LinksAndMergeTags = story((Root) => (
             The kelp is leaving, and other stories from Winter
           </Link>
         </Heading>
-        <Text style={note}>A MergeTag in one, a Link in the other, underlined under the pointer</Text>
+        <Paragraph style={note}>A MergeTag in one, a Link in the other, underlined under the pointer</Paragraph>
       </>
     )}
   </Root>
@@ -227,7 +227,7 @@ export const Boxes = story((Root) => (
         <Heading level={3} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.25, padding: [18, 16], backgroundColor: GLASS, color: WHITE, textAlign: "center" }} mobile={{ fontSize: 19 }}>
           No. 15 ships on the spring tide
         </Heading>
-        <Text style={note}>A background and corners; a line under it; a band, its text in the center</Text>
+        <Paragraph style={note}>A background and corners; a line under it; a band, its text in the center</Paragraph>
       </>
     )}
   </Root>
@@ -245,9 +245,9 @@ export const OnPhones = story((Root) => (
         <Paragraph style={reading} mobile={{ textAlign: "center" }}>
           Forty years of watching the same water, from the same plank, with the same flask.
         </Paragraph>
-        <Text style={note} mobile={{ textAlign: "center" }}>
+        <Paragraph style={note} mobile={{ textAlign: "center" }}>
           fontSize: 54; on phones 34, centered, with less padding
-        </Text>
+        </Paragraph>
       </>
     )}
   </Root>

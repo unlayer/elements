@@ -122,9 +122,9 @@ export const Menu = defineComposite({
     // Each link in its padding, as today's Menu has it: two links are its sides apart, and a separator between them
     // has a link's padding on either side, not twice the space. Separators are left out on phones, where a template
     // has phones (a Document or a Canvas has none); they're as high in the line as the links' words.
-    const item = (entry: { text: string; href: LinkValue }) => ({ type: "Text", style: { flex: "none", padding }, children: [link(entry)] });
+    const item = (entry: { text: string; href: LinkValue }) => ({ type: "Paragraph", style: { flex: "none", padding }, children: [link(entry)] });
     const between = {
-      type: "Text",
+      type: "Paragraph",
       ...(responsive ? { hidden: { mobile: true } } : {}),
       style: { flex: "none", padding: { top: padding.top, right: 0, bottom: padding.bottom, left: 0 }, color: style.separatorColor },
       children: [separator],

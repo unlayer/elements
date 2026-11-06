@@ -1,4 +1,4 @@
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow, Text } from "./index";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "./index";
 
 export default function Receipt() {
   return (
@@ -23,11 +23,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
-            <Text>Ada Lovelace, London</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
+            <Paragraph>Ada Lovelace, London</Paragraph>
           </Column>
           <Column>
-            <Text style={{ fontWeight: 700 }}>Next steps</Text>
+            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -38,7 +38,7 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
+      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
     </Email>
   );
 }

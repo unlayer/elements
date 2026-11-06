@@ -7,7 +7,7 @@
  * salt, ink and a grey.
  */
 import type { ReactNode } from "react";
-import { Button, Column, Email, Heading, Image, LineBreak, Link, Paragraph, Row, Section, Span, Text } from "../../index";
+import { Button, Column, Email, Heading, Image, LineBreak, Link, Paragraph, Row, Section, Span } from "../../index";
 
 const BLUE = "#1F2BB5";
 const BLUE_DOWN = "#17208C";
@@ -28,10 +28,10 @@ const label = { fontSize: 12, fontWeight: 600, letterSpacing: 1.6, textTransform
 const detail = (name: string, value: ReactNode) => (
   <Row style={{ gap: 24, padding: [14, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 4 }}>
     <Column style={{ width: 132 }}>
-      <Text style={{ ...label, color: QUIET, lineHeight: "24px" }}>{name}</Text>
+      <Paragraph style={{ ...label, color: QUIET, lineHeight: "24px" }}>{name}</Paragraph>
     </Column>
     <Column>
-      <Text style={{ fontSize: 16, lineHeight: "24px" }}>{value}</Text>
+      <Paragraph style={{ fontSize: 16, lineHeight: "24px" }}>{value}</Paragraph>
     </Column>
   </Row>
 );
@@ -40,14 +40,14 @@ const detail = (name: string, value: ReactNode) => (
 const event = (date: string, time: string, what: string) => (
   <Row stackOnMobile={false} style={{ gap: 20, padding: [16, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 14 }}>
     <Column style={{ width: 84 }}>
-      <Text style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700, lineHeight: 1.1, color: BLUE }}>
+      <Paragraph style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700, lineHeight: 1.1, color: BLUE }}>
         {date}
         <LineBreak />
         <Span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 400, color: QUIET }}>{time}</Span>
-      </Text>
+      </Paragraph>
     </Column>
     <Column>
-      <Text style={{ fontSize: 16, lineHeight: 1.5 }}>{what}</Text>
+      <Paragraph style={{ fontSize: 16, lineHeight: 1.5 }}>{what}</Paragraph>
     </Column>
   </Row>
 );
@@ -68,42 +68,42 @@ export const saltworksInvitation = (
     <Section style={{ backgroundColor: BLUE, color: "#FFFFFF", padding: [36, 48, 44], gap: 40 }} mobile={{ padding: [24, 24, 32], gap: 32 }}>
       <Row stackOnMobile={false} style={{ alignItems: "center" }}>
         <Column>
-          <Text style={{ ...label, color: "#FFFFFF" }}>
+          <Paragraph style={{ ...label, color: "#FFFFFF" }}>
             <Link href={SITE} style={{ color: "#FFFFFF", textDecoration: "none" }}>
               The Saltworks
             </Link>
-          </Text>
+          </Paragraph>
         </Column>
         <Column>
-          <Text style={{ ...label, color: PALE, textAlign: "right" }}>Harwich, Essex</Text>
+          <Paragraph style={{ ...label, color: PALE, textAlign: "right" }}>Harwich, Essex</Paragraph>
         </Column>
       </Row>
       <Column style={{ gap: 14 }}>
-        <Text style={{ ...label, color: PALE }}>You’re invited to a private view</Text>
+        <Paragraph style={{ ...label, color: PALE }}>You’re invited to a private view</Paragraph>
         <Heading level={1} style={{ fontFamily: DISPLAY, fontSize: 96, fontWeight: 800, lineHeight: 0.9, letterSpacing: -4 }} mobile={{ fontSize: 64, letterSpacing: -2.5 }}>
           Low
           <LineBreak />
           Water
         </Heading>
-        <Text style={{ fontSize: 22, lineHeight: 1.3 }} mobile={{ fontSize: 19 }}>
+        <Paragraph style={{ fontSize: 22, lineHeight: 1.3 }} mobile={{ fontSize: 19 }}>
           New drawings by Ines Kerr
-        </Text>
+        </Paragraph>
       </Column>
       <Row style={{ alignItems: "end", gap: 20, padding: [20, 0, 0], border: { top: `1px solid ${PALE}` } }} mobile={{ gap: 16 }}>
         <Column style={{ width: 280 }}>
-          <Text style={{ fontFamily: DISPLAY, fontSize: 116, fontWeight: 800, lineHeight: 0.8, letterSpacing: -5 }} mobile={{ fontSize: 96, letterSpacing: -4 }}>
+          <Paragraph style={{ fontFamily: DISPLAY, fontSize: 116, fontWeight: 800, lineHeight: 0.8, letterSpacing: -5 }} mobile={{ fontSize: 96, letterSpacing: -4 }}>
             20
-          </Text>
+          </Paragraph>
         </Column>
         <Column style={{ gap: 2 }}>
-          <Text style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 700, lineHeight: 1.05 }} mobile={{ fontSize: 24 }}>
+          <Paragraph style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 700, lineHeight: 1.05 }} mobile={{ fontSize: 24 }}>
             Thursday
             <LineBreak />
             November
-          </Text>
-          <Text style={{ fontSize: 16, color: PALE }}>
+          </Paragraph>
+          <Paragraph style={{ fontSize: 16, color: PALE }}>
             6 to 9pm, music from 7
-          </Text>
+          </Paragraph>
         </Column>
       </Row>
     </Section>
@@ -115,9 +115,9 @@ export const saltworksInvitation = (
         alt="A drawing of a mudflat at low tide: dozens of fine blue lines running to the horizon, closer together as they go, with a low sun on the horizon."
         style={{ width: "100%" }}
       />
-      <Text style={{ fontSize: 13, lineHeight: 1.5, color: QUIET }}>
+      <Paragraph style={{ fontSize: 13, lineHeight: 1.5, color: QUIET }}>
         Ines Kerr, <Span style={{ fontStyle: "italic" }}>Low Water (Stour, 6.14am)</Span>, 2026. Ink on paper, 76 × 43 cm.
-      </Text>
+      </Paragraph>
     </Section>
 
     {/* About the show, and the visit */}
@@ -148,17 +148,17 @@ export const saltworksInvitation = (
         >
           Reply to say you’ll come
         </Button>
-        <Text style={{ fontSize: 15 }}>
+        <Paragraph style={{ fontSize: 15 }}>
           <Link href={`${SITE}/low-water/calendar.ics`} style={{ color: INK }}>
             Add it to your calendar
           </Link>
-        </Text>
+        </Paragraph>
       </Row>
     </Section>
 
     {/* The run */}
     <Section style={{ padding: [48, 48, 0], gap: 6 }} mobile={{ padding: [40, 24, 0] }}>
-      <Text style={{ ...label, color: QUIET, padding: [0, 0, 8] }}>During the show, until 18 January</Text>
+      <Paragraph style={{ ...label, color: QUIET, padding: [0, 0, 8] }}>During the show, until 18 January</Paragraph>
       <Column style={{ border: { bottom: `1px solid ${RULE}` } }}>
         {event("22 Nov", "2pm", "Ines in conversation with Dafydd Rees, who has kept the Harwich tide gauge for thirty years.")}
         {event("7 Dec", "10am", "A drawing walk along the estuary at low tide. Bring boots; we’ll bring the paper.")}
@@ -167,13 +167,13 @@ export const saltworksInvitation = (
     </Section>
 
     <Section style={{ padding: [48, 48, 56] }} mobile={{ padding: [40, 24, 44] }}>
-      <Text style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
+      <Paragraph style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
         The Saltworks is open Wednesday to Sunday, 11am to 5pm, and free. You’re getting this because you’re on our list for openings.{" "}
         <Link href={`${SITE}/unsubscribe`} style={{ color: QUIET }}>
           Leave the list
         </Link>
         .
-      </Text>
+      </Paragraph>
     </Section>
   </Email>
 );

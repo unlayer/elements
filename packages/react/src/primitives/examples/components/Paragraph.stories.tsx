@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Divider, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Span, Text } from "../../index";
+import { Column, Divider, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Span } from "../../index";
 import { caption, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -61,10 +61,10 @@ const voice = { fontFamily: DISPLAY, fontWeight: 500, lineHeight: 1.08, letterSp
 const masthead = (issue: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 12], border: { bottom: `1px solid ${INK}` } }}>
     <Column>
-      <Text style={{ fontFamily: DISPLAY, fontSize: 28, fontStyle: "italic", fontWeight: 600, lineHeight: 1 }}>Tidewrack</Text>
+      <Paragraph style={{ fontFamily: DISPLAY, fontSize: 28, fontStyle: "italic", fontWeight: 600, lineHeight: 1 }}>Tidewrack</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...label, color: QUIET, textAlign: "right" }}>{issue}</Text>
+      <Paragraph style={{ ...label, color: QUIET, textAlign: "right" }}>{issue}</Paragraph>
     </Column>
   </Row>
 );
@@ -130,7 +130,7 @@ export const Alignment = story((Root) => (
       </Column>
     </Section>
     <Section style={{ padding: [0, 24, 28] }} mobile={{ padding: [0, 20, 20] }}>
-      <Text style={{ ...caption(QUIET), textAlign: "center" }}>textAlign, from the top: "left", "center", "justify", "right"</Text>
+      <Paragraph style={{ ...caption(QUIET), textAlign: "center" }}>textAlign, from the top: "left", "center", "justify", "right"</Paragraph>
     </Section>
   </Root>
 ));
@@ -165,7 +165,7 @@ export const Spans = story((Root) => (
 const way = (note: string, link: JSX.Element) => (
   <Row style={{ gap: 20, padding: [13, 0], alignItems: "center", border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 3 }}>
     <Column style={{ width: 200 }} mobile={{ width: "100%" }}>
-      <Text style={caption(QUIET)}>{note}</Text>
+      <Paragraph style={caption(QUIET)}>{note}</Paragraph>
     </Column>
     <Column>{link}</Column>
   </Row>
@@ -198,16 +198,16 @@ export const TextBlocks = story((Root) => (
       <Heading level={2} style={{ ...voice, fontSize: 38, padding: [12, 0, 0] }} mobile={{ fontSize: 32, padding: [8, 0, 0] }}>
         No. 31 is in the post
       </Heading>
-      <Text style={{ padding: [14, 18], backgroundColor: SHEET, border: { left: `3px solid ${LOBSTER}` }, fontSize: 15, lineHeight: 1.55 }}>
+      <Paragraph style={{ padding: [14, 18], backgroundColor: SHEET, border: { left: `3px solid ${LOBSTER}` }, fontSize: 15, lineHeight: 1.55 }}>
         <Span style={{ fontWeight: 700 }}>Good to know:</Span> it’s a thick one this winter, so it may not fit through a small letterbox.
-      </Text>
-      <Text style={{ padding: [18, 20], backgroundColor: SHEET, borderRadius: 4, fontSize: 15, lineHeight: 1.6 }}>
+      </Paragraph>
+      <Paragraph style={{ padding: [18, 20], backgroundColor: SHEET, borderRadius: 4, fontSize: 15, lineHeight: 1.6 }}>
         <Span style={{ fontWeight: 700 }}>Sent to</Span>
         <LineBreak />
         <MergeTag name="full_name" />
         <LineBreak />
         <MergeTag name="street" />, <MergeTag name="city" />
-      </Text>
+      </Paragraph>
     </Section>
   </Root>
 ));

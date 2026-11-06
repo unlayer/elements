@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { Button, Column, Email, Grid, Heading, Image, Layer, LineBreak, Page, Paragraph, Section, Text, type EmailProps } from "../index";
+import { Button, Column, Email, Grid, Heading, Image, Layer, LineBreak, Page, Paragraph, Section, type EmailProps } from "../index";
 import { args, argTypes, code, sideBySide, type Args } from "../../stories/SideBySide";
 
 const meta: Meta<Args> = {
@@ -77,7 +77,7 @@ const pieces = [
 export const ProductGrid = outputs((Root) => (
   <Root width={600} fonts={FONTS} style={{ backgroundColor: STONE, color: INK, fontFamily: SANS }}>
     <Section style={{ backgroundColor: CARD, padding: [36, 24, 8], gap: 6 }} mobile={{ padding: [28, 16, 4] }}>
-      <Text style={{ ...kicker, color: CELADON }}>From the winter firing</Text>
+      <Paragraph style={{ ...kicker, color: CELADON }}>From the winter firing</Paragraph>
       <Heading level={2} style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 400, letterSpacing: -0.5 }}>
         New on the shelves
       </Heading>
@@ -140,7 +140,7 @@ export const HeroOverImage = outputs((Root) => (
       <Layer style={{ height: 320, alignItems: "center" }}>
         <Image src={dusk(1200, 600)} alt="Dusk over the moor above Hebden Bridge, the studio's window lit" style={{ width: "100%" }} />
         <Column style={{ padding: [0, 40], gap: 14 }} mobile={{ padding: [0, 20] }}>
-          <Text style={{ ...kicker, color: "#E2B474" }}>The winter firing</Text>
+          <Paragraph style={{ ...kicker, color: "#E2B474" }}>The winter firing</Paragraph>
           <Heading level={1} style={{ fontFamily: SERIF, fontSize: 36, fontWeight: 400, lineHeight: 1.1, letterSpacing: -0.6 }} mobile={{ fontSize: 28 }}>
             Forty-two pieces,
             <LineBreak />

@@ -97,7 +97,7 @@ describe("phone styles", () => {
     for (const design of designs) {
       const cols = design.body.rows.flatMap((r: any) => r.columns);
       expect(cols.every((c: any) => !c.values._override?.mobile?.hideMobile && !c.values._override?.desktop?.hideDesktop)).toBe(true);
-      const content = cols.find((c: any) => c.contents.some((i: any) => i.values.text?.includes("Narrow text")));
+      const content = cols.find((c: any) => c.contents.some((i: any) => i.values.textJson?.includes("Narrow text")));
       // The space around the narrow text is padding on its column, with a phone value.
       expect(content.values.padding).toMatch(/^0px \d+px 0px 40px$/);
       expect(content.values._override.mobile.padding).toBeDefined();
@@ -214,7 +214,7 @@ describe("phone styles", () => {
     }
     // The visual editor hides the row on phones too.
     for (const design of designs) {
-      const row = design.body.rows.find((r: any) => r.columns.some((c: any) => c.contents.some((i: any) => i.values.text?.includes("Hidden row"))));
+      const row = design.body.rows.find((r: any) => r.columns.some((c: any) => c.contents.some((i: any) => i.values.textJson?.includes("Hidden row"))));
       expect(row.values._override.mobile.hideMobile).toBe(true);
     }
   });

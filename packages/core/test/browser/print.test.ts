@@ -11,7 +11,7 @@ beforeAll(async () => {
 });
 afterAll(async () => browser?.close());
 
-const text = (...children: unknown[]) => ({ type: "Text", children });
+const text = (...children: unknown[]) => ({ type: "Paragraph", children });
 
 async function print(html: string): Promise<{ sheets: Array<[number, number]>; pdf: string }> {
   const page = await browser.newPage();

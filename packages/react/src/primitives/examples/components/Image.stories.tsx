@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Image, Link, Paragraph, Row, Section, Text } from "../../index";
+import { Column, Heading, Image, Link, Paragraph, Row, Section } from "../../index";
 import { caption, drawing, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -99,26 +99,26 @@ export const Sizes = story((Root) => (
     <Section style={{ padding: [36, 24, 44], gap: 20 }} mobile={{ padding: [24, 20, 32], gap: 18 }}>
       <Row stackOnMobile={false} style={{ alignItems: "end" }}>
         <Column>
-          <Text style={{ ...title, fontSize: 28, lineHeight: 1 }}>Greyfold</Text>
+          <Paragraph style={{ ...title, fontSize: 28, lineHeight: 1 }}>Greyfold</Paragraph>
         </Column>
         <Column>
-          <Text style={{ ...label, textAlign: "right" }}>Autumn cloth</Text>
+          <Paragraph style={{ ...label, textAlign: "right" }}>Autumn cloth</Paragraph>
         </Column>
       </Row>
       <Column style={{ gap: 8 }}>
         <Image src={cloth(552, 288, CHEVIOT)} alt="The Cheviot check: moss green crossed with dark bands and a fine gold line" />
-        <Text style={note}>No width: its own 552px, never wider than its place</Text>
+        <Paragraph style={note}>No width: its own 552px, never wider than its place</Paragraph>
       </Column>
       <Row style={{ gap: 20 }}>
         <Column style={{ gap: 8 }}>
           <Image src={cloth(266, 180, HERDWICK)} alt="The Herdwick herringbone, in charcoal and grey" style={{ width: "100%", borderRadius: 4 }} />
-          <Text style={note}>width: "100%", a share of the row</Text>
+          <Paragraph style={note}>width: "100%", a share of the row</Paragraph>
         </Column>
         <Column style={{ gap: 8 }}>
           <Link href={`${SITE}/cloth/solway`}>
             <Image src={cloth(400, 270, SOLWAY)} alt="The Solway stripe, slate on oatmeal with a thread of madder red: see the cloth" style={{ width: 200 }} />
           </Link>
-          <Text style={note}>width: 200, in a Link: the image is the link</Text>
+          <Paragraph style={note}>width: 200, in a Link: the image is the link</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -130,8 +130,8 @@ const shaped = (image: JSX.Element, name: string, written: string) => (
   <Column style={{ gap: 12, alignItems: "center", textAlign: "center" }}>
     {image}
     <Column style={{ gap: 2 }}>
-      <Text style={{ ...title, fontSize: 19 }}>{name}</Text>
-      <Text style={note}>{written}</Text>
+      <Paragraph style={{ ...title, fontSize: 19 }}>{name}</Paragraph>
+      <Paragraph style={note}>{written}</Paragraph>
     </Column>
   </Column>
 );
@@ -157,8 +157,8 @@ const bolt = (alignItems: "start" | "center" | "end", textAlign: "left" | "cente
   <Column style={{ alignItems, gap: 10, textAlign }}>
     <Image src={cloth(240, 96, weave)} alt={alt} />
     <Column style={{ gap: 2 }}>
-      <Text style={{ ...title, fontSize: 21 }}>{name}, {weight}</Text>
-      <Text style={note}>alignItems: "{alignItems}"</Text>
+      <Paragraph style={{ ...title, fontSize: 21 }}>{name}, {weight}</Paragraph>
+      <Paragraph style={note}>alignItems: "{alignItems}"</Paragraph>
     </Column>
   </Column>
 );
@@ -210,24 +210,24 @@ export const OnPhones = story((Root) => (
   <Root {...root}>
     <Section style={{ padding: [36, 24, 44], gap: 22 }} mobile={{ padding: [24, 20, 32], gap: 18 }}>
       <Column style={{ gap: 6 }}>
-        <Text style={label}>The Cheviot check</Text>
+        <Paragraph style={label}>The Cheviot check</Paragraph>
         <Heading level={2} style={{ ...title, fontSize: 32 }} mobile={{ fontSize: 28 }}>
           The same cloth, on any window
         </Heading>
       </Column>
       <Column style={{ gap: 8 }}>
         <Image src={cloth(552, 230, CHEVIOT)} alt="The Cheviot check, 240px wide, the whole width on phones" style={{ width: 240 }} mobile={{ width: "100%" }} />
-        <Text style={note}>width: 240, the whole width on phones</Text>
+        <Paragraph style={note}>width: 240, the whole width on phones</Paragraph>
       </Column>
       <Column style={{ alignItems: "start", gap: 8 }}>
         <Image src={EWE} alt="Greyfold's mark, on the left, in the center on phones" style={{ width: 96, borderRadius: 48 }} mobile={{ alignSelf: "center" }} />
-        <Text style={note} mobile={{ textAlign: "center" }}>
+        <Paragraph style={note} mobile={{ textAlign: "center" }}>
           On the left, in the center on phones
-        </Text>
+        </Paragraph>
       </Column>
       <Column hidden={{ mobile: true }} style={{ gap: 8 }}>
         <Image src={cloth(552, 110, SOLWAY)} alt="The Solway stripe, a wide strip for a wider window" style={{ width: "100%" }} />
-        <Text style={note}>Only on a wider window</Text>
+        <Paragraph style={note}>Only on a wider window</Paragraph>
       </Column>
     </Section>
   </Root>

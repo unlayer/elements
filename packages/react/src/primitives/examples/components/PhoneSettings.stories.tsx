@@ -7,7 +7,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, Image, Paragraph, Row, Section, Text } from "../../index";
+import { Button, Column, Heading, Image, Paragraph, Row, Section } from "../../index";
 import { drawing } from "./kit-d";
 
 const SNOW = "#F5F2EB";
@@ -68,9 +68,9 @@ const story = asEmailAndPage;
 export const TextAndHidden = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [40, 24], gap: 14 }}>
-      <Text style={LABEL} mobile={{ textAlign: "center" }}>
+      <Paragraph style={LABEL} mobile={{ textAlign: "center" }}>
         Stickle Hut · Saturday 14 November
-      </Text>
+      </Paragraph>
       <Heading level={1} style={{ ...VOICE, fontSize: 46 }} mobile={{ fontSize: 32, textAlign: "center" }}>
         Your bunk is booked.
       </Heading>
@@ -80,9 +80,9 @@ export const TextAndHidden = story((Root) => (
       <Paragraph hidden={{ desktop: true }} style={{ fontSize: 16, color: QUIET, textAlign: "center" }}>
         Take a screenshot before you set off. There’s no signal at the hut, and the warden checks you in from a paper list.
       </Paragraph>
-      <Text style={CAPTION} mobile={{ textAlign: "center" }}>
+      <Paragraph style={CAPTION} mobile={{ textAlign: "center" }}>
         hidden: one line for each screen
-      </Text>
+      </Paragraph>
     </Section>
   </Root>
 ));
@@ -91,9 +91,9 @@ export const TextAndHidden = story((Root) => (
 export const WholeDesign = story((Root) => (
   <Root width={600} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Column style={{ padding: [36, 40], gap: 18 }} mobile={{ padding: [24, 20], gap: 14 }}>
-      <Text style={LABEL} mobile={{ textAlign: "center" }}>
+      <Paragraph style={LABEL} mobile={{ textAlign: "center" }}>
         The Friday walk-in
-      </Text>
+      </Paragraph>
       <Heading level={1} style={{ ...VOICE, fontSize: 42 }} mobile={{ fontSize: 30, textAlign: "center" }}>
         Three huts you can reach before dark.
       </Heading>
@@ -121,8 +121,8 @@ export const WholeDesign = story((Root) => (
 /** A thing to pack, in a box of its own. */
 const packing = (name: string, why: string) => (
   <Column style={{ padding: [18, 20], gap: 4, backgroundColor: WASH }} mobile={{ padding: [12, 16], gap: 2 }}>
-    <Text style={{ ...VOICE, fontSize: 19 }}>{name}</Text>
-    <Text style={{ fontSize: 14, color: QUIET }}>{why}</Text>
+    <Paragraph style={{ ...VOICE, fontSize: 19 }}>{name}</Paragraph>
+    <Paragraph style={{ fontSize: 14, color: QUIET }}>{why}</Paragraph>
   </Column>
 );
 
@@ -137,14 +137,14 @@ export const RowsOnPhones = story((Root) => (
         {packing("A sleeping bag liner", "There are blankets on the bunks.")}
         {packing("A head torch", "Lights out at ten. The path is dark.")}
       </Row>
-      <Text style={CAPTION}>These two stack, closer together, with less padding.</Text>
+      <Paragraph style={CAPTION}>These two stack, closer together, with less padding.</Paragraph>
       <Row stackOnMobile={false} style={{ gap: 14, alignItems: "center", padding: [16, 0, 0], border: { top: `1px solid ${RULE}` } }}>
         <Column style={{ width: 64 }}>
           <Image src={HUT_THUMBNAIL} alt="Stickle Hut, small and white under the ridge" style={{ width: 64, borderRadius: 32 }} />
         </Column>
         <Column>
-          <Text style={{ fontWeight: 700 }}>Stickle Hut sleeps fourteen.</Text>
-          <Text style={{ fontSize: 14, color: QUIET }}>The stove’s lit by four. (A picture and its words stay side by side.)</Text>
+          <Paragraph style={{ fontWeight: 700 }}>Stickle Hut sleeps fourteen.</Paragraph>
+          <Paragraph style={{ fontSize: 14, color: QUIET }}>The stove’s lit by four. (A picture and its words stay side by side.)</Paragraph>
         </Column>
       </Row>
     </Section>
@@ -159,7 +159,7 @@ export const ButtonsAndImages = story((Root) => (
         Your route up
       </Heading>
       <Image src={ROUTE_CARD} alt="A route card: a dashed line climbing across the contours from the road to the hut" style={{ width: 240 }} mobile={{ width: "100%" }} />
-      <Text style={CAPTION}>6.2 km · 410 m of climb · about 2 h 10</Text>
+      <Paragraph style={CAPTION}>6.2 km · 410 m of climb · about 2 h 10</Paragraph>
       <Button href={`${SITE}/routes/stickle.gpx`} style={{ width: 240, backgroundColor: MARIGOLD, color: PINE, fontSize: 14, fontWeight: 700, padding: [12, 16], borderRadius: 2 }} hover={{ backgroundColor: MARIGOLD_DOWN }} mobile={{ width: "100%", fontSize: 16, padding: [14, 20] }}>
         Download the route
       </Button>

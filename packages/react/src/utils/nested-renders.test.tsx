@@ -9,7 +9,7 @@ import React, { useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
-import { Email, Page, Paragraph, Text, outline, render, validate, type RenderResult } from "../primitives/index";
+import { Email, Page, Paragraph, outline, render, validate, type RenderResult } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 const Template = () => (
@@ -108,7 +108,7 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
       const blocks = <><Paragraph>Order shipped</Paragraph><Missing /></>;
       await fails(<Email><Layout>{blocks}</Layout></Email>, /Element type is invalid/);
       await fails(<Email><Theme.Provider value="dark">{blocks}</Theme.Provider></Email>, /Element type is invalid/);
-      await fails(<Email><Layout><Text>{["Shipped ", new Date(0) as unknown as string]}</Text></Layout></Email>, /Objects are not valid as a React child/);
+      await fails(<Email><Layout><Paragraph>{["Shipped ", new Date(0) as unknown as string]}</Paragraph></Layout></Email>, /Objects are not valid as a React child/);
     } finally {
       error.mockRestore();
     }

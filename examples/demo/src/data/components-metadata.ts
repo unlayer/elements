@@ -25,8 +25,8 @@ export const componentsMeta: ComponentMeta[] = [
     name: "Row",
     description: "Columns side by side, stacked on phones",
     code: `<Row style={{ padding: 16, gap: 16 }}>
-  <Column><Text>Left</Text></Column>
-  <Column><Text>Right</Text></Column>
+  <Column><Paragraph>Left</Paragraph></Column>
+  <Column><Paragraph>Right</Paragraph></Column>
 </Row>`,
     group: "Layout",
   },

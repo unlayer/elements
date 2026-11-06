@@ -25,7 +25,7 @@ export function editorFonts(design: unknown, stylesheets: Array<{ url: string }>
   const walk = (node: unknown, key?: string): void => {
     if (Array.isArray(node)) return node.forEach((child) => walk(child));
     if (!node || typeof node !== "object") {
-      if (typeof node === "string" && key === "text") texts.push(node);
+      if (typeof node === "string" && (key === "text" || key === "textJson")) texts.push(node);
       return;
     }
     const font = node as { label?: unknown; value?: unknown };

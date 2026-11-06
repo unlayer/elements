@@ -50,7 +50,7 @@ async function convertBoth(source: string, name: string) {
 function columnsText(design: any): string[][] {
   return design.body.rows.map((row: any) =>
     row.columns.map((column: any) =>
-      column.contents.map((content: any) => String(content.values.text ?? content.values.html ?? "").replace(/<[^>]+>/g, "")).join(" | ")
+      column.contents.map((content: any) => String(content.values.textJson ? [...content.values.textJson.matchAll(/"text":"([^"]*)"/g)].map((m: string[]) => m[1]).join("") : (content.values.text ?? content.values.html ?? "")).replace(/<[^>]+>/g, "")).join(" | ")
     )
   );
 }
@@ -229,11 +229,11 @@ describe("Preview inside Body", () => {
 describe("verifyNewComponents", () => {
   it("lists what the visual editor wouldn't get (toDesign refuses the template), with a prop flipped too", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Canvas, Email, Paragraph, Text: CanvasText } = await import("@unlayer/react-elements");
+    const { Canvas, Email, Paragraph } = await import("@unlayer/react-elements");
     const { createElement: h } = await import("react");
     const Original = Object.assign(({ big }: { big: boolean }) => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), { PreviewProps: { big: false } });
     // Renders, but the builder edits an Email, a Page or a Document, not a Canvas.
-    const canvas = () => h(Canvas, { width: 600, height: 200 }, h(CanvasText, null, "Welcome"));
+    const canvas = () => h(Canvas, { width: 600, height: 200 }, h(Paragraph, null, "Welcome"));
     const InCanvas = () => canvas();
     const check = await verifyNewComponents(Original, InCanvas as never);
     expect(check.design).toBeUndefined();

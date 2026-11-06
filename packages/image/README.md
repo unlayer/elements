@@ -25,7 +25,7 @@ Node.js only: it writes the image on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Canvas, Heading, Text } from "@unlayer/react-elements";
+import { Canvas, Heading, Paragraph } from "@unlayer/react-elements";
 import { renderImage } from "@unlayer/elements-image";
 
 const SocialCard = () => (
@@ -33,7 +33,7 @@ const SocialCard = () => (
     <Heading level={1} style={{ fontSize: 64 }}>
       Launch week
     </Heading>
-    <Text style={{ fontSize: 28, color: "#cbd5e1" }}>Five days of new things, one a day.</Text>
+    <Paragraph style={{ fontSize: 28, color: "#cbd5e1" }}>Five days of new things, one a day.</Paragraph>
   </Canvas>
 );
 

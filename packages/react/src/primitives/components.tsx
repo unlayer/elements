@@ -43,7 +43,6 @@ import {
   Table as TableDefinition,
   TableCell as TableCellDefinition,
   TableRow as TableRowDefinition,
-  Text as TextDefinition,
   type ComponentDefinition,
   type PropsInput,
   type InputOf,
@@ -95,7 +94,6 @@ export const Page: React.FC<PageProps> = createPrimitive(PageDefinition);
 export const Section: React.FC<SectionProps> = createPrimitive(SectionDefinition);
 export const Row: React.FC<RowProps> = createPrimitive(RowDefinition);
 export const Column: React.FC<ColumnProps> = createPrimitive(ColumnDefinition);
-export const Text: React.FC<TextProps> = createPrimitive(TextDefinition);
 export const Paragraph: React.FC<ParagraphProps> = createPrimitive(ParagraphDefinition);
 export const Heading: React.FC<HeadingProps> = createPrimitive(HeadingDefinition);
 export const Span: React.FC<SpanProps> = createPrimitive(SpanDefinition);
@@ -142,8 +140,6 @@ export interface RowStyle extends StyleOf<typeof RowDefinition> {}
 export interface RowProps extends PropsOf<typeof RowDefinition, RowStyle> {}
 export interface ColumnStyle extends StyleOf<typeof ColumnDefinition> {}
 export interface ColumnProps extends PropsOf<typeof ColumnDefinition, ColumnStyle> {}
-export interface TextStyle extends StyleOf<typeof TextDefinition> {}
-export interface TextProps extends PropsOf<typeof TextDefinition, TextStyle> {}
 export interface ParagraphStyle extends StyleOf<typeof ParagraphDefinition> {}
 export interface ParagraphProps extends PropsOf<typeof ParagraphDefinition, ParagraphStyle> {}
 export interface HeadingStyle extends StyleOf<typeof HeadingDefinition> {}

@@ -6,7 +6,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Grid, Heading, LineBreak, Paragraph, Row, Section, Span, Text, type EmailProps } from "../../index";
+import { Column, Grid, Heading, LineBreak, Paragraph, Row, Section, Span, type EmailProps } from "../../index";
 
 const CHALK = "#F6F3EC";
 const CARD = "#FFFDF8";
@@ -49,8 +49,8 @@ const ASH: Paint = ["Ash Bud", "No. 12", "#B8B4A2"];
 /** A swatch: a block of the paint, with its name and number at the foot. */
 const swatch = ([name, number, color, light]: Paint, height = 56) => (
   <Column key={name} style={{ gap: 0, padding: [height, 14, 12], backgroundColor: color, color: light ? CARD : INK }} mobile={{ padding: [20, 14, 12] }}>
-    <Text style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.25 }}>{name}</Text>
-    <Text style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.4 }}>{number}</Text>
+    <Paragraph style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.25 }}>{name}</Paragraph>
+    <Paragraph style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.4 }}>{number}</Paragraph>
   </Column>
 );
 
@@ -71,10 +71,10 @@ const masthead = (page: string, title?: ReactNode) => (
   <Column style={{ gap: 16 }}>
     <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 10], border: { bottom: `1px solid ${INK}` } }}>
       <Column style={{ width: 90 }}>
-        <Text style={{ fontSize: 24, fontWeight: 500, letterSpacing: -0.5, lineHeight: "26px" }}>loam</Text>
+        <Paragraph style={{ fontSize: 24, fontWeight: 500, letterSpacing: -0.5, lineHeight: "26px" }}>loam</Paragraph>
       </Column>
       <Column>
-        <Text style={{ ...label, textAlign: "right" }}>{page}</Text>
+        <Paragraph style={{ ...label, textAlign: "right" }}>{page}</Paragraph>
       </Column>
     </Row>
     {title ? (
@@ -88,7 +88,7 @@ const masthead = (page: string, title?: ReactNode) => (
 /** A quiet note, then a grid. */
 const noted = (what: string, grid: ReactNode) => (
   <Column style={{ gap: 8 }}>
-    <Text style={note}>{what}</Text>
+    <Paragraph style={note}>{what}</Paragraph>
     {grid}
   </Column>
 );
@@ -160,7 +160,7 @@ const finish = (name: string, body: string) => (
 );
 
 /** A sheen, beside its finish. */
-const sheen = (percent: string, [, , color]: Paint) => <Text style={{ padding: [12, 14], backgroundColor: color, fontFamily: MONO, fontSize: 13, textAlign: "center" }}>{percent}</Text>;
+const sheen = (percent: string, [, , color]: Paint) => <Paragraph style={{ padding: [12, 14], backgroundColor: color, fontFamily: MONO, fontSize: 13, textAlign: "center" }}>{percent}</Paragraph>;
 
 /** `alignItems` is where each child sits in its row's height. */
 export const Alignment = story((Root) => (

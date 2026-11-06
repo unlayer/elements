@@ -51,7 +51,6 @@ import {
   Table,
   TableCell,
   TableRow,
-  Text,
   Video,
 } from "../../index";
 
@@ -95,16 +94,16 @@ const BUTTON = { backgroundColor: FUNNEL, color: "#FFFFFF", fontSize: 15, fontWe
 const screen = (template: (Root: ScreenRoot) => ReactElement): Stress => ({ roots: "screen", template });
 
 /** A small caption in the mono face. */
-const caption = (text: string) => <Text style={LABEL}>{text}</Text>;
+const caption = (text: string) => <Paragraph style={LABEL}>{text}</Paragraph>;
 
 /** The top of everything Merrow Line sends: its name, and what this one pushes on. */
 const masthead = (name: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 10], border: { bottom: `1px solid ${HARBOUR}` } }}>
     <Column style={{ width: 150 }}>
-      <Text style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>Merrow Line</Text>
+      <Paragraph style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>Merrow Line</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...LABEL, textAlign: "right" }}>{name}</Text>
+      <Paragraph style={{ ...LABEL, textAlign: "right" }}>{name}</Paragraph>
     </Column>
   </Row>
 );
@@ -132,7 +131,7 @@ export const stress: Record<string, Stress> = {
         <Row style={{ gap: 10 }}>
           <Column style={{ ...BOX, width: 124 }}>
             {caption("Passenger")}
-            <Text>Donaudampfschifffahrtsgesellschaftskapitänswitwe</Text>
+            <Paragraph>Donaudampfschifffahrtsgesellschaftskapitänswitwe</Paragraph>
           </Column>
           <Column style={BOX}>
             {caption("Ticket")}
@@ -144,7 +143,7 @@ export const stress: Record<string, Stress> = {
           </Column>
           <Column style={{ ...BOX, width: 96 }}>
             {caption("Code")}
-            <Text style={{ fontFamily: MONO, fontSize: 12 }}>MRW2026111400048213DANUBEA7C9F2EE</Text>
+            <Paragraph style={{ fontFamily: MONO, fontSize: 12 }}>MRW2026111400048213DANUBEA7C9F2EE</Paragraph>
           </Column>
         </Row>
       </>
@@ -168,12 +167,12 @@ export const stress: Record<string, Stress> = {
         </Paragraph>
         <Row style={{ gap: 10 }}>
           <Column style={BOX}>
-            <Text style={{ fontSize: 15, color: QUIET }}>المغادرة</Text>
-            <Text style={{ fontFamily: MONO, fontSize: 24 }}>08:30</Text>
+            <Paragraph style={{ fontSize: 15, color: QUIET }}>المغادرة</Paragraph>
+            <Paragraph style={{ fontFamily: MONO, fontSize: 24 }}>08:30</Paragraph>
           </Column>
           <Column style={BOX}>
-            <Text style={{ fontSize: 15, color: QUIET }}>הגעה</Text>
-            <Text style={{ fontFamily: MONO, fontSize: 24 }}>11:45</Text>
+            <Paragraph style={{ fontSize: 15, color: QUIET }}>הגעה</Paragraph>
+            <Paragraph style={{ fontFamily: MONO, fontSize: 24 }}>11:45</Paragraph>
           </Column>
         </Row>
         <List type="number" style={{ fontSize: 17 }}>
@@ -247,8 +246,8 @@ export const stress: Record<string, Stress> = {
             ["Fri", "16:40"],
           ].map(([day, time]) => (
             <Column key={day} style={{ ...BOX, padding: [12, 10], textAlign: "center" }}>
-              <Text style={{ fontSize: 13, color: QUIET }}>{day}</Text>
-              <Text style={{ fontFamily: MONO, fontSize: 15 }}>{time}</Text>
+              <Paragraph style={{ fontSize: 13, color: QUIET }}>{day}</Paragraph>
+              <Paragraph style={{ fontFamily: MONO, fontSize: 15 }}>{time}</Paragraph>
             </Column>
           ))}
         </Row>
@@ -261,21 +260,21 @@ export const stress: Record<string, Stress> = {
             ["41", "sailings"],
           ].map(([figure, what]) => (
             <Column key={figure} style={{ padding: [12, 4], backgroundColor: HARBOUR, color: CHALK, textAlign: "center" }}>
-              <Text style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2 }}>{figure}</Text>
-              <Text style={{ fontSize: 12 }}>{what}</Text>
+              <Paragraph style={{ fontSize: 20, fontWeight: 600, lineHeight: 1.2 }}>{figure}</Paragraph>
+              <Paragraph style={{ fontSize: 12 }}>{what}</Paragraph>
             </Column>
           ))}
         </Grid>
         {caption("Three side by side on phones, one of them fixed")}
         <Row stackOnMobile={false} style={{ gap: 6 }}>
           <Column style={{ ...BOX, width: 64, padding: 10 }}>
-            <Text style={{ fontWeight: 600 }}>Fixed</Text>
+            <Paragraph style={{ fontWeight: 600 }}>Fixed</Paragraph>
           </Column>
           <Column style={{ ...BOX, padding: 10 }}>
-            <Text>Shares what’s left</Text>
+            <Paragraph>Shares what’s left</Paragraph>
           </Column>
           <Column style={{ ...BOX, flex: 2, padding: 10 }}>
-            <Text>Takes twice as much of it</Text>
+            <Paragraph>Takes twice as much of it</Paragraph>
           </Column>
         </Row>
       </>
@@ -286,31 +285,31 @@ export const stress: Record<string, Stress> = {
   hiddenBlocks: screen((Root) => (
     <Root width={600} title="Merrow Line: Hidden blocks" fonts={FONTS} style={PAPER}>
       <Section hidden={{ mobile: true }} style={{ backgroundColor: HARBOUR, color: CHALK, padding: [14, 32] }}>
-        <Text style={{ fontSize: 15 }}>A band only desktops show: print your boarding pass.</Text>
+        <Paragraph style={{ fontSize: 15 }}>A band only desktops show: print your boarding pass.</Paragraph>
       </Section>
       <Section hidden={{ desktop: true }} style={{ backgroundColor: FUNNEL, color: "#FFFFFF", padding: [14, 20] }}>
-        <Text style={{ fontSize: 15 }}>A band only phones show: your pass is in the app.</Text>
+        <Paragraph style={{ fontSize: 15 }}>A band only phones show: your pass is in the app.</Paragraph>
       </Section>
       <Section style={{ padding: [24, 32, 36], gap: 16 }} mobile={{ padding: [20, 20, 28] }}>
         {masthead("Hidden blocks")}
         <Row style={{ gap: 10 }}>
           <Column style={BOX}>
             {caption("Always here")}
-            <Text style={{ fontWeight: 600 }}>The 08:30 to Stornoway</Text>
+            <Paragraph style={{ fontWeight: 600 }}>The 08:30 to Stornoway</Paragraph>
           </Column>
           <Column hidden={{ mobile: true }} style={BOX}>
             {caption("Desktop’s column")}
-            <Text style={{ fontWeight: 600 }}>Print and fold it</Text>
+            <Paragraph style={{ fontWeight: 600 }}>Print and fold it</Paragraph>
           </Column>
           <Column hidden={{ desktop: true }} style={BOX}>
             {caption("Phone’s column")}
-            <Text style={{ fontWeight: 600 }}>Turn the brightness up</Text>
+            <Paragraph style={{ fontWeight: 600 }}>Turn the brightness up</Paragraph>
           </Column>
         </Row>
         <Image hidden={{ mobile: true }} src={TIDE} alt="The tide drawn in blue lines under a low sun: the desktop's picture" style={{ width: "100%" }} />
-        <Text hidden={{ desktop: true }} style={{ color: QUIET }}>
+        <Paragraph hidden={{ desktop: true }} style={{ color: QUIET }}>
           Phones get these words instead of the picture.
-        </Text>
+        </Paragraph>
         <Button hidden={{ desktop: true }} href={`${SITE}/app`} style={BUTTON} hover={{ backgroundColor: FUNNEL_DOWN }} mobile={{ width: "100%" }}>
           Open the app
         </Button>
@@ -326,18 +325,18 @@ export const stress: Record<string, Stress> = {
       <>
         <Row style={{ gap: 14, padding: 14, border: `1px solid ${HARBOUR}` }}>
           <Column style={{ flex: 3, gap: 8 }}>
-            <Text style={{ fontWeight: 600 }}>Oban to Stornoway</Text>
+            <Paragraph style={{ fontWeight: 600 }}>Oban to Stornoway</Paragraph>
             <Row stackOnMobile={false} style={{ gap: 6 }}>
               <Column style={{ padding: 10, backgroundColor: SWELL }}>
-                <Text>Deck 4</Text>
+                <Paragraph>Deck 4</Paragraph>
               </Column>
               <Column style={{ padding: 6, backgroundColor: SWELL }}>
                 <Row stackOnMobile={false} style={{ gap: 4 }}>
                   <Column style={{ padding: 6, backgroundColor: CHALK }}>
-                    <Text style={{ fontFamily: MONO, fontSize: 12 }}>Row B</Text>
+                    <Paragraph style={{ fontFamily: MONO, fontSize: 12 }}>Row B</Paragraph>
                   </Column>
                   <Column style={{ padding: 6, backgroundColor: CHALK }}>
-                    <Text style={{ fontFamily: MONO, fontSize: 12 }}>Seat 2</Text>
+                    <Paragraph style={{ fontFamily: MONO, fontSize: 12 }}>Seat 2</Paragraph>
                   </Column>
                 </Row>
               </Column>
@@ -346,7 +345,7 @@ export const stress: Record<string, Stress> = {
           <Grid columns={2} style={{ flex: 2, gap: 6 }}>
             {["One car", "Two bikes", "One dog", "One cabin"].map((cell) => (
               <Column key={cell} style={{ padding: 8, backgroundColor: SWELL }}>
-                <Text style={{ fontSize: 14 }}>{cell}</Text>
+                <Paragraph style={{ fontSize: 14 }}>{cell}</Paragraph>
               </Column>
             ))}
           </Grid>
@@ -354,7 +353,7 @@ export const stress: Record<string, Stress> = {
         <Layer style={{ alignItems: "start", height: 304 }}>
           <Image src={TIDE} alt="The tide drawn in blue lines under a low sun" style={{ width: "100%" }} />
           <Column style={{ padding: [12, 14] }}>
-            <Text style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2 }}>Words over the picture</Text>
+            <Paragraph style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.2 }}>Words over the picture</Paragraph>
           </Column>
         </Layer>
       </>
@@ -458,7 +457,7 @@ export const stress: Record<string, Stress> = {
       </Section>
       <Section style={{ backgroundColor: CHALK, color: HARBOUR, fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", padding: [32, 28], gap: 14 }} mobile={{ padding: [24, 20] }}>
         <Heading>Sailings resume on Friday.</Heading>
-        <Text>Everything below takes only the props it must have.</Text>
+        <Paragraph>Everything below takes only the props it must have.</Paragraph>
         <Paragraph>The harbour wall is mended, and the 08:30 is back on its old timetable.</Paragraph>
         <Divider />
         <Button href={SITE}>See the timetable</Button>
@@ -477,16 +476,16 @@ export const stress: Record<string, Stress> = {
         <Image src={FLAG} alt="" />
         <Row>
           <Column>
-            <Text>One column in a row.</Text>
+            <Paragraph>One column in a row.</Paragraph>
           </Column>
         </Row>
         <Grid>
-          <Text>Grid cell one.</Text>
-          <Text>Grid cell two.</Text>
+          <Paragraph>Grid cell one.</Paragraph>
+          <Paragraph>Grid cell two.</Paragraph>
         </Grid>
       </Section>
       <Section>
-        <Text>Merrow Line, The Pier, Oban. A section and its text, with no style at all.</Text>
+        <Paragraph>Merrow Line, The Pier, Oban. A section and its text, with no style at all.</Paragraph>
       </Section>
     </Root>
   )),
@@ -527,21 +526,21 @@ export const stress: Record<string, Stress> = {
       <>
         <Column style={{ gap: 4 }}>
           {caption("A web font, Newsreader, with Georgia behind it")}
-          <Text style={{ fontFamily: "Newsreader, Georgia, serif", fontSize: 38, lineHeight: 1.1, letterSpacing: -0.6 }} mobile={{ fontSize: 30 }}>
+          <Paragraph style={{ fontFamily: "Newsreader, Georgia, serif", fontSize: 38, lineHeight: 1.1, letterSpacing: -0.6 }} mobile={{ fontSize: 30 }}>
             The 08:30 for Stornoway
-          </Text>
+          </Paragraph>
         </Column>
         <Column style={{ gap: 4, padding: [14, 0, 0], border: { top: LINE_RULE } }}>
           {caption("A family nobody has: Georgia shows instead")}
-          <Text style={{ fontFamily: "'Not A Real Font', 'Also Missing', Georgia, serif", fontSize: 22, lineHeight: 1.25 }}>Boarding closes twenty minutes before we sail.</Text>
+          <Paragraph style={{ fontFamily: "'Not A Real Font', 'Also Missing', Georgia, serif", fontSize: 22, lineHeight: 1.25 }}>Boarding closes twenty minutes before we sail.</Paragraph>
         </Column>
         <Column style={{ gap: 4, padding: [14, 0, 0], border: { top: LINE_RULE } }}>
           {caption("Bold italic, from the variable font’s range")}
-          <Text style={{ fontFamily: "Newsreader, Georgia, serif", fontSize: 26, lineHeight: 1.2, fontWeight: 700, fontStyle: "italic" }}>Mind the gap at low water.</Text>
+          <Paragraph style={{ fontFamily: "Newsreader, Georgia, serif", fontSize: 26, lineHeight: 1.2, fontWeight: 700, fontStyle: "italic" }}>Mind the gap at low water.</Paragraph>
         </Column>
         <Column style={{ gap: 4, padding: [14, 0, 0], border: { top: LINE_RULE } }}>
           {caption("A monospace, for what mustn’t be misread")}
-          <Text style={{ fontFamily: "Menlo, Consolas, monospace", fontSize: 18 }}>0O 1lI | MRW-104</Text>
+          <Paragraph style={{ fontFamily: "Menlo, Consolas, monospace", fontSize: 18 }}>0O 1lI | MRW-104</Paragraph>
         </Column>
       </>,
       {
@@ -568,11 +567,11 @@ export const stress: Record<string, Stress> = {
           .
         </Paragraph>
         <Column style={{ color: BRASS, gap: 6, padding: [14, 16], backgroundColor: SWELL }}>
-          <Text>
+          <Paragraph>
             A column’s colour, inherited by its text,
             <LineBreak />
             <Span style={{ color: HARBOUR }}>overridden by a span</Span>, and <Span style={{ backgroundColor: LAMP }}>highlighted</Span>.
-          </Text>
+          </Paragraph>
           <Heading level={3} style={{ fontSize: 20, fontWeight: 600 }}>
             A heading in the column’s colour
           </Heading>
@@ -644,12 +643,12 @@ export const stress: Record<string, Stress> = {
         <PageHeader style={{ padding: [0, 0, 8], border: { bottom: `1px solid ${HARBOUR}` } }}>
           <Row>
             <Column>
-              <Text style={{ fontWeight: 700 }}>Merrow Line</Text>
+              <Paragraph style={{ fontWeight: 700 }}>Merrow Line</Paragraph>
             </Column>
             <Column>
-              <Text style={{ ...LABEL, fontSize: 10, textAlign: "right" }}>
+              <Paragraph style={{ ...LABEL, fontSize: 10, textAlign: "right" }}>
                 Page <PageNumber /> of <PageNumber total />
-              </Text>
+              </Paragraph>
             </Column>
           </Row>
         </PageHeader>
@@ -697,9 +696,9 @@ export const stress: Record<string, Stress> = {
           <Image src={TIDE} alt="The tide drawn in blue lines under a low sun" style={{ width: "100%" }} />
         </Document.Page>
         <PageFooter style={{ padding: [8, 0, 0], border: { top: LINE_RULE } }}>
-          <Text style={{ fontFamily: MONO, fontSize: 9, color: QUIET, textAlign: "center" }}>
+          <Paragraph style={{ fontFamily: MONO, fontSize: 9, color: QUIET, textAlign: "center" }}>
             Printed from Elements · <PageNumber /> / <PageNumber total />
-          </Text>
+          </Paragraph>
         </PageFooter>
       </Document>
     ),
@@ -711,7 +710,7 @@ export const stress: Record<string, Stress> = {
     template: (
       <Canvas width={600} height={315} title="Merrow Line: summer timetable" fonts={FONTS} style={{ backgroundColor: HARBOUR, color: CHALK, fontFamily: SANS, padding: 36, justifyContent: "space-between" }}>
         <Column style={{ gap: 10 }}>
-          <Text style={{ ...LABEL, color: "#A7B4BA" }}>Summer timetable, out now</Text>
+          <Paragraph style={{ ...LABEL, color: "#A7B4BA" }}>Summer timetable, out now</Paragraph>
           <Heading level={1} style={{ ...TITLE, fontSize: 52, letterSpacing: -1.4, lineHeight: 1.02 }}>
             Oban to Stornoway,
             <LineBreak />
@@ -724,7 +723,7 @@ export const stress: Record<string, Stress> = {
             <Rect x={26} y={10} width={38} height={14} rx={1} style={{ fill: CHALK }} />
             <Polygon points="6,24 88,24 76,38 18,38" style={{ fill: "#A7B4BA" }} />
           </Svg>
-          <Text style={{ fontWeight: 600 }}>merrow.example</Text>
+          <Paragraph style={{ fontWeight: 600 }}>merrow.example</Paragraph>
         </Row>
       </Canvas>
     ),

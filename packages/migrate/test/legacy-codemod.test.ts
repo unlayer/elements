@@ -398,7 +398,7 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref={{href:"https://example.com",target:"_blank"}}style={{backgroundColor:"#000000"}}>Go</Button>');
     expect(flat).toContain('icons={[{name:"Facebook",href:"https://facebook.com/x"}]}size={24}');
     expect(flat).toContain('<Linkhref="https://example.com/docs"style={{color:"#123456",textDecoration:"none"}}>Docs</Link>');
-    expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Text>');
+    expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Paragraph>');
   });
 
   it("writes a horizontal menu of known links spaced as today's: a space before each link and separator but the first, separators hidden on phones", async () => {
@@ -409,16 +409,16 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
       <Menu items={links} />
     </Column></Row></Email>;`);
     const flat = squash(code);
-    const link = (href: string, text: string) => `<Textstyle={{flex:"none",padding:"4px12px"}}><Linkhref="${href}"style={{color:"#0068A5",textDecoration:"none"}}>${text}</Link></Text>`;
+    const link = (href: string, text: string) => `<Paragraphstyle={{flex:"none",padding:"4px12px"}}><Linkhref="${href}"style={{color:"#0068A5",textDecoration:"none"}}>${text}</Link></Paragraph>`;
     expect(flat).toContain(
       '<RowstackOnMobile={false}style={{flexWrap:"wrap",justifyContent:"start",fontSize:14,lineHeight:1.2}}>' +
         link("/docs", "Docs") +
-        '<Texthidden={{mobile:true}}style={{flex:"none",padding:"4px12px",color:"#444444"}}>{"\\u00a0·"}</Text>' +
+        '<Paragraphhidden={{mobile:true}}style={{flex:"none",padding:"4px12px",color:"#444444"}}>{"\\u00a0·"}</Paragraph>' +
         link("/blog", '{"\\u00a0Blog"}') +
         "</Row>"
     );
     // Without a separator, the space alone; a vertical menu, or links worked out at run time, stay a Menu.
-    expect(flat).toContain('<Textstyle={{flex:"none",padding:[5,15]}}><Linkhref="/blog"style={{color:"#0068A5",textDecoration:"none"}}>{"\\u00a0Blog"}</Link></Text></Row>');
+    expect(flat).toContain('<Paragraphstyle={{flex:"none",padding:[5,15]}}><Linkhref="/blog"style={{color:"#0068A5",textDecoration:"none"}}>{"\\u00a0Blog"}</Link></Paragraph></Row>');
     expect(flat).toContain('layout="vertical"');
     expect(flat).toContain("items={links}");
     expect(errors(code)).toEqual([]);
@@ -658,7 +658,7 @@ export const T = () => (
     expect(report).toContain("line 5: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
     expect(report).toContain("line 6: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
     // A menu's phone padding is each of its links' (and separators') on phones, as today's.
-    expect(squashed).toContain('<Textstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
+    expect(squashed).toContain('<Paragraphstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
     expect(report.join("\n")).not.toContain("phone padding is left out");
     expect(errors(code)).toEqual([]);
   });
@@ -788,7 +788,7 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
     for (const jsx of ["<Paragraph hidden={{ mobile: true }}>x</Paragraph>", '<Button hover={{ color: "#111111" }} href="https://example.com">x</Button>', '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Paragraph dir="rtl">x</Paragraph>', '<Image src="https://example.com/a.png" alt="" title="A" />']) {
       for (const installed of [undefined, "0.2.1"]) expect((await migrateOnce(one(jsx), { installed })).current, jsx).toBe(true);
     }
-    for (const [name, jsx] of [["Text", "<Text>Hi</Text>"], ["Section", "<Section><Paragraph>Hi</Paragraph></Section>"]]) {
+    for (const [name, jsx] of [["Text", "<Text>Hi</Paragraph>"], ["Section", "<Section><Paragraph>Hi</Paragraph></Section>"]]) {
       const source = `import { Email, Paragraph, ${name} } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
       expect(await migrateOnce(source, { installed: "0.2.1" })).toEqual({ code: source, report: [], current: true });
     }

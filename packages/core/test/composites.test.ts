@@ -61,9 +61,9 @@ describe("Menu", () => {
     const padding = { top: 5, right: 15, bottom: 5, left: 15 };
     const link = (href: string, words: string) => [{ type: "Link", props: { href }, style: { color: "#0068a5", textDecoration: "none" }, children: [words] }];
     expect((row.children as Node[]).map((child) => [child.type, child.hidden ?? null, child.style, child.children])).toEqual([
-      ["Text", null, { flex: "none", padding }, link("https://example.com/docs", "Docs")],
-      ["Text", { mobile: true }, { flex: "none", padding: { top: 5, right: 0, bottom: 5, left: 0 }, color: "#444444" }, ["|"]],
-      ["Text", null, { flex: "none", padding }, link("https://example.com/blog", "Blog")],
+      ["Paragraph", null, { flex: "none", padding }, link("https://example.com/docs", "Docs")],
+      ["Paragraph", { mobile: true }, { flex: "none", padding: { top: 5, right: 0, bottom: 5, left: 0 }, color: "#444444" }, ["|"]],
+      ["Paragraph", null, { flex: "none", padding }, link("https://example.com/blog", "Blog")],
     ]);
   });
 
@@ -74,8 +74,8 @@ describe("Menu", () => {
     expect((column.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
     const row = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS } }))).document.root.children![0] as Node;
     expect((row.children as Node[]).map((child) => [child.type, (child.children![0] as Node).type])).toEqual([
-      ["Text", "Link"],
-      ["Text", "Link"],
+      ["Paragraph", "Link"],
+      ["Paragraph", "Link"],
     ]);
   });
 

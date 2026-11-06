@@ -56,7 +56,6 @@ import { Span } from "./Span";
 import { Table } from "./Table";
 import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
-import { Text } from "./Text";
 import { Video } from "./Video";
 import { mobileTextOf, phoneText, type MobileText } from "./styles";
 
@@ -68,7 +67,6 @@ const BLOCKS: Record<string, Component> = {
   Row,
   Layer,
   Column,
-  Text,
   Paragraph,
   Heading,
   Button,

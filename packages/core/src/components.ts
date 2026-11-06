@@ -164,19 +164,6 @@ const TEXT_BLOCK_STYLE = {
 };
 const TEXT_CHILDREN = { text: true, categories: ["inline"] } as const;
 
-export const Text = defineComponent({
-  type: "Text",
-  label: "Text",
-  description: "A block of text with no meaning of its own (a div).",
-  categories: ["block"],
-  props: TEXT_DIR,
-  style: TEXT_BLOCK_STYLE,
-  children: { ...TEXT_CHILDREN, types: ["Image"] },
-  sizing: "stretch",
-  targets: { email: {}, web: {} },
-  editor: { groups: [TEXT_EDITOR, SPACING_EDITOR] },
-});
-
 export const Paragraph = defineComponent({
   type: "Paragraph",
   label: "Paragraph",
@@ -184,7 +171,7 @@ export const Paragraph = defineComponent({
   categories: ["block"],
   props: TEXT_DIR,
   style: TEXT_BLOCK_STYLE,
-  children: TEXT_CHILDREN,
+  children: { ...TEXT_CHILDREN, types: ["Image"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
   editor: { groups: [TEXT_EDITOR, SPACING_EDITOR] },
@@ -520,7 +507,7 @@ export const Html = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

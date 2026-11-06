@@ -1,7 +1,7 @@
 import { checkDocument, checkTarget, defineCustomComponent, expandDocument, parseDocument, resolveDocument, type Node, type ResolvedNode } from "../src";
 
 const email = (child: Record<string, unknown>) => ({ root: { type: "Email", props: { width: 600 }, children: [child] } });
-const text = (words: string, id?: string) => ({ type: "Text", ...(id ? { id } : {}), children: [words] });
+const text = (words: string, id?: string) => ({ type: "Paragraph", ...(id ? { id } : {}), children: [words] });
 
 describe("Grid", () => {
   it("is the Column of Rows it lays out: its children so many to a Row, each in a cell, the last Row's empty cells hidden on phones", () => {
@@ -79,7 +79,7 @@ describe("Grid", () => {
     // What an email can't show, and what a custom component in a Grid renders, at their places in the template too.
     const svg = { type: "Svg", props: { width: 10, height: 10 } };
     expect(checkTarget(parseDocument(email({ type: "Grid", children: [text("a"), svg] })), "email").map((d) => d.path)).toEqual(["root.children[0].children[1]"]);
-    const Card = defineCustomComponent({ type: "acme.Card", label: "Card", props: {}, expand: () => ({ type: "Text", style: { margin: 1 } }) });
+    const Card = defineCustomComponent({ type: "acme.Card", label: "Card", props: {}, expand: () => ({ type: "Paragraph", style: { margin: 1 } }) });
     const card = parseDocument(email({ type: "Grid", children: [text("a"), { type: "acme.Card" }] }), { components: [Card] });
     expect(expandDocument(card, { components: [Card] }).diagnostics.map((d) => d.path)).toEqual(["root.children[0].children[1](acme.Card).style.margin"]);
   });
@@ -105,7 +105,7 @@ describe("Layer", () => {
     expect(widths({})).toEqual([600, 600, 120]);
     expect(widths({ justifyItems: "center" })).toEqual([600, 600, 120]);
     // A narrower image: stretched across by default (justifyItems, not alignItems, is across a Layer); placed, as wide
-    // as its file. A Text fills the width whatever justifyItems says.
+    // as its file. A Paragraph fills the width whatever justifyItems says.
     const small = (style: Record<string, unknown>) => {
       const { root } = resolveDocument(parseDocument(email({ type: "Layer", style, children: [{ ...image(), props: { src: { src: "https://example.com/a.png", width: 300, height: 150 } } }, text("over")] })));
       return ((root.children[0] as ResolvedNode).children as ResolvedNode[]).map((child) => child.width);

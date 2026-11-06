@@ -189,6 +189,12 @@ describe("editor fonts", () => {
     },
   };
 
+  it("finds a family that only a Paragraph's rich text names", () => {
+    const rich = { body: { rows: [{ columns: [{ contents: [{ type: "paragraph", values: { fontFamily: { label: "Inter", value: "Inter, sans-serif" }, textJson: JSON.stringify({ root: { children: [{ type: "extended-text", style: "font-family:'Instrument Serif'", text: "x" }] } }) } }] }] }] } };
+    const urls = ["Inter", "Instrument+Serif", "Unused"].map((family) => ({ url: `https://fonts.googleapis.com/css2?family=${family}:wght@400&display=swap` }));
+    expect(editorFonts(rich, urls).map((font) => font.label)).toEqual(expect.arrayContaining(["Instrument Serif"]));
+  });
+
   it("registers each family the design uses once, with all its weights", () => {
     const fonts = editorFonts(design, [
       { url: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@1,400&display=swap" },

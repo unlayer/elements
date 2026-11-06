@@ -496,14 +496,16 @@ export function replaceMarkers<T>(
       const out: Record<string, unknown> = {};
       for (const [key, inner] of Object.entries(node)) {
         const field: Context =
-          key === "html" || (key === "text" && context !== "richText")
+          // In rich text, a node's words and a link's address are text; the rest of it (its style) keeps samples.
+          context === "richText"
+            ? key === "text" || key === "url" ? "text" : "richText"
+            : key === "html" || key === "text"
             ? "html"
             : key === "textJson"
               ? "richText"
               : ["children", "previewText", "preheaderText", "alt", "altText", "href"].includes(
                     key,
-                  ) ||
-                  (context === "richText" && key === "text")
+                  )
                 ? "text"
                 : // Design actions contain their link in values.href; other URLs
                   // (fonts, backgroundImage, src.url) must stay usable sample values.
@@ -511,9 +513,7 @@ export function replaceMarkers<T>(
                   ? "text"
                   : key === "action"
                     ? "text"
-                    : context === "richText"
-                      ? "richText"
-                      : "sample";
+                    : "sample";
         out[key] = walk(inner, field, image || IMAGE_KEYS.has(key));
       }
       return out;

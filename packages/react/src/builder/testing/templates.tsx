@@ -31,7 +31,6 @@ import {
   Section,
   Social,
   Span,
-  Text,
   Video,
 } from "../../primitives";
 
@@ -50,7 +49,7 @@ export const sample = (
       </Paragraph>
       <Row style={{ gap: 20 }}>
         <Column style={{ backgroundColor: "#ffffff", padding: 8 }}>
-          <Text>A</Text>
+          <Paragraph>A</Paragraph>
         </Column>
         <Column>
           <Button href="https://b.test" hover={{ backgroundColor: "#333333" }}>
@@ -94,16 +93,16 @@ export const everyTool = (
     </Section>
     <Row style={{ gap: 16, border: { bottom: { width: 1, style: "solid", color: "#eeeeee" } } }}>
       <Column style={{ padding: 8, backgroundColor: "#f0f0f0" }} hidden={{ mobile: true }}>
-        <Text>Desktop only</Text>
+        <Paragraph>Desktop only</Paragraph>
       </Column>
       <Column>
         <Image src="https://picsum.photos/id/11/300/200" alt="" style={{ width: "50%" }} hidden={{ mobile: true }} />
       </Column>
     </Row>
     <Grid columns={2} style={{ gap: 8 }}>
-      <Text>a</Text>
-      <Text>b</Text>
-      <Text>c</Text>
+      <Paragraph>a</Paragraph>
+      <Paragraph>b</Paragraph>
+      <Paragraph>c</Paragraph>
     </Grid>
     <Layer style={{ height: 120 }}>
       <Image src={{ src: "https://picsum.photos/id/12/600/240", width: 600, height: 240 }} alt="" />
@@ -115,7 +114,7 @@ export const everyTool = (
 export const invoice = (
   <Document size="A5" orientation="landscape" margin={40}>
     <PageHeader>
-      <Text>Acme Inc.</Text>
+      <Paragraph>Acme Inc.</Paragraph>
     </PageHeader>
     <Document.Page>
       <Heading>Invoice</Heading>
@@ -124,13 +123,13 @@ export const invoice = (
       </Paragraph>
     </Document.Page>
     <Document.Page>
-      <Text>Terms</Text>
+      <Paragraph>Terms</Paragraph>
     </Document.Page>
-    <Text>Notes</Text>
+    <Paragraph>Notes</Paragraph>
     <PageBreak />
-    <Text>Appendix</Text>
+    <Paragraph>Appendix</Paragraph>
     <PageFooter>
-      <Text>Thank you</Text>
+      <Paragraph>Thank you</Paragraph>
     </PageFooter>
   </Document>
 );
@@ -162,9 +161,9 @@ export const text = (
       </ListItem>
     </List>
     <Paragraph style={{ backgroundColor: "#eef2ff", border: { left: "4px solid #6366f1" }, padding: 12, borderRadius: 4, maxWidth: 400 }}>A boxed note</Paragraph>
-    <Text style={{ textAlign: "center", lineHeight: "24px" }} mobile={{ fontSize: 13, textAlign: "left" }}>
+    <Paragraph style={{ textAlign: "center", lineHeight: "24px" }} mobile={{ fontSize: 13, textAlign: "left" }}>
       Centered
-    </Text>
+    </Paragraph>
     <Html html='<table role="presentation"><tr><td>Raw cell</td></tr></table>' text="Raw cell" />
   </Email>
 );

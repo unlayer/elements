@@ -24,7 +24,7 @@ Node.js only: it writes the PDF on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Document, Heading, Image, PageFooter, PageNumber, Paragraph, Text } from "@unlayer/react-elements";
+import { Document, Heading, Image, PageFooter, PageNumber, Paragraph } from "@unlayer/react-elements";
 import { renderPdf } from "@unlayer/elements-pdf";
 
 const Invoice = () => (
@@ -33,9 +33,9 @@ const Invoice = () => (
     <Heading level={1}>Invoice 2705</Heading>
     <Paragraph>Thank you for your order.</Paragraph>
     <PageFooter>
-      <Text style={{ fontSize: 10, textAlign: "right" }}>
+      <Paragraph style={{ fontSize: 10, textAlign: "right" }}>
         Page <PageNumber /> of <PageNumber total />
-      </Text>
+      </Paragraph>
     </PageFooter>
   </Document>
 );

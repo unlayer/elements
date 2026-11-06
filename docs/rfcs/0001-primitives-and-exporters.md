@@ -30,15 +30,15 @@ JSX is the only way to write a template, for developers and agents alike:
 
 ```tsx
 // 0.3.0 shipped these at the package root (this RFC first had them at /primitives).
-import { Email, Heading, Paragraph, Row, Column, Text, Button, render, validate } from "@unlayer/react-elements";
+import { Email, Heading, Paragraph, Row, Column, Button, render, validate } from "@unlayer/react-elements";
 
 const welcome = (
   <Email previewText="Welcome aboard" style={{ gap: 16 }}>
     <Heading>Welcome</Heading>
     <Paragraph>Thanks for signing up.</Paragraph>
     <Row style={{ gap: 20 }}>
-      <Column><Text>Left</Text></Column>
-      <Column><Text>Right</Text></Column>
+      <Column><Paragraph>Left</Paragraph></Column>
+      <Column><Paragraph>Right</Paragraph></Column>
     </Row>
     <Button href="https://example.com">Get started</Button>
   </Email>
@@ -110,7 +110,7 @@ The decisions behind the design, with the date each was taken.
 
 | Export | What it does |
 |---|---|
-| The components | `Email`, `Page`, `Section`, `Row`, `Column`, `Text`, `Paragraph`, `Heading`, `Span`, `Link`, `Button`, `Image`, `Divider`, `LineBreak`, `MergeTag`, `List`, `ListItem`, `Table`, `TableRow`, `TableCell`, `Html` (and the rest in [Components](#components)) |
+| The components | `Email`, `Page`, `Section`, `Row`, `Column`, `Paragraph`, `Heading`, `Span`, `Link`, `Button`, `Image`, `Divider`, `LineBreak`, `MergeTag`, `List`, `ListItem`, `Table`, `TableRow`, `TableCell`, `Html` (and the rest in [Components](#components)) |
 | `render(element, options?)` | Resolves to `{ html, text, head, body, bodyStyle, diagnostics }`. Rejects with an `ElementsError` listing the errors. Options: `mergeTag` (how a merge tag is written, `{{name}}` by default), `classPrefix` (the stylesheet's class prefix, `e` by default), `pretty` (indented HTML, for reading) |
 | `prepare(element)` | The template laid out (`{ root, diagnostics, layout }`), for a package that writes another output (`@unlayer/elements-pdf`). Its tree is the writers' input, not a format to store; `layout` is its version (`LAYOUT_VERSION`), raised when its shape changes, and the PDF and image packages refuse one they don't read, saying which package to update |
 | `validate(element)` | `{ valid, diagnostics }`: everything `render()` checks before writing. Warnings and notes leave a template valid |
@@ -178,7 +178,7 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Canvas` | An image's root: `width` and `height` in px, its content laid out in it as on a page (no phone layout), what's past it cut. `render()` writes its HTML, to look at; `@unlayer/elements-image` writes the image |
 | `Svg` | Shapes in a box of their own (`width`, `height`, `viewBox`, `title`): `Rect`, `Circle`, `Ellipse`, `Line`, `Polygon` and `Path`, painted by `fill`, `stroke`, `strokeWidth` and `opacity`. The drawing keeps its size, with its padding around it (it overflows a narrower room, and says so). On a page, in a Canvas and in a PDF; an email can't show one (Gmail and classic Outlook drop inline SVG), and says so |
 | `Layer` | Children over each other in one box as tall as the tallest (CSS grid's one cell), placed by `alignItems` (down) and `justifyItems` (across); `height` makes its first Image cover it. An email draws one shape of it, an Image as wide as the Layer with one child over it, the image as the cell's background (VML for Outlook): `validate()` reports any other for email |
-| `Text`, `Paragraph`, `Heading` | Blocks of text (`div`, `p`, `h1`–`h6` by `level`); `dir` for their own direction |
+| `Paragraph`, `Heading` | Blocks of text (`p`, `h1`–`h6` by `level`); `dir` for their own direction |
 | `Span` | Styled text inside text; `verticalAlign: "super" \| "sub"` for superscript and subscript |
 | `Link` | A link inside text, or around an `Image`; `title`, `aria-label` |
 | `Button` | A link drawn as a button; `title`, `aria-label` |
@@ -287,7 +287,7 @@ stack ends on a web font, since a client that can't load it then picks its own.
 
 ### Text direction
 
-A root's `dir` and a text block's own `dir` (Text, Paragraph, Heading, ListItem, TableCell) set the
+A root's `dir` and a text block's own `dir` (Paragraph, Heading, ListItem, TableCell) set the
 direction, and text starts on that side unless its author aligned it: a right-to-left email is
 right-aligned by default, and an Arabic paragraph in an English email sits on the right.
 

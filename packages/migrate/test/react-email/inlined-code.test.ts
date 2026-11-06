@@ -604,7 +604,7 @@ Note.PreviewProps = { name: "Ana", footer: "reply to this email" };
     expect(conversion.code).not.toMatch(/holdsElements\(name\)/);
     const text = await verifyNewComponents(Original, Migrated);
     expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
-    expect(blockTypes(text.design)).toEqual(["text", "text"]);
+    expect(blockTypes(text.design)).toEqual(["paragraph", "paragraph"]);
     // In the design, the text a value gives is a merge tag, as for any text (its test for elements is false for one).
     const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, text.design!, { source: conversion.code, helpers: conversion.helpers });
     expect(tagged.used).toContain("footer");

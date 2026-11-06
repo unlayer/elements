@@ -1279,7 +1279,7 @@ Withdrawal.PreviewProps = { crypto: false, amount: "$12.50" };
     const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
     const design = JSON.parse(fs.readFileSync(path.join(dir, "migrated/withdrawal.design.json"), "utf8"));
     const types = design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.type)));
-    expect(types).toEqual(["text", "html"]);
+    expect(types).toEqual(["paragraph", "html"]);
     expect(result.editable).toBe(0.5);
     expect(out.out).toContain("50% editable");
   });

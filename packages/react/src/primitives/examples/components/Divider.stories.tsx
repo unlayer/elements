@@ -6,7 +6,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Divider, Heading, LineBreak, Paragraph, Row, Section, Text, type EmailProps, type SectionProps } from "../../index";
+import { Column, Divider, Heading, LineBreak, Paragraph, Row, Section, type EmailProps, type SectionProps } from "../../index";
 
 const PAPER = "#F5F0E6";
 const INK = "#1D1B18";
@@ -46,10 +46,10 @@ const band = (children: ReactNode, style: SectionProps["style"] = {}) => (
 const nameplate = (issue: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 8], border: { bottom: `1px solid ${INK}` } }}>
     <Column style={{ width: 80 }}>
-      <Text style={{ fontFamily: DISPLAY, fontSize: 32, fontStyle: "italic", fontWeight: 500, lineHeight: "32px", letterSpacing: -0.6 }}>Pith</Text>
+      <Paragraph style={{ fontFamily: DISPLAY, fontSize: 32, fontStyle: "italic", fontWeight: 500, lineHeight: "32px", letterSpacing: -0.6 }}>Pith</Paragraph>
     </Column>
     <Column>
-      <Text style={{ ...kicker, color: INK, textAlign: "right" }}>{issue}</Text>
+      <Paragraph style={{ ...kicker, color: INK, textAlign: "right" }}>{issue}</Paragraph>
     </Column>
   </Row>
 );
@@ -74,7 +74,7 @@ const story = asEmailAndPage;
 const letter = (body: string, from: string) => (
   <Column style={{ gap: 6 }}>
     <Paragraph style={{ fontSize: 17, lineHeight: 1.55 }}>{body}</Paragraph>
-    <Text style={{ fontSize: 14, fontStyle: "italic", color: QUIET }}>{from}</Text>
+    <Paragraph style={{ fontSize: 14, fontStyle: "italic", color: QUIET }}>{from}</Paragraph>
   </Column>
 );
 
@@ -92,7 +92,7 @@ export const Default = story((Root) => (
         {letter("You say a perry pear takes a lifetime to bear. Mine took eleven years, and it has sulked ever since.", "Owen Hale, Upton-upon-Severn")}
         <Divider />
         {letter("Please stop. I’ve now planted three, and my wife has noticed.", "Name and address supplied")}
-        <Text style={{ ...note, padding: [8, 0, 0] }}>{"<Divider />, with nothing set"}</Text>
+        <Paragraph style={{ ...note, padding: [8, 0, 0] }}>{"<Divider />, with nothing set"}</Paragraph>
       </>
     )}
   </Root>
@@ -101,9 +101,9 @@ export const Default = story((Root) => (
 /** One of the paper's rules: what it's for, the line, and how it's written. */
 const houseRule = (what: string, line: ReactNode, written: string) => (
   <Column style={{ gap: 10 }}>
-    <Text style={{ fontSize: 17, lineHeight: 1.3, fontStyle: "italic" }}>{what}</Text>
+    <Paragraph style={{ fontSize: 17, lineHeight: 1.3, fontStyle: "italic" }}>{what}</Paragraph>
     {line}
-    <Text style={note}>{written}</Text>
+    <Paragraph style={note}>{written}</Paragraph>
   </Column>
 );
 
@@ -137,11 +137,11 @@ export const Widths = story((Root) => (
         <Paragraph style={{ fontFamily: DISPLAY, fontSize: 26, fontStyle: "italic", lineHeight: 1.3 }} mobile={{ fontSize: 22 }}>
           “Nobody plants a pear tree for themselves. You plant it for whoever’s left.”
         </Paragraph>
-        <Text style={{ ...kicker, color: QUIET, padding: [0, 0, 16] }}>Mary Holloway, Bredon Hill Farm</Text>
+        <Paragraph style={{ ...kicker, color: QUIET, padding: [0, 0, 16] }}>Mary Holloway, Bredon Hill Farm</Paragraph>
         <Divider style={{ borderTop: `2px solid ${TOMATO}`, width: "80%" }} />
         <Divider style={{ borderTop: `2px solid ${TOMATO}`, width: "50%" }} />
         <Divider style={{ borderTop: `2px solid ${TOMATO}`, width: 80 }} />
-        <Text style={{ ...note, padding: [12, 0, 0] }}>width: "80%", "50%" and 80, centered by the stack</Text>
+        <Paragraph style={{ ...note, padding: [12, 0, 0] }}>width: "80%", "50%" and 80, centered by the stack</Paragraph>
       </>,
       { padding: [48, 44, 48], gap: 12, alignItems: "center", textAlign: "center" }
     )}
@@ -162,7 +162,7 @@ export const Spacing = story((Root) => (
         <Paragraph>What Mary’s heirs will inherit is less clear. The last perry mill in the county closed in the spring, so this autumn she pressed the harvest herself.</Paragraph>
         <Divider style={{ borderTop: `2px solid ${TOMATO}`, width: "50%", padding: [32, 0] }} mobile={{ width: "100%", padding: [16, 0] }} />
         <Paragraph>It came to four hundred litres, in a borrowed press, in her own barn.</Paragraph>
-        <Text style={{ ...note, padding: [24, 0, 0] }}>No gap here: each line’s own padding spaces it. On phones the red one runs the whole width, with less space.</Text>
+        <Paragraph style={{ ...note, padding: [24, 0, 0] }}>No gap here: each line’s own padding spaces it. On phones the red one runs the whole width, with less space.</Paragraph>
       </>,
       { gap: 0 }
     )}
