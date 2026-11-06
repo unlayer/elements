@@ -106,7 +106,7 @@ class Writer {
       ? { width, flexShrink: 0, flexGrow: 0, alignSelf: node.definition.sizing === "shrink" ? flex(parent.style.alignItems ?? "start") : undefined }
       : { alignSelf: this.alignSelf(node, parent), width: node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink" ? width : undefined };
     switch (node.type) {
-      case "Paragraph":
+      case "Text":
       case "Heading":
         return this.paragraph(node, { ...placed, ...this.box(node) });
       case "Button":

@@ -58,7 +58,7 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
       switch (child.type) {
         case "Heading":
           return [tidy(inline(child, Number(child.props.level) <= 2))];
-        case "Paragraph":
+        case "Text":
           return [tidy(inline(child))];
         case "Button":
           return [withHref(child)];

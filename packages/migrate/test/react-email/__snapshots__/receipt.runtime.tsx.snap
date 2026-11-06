@@ -8,10 +8,10 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Row,
   Section,
   Span,
+  Text,
 } from "@unlayer/react-elements";
 
 export default function Template() {
@@ -61,7 +61,7 @@ export default function Template() {
           >
             {"Thanks for your order, {{customerName}}!"}
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 32px 0px 32px",
               fontSize: 15,
@@ -71,7 +71,7 @@ export default function Template() {
           >
             We've received your payment and are getting your order ready. Here's your receipt for
             your records.
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       <Section>
@@ -87,7 +87,7 @@ export default function Template() {
               borderRadius: [6, 0, 0, 6],
             }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -98,8 +98,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Order number</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -108,12 +108,12 @@ export default function Template() {
               }}
             >
               {"#{{orderNumber}}"}
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "22.33%", padding: "8px 0px 8px 0px", backgroundColor: "#f9fafb" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -124,8 +124,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Order date</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -134,7 +134,7 @@ export default function Template() {
               }}
             >
               {"{{orderDate}}"}
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{
@@ -144,7 +144,7 @@ export default function Template() {
               borderRadius: [0, 6, 6, 0],
             }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -155,8 +155,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Payment method</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -165,7 +165,7 @@ export default function Template() {
               }}
             >
               {"{{paymentMethod}}"}
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
             <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
@@ -193,7 +193,7 @@ export default function Template() {
           <Column
             style={{ width: "59.33%", padding: "36px 0px 12px 8px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 2px 0px",
                 fontSize: 15,
@@ -203,8 +203,8 @@ export default function Template() {
               }}
             >
               Merino Wool Beanie
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -213,8 +213,8 @@ export default function Template() {
               }}
             >
               Charcoal / One size
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -223,12 +223,12 @@ export default function Template() {
               }}
             >
               Qty: 1
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "16.67%", padding: "36px 0px 12px 0px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 15,
@@ -239,7 +239,7 @@ export default function Template() {
               }}
             >
               $34.00
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "5.33%", padding: "24px 0px 0px 0px", backgroundColor: "#ffffff" }}
@@ -267,7 +267,7 @@ export default function Template() {
           <Column
             style={{ width: "59.33%", padding: "12px 0px 12px 8px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 2px 0px",
                 fontSize: 15,
@@ -277,8 +277,8 @@ export default function Template() {
               }}
             >
               Trail Running Socks (3-pack)
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -287,8 +287,8 @@ export default function Template() {
               }}
             >
               Assorted / Medium
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -297,12 +297,12 @@ export default function Template() {
               }}
             >
               Qty: 2
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "16.67%", padding: "12px 0px 12px 0px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 15,
@@ -313,7 +313,7 @@ export default function Template() {
               }}
             >
               $49.00
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
             <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
@@ -339,7 +339,7 @@ export default function Template() {
           <Column
             style={{ width: "59.33%", padding: "12px 0px 12px 8px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 2px 0px",
                 fontSize: 15,
@@ -349,8 +349,8 @@ export default function Template() {
               }}
             >
               Insulated Water Bottle
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -359,8 +359,8 @@ export default function Template() {
               }}
             >
               24 oz / Forest green
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 13,
@@ -369,12 +369,12 @@ export default function Template() {
               }}
             >
               Qty: 1
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "16.67%", padding: "12px 0px 12px 0px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 15,
@@ -385,7 +385,7 @@ export default function Template() {
               }}
             >
               $29.99
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
             <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
@@ -400,7 +400,7 @@ export default function Template() {
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -409,10 +409,10 @@ export default function Template() {
               }}
             >
               Subtotal
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -422,14 +422,14 @@ export default function Template() {
               }}
             >
               $112.99
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "58.67%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -438,10 +438,10 @@ export default function Template() {
               }}
             >
               Shipping
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "41.33%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -451,14 +451,14 @@ export default function Template() {
               }}
             >
               Free
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "61.83%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -467,10 +467,10 @@ export default function Template() {
               }}
             >
               Tax (8.75%)
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "38.17%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -480,7 +480,7 @@ export default function Template() {
               }}
             >
               $9.89
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -494,7 +494,7 @@ export default function Template() {
           <Column
             style={{ width: "40.83%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 16,
@@ -504,12 +504,12 @@ export default function Template() {
               }}
             >
               Total
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "59.17%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 18,
@@ -520,7 +520,7 @@ export default function Template() {
               }}
             >
               $122.88
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -553,7 +553,7 @@ export default function Template() {
           }}
         >
           <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "0px 32px 20px 32px" }} />
-          <Paragraph
+          <Text
             style={{
               padding: "0px 32px 6px 32px",
               fontSize: 12,
@@ -570,8 +570,8 @@ export default function Template() {
               help center
             </Link>
             {" or reply to this email."}
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 32px 0px 32px",
               fontSize: 12,
@@ -581,7 +581,7 @@ export default function Template() {
             }}
           >
             Northwind Traders · 500 Harbor Way · Seattle, WA 98101
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

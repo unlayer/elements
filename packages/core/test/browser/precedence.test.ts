@@ -23,8 +23,8 @@ const template = (root: "Page" | "Email") =>
           {
             type: "Row",
             children: [
-              { type: "Column", id: "half", mobile: { width: "50%" }, children: [{ type: "Paragraph", children: ["half on phones"] }] },
-              { type: "Column", id: "full", children: [{ type: "Paragraph", children: ["full on phones"] }] },
+              { type: "Column", id: "half", mobile: { width: "50%" }, children: [{ type: "Text", children: ["half on phones"] }] },
+              { type: "Column", id: "full", children: [{ type: "Text", children: ["full on phones"] }] },
             ],
           },
         ],

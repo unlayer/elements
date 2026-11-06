@@ -17,7 +17,7 @@ import {
   ListItem as ListItemDefinition,
   MergeTag as MergeTagDefinition,
   Page as PageDefinition,
-  Paragraph as ParagraphDefinition,
+  Text as ParagraphDefinition,
   Row as RowDefinition,
   Section as SectionDefinition,
   Social as SocialDefinition,
@@ -94,7 +94,7 @@ export const Page: React.FC<PageProps> = createPrimitive(PageDefinition);
 export const Section: React.FC<SectionProps> = createPrimitive(SectionDefinition);
 export const Row: React.FC<RowProps> = createPrimitive(RowDefinition);
 export const Column: React.FC<ColumnProps> = createPrimitive(ColumnDefinition);
-export const Paragraph: React.FC<ParagraphProps> = createPrimitive(ParagraphDefinition);
+export const Text: React.FC<ParagraphProps> = createPrimitive(ParagraphDefinition);
 export const Heading: React.FC<HeadingProps> = createPrimitive(HeadingDefinition);
 export const Span: React.FC<SpanProps> = createPrimitive(SpanDefinition);
 export const Link: React.FC<LinkProps> = createPrimitive(LinkDefinition);

@@ -308,7 +308,7 @@ describe("codemod preparation", () => {
       }`;
     const { code, intermediate } = await convertSource(source);
     expect(intermediate).toMatch(/hide \?\s*\(\s*<Paragraph\s+hideOnMobile=\{true\}[\s\S]*?Secret[\s\S]*?:\s*\(\s*<Paragraph(?![^>]*hideOnMobile)/);
-    expect(code).toMatch(/hide \?\s*\(\s*<Paragraph[^>]*hidden=\{\{ mobile: true \}\}\s*>\s*Secret[\s\S]*?:\s*\(\s*<Paragraph(?![^>]*hidden)/);
+    expect(code).toMatch(/hide \?\s*\(\s*<Text[^>]*hidden=\{\{ mobile: true \}\}\s*>\s*Secret[\s\S]*?:\s*\(\s*<Text(?![^>]*hidden)/);
     expect(code).not.toMatch(/active \?/);
   });
 

@@ -7,10 +7,10 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Row,
   Section,
   Span,
+  Text,
 } from "@unlayer/react-elements";
 
 export default function Template() {
@@ -27,7 +27,7 @@ export default function Template() {
     >
       <Section style={{ padding: [24, 0, 0, 0] }}>
         <Column style={{ padding: "28px 32px 28px 32px", backgroundColor: "#171717" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -38,7 +38,7 @@ export default function Template() {
             }}
           >
             <Span style={{ textTransform: "uppercase" }}>The Weekly Dispatch</Span>
-          </Paragraph>
+          </Text>
           <Heading
             style={{
               padding: "6px 0px 0px 0px",
@@ -50,7 +50,7 @@ export default function Template() {
           >
             Your week in review
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "6px 0px 0px 0px",
               fontSize: 14,
@@ -59,12 +59,12 @@ export default function Template() {
             }}
           >
             {"Week of {{weekOf}}"}
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       <Section>
         <Column style={{ padding: "28px 32px 0px 32px", backgroundColor: "#ffffff" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -73,7 +73,7 @@ export default function Template() {
             }}
           >
             {"Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week."}
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       <Section>
@@ -88,7 +88,7 @@ export default function Template() {
             </Column>
           </Column>
           <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 11,
@@ -99,8 +99,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Maya Chen · 6 min read</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -119,8 +119,8 @@ export default function Template() {
               >
                 How small teams ship faster with async-first habits
               </Link>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "6px 0px 0px 0px",
                 fontSize: 14,
@@ -130,8 +130,8 @@ export default function Template() {
             >
               Three teams share the rituals that replaced their daily standups and what they
               measured along the way.
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -150,7 +150,7 @@ export default function Template() {
               >
                 Read more
               </Link>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -175,7 +175,7 @@ export default function Template() {
             </Column>
           </Column>
           <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 11,
@@ -186,8 +186,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Luis Ortega · 4 min read</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -209,8 +209,8 @@ export default function Template() {
               >
                 The quiet comeback of plain-text email
               </Link>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "6px 0px 0px 0px",
                 fontSize: 14,
@@ -220,8 +220,8 @@ export default function Template() {
             >
               Designers are rediscovering the value of lightweight, accessible messages. Here is
               what the data says about engagement.
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -243,7 +243,7 @@ export default function Template() {
               >
                 Read more
               </Link>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -268,7 +268,7 @@ export default function Template() {
             </Column>
           </Column>
           <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 11,
@@ -279,8 +279,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Anika Rao · 9 min read</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -302,8 +302,8 @@ export default function Template() {
               >
                 A practical guide to database migrations without downtime
               </Link>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "6px 0px 0px 0px",
                 fontSize: 14,
@@ -313,8 +313,8 @@ export default function Template() {
             >
               Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how
               to avoid them.
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -336,7 +336,7 @@ export default function Template() {
               >
                 Read more
               </Link>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -361,7 +361,7 @@ export default function Template() {
             </Column>
           </Column>
           <Column style={{ width: "72.67%", padding: "24px 32px 32px 0px" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 11,
@@ -372,8 +372,8 @@ export default function Template() {
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Tom Becker · 12 min read</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -395,8 +395,8 @@ export default function Template() {
               >
                 Interview: building a design system that people actually use
               </Link>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "6px 0px 0px 0px",
                 fontSize: 14,
@@ -406,8 +406,8 @@ export default function Template() {
             >
               The lead of a 40-person design org on governance, documentation, and saying no to
               one-off components.
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 0px 0px",
                 fontSize: 14,
@@ -429,13 +429,13 @@ export default function Template() {
               >
                 Read more
               </Link>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
       <Section style={{ padding: [0, 0, 24, 0] }}>
         <Column style={{ padding: "24px 32px 24px 32px", backgroundColor: "#fafafa" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -445,8 +445,8 @@ export default function Template() {
             }}
           >
             You're receiving this because you subscribed to The Weekly Dispatch.
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "8px 0px 0px 0px",
               fontSize: 12,
@@ -468,7 +468,7 @@ export default function Template() {
             >
               Unsubscribe
             </Link>
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

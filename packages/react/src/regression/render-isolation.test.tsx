@@ -7,15 +7,15 @@
 import { describe, expect, it, vi } from "vitest";
 import React, { memo, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Email, Html, Page, Paragraph, outline, prepare, render, validate } from "../primitives/index";
+import { Email, Html, Page, Text, outline, prepare, render, validate } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 let user = "Alice";
-const Greeting = () => <Paragraph>Hi {user}</Paragraph>;
+const Greeting = () => <Text>Hi {user}</Text>;
 const MemoGreeting = memo(Greeting);
 const HookGreeting = () => {
   const [prefix] = useState("Hello");
-  return <Paragraph>{prefix} {user}</Paragraph>;
+  return <Text>{prefix} {user}</Text>;
 };
 const kept = { plain: <Greeting />, memo: <MemoGreeting />, hooks: <HookGreeting />, fragment: <><Greeting /></> };
 
@@ -38,8 +38,8 @@ describe.each(Object.keys(kept) as Array<keyof typeof kept>)("an element kept be
 });
 
 describe("renders", () => {
-  const first = () => <Email previewText="First"><Paragraph>First email</Paragraph></Email>;
-  const second = () => <Page><Paragraph style={{ textAlign: "center" }}>Second page</Paragraph><Paragraph>And more</Paragraph></Page>;
+  const first = () => <Email previewText="First"><Text>First email</Text></Email>;
+  const second = () => <Page><Text style={{ textAlign: "center" }}>Second page</Text><Text>And more</Text></Page>;
 
   it("give the same output for the same input, every time", async () => {
     user = "Alice";
@@ -121,16 +121,16 @@ describe("useId() in components", () => {
 describe("a component that renders while the template is collected", () => {
   const Count = ({ n }: { n: number }) => {
     const [value] = useState(n);
-    return <Paragraph>{`Count ${value}`}</Paragraph>;
+    return <Text>{`Count ${value}`}</Text>;
   };
 
   it("renders when it runs a render of react-dom's own before its hooks (as email libraries do)", async () => {
     const Late = () => {
       const bold = renderToStaticMarkup(<b>bold</b>);
       const [text] = useState("Still here");
-      return <Paragraph>{`${text} ${bold.length}`}</Paragraph>;
+      return <Text>{`${text} ${bold.length}`}</Text>;
     };
-    const email = () => <Email><Paragraph>First</Paragraph><Late /><Count n={2} /></Email>;
+    const email = () => <Email><Text>First</Text><Late /><Count n={2} /></Email>;
     expect((await render(email())).text).toBe("First\n\nStill here 11\n\nCount 2");
     expect(JSON.stringify(toDesign(email()).design)).toContain("Still here 11");
   });
@@ -162,7 +162,7 @@ describe("a render", () => {
       const email = () => (
         <Email previewText="Hi">
           {kept.hooks}
-          <Paragraph>Text</Paragraph>
+          <Text>Text</Text>
           <Html html="<p>Kept</p>" />
         </Email>
       );
@@ -181,10 +181,10 @@ describe("a render", () => {
   // none, a template renders as it does with one, and so does a template worked out inside a component of it.
   it("renders the same where the clock stands still or there's none", async () => {
     const Inner = () => {
-      const inner = outline(<Email><Paragraph>Inner email</Paragraph></Email>);
-      return <Paragraph>{inner.includes("Inner email") ? "Inner ok" : "Inner missing"}</Paragraph>;
+      const inner = outline(<Email><Text>Inner email</Text></Email>);
+      return <Text>{inner.includes("Inner email") ? "Inner ok" : "Inner missing"}</Text>;
     };
-    const email = () => <Email><Paragraph>Outer</Paragraph><Inner /></Email>;
+    const email = () => <Email><Text>Outer</Text><Inner /></Email>;
     const expected = await outputs(email);
     expect(expected[1]).toContain("Inner ok");
     const now = vi.spyOn(performance, "now").mockReturnValue(1000);

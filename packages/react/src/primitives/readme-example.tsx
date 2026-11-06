@@ -1,4 +1,4 @@
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "./index";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "./index";
 
 export default function Receipt() {
   return (
@@ -8,9 +8,9 @@ export default function Receipt() {
         <Heading level={1} style={{ fontSize: 24 }} mobile={{ fontSize: 20 }}>
           Thanks for your order, <MergeTag name="first_name" />
         </Heading>
-        <Paragraph>
+        <Text>
           Order <Span style={{ fontWeight: 700 }}>#10482</Span> ships tomorrow. <Link href="https://example.com/orders/10482">Track it</Link>.
-        </Paragraph>
+        </Text>
         <Table style={{ cellPadding: [8, 0], rowBorder: "1px solid #e4e4e7" }}>
           <TableRow header>
             <TableCell>Item</TableCell>
@@ -23,11 +23,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
-            <Paragraph>Ada Lovelace, London</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
+            <Text>Ada Lovelace, London</Text>
           </Column>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Next steps</Text>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -38,7 +38,7 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
+      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
     </Email>
   );
 }

@@ -26,7 +26,7 @@ import {
   PageFooter,
   PageHeader,
   PageNumber,
-  Paragraph,
+  Text,
   Row,
   Section,
   Social,
@@ -40,16 +40,16 @@ export const sample = (
       <Heading id="title" style={{ backgroundColor: "#fde68a", borderRadius: 8 }}>
         Title
       </Heading>
-      <Paragraph>
+      <Text>
         Hello{" "}
         <Link href="https://x.test" hover={{ color: "#0000ff" }}>
           link
         </Link>
         <Span style={{ fontWeight: 700 }}> bold</Span>
-      </Paragraph>
+      </Text>
       <Row style={{ gap: 20 }}>
         <Column style={{ backgroundColor: "#ffffff", padding: 8 }}>
-          <Paragraph>A</Paragraph>
+          <Text>A</Text>
         </Column>
         <Column>
           <Button href="https://b.test" hover={{ backgroundColor: "#333333" }}>
@@ -73,13 +73,13 @@ export const everyTool = (
       <Heading level={2} style={{ letterSpacing: 1, textTransform: "uppercase", backgroundColor: "#fde68a" }}>
         Heading
       </Heading>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.6 }}>
+      <Text style={{ fontSize: 15, lineHeight: 1.6 }}>
         Text with a{" "}
         <Link href={{ href: "https://x.test", target: "_self" }} hover={{ color: "#0000ff" }}>
           link
         </Link>{" "}
         and <MergeTag name="first_name" />
-      </Paragraph>
+      </Text>
       <Button href="https://x.test/go" style={{ backgroundColor: "#111111", color: "#ffffff", borderRadius: 6, padding: [12, 24, 12, 24] }} hover={{ backgroundColor: "#333333" }}>
         Button
       </Button>
@@ -93,16 +93,16 @@ export const everyTool = (
     </Section>
     <Row style={{ gap: 16, border: { bottom: { width: 1, style: "solid", color: "#eeeeee" } } }}>
       <Column style={{ padding: 8, backgroundColor: "#f0f0f0" }} hidden={{ mobile: true }}>
-        <Paragraph>Desktop only</Paragraph>
+        <Text>Desktop only</Text>
       </Column>
       <Column>
         <Image src="https://picsum.photos/id/11/300/200" alt="" style={{ width: "50%" }} hidden={{ mobile: true }} />
       </Column>
     </Row>
     <Grid columns={2} style={{ gap: 8 }}>
-      <Paragraph>a</Paragraph>
-      <Paragraph>b</Paragraph>
-      <Paragraph>c</Paragraph>
+      <Text>a</Text>
+      <Text>b</Text>
+      <Text>c</Text>
     </Grid>
     <Layer style={{ height: 120 }}>
       <Image src={{ src: "https://picsum.photos/id/12/600/240", width: 600, height: 240 }} alt="" />
@@ -114,22 +114,22 @@ export const everyTool = (
 export const invoice = (
   <Document size="A5" orientation="landscape" margin={40}>
     <PageHeader>
-      <Paragraph>Acme Inc.</Paragraph>
+      <Text>Acme Inc.</Text>
     </PageHeader>
     <Document.Page>
       <Heading>Invoice</Heading>
-      <Paragraph>
+      <Text>
         Page <PageNumber /> of <PageNumber total />
-      </Paragraph>
+      </Text>
     </Document.Page>
     <Document.Page>
-      <Paragraph>Terms</Paragraph>
+      <Text>Terms</Text>
     </Document.Page>
-    <Paragraph>Notes</Paragraph>
+    <Text>Notes</Text>
     <PageBreak />
-    <Paragraph>Appendix</Paragraph>
+    <Text>Appendix</Text>
     <PageFooter>
-      <Paragraph>Thank you</Paragraph>
+      <Text>Thank you</Text>
     </PageFooter>
   </Document>
 );
@@ -141,7 +141,7 @@ export const text = (
       Level three
     </Heading>
     <Heading level={6}>Level six</Heading>
-    <Paragraph style={{ textDecoration: "underline", fontSize: 18, letterSpacing: 0.5 }}>
+    <Text style={{ textDecoration: "underline", fontSize: 18, letterSpacing: 0.5 }}>
       E = mc<Span style={{ verticalAlign: "super" }}>2</Span>, H<Span style={{ verticalAlign: "sub", color: "#ff0000" }}>2</Span>O,{" "}
       <Span style={{ fontFamily: '"Courier New", monospace', fontSize: 14 }}>code</Span>,{" "}
       <Link href="https://x.test/about" title="About us" aria-label="Read about us">
@@ -149,7 +149,7 @@ export const text = (
       </Link>
       ,<LineBreak />
       <Span style={{ backgroundColor: "#ffff00", fontStyle: "italic", textTransform: "uppercase" }}>marked</Span>
-    </Paragraph>
+    </Text>
     <List style={{ gap: 6, indent: 30, padding: [8, 0, 8, 0] }}>
       <ListItem>One</ListItem>
       <ListItem>
@@ -160,10 +160,10 @@ export const text = (
         </List>
       </ListItem>
     </List>
-    <Paragraph style={{ backgroundColor: "#eef2ff", border: { left: "4px solid #6366f1" }, padding: 12, borderRadius: 4, maxWidth: 400 }}>A boxed note</Paragraph>
-    <Paragraph style={{ textAlign: "center", lineHeight: "24px" }} mobile={{ fontSize: 13, textAlign: "left" }}>
+    <Text style={{ backgroundColor: "#eef2ff", border: { left: "4px solid #6366f1" }, padding: 12, borderRadius: 4, maxWidth: 400 }}>A boxed note</Text>
+    <Text style={{ textAlign: "center", lineHeight: "24px" }} mobile={{ fontSize: 13, textAlign: "left" }}>
       Centered
-    </Paragraph>
+    </Text>
     <Html html='<table role="presentation"><tr><td>Raw cell</td></tr></table>' text="Raw cell" />
   </Email>
 );
@@ -184,24 +184,24 @@ export const blocks = (
     </Column>
     <Row stackOnMobile={false} style={{ gap: 10, padding: [12, 0, 12, 0], backgroundColor: "#f3f4f6", alignItems: "center" }}>
       <Column style={{ width: 200, borderRadius: 6, backgroundColor: "#ffffff", padding: 10 }}>
-        <Paragraph>Fixed</Paragraph>
+        <Text>Fixed</Text>
       </Column>
       <Column style={{ flex: 2 }}>
-        <Paragraph>Two shares</Paragraph>
+        <Text>Two shares</Text>
       </Column>
       <Column>
-        <Paragraph>One share</Paragraph>
+        <Text>One share</Text>
       </Column>
     </Row>
     <Section style={{ backgroundColor: "#111827", color: "#ffffff", padding: [32, 24, 32, 24], gap: 8, border: { top: "4px solid #f59e0b" } }} hidden={{ mobile: true }}>
       <Heading level={2}>Dark band</Heading>
-      <Paragraph style={{ color: "#d1d5db" }}>On every desktop</Paragraph>
+      <Text style={{ color: "#d1d5db" }}>On every desktop</Text>
       <Row style={{ gap: 12 }}>
         <Column>
-          <Paragraph>Left</Paragraph>
+          <Text>Left</Text>
         </Column>
         <Column>
-          <Paragraph>Right</Paragraph>
+          <Text>Right</Text>
         </Column>
       </Row>
     </Section>

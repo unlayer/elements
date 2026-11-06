@@ -634,7 +634,7 @@ export default function Note({ footer }: { footer?: any }) {
 Note.PreviewProps = { footer: "reply to this email" };
 `,
     }, "note.tsx");
-    const { Email, Column, Paragraph, Span } = await import("@unlayer/react-elements");
+    const { Email, Column, Text, Span } = await import("@unlayer/react-elements");
     // A migration whose text is right and whose kept branch (for elements) loses the value.
     function holdsElements(...values: unknown[]): boolean {
       return values.some((value) => React.isValidElement(value));
@@ -642,7 +642,7 @@ Note.PreviewProps = { footer: "reply to this email" };
     const h = React.createElement;
     const Migrated = ({ footer }: { footer?: unknown }) =>
       h(Email, null, h(Column, null,
-        holdsElements(footer) ? h(Paragraph, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:")) : h(Paragraph, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:"), ` ${String(footer ?? "")}`)));
+        holdsElements(footer) ? h(Text, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:")) : h(Text, null, "Questions? ", h(Span, { style: { fontWeight: 700 } }, "Help:"), ` ${String(footer ?? "")}`)));
     const check = await verifyNewComponents(Original, Migrated);
     expect(check.variants.find((v) => v.change === "footer: an element")?.missing).toEqual(["given", "as", "an", "element"]);
   });
@@ -714,7 +714,7 @@ export default function Digest({ date }: { date: string }) {
 Digest.PreviewProps = { date: "Tue" };
 `,
     }, "digest.tsx");
-    expect(conversion.code).not.toMatch(/\{\s*<Paragraph/);
+    expect(conversion.code).not.toMatch(/\{\s*<Text/);
     const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });

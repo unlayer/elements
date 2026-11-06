@@ -80,7 +80,7 @@ describe("the new components", () => {
 
   it("are read with JSX's spacing, entities, negative numbers and spread objects", () => {
     const element = readTemplate(
-      `/** @jsxRuntime automatic */\nimport { Email as Root, Paragraph } from "@unlayer/react-elements";\nimport { Fragment } from "react";\nexport default function Template() {\n  return (\n    <Root style={{ margin: -2, ...{ padding: [1, +2] } }} title="a &amp; b">\n      <Paragraph>\n        Hello &amp;\n        welcome{" "}\n      </Paragraph>\n      <Fragment key="x">{[<Paragraph key={0}>{null}</Paragraph>]}</Fragment>\n    </Root>\n  );\n}\n`,
+      `/** @jsxRuntime automatic */\nimport { Email as Root, Text } from "@unlayer/react-elements";\nimport { Fragment } from "react";\nexport default function Template() {\n  return (\n    <Root style={{ margin: -2, ...{ padding: [1, +2] } }} title="a &amp; b">\n      <Text>\n        Hello &amp;\n        welcome{" "}\n      </Text>\n      <Fragment key="x">{[<Text key={0}>{null}</Text>]}</Fragment>\n    </Root>\n  );\n}\n`,
       MODULES,
     );
     const props = element.props as { style: unknown; title: string; children: React.ReactElement[] };
@@ -92,10 +92,10 @@ describe("the new components", () => {
   });
 
   it("aren't read from a module that runs code, or uses what it doesn't import", () => {
-    const module = (body: string, imports = `import { Email, Paragraph } from "@unlayer/react-elements";`) => `${imports}\nexport default function Template() {\n${body}\n}\n`;
-    expect(() => readTemplate(module("const name = 'Alex';\nreturn <Email><Paragraph>{name}</Paragraph></Email>;"), MODULES)).toThrow(/does more than return its JSX/);
-    expect(() => readTemplate(module("return <Email><Paragraph>{name}</Paragraph></Email>;"), MODULES)).toThrow(/can't be read as it's written: this code \(name\)/);
-    expect(() => readTemplate(module("return <Email><Paragraph>{`${1}`}</Paragraph></Email>;"), MODULES)).toThrow(/can't be read/);
+    const module = (body: string, imports = `import { Email, Text } from "@unlayer/react-elements";`) => `${imports}\nexport default function Template() {\n${body}\n}\n`;
+    expect(() => readTemplate(module("const name = 'Alex';\nreturn <Email><Text>{name}</Text></Email>;"), MODULES)).toThrow(/does more than return its JSX/);
+    expect(() => readTemplate(module("return <Email><Text>{name}</Text></Email>;"), MODULES)).toThrow(/can't be read as it's written: this code \(name\)/);
+    expect(() => readTemplate(module("return <Email><Text>{`${1}`}</Text></Email>;"), MODULES)).toThrow(/can't be read/);
     expect(() => readTemplate(module("return <Email><Section /></Email>;"), MODULES)).toThrow(/a component it doesn't import \(Section\)/);
     expect(() => readTemplate(module("return <Email />;", `import { Email } from "./email";`), MODULES)).toThrow(/an import of \.\/email/);
     expect(() => readTemplate(module("return <Email><Body /></Email>;", `import { Email, Body } from "@unlayer/react-elements";`), MODULES)).toThrow(/@unlayer\/react-elements has no Body/);

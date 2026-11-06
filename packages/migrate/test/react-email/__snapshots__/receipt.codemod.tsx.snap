@@ -8,10 +8,10 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Row,
   Section,
   Span,
+  Text,
 } from "@unlayer/react-elements";
 import * as React from "react";
 
@@ -99,7 +99,7 @@ export const ReceiptEmail = ({
           >
             Thanks for your order, {customerName}!
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 32px 0px 32px",
               fontSize: 15,
@@ -109,7 +109,7 @@ export const ReceiptEmail = ({
           >
             We've received your payment and are getting your order ready. Here's your receipt for
             your records.
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       <Section>
@@ -125,7 +125,7 @@ export const ReceiptEmail = ({
               borderRadius: [6, 0, 0, 6],
             }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -136,8 +136,8 @@ export const ReceiptEmail = ({
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Order number</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -146,12 +146,12 @@ export const ReceiptEmail = ({
               }}
             >
               #{orderNumber}
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{ width: "22.33%", padding: "8px 0px 8px 0px", backgroundColor: "#f9fafb" }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -162,8 +162,8 @@ export const ReceiptEmail = ({
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Order date</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -172,7 +172,7 @@ export const ReceiptEmail = ({
               }}
             >
               {orderDate}
-            </Paragraph>
+            </Text>
           </Column>
           <Column
             style={{
@@ -182,7 +182,7 @@ export const ReceiptEmail = ({
               borderRadius: [0, 6, 6, 0],
             }}
           >
-            <Paragraph
+            <Text
               style={{
                 padding: "8px 0px 2px 0px",
                 fontSize: 11,
@@ -193,8 +193,8 @@ export const ReceiptEmail = ({
               }}
             >
               <Span style={{ textTransform: "uppercase" }}>Payment method</Span>
-            </Paragraph>
-            <Paragraph
+            </Text>
+            <Text
               style={{
                 padding: "0px 0px 8px 0px",
                 fontSize: 14,
@@ -203,7 +203,7 @@ export const ReceiptEmail = ({
               }}
             >
               {paymentMethod}
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
             <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
@@ -237,7 +237,7 @@ export const ReceiptEmail = ({
             <Column
               style={{ width: "59.33%", padding: "12px 0px 12px 8px", backgroundColor: "#ffffff" }}
             >
-              <Paragraph
+              <Text
                 style={{
                   padding: "0px 0px 2px 0px",
                   fontSize: 15,
@@ -247,9 +247,9 @@ export const ReceiptEmail = ({
                 }}
               >
                 {item.name}
-              </Paragraph>
+              </Text>
               {item.description ? (
-                <Paragraph
+                <Text
                   style={{
                     padding: "0px 0px 0px 0px",
                     fontSize: 13,
@@ -258,9 +258,9 @@ export const ReceiptEmail = ({
                   }}
                 >
                   {item.description}
-                </Paragraph>
+                </Text>
               ) : null}
-              <Paragraph
+              <Text
                 style={{
                   padding: "0px 0px 0px 0px",
                   fontSize: 13,
@@ -269,12 +269,12 @@ export const ReceiptEmail = ({
                 }}
               >
                 Qty: {item.quantity}
-              </Paragraph>
+              </Text>
             </Column>
             <Column
               style={{ width: "16.67%", padding: "12px 0px 12px 0px", backgroundColor: "#ffffff" }}
             >
-              <Paragraph
+              <Text
                 style={{
                   padding: "0px 0px 0px 0px",
                   fontSize: 15,
@@ -285,7 +285,7 @@ export const ReceiptEmail = ({
                 }}
               >
                 {formatMoney(item.quantity * item.unitPrice, currency)}
-              </Paragraph>
+              </Text>
             </Column>
             <Column style={{ width: "5.33%", backgroundColor: "#ffffff" }}>
               <Divider style={{ borderTop: "0px solid #BBBBBB", padding: 0 }} />
@@ -301,7 +301,7 @@ export const ReceiptEmail = ({
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -310,10 +310,10 @@ export const ReceiptEmail = ({
               }}
             >
               Subtotal
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -323,14 +323,14 @@ export const ReceiptEmail = ({
               }}
             >
               {formatMoney(subtotal, currency)}
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -339,10 +339,10 @@ export const ReceiptEmail = ({
               }}
             >
               Shipping
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -352,14 +352,14 @@ export const ReceiptEmail = ({
               }}
             >
               {shipping === 0 ? "Free" : formatMoney(shipping, currency)}
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 14,
@@ -368,10 +368,10 @@ export const ReceiptEmail = ({
               }}
             >
               Tax ({(taxRate * 100).toFixed(2)}%)
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 14,
@@ -381,7 +381,7 @@ export const ReceiptEmail = ({
               }}
             >
               {formatMoney(tax, currency)}
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -393,7 +393,7 @@ export const ReceiptEmail = ({
       <Section>
         <Row stackOnMobile={false}>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 0px 4px 32px",
                 fontSize: 16,
@@ -403,10 +403,10 @@ export const ReceiptEmail = ({
               }}
             >
               Total
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%", padding: "20px 0px 0px 0px", backgroundColor: "#ffffff" }}>
-            <Paragraph
+            <Text
               style={{
                 padding: "4px 32px 4px 0px",
                 fontSize: 18,
@@ -417,7 +417,7 @@ export const ReceiptEmail = ({
               }}
             >
               {formatMoney(total, currency)}
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -450,7 +450,7 @@ export const ReceiptEmail = ({
           }}
         >
           <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "0px 32px 20px 32px" }} />
-          <Paragraph
+          <Text
             style={{
               padding: "0px 32px 6px 32px",
               fontSize: 12,
@@ -467,8 +467,8 @@ export const ReceiptEmail = ({
               help center
             </Link>
             {" or reply to this email."}
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 32px 0px 32px",
               fontSize: 12,
@@ -478,7 +478,7 @@ export const ReceiptEmail = ({
             }}
           >
             Northwind Traders · 500 Harbor Way · Seattle, WA 98101
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

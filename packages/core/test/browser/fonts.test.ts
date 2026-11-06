@@ -30,9 +30,9 @@ const template = (root: "Page" | "Email") =>
         props: { width: 600, fonts: FONTS },
         style: { fontFamily: "'Brand Sans', Arial, sans-serif" },
         children: [
-          { type: "Paragraph", children: ["regular"] },
-          { type: "Paragraph", style: { fontWeight: 700 }, children: ["bold"] },
-          { type: "Paragraph", style: { fontStyle: "italic" }, children: ["italic"] },
+          { type: "Text", children: ["regular"] },
+          { type: "Text", style: { fontWeight: 700 }, children: ["bold"] },
+          { type: "Text", style: { fontStyle: "italic" }, children: ["italic"] },
         ],
       },
     })

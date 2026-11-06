@@ -57,14 +57,14 @@ describe("designs the real builder saved", () => {
         // The heading's background and corners, and the image's corners (blocks 0 and 4), were in the payload only;
         // the earlier adapter wrote every link to open a new window, Elements 0.2's components' default (1 and 3).
         "block 0 (Heading) own",
-        "block 1 (Paragraph) runs",
+        "block 1 (Text) runs",
         "block 3 (Button) own",
         "block 4 (Image) own",
       ],
     ],
-    ["every-tool.saved-in-builder", everyTool, "email", ["block 0 (Heading) own", "block 2 (Button) own", "block 3 (Link) own", "block 5 (Paragraph) runs", "block 11 (Paragraph) hidden"]],
+    ["every-tool.saved-in-builder", everyTool, "email", ["block 0 (Heading) own", "block 2 (Button) own", "block 3 (Link) own", "block 5 (Text) runs", "block 11 (Text) hidden"]],
     // The body had no background written: the builder's grey.
-    ["invoice.saved-in-builder", invoice, "document", [0, 1, 2, 3, 4, 5, 6].map((i) => `block ${i} (${i === 1 ? "Heading" : "Paragraph"}) behind`)],
+    ["invoice.saved-in-builder", invoice, "document", [0, 1, 2, 3, 4, 5, 6].map((i) => `block ${i} (${i === 1 ? "Heading" : "Text"}) behind`)],
     // A heading's words changed in the builder's editor; the button's hover is the builder's default (white on blue);
     // the logo's width is from before the example's images followed the editor's.
     ["SpotifyPremiumWelcome.edited-in-builder", <codemodSpotify.SpotifyPremiumWelcome key="spotify" />, "email", ["block 0 (Image) width", "block 3 (Heading) runs", "block 5 (Button) own"]],
@@ -90,9 +90,9 @@ describe("text as the builder's editors write it", () => {
   // direction, its alignment, an empty line's `<br>`, an indent), and one as its older editor wrote them (each `<p>`
   // with its line height and no margins: the builder's export resets them, `p { margin: 0 }`).
   const padding = (top: number, bottom: number, left = 10) => ({ top, right: 10, bottom, left });
-  const line = (children: Node["children"], top: number, bottom: number, style: Record<string, unknown> = {}, left = 10): Node => ({ type: "Paragraph", style: { fontSize: 14, lineHeight: 1.4, ...style, padding: padding(top, bottom, left) } as never, children });
+  const line = (children: Node["children"], top: number, bottom: number, style: Record<string, unknown> = {}, left = 10): Node => ({ type: "Text", style: { fontSize: 14, lineHeight: 1.4, ...style, padding: padding(top, bottom, left) } as never, children });
 
-  it("reads each paragraph as a Paragraph, spaced as the builder spaces them: by their margins, none unless their own", () => {
+  it("reads each paragraph as a Text, spaced as the builder spaces them: by their margins, none unless their own", () => {
     const back = fromDesign(fixture("paragraphs.builder-editor"));
     expect(back.report).toEqual([]);
     expect((tree(back.element).children as Node[]).slice(0, 7)).toEqual([

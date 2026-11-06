@@ -4,7 +4,7 @@
  * own. Only tests import this; it's in no bundle.
  */
 import type { ReactNode } from "react";
-import { Button, Column, Divider, Email, Heading, Image, Link, Menu, Page, Paragraph, Row, Section, Social, Span, Video } from "../index";
+import { Button, Column, Divider, Email, Heading, Image, Link, Menu, Page, Text, Row, Section, Social, Span, Video } from "../index";
 
 /**
  * The label and value line the receipts repeat (a two-column Row, a hairline under each
@@ -22,10 +22,10 @@ function lineRow(label: string, value: string, colors: { label: string; value: s
     <Section style={{ backgroundColor: "#FFFFFF" }}>
       <Row>
         <Column {...cell}>
-          <Paragraph style={{ padding: 10, fontSize: 14, color: colors.label, lineHeight: "140%" }}>{label}</Paragraph>
+          <Text style={{ padding: 10, fontSize: 14, color: colors.label, lineHeight: "140%" }}>{label}</Text>
         </Column>
         <Column {...cell}>
-          <Paragraph style={{ padding: 10, fontSize: 14, fontWeight: 700, color: colors.value, textAlign: "right", lineHeight: "140%" }}>{value}</Paragraph>
+          <Text style={{ padding: 10, fontSize: 14, fontWeight: 700, color: colors.value, textAlign: "right", lineHeight: "140%" }}>{value}</Text>
         </Column>
       </Row>
       {!last && <Divider hidden={{ mobile: true }} style={{ borderTop: line }} />}
@@ -63,7 +63,7 @@ export const stripe = (() => {
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [50, 10, 10, 10] }}>
-        <Paragraph style={{ fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: 0.72, lineHeight: "100%" }}>RECEIPT</Paragraph>
+        <Text style={{ fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: 0.72, lineHeight: "100%" }}>RECEIPT</Text>
       </Section>
       <Section style={{ backgroundColor: WHITE, padding: [22, 10, 10, 10] }}>
         <Heading level={1} style={{ fontSize: 28, fontWeight: 600, lineHeight: "125%", letterSpacing: -0.56 }}>
@@ -71,7 +71,7 @@ export const stripe = (() => {
         </Heading>
       </Section>
       <Section style={{ backgroundColor: WHITE, padding: [16, 10, 10, 10] }}>
-        <Paragraph style={{ fontSize: 14, color: MUTED, lineHeight: "150%" }}>Receipt #2705 · Paid Jul 1, 2026</Paragraph>
+        <Text style={{ fontSize: 14, color: MUTED, lineHeight: "150%" }}>Receipt #2705 · Paid Jul 1, 2026</Text>
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [42, 10, 14, 10] }}>
@@ -111,9 +111,9 @@ export const stripe = (() => {
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [54, 10, 58, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, lineHeight: "160%" }}>
+        <Text style={{ fontSize: 12, color: MUTED, lineHeight: "160%" }}>
           Questions about this receipt? Contact <Link href="mailto:support@acme.com">support@acme.com</Link>.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -138,7 +138,7 @@ export const spotify = (() => {
         <Heading level={3} style={{ fontSize: 17, fontWeight: 700, color: WHITE, lineHeight: "130%" }}>
           {`✓  ${title}`}
         </Heading>
-        <Paragraph style={{ fontSize: 14, color: MUTED, lineHeight: "155%" }}>{desc}</Paragraph>
+        <Text style={{ fontSize: 14, color: MUTED, lineHeight: "155%" }}>{desc}</Text>
       </Column>
     );
   }
@@ -160,9 +160,9 @@ export const spotify = (() => {
         <Heading level={1} style={{ fontSize: 42, fontWeight: 800, color: WHITE, lineHeight: "106%" }}>
           Premium is yours. Welcome.
         </Heading>
-        <Paragraph style={{ fontSize: 17, color: MUTED, lineHeight: "155%" }}>
+        <Text style={{ fontSize: 17, color: MUTED, lineHeight: "155%" }}>
           No ads. No limits. Just the music you love — now in lossless quality, online or off.
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: BG, padding: [32, 10, 46, 10] }}>
@@ -194,9 +194,9 @@ export const spotify = (() => {
       </Section>
 
       <Section style={{ backgroundColor: BG, padding: [18, 10, 50, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: "#7A7A7A", textAlign: "center", lineHeight: "150%" }}>
+        <Text style={{ fontSize: 12, color: "#7A7A7A", textAlign: "center", lineHeight: "150%" }}>
           You&apos;re receiving this because you subscribed to Spotify Premium.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -217,27 +217,27 @@ export const phone = (() => {
   const next = (
     <Email width={600} style={{ backgroundColor: "#f3f5f1", fontFamily: "Arial" }}>
       <Column style={{ backgroundColor: "#ffffff", padding: [36, 40] }} mobile={{ padding: [24, 20] }}>
-        <Paragraph style={{ color: "#355b48", fontSize: 12, letterSpacing: 2, lineHeight: "140%" }}>ELEMENTS · DESIGN PREVIEW</Paragraph>
+        <Text style={{ color: "#355b48", fontSize: 12, letterSpacing: 2, lineHeight: "140%" }}>ELEMENTS · DESIGN PREVIEW</Text>
         <Heading level={1} style={{ padding: [16, 0], fontSize: 38, fontWeight: 400, lineHeight: "115%", color: "#20372a" }} mobile={{ fontSize: 30, textAlign: "center" }}>
           Room to read. On every screen.
         </Heading>
         <Column style={{ padding: [8, 0, 20, 0], alignItems: "center" }} mobile={{ padding: [4, 0, 16, 0] }}>
           <Image src={{ src: art, width: 900, height: 540 }} alt="Illustrated green landscape with a warm sun" style={{ width: "75%" }} mobile={{ width: "100%" }} />
         </Column>
-        <Paragraph style={{ padding: [0, 0, 24, 0], color: "#526358", fontSize: 16, lineHeight: "160%" }} mobile={{ fontSize: 15, lineHeight: "155%" }}>
+        <Text style={{ padding: [0, 0, 24, 0], color: "#526358", fontSize: 16, lineHeight: "160%" }} mobile={{ fontSize: 15, lineHeight: "155%" }}>
           The same design keeps its desktop layout and adapts its padding, typography and image width for a phone.
-        </Paragraph>
+        </Text>
         <Column style={{ alignItems: "center" }}>
           <Button href="https://github.com/unlayer/elements" style={{ backgroundColor: "#355b48", color: "#ffffff", borderRadius: 6, padding: "14px 24px" }}>
             Explore Elements
           </Button>
         </Column>
-        <Paragraph hidden={{ mobile: true }} style={{ padding: [24, 0, 0, 0], fontSize: 12, color: "#6d7c71", lineHeight: "140%" }}>
+        <Text hidden={{ mobile: true }} style={{ padding: [24, 0, 0, 0], fontSize: 12, color: "#6d7c71", lineHeight: "140%" }}>
           Desktop detail · this line hides on a phone.
-        </Paragraph>
-        <Paragraph hidden={{ desktop: true }} style={{ padding: [20, 0, 0, 0], fontSize: 12, color: "#6d7c71", textAlign: "center", lineHeight: "140%" }}>
+        </Text>
+        <Text hidden={{ desktop: true }} style={{ padding: [20, 0, 0, 0], fontSize: 12, color: "#6d7c71", textAlign: "center", lineHeight: "140%" }}>
           Phone detail · more space for the story.
-        </Paragraph>
+        </Text>
       </Column>
     </Email>
   );
@@ -278,9 +278,9 @@ export const airbnb = (() => {
         <Heading level={1} style={{ fontSize: 26, fontWeight: 700, color: INK, lineHeight: "130%" }}>
           You&apos;re confirmed, Maya 🎉
         </Heading>
-        <Paragraph style={{ fontSize: 16, color: MUTED, lineHeight: "150%" }}>
+        <Text style={{ fontSize: 16, color: MUTED, lineHeight: "150%" }}>
           Your stay at <Span style={{ fontWeight: 700 }}>Oceanview Villa</Span> in Malibu is booked. We can&apos;t wait to host you.
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [26, 10, 12, 10] }}>
@@ -304,9 +304,9 @@ export const airbnb = (() => {
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [18, 10, 50, 10] }}>
-        <Paragraph style={{ fontSize: 13, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
+        <Text style={{ fontSize: 13, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
           Questions about your trip? <Link href="https://airbnb.com/help">Visit the Help Center</Link>.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -338,7 +338,7 @@ export const mercury = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [62, 10, 10, 10] }}>
-        <Paragraph style={{ ...eyebrow, color: SUCCESS }}>PAYMENT SENT</Paragraph>
+        <Text style={{ ...eyebrow, color: SUCCESS }}>PAYMENT SENT</Text>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: [24, 10, 10, 10] }}>
         <Heading level={1} style={{ fontSize: 48, fontWeight: 600, letterSpacing: -0.96, lineHeight: "110%" }}>
@@ -346,11 +346,11 @@ export const mercury = (() => {
         </Heading>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: [16, 10, 10, 10] }}>
-        <Paragraph style={{ fontSize: 16, color: MUTED, lineHeight: "150%" }}>Your transfer to Olivia Hart is on its way.</Paragraph>
+        <Text style={{ fontSize: 16, color: MUTED, lineHeight: "150%" }}>Your transfer to Olivia Hart is on its way.</Text>
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [50, 10, 14, 10] }}>
-        <Paragraph style={{ ...eyebrow, color: MUTED }}>DETAILS</Paragraph>
+        <Text style={{ ...eyebrow, color: MUTED }}>DETAILS</Text>
       </Section>
       {lineRow("To", "Olivia Hart", lines)}
       {lineRow("From", "Acme Inc · ••4291", lines)}
@@ -371,13 +371,13 @@ export const mercury = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [58, 10, 66, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, lineHeight: "170%" }}>
+        <Text style={{ fontSize: 12, color: MUTED, lineHeight: "170%" }}>
           Meridian Financial · This receipt confirms a completed transfer. Need help?{" "}
           <Link href="https://meridian.example.com/support" style={{ color: ACCENT, textDecoration: "none" }}>
             Contact support
           </Link>
           .
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -401,8 +401,8 @@ export const luma = (() => {
     return (
       <Column style={{ padding: 10, gap: 20 }}>
         <Image src={photo} alt={name} style={{ width: 48 }} />
-        <Paragraph style={{ fontSize: 14, fontWeight: 700, color: INK, lineHeight: "140%" }}>{name}</Paragraph>
-        <Paragraph style={{ fontSize: 13, color: SUBTLE, lineHeight: "140%" }}>{role}</Paragraph>
+        <Text style={{ fontSize: 14, fontWeight: 700, color: INK, lineHeight: "140%" }}>{name}</Text>
+        <Text style={{ fontSize: 13, color: SUBTLE, lineHeight: "140%" }}>{role}</Text>
       </Column>
     );
   }
@@ -424,22 +424,22 @@ export const luma = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [42, 10, 14, 10], gap: 20 }}>
-        <Paragraph style={{ fontSize: 12, fontWeight: 700, color: ACCENT, letterSpacing: 1.4, lineHeight: "140%" }}>YOU&apos;RE INVITED</Paragraph>
+        <Text style={{ fontSize: 12, fontWeight: 700, color: ACCENT, letterSpacing: 1.4, lineHeight: "140%" }}>YOU&apos;RE INVITED</Text>
         <Heading level={1} style={{ fontSize: 40, fontWeight: 800, color: INK, lineHeight: "108%", letterSpacing: -1.2 }}>
           Neon Nights · Summer Launch
         </Heading>
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [24, 10, 10, 10], gap: 20 }}>
-        <Paragraph style={{ fontSize: 15, color: INK, lineHeight: "170%" }}>
+        <Text style={{ fontSize: 15, color: INK, lineHeight: "170%" }}>
           {`🗓️ ${NBSP}`}
           <Span style={{ fontWeight: 700 }}>Thursday, July 9, 2026</Span>
           {` ${NBSP}·${NBSP} 7:00 – 11:00 PM PDT`}
-        </Paragraph>
-        <Paragraph style={{ fontSize: 15, color: SUBTLE, lineHeight: "170%" }}>
+        </Text>
+        <Text style={{ fontSize: 15, color: SUBTLE, lineHeight: "170%" }}>
           {`📍 ${NBSP}`}
           <Span style={{ fontWeight: 700 }}>The Skydeck</Span> — 450 Market St, San Francisco, CA
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [32, 10, 16, 10] }}>
@@ -449,18 +449,18 @@ export const luma = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [10, 10, 34, 10] }}>
-        <Paragraph style={{ fontSize: 14, color: INK, lineHeight: "140%" }}>
+        <Text style={{ fontSize: 14, color: INK, lineHeight: "140%" }}>
           <Link href="https://lu.ma/neon-nights/calendar" style={{ color: INK, textDecoration: "underline" }}>
             + Add to calendar
           </Link>
-        </Paragraph>
+        </Text>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: 10 }}>
         <Divider style={{ borderTop: `1px solid ${LINE}` }} />
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [30, 10, 16, 10] }}>
-        <Paragraph style={{ fontSize: 11, fontWeight: 700, color: SUBTLE, letterSpacing: 1.1, lineHeight: "140%" }}>HOSTED BY</Paragraph>
+        <Text style={{ fontSize: 11, fontWeight: 700, color: SUBTLE, letterSpacing: 1.1, lineHeight: "140%" }}>HOSTED BY</Text>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: [0, 0, 28, 0] }}>
         <Row>
@@ -470,9 +470,9 @@ export const luma = (() => {
       </Section>
 
       <Section style={{ padding: [28, 10, 50, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: SUBTLE, textAlign: "center", lineHeight: "160%" }}>
+        <Text style={{ fontSize: 12, color: SUBTLE, textAlign: "center", lineHeight: "160%" }}>
           You&apos;re receiving this because you joined the Lumen waitlist. <Link href="https://lu.ma/settings">Manage notifications</Link>.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -508,11 +508,11 @@ export const warby = (() => {
       <Section style={{ backgroundColor: CARD }}>
         <Row>
           <Column {...cell}>
-            <Paragraph style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, lineHeight: "150%" }}>{name}</Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: MUTED, lineHeight: "150%" }}>{variant}</Paragraph>
+            <Text style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, lineHeight: "150%" }}>{name}</Text>
+            <Text style={{ padding: 10, fontSize: 13, color: MUTED, lineHeight: "150%" }}>{variant}</Text>
           </Column>
           <Column {...cell}>
-            <Paragraph style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, textAlign: "right", lineHeight: "150%" }}>{price}</Paragraph>
+            <Text style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, textAlign: "right", lineHeight: "150%" }}>{price}</Text>
           </Column>
         </Row>
         {!last && <Divider hidden={{ mobile: true }} style={{ borderTop: line }} />}
@@ -541,7 +541,7 @@ export const warby = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [50, 10, 10, 10] }}>
-        <Paragraph style={{ ...eyebrow, color: BLUE, textAlign: "center" }}>SHIPPED</Paragraph>
+        <Text style={{ ...eyebrow, color: BLUE, textAlign: "center" }}>SHIPPED</Text>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: [22, 10, 10, 10] }}>
         <Heading level={1} style={{ fontSize: 30, fontWeight: 700, color: NAVY, lineHeight: "124%", textAlign: "center" }}>
@@ -549,13 +549,13 @@ export const warby = (() => {
         </Heading>
       </Section>
       <Section style={{ backgroundColor: CARD, padding: [24, 10, 14, 10] }}>
-        <Paragraph style={{ fontSize: 15, color: MUTED, lineHeight: "164%", textAlign: "center" }}>
+        <Text style={{ fontSize: 15, color: MUTED, lineHeight: "164%", textAlign: "center" }}>
           Hi Alex — your new frames have left our lab and are headed your way. We&apos;ll email you again the moment they land on your doorstep.
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [42, 10, 14, 10] }}>
-        <Paragraph style={eyebrow}>TRACKING DETAILS</Paragraph>
+        <Text style={eyebrow}>TRACKING DETAILS</Text>
       </Section>
       {lineRow("Carrier", "USPS Priority", lines)}
       {lineRow("Tracking number", "9400 1234 5678 9012 3456", lines)}
@@ -571,26 +571,26 @@ export const warby = (() => {
       </Section>
 
       <Section style={{ backgroundColor: CARD, padding: [46, 10, 14, 10] }}>
-        <Paragraph style={eyebrow}>IN THIS ORDER</Paragraph>
+        <Text style={eyebrow}>IN THIS ORDER</Text>
       </Section>
       {productRow("Percey", "Whiskey Tortoise", "$145")}
       {productRow("Haskell", "Crystal", "$95", true)}
       {lineRow("Total", "$240", lines, true)}
 
       <Section style={{ backgroundColor: CARD, padding: [38, 10, 50, 10] }}>
-        <Paragraph style={{ fontSize: 14, color: MUTED, lineHeight: "164%", textAlign: "center" }}>
+        <Text style={{ fontSize: 14, color: MUTED, lineHeight: "164%", textAlign: "center" }}>
           Questions about your order? Our team is here to help — just reply to this email or visit the{" "}
           <Link href="https://www.warbyparker.com/help" style={{ color: BLUE }}>
             Help Center
           </Link>
           .
-        </Paragraph>
+        </Text>
       </Section>
       <Section style={{ backgroundColor: BG, padding: [38, 10, 18, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "160%" }}>Warby Parker · 233 Spring Street, New York, NY 10013</Paragraph>
+        <Text style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "160%" }}>Warby Parker · 233 Spring Street, New York, NY 10013</Text>
       </Section>
       <Section style={{ backgroundColor: BG, padding: [10, 10, 46, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "160%" }}>
+        <Text style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "160%" }}>
           <Link href="#" style={{ color: MUTED }}>
             Unsubscribe
           </Link>
@@ -598,7 +598,7 @@ export const warby = (() => {
           <Link href="#" style={{ color: MUTED }}>
             Privacy Policy
           </Link>
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -625,7 +625,7 @@ export const notion = (() => {
         <Heading level={3} style={{ fontSize: 17, fontWeight: 600, color: INK, lineHeight: "130%" }}>
           {title}
         </Heading>
-        <Paragraph style={{ fontSize: 14, color: MUTED, lineHeight: "150%" }}>{text}</Paragraph>
+        <Text style={{ fontSize: 14, color: MUTED, lineHeight: "150%" }}>{text}</Text>
       </Column>
     );
   }
@@ -648,10 +648,10 @@ export const notion = (() => {
         </Heading>
       </Section>
       <Section style={{ backgroundColor: WHITE, padding: [10, 10, 18, 10] }}>
-        <Paragraph style={{ fontSize: 16, color: MUTED, lineHeight: "160%" }}>
+        <Text style={{ fontSize: 16, color: MUTED, lineHeight: "160%" }}>
           We&apos;re so glad you&apos;re here. Lumen is the calm, all-in-one workspace where your notes, docs, and plans finally live together. Let&apos;s get you
           set up in just a few minutes.
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [26, 10, 18, 10], alignItems: "center" }}>
@@ -695,9 +695,9 @@ export const notion = (() => {
         />
       </Section>
       <Section style={{ backgroundColor: PANEL, padding: [10, 10, 50, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: SUBTLE, textAlign: "center", lineHeight: "150%" }}>
+        <Text style={{ fontSize: 12, color: SUBTLE, textAlign: "center", lineHeight: "150%" }}>
           Lumen · 100 Market St, San Francisco, CA · <Link href="https://example.com/unsubscribe">Unsubscribe</Link>
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -729,7 +729,7 @@ export const nike = (() => {
         <Heading level={1} style={{ fontSize: 48, fontWeight: 800, color: WHITE, textAlign: "center", lineHeight: "105%" }}>
           JUST DROPPED
         </Heading>
-        <Paragraph style={{ fontSize: 17, color: "#B3B3B3", textAlign: "center", lineHeight: "150%" }}>The Air Max 2026. Limited stock. Move fast.</Paragraph>
+        <Text style={{ fontSize: 17, color: "#B3B3B3", textAlign: "center", lineHeight: "150%" }}>The Air Max 2026. Limited stock. Move fast.</Text>
       </Section>
 
       <Section style={{ backgroundColor: BLACK, padding: [30, 10, 46, 10], alignItems: "center" }}>
@@ -784,16 +784,16 @@ export const brew = (() => {
         <Heading level={2} style={{ fontFamily: SERIF, fontSize: 24, fontWeight: 700, color: INK, lineHeight: "125%" }}>
           {title}
         </Heading>
-        <Paragraph style={{ fontSize: 16, lineHeight: "160%" }}>{text}</Paragraph>
+        <Text style={{ fontSize: 16, lineHeight: "160%" }}>{text}</Text>
       </>
     );
   }
 
   const hit = (emoji: string, bold: string, rest: string, href: string, color?: string) => (
-    <Paragraph style={{ fontSize: 15, lineHeight: "155%" }}>
+    <Text style={{ fontSize: 15, lineHeight: "155%" }}>
       {`${emoji} `}
       <Span style={{ fontWeight: 700 }}>{bold}</Span> {rest} {link(href, "More", color)}
-    </Paragraph>
+    </Text>
   );
 
   const rule = (width: number, color: string) => <Divider style={{ borderTop: `${width}px solid ${color}` }} />;
@@ -818,15 +818,15 @@ export const brew = (() => {
         </Heading>
       </Section>
       <Section style={{ backgroundColor: PAPER, padding: [10, 10, 30, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "140%" }}>{`MONDAY, JUNE 22, 2026 ${NBSP}·${NBSP} ISSUE #418`}</Paragraph>
+        <Text style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "140%" }}>{`MONDAY, JUNE 22, 2026 ${NBSP}·${NBSP} ISSUE #418`}</Text>
       </Section>
       <Section style={{ backgroundColor: PAPER, padding: 10 }}>{rule(2, INK)}</Section>
 
       <Section style={{ backgroundColor: PAPER, padding: [34, 10, 14, 10] }}>
-        <Paragraph style={{ fontSize: 16, lineHeight: "160%" }}>
+        <Text style={{ fontSize: 16, lineHeight: "160%" }}>
           Good morning. The sun&apos;s up, the coffee&apos;s hot, and the markets are already misbehaving. Here&apos;s everything you need to sound smart before
           your first meeting — in five minutes flat. Let&apos;s get into it. 👇
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: PAPER, padding: [30, 10, 10, 10], alignItems: "center" }}>
@@ -894,9 +894,9 @@ export const brew = (() => {
         <Menu items={ITEMS} separator="·" />
       </Section>
       <Section style={{ backgroundColor: PAPER, padding: [14, 10, 46, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
+        <Text style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
           The Daily Pour · 123 Roastery Lane, Brewville · You&apos;re getting this because you have great taste.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
@@ -921,7 +921,7 @@ export const digest = (() => {
         <Heading level={2} style={{ fontSize: 20, fontWeight: 600, color: INK, lineHeight: "140%" }}>
           {title}
         </Heading>
-        <Paragraph style={{ fontSize: 15, color: BODY, lineHeight: "160%" }}>{text}</Paragraph>
+        <Text style={{ fontSize: 15, color: BODY, lineHeight: "160%" }}>{text}</Text>
       </Column>
     );
   }
@@ -944,16 +944,16 @@ export const digest = (() => {
         <Heading level={1} style={{ fontSize: 32, fontWeight: 700, color: INK, lineHeight: "120%" }}>
           Product updates, June 2026
         </Heading>
-        <Paragraph style={{ fontSize: 16, color: BODY, lineHeight: "160%" }}>Three improvements shipped this month to make you faster.</Paragraph>
+        <Text style={{ fontSize: 16, color: BODY, lineHeight: "160%" }}>Three improvements shipped this month to make you faster.</Text>
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [30, 10, 10, 10], gap: 20 }}>
         <Heading level={2} style={{ fontSize: 20, fontWeight: 600, color: INK, lineHeight: "130%" }}>
           Faster command palette
         </Heading>
-        <Paragraph style={{ fontSize: 15, color: BODY, lineHeight: "160%" }}>
+        <Text style={{ fontSize: 15, color: BODY, lineHeight: "160%" }}>
           The command palette now opens in under 50ms. Read the full <Link href="https://linear.app/changelog">changelog entry</Link> for the details.
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: WHITE, padding: [12, 0, 8, 0] }}>
@@ -971,7 +971,7 @@ export const digest = (() => {
         <Menu items={ITEMS} separator="•" />
       </Section>
       <Section style={{ backgroundColor: WHITE, padding: [10, 10, 46, 10] }}>
-        <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "140%" }}>You&apos;re receiving this because you use Linear.</Paragraph>
+        <Text style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "140%" }}>You&apos;re receiving this because you use Linear.</Text>
       </Section>
     </Email>
   );

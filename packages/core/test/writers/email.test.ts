@@ -15,7 +15,7 @@ const notOutlook = (html: string) => html.replace(/<!--\[if mso\]>[\s\S]*?<!\[en
 describe("email HTML", () => {
   it("writes the shell: Outlook's settings, the preview text, the language and background kept where Gmail drops them", () => {
     const { html, head, body, bodyStyle } = render(
-      email([{ type: "Paragraph", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", previewText: "Your <order>" }, style: { backgroundColor: "#eeeeee" } })
+      email([{ type: "Text", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", previewText: "Your <order>" }, style: { backgroundColor: "#eeeeee" } })
     );
     expect(html.startsWith('<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html lang="ar" dir="rtl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head>')).toBe(true);
     expect(head).toContain("<o:PixelsPerInch>96</o:PixelsPerInch>");
@@ -34,7 +34,7 @@ describe("email HTML", () => {
       email(
         [
           { type: "Heading", props: { level: 2 }, children: ["Welcome"] },
-          { type: "Paragraph", style: { fontSize: 14 }, children: ["Hello"] },
+          { type: "Text", style: { fontSize: 14 }, children: ["Hello"] },
         ],
         { style: { gap: 16 } }
       )
@@ -48,7 +48,7 @@ describe("email HTML", () => {
   });
 
   it("puts a box (padding, background, border, a width) on a table around its content, as Word has none on divs and paragraphs", () => {
-    const { body, diagnostics } = render(email([{ type: "Paragraph", style: { padding: [8, 12], backgroundColor: "#ffeecc", maxWidth: 300, borderRadius: 6 }, children: ["Boxed"] }]));
+    const { body, diagnostics } = render(email([{ type: "Text", style: { padding: [8, 12], backgroundColor: "#ffeecc", maxWidth: 300, borderRadius: 6 }, children: ["Boxed"] }]));
     expect(body).toContain(
       '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:300px;border-collapse:separate"><tr><td bgcolor="#ffeecc" style="padding:8px 12px;background-color:#fec;border-radius:6px"><p style="margin:0;'
     );
@@ -63,8 +63,8 @@ describe("email HTML", () => {
           id: "cols",
           style: { gap: 20, alignItems: "center" },
           children: [
-            { type: "Column", style: { width: "40%" }, children: [{ type: "Paragraph", children: ["a"] }] },
-            { type: "Column", style: { flex: 2 }, children: [{ type: "Paragraph", children: ["b"] }] },
+            { type: "Column", style: { width: "40%" }, children: [{ type: "Text", children: ["a"] }] },
+            { type: "Column", style: { flex: 2 }, children: [{ type: "Text", children: ["b"] }] },
             { type: "Image", props: { src: { src: "https://example.com/a.png", width: 80 } }, style: { flex: "none" } },
           ],
         },
@@ -153,7 +153,7 @@ describe("email HTML", () => {
 
   it("writes a Section as a full-width band, its content at the content width, gaps outside its background", () => {
     const { body } = render(
-      email([{ type: "Section", style: { backgroundColor: "#111111", padding: [24, 16] }, children: [{ type: "Paragraph", children: ["a"] }] }, { type: "Paragraph", children: ["b"] }], { style: { gap: 10 } })
+      email([{ type: "Section", style: { backgroundColor: "#111111", padding: [24, 16] }, children: [{ type: "Text", children: ["a"] }] }, { type: "Text", children: ["b"] }], { style: { gap: 10 } })
     );
     expect(body).toContain(
       `<tr><td align="center" bgcolor="#111111" style="padding-top:24px;padding-bottom:24px;background-color:#111">${OUTLOOK_WIDTH()}<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px"><tr><td style="padding:0 16px 0 16px">`
@@ -162,7 +162,7 @@ describe("email HTML", () => {
   });
 
   describe("a Section's padding on phones", () => {
-    const band = (style: Record<string, unknown>, mobile: Record<string, unknown>) => render(email([{ type: "Section", style, mobile, children: [{ type: "Paragraph", children: ["a"] }] }]));
+    const band = (style: Record<string, unknown>, mobile: Record<string, unknown>) => render(email([{ type: "Section", style, mobile, children: [{ type: "Text", children: ["a"] }] }]));
     /** The rule phones get for the class on the cell around the Section's content (the one with its side padding). */
     const sidesRule = ({ head, body }: { head: string; body: string }) => {
       const cell = /<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px"><tr><td( class="(\w+)")?( style="[^"]*")?>/.exec(body);
@@ -210,8 +210,8 @@ describe("email HTML", () => {
 
   it("never nests conditional comments: what Outlook skips holds none of Outlook's own markup", () => {
     // A Column only phones show, holding a stacking Row (Outlook's ghost table in conditional comments of its own).
-    const column = { type: "Column", children: [{ type: "Paragraph", children: ["x"] }] };
-    const { body } = render(email([{ type: "Column", hidden: { desktop: true }, children: [{ type: "Row", style: { gap: 10 }, children: [column, column] }] }, { type: "Paragraph", children: ["after"] }]));
+    const column = { type: "Column", children: [{ type: "Text", children: ["x"] }] };
+    const { body } = render(email([{ type: "Column", hidden: { desktop: true }, children: [{ type: "Row", style: { gap: 10 }, children: [column, column] }] }, { type: "Text", children: ["after"] }]));
     let depth = 0;
     for (const [mark] of body.matchAll(/<!--\[if mso\]>|<!--\[if !mso\]><!-->|<!--<!\[endif\]-->|<!\[endif\]-->/g)) {
       depth += mark.includes("[if") ? 1 : -1;
@@ -231,10 +231,10 @@ describe("email HTML", () => {
   it("writes phone styles to the text they reach, as px line heights, and hides on phones or desktop", () => {
     const { head, body } = render(
       email([
-        { type: "Column", mobile: { fontSize: 14 }, children: [{ type: "Paragraph", children: ["inherits"] }, { type: "Paragraph", style: { fontSize: 20 }, children: ["keeps its own"] }] },
-        { type: "Paragraph", hidden: { mobile: true }, children: ["desktop only"] },
-        { type: "Paragraph", hidden: { desktop: true }, children: ["phone only"] },
-        { type: "Paragraph", hidden: { mobile: true, desktop: true }, children: ["never"] },
+        { type: "Column", mobile: { fontSize: 14 }, children: [{ type: "Text", children: ["inherits"] }, { type: "Text", style: { fontSize: 20 }, children: ["keeps its own"] }] },
+        { type: "Text", hidden: { mobile: true }, children: ["desktop only"] },
+        { type: "Text", hidden: { desktop: true }, children: ["phone only"] },
+        { type: "Text", hidden: { mobile: true, desktop: true }, children: ["never"] },
       ])
     );
     const inherits = /<p class="(e[0-9a-z]{5})" style="[^"]*">inherits<\/p>/.exec(body)![1];
@@ -253,7 +253,7 @@ describe("email HTML", () => {
     const { head, body } = render(
       email([
         {
-          type: "Paragraph",
+          type: "Text",
           mobile: { fontSize: 14, lineHeight: 2 },
           children: [
             { type: "Span", mobile: { fontSize: 30 }, children: ["big"] },
@@ -281,7 +281,7 @@ describe("email HTML", () => {
   });
 
   describe("gaps only between what shows, on desktop and on phones", () => {
-    const column = (hidden?: Record<string, boolean>) => ({ type: "Column", hidden, children: [{ type: "Paragraph", children: ["x"] }] });
+    const column = (hidden?: Record<string, boolean>) => ({ type: "Column", hidden, children: [{ type: "Text", children: ["x"] }] });
     const row = (children: unknown[], style: Record<string, unknown> = { gap: 20 }, props: Record<string, unknown> = {}) => render(email([{ type: "Row", style, props, children }]));
     /** What classic Outlook reads: its conditional comments in, what's kept from it out. */
     const outlookView = (html: string) => html.replace(/<!--\[if !mso\]><!-->[\s\S]*?<!--<!\[endif\]-->/g, "").replace(/<!--\[if mso\]>|<!\[endif\]-->/g, "");
@@ -320,9 +320,9 @@ describe("email HTML", () => {
       const { head, body } = render(
         email(
           [
-            { type: "Paragraph", children: ["A"] },
-            { type: "Paragraph", children: ["B"] },
-            { type: "Paragraph", hidden: { desktop: true }, children: ["C"] },
+            { type: "Text", children: ["A"] },
+            { type: "Text", children: ["B"] },
+            { type: "Text", hidden: { desktop: true }, children: ["C"] },
           ],
           { style: { gap: 16 }, mobile: { gap: 6 } }
         )
@@ -343,15 +343,15 @@ describe("email HTML", () => {
     });
 
     it("puts the root's gap beside a Section only where both show, the phone gap on phones", () => {
-      const section = (hidden?: Record<string, boolean>) => ({ type: "Section", hidden, children: [{ type: "Paragraph", children: ["band"] }] });
+      const section = (hidden?: Record<string, boolean>) => ({ type: "Section", hidden, children: [{ type: "Text", children: ["band"] }] });
       const gapRow = /<tr( class="e[0-9a-z]{5}")?( style="display:none")?><td( class="e[0-9a-z]{5}")? style="font-size:0;line-height:30px;mso-line-height-rule:exactly">&nbsp;<\/td><\/tr>/g;
       // A, a Section only phones show, B: one gap between A and B on desktop, in Outlook too.
-      const hiddenBand = render(email([{ type: "Paragraph", children: ["A"] }, section({ desktop: true }), { type: "Paragraph", children: ["B"] }], { style: { gap: 30 } })).body;
+      const hiddenBand = render(email([{ type: "Text", children: ["A"] }, section({ desktop: true }), { type: "Text", children: ["B"] }], { style: { gap: 30 } })).body;
       const rows = [...hiddenBand.matchAll(gapRow)];
       expect(rows.filter((m) => !m[2])).toHaveLength(1);
       expect(outlookView(hiddenBand).match(gapRow)).toHaveLength(1);
       // The phone gap beside a Section.
-      const { head, body } = render(email([section(), { type: "Paragraph", children: ["A"] }], { style: { gap: 30 }, mobile: { gap: 8 } }));
+      const { head, body } = render(email([section(), { type: "Text", children: ["A"] }], { style: { gap: 30 }, mobile: { gap: 8 } }));
       const cell = /<tr><td class="(e[0-9a-z]{5})" style="font-size:0;line-height:30px/.exec(body)![1];
       expect(head).toContain(`.${cell}{line-height:8px!important}`);
     });
@@ -361,7 +361,7 @@ describe("email HTML", () => {
     const { body } = render(
       email([
         {
-          type: "Paragraph",
+          type: "Text",
           children: ["Hi ", { type: "MergeTag", props: { name: "first_name" } }, { type: "LineBreak" }, { type: "Link", props: { href: { href: "https://example.com", target: "_blank" } }, children: ["docs"] }],
         },
         { type: "Link", props: { href: "https://example.com" }, children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 120 }, alt: "A" } }] },
@@ -373,24 +373,24 @@ describe("email HTML", () => {
   });
 
   it("writes the options' merge-tag syntax as it is (ERB, Liquid filters), the name in it escaped; the default as text", () => {
-    const tags = email([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
+    const tags = email([{ type: "Text", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
     expect(render(tags, { mergeTag: (name: string) => `<%= ${name} %>` }).body).toContain("<%= first_name %> <%= a&lt;b %>");
     expect(render(tags, { mergeTag: (name: string) => `{{ ${name} | default: "you & yours" }}` }).body).toContain('{{ first_name | default: "you & yours" }}');
     expect(render(tags).body).toContain("{{first_name}} {{a&lt;b}}");
     // A name in an attribute's value stays inside it.
-    const quoted = email([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
+    const quoted = email([{ type: "Text", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
     expect(render(quoted, { mergeTag: (name: string) => `<span data-name="${name}">tag</span>` }).body).toContain('<span data-name="a&quot; onmouseover=&quot;x">tag</span>');
   });
 
   it("raises and lowers text as <sup> and <sub>, without pushing its line apart", () => {
-    const { body } = render(email([{ type: "Paragraph", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O"] }]));
+    const { body } = render(email([{ type: "Text", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O"] }]));
     expect(body).toContain('>Brand<sup style="line-height:0">®</sup> H<sub style="line-height:0">2</sub>O</p>');
   });
 
   it("writes a link's, a button's and an image's title and aria-label", () => {
     const { body } = render(
       email([
-        { type: "Paragraph", children: [{ type: "Link", props: { href: "https://example.com", title: "Docs", "aria-label": "Read the docs" }, children: ["here"] }] },
+        { type: "Text", children: [{ type: "Link", props: { href: "https://example.com", title: "Docs", "aria-label": "Read the docs" }, children: ["here"] }] },
         { type: "Button", props: { href: "https://example.com", "aria-label": "Start your trial" }, children: ["Start"] },
         { type: "Image", props: { src: { src: "https://example.com/a.png", width: 100 }, alt: "Logo", title: "Acme" } },
       ])
@@ -403,19 +403,19 @@ describe("email HTML", () => {
   it("writes a block's own direction, and starts its text on that side", () => {
     const { body } = render(
       email([
-        { type: "Paragraph", props: { dir: "rtl" }, children: ["مرحبا"] },
-        { type: "Paragraph", props: { dir: "rtl" }, style: { textAlign: "center" }, children: ["وسط"] },
+        { type: "Text", props: { dir: "rtl" }, children: ["مرحبا"] },
+        { type: "Text", props: { dir: "rtl" }, style: { textAlign: "center" }, children: ["وسط"] },
       ])
     );
     expect(body).toMatch(/<p dir="rtl" style="[^"]*text-align:right">مرحبا<\/p>/);
     expect(body).toMatch(/<p dir="rtl" style="[^"]*text-align:center">وسط<\/p>/);
     // A right-to-left email starts its text on the right.
-    expect(render(email([{ type: "Paragraph", children: ["x"] }], { props: { width: 600, dir: "rtl" } })).body).toMatch(/<p style="[^"]*text-align:right">x<\/p>/);
+    expect(render(email([{ type: "Text", children: ["x"] }], { props: { width: 600, dir: "rtl" } })).body).toMatch(/<p style="[^"]*text-align:right">x<\/p>/);
   });
 
   it("writes indented HTML for reading, the same document as the compact one", async () => {
     const { JSDOM } = await import("jsdom");
-    const template = email([{ type: "Paragraph", children: ["A ", { type: "Span", style: { verticalAlign: "super" }, children: ["1"] }] }, { type: "Row", style: { gap: 20 }, children: [{ type: "Column", children: [{ type: "Paragraph", children: ["a"] }] }, { type: "Column" }] }]);
+    const template = email([{ type: "Text", children: ["A ", { type: "Span", style: { verticalAlign: "super" }, children: ["1"] }] }, { type: "Row", style: { gap: 20 }, children: [{ type: "Column", children: [{ type: "Text", children: ["a"] }] }, { type: "Column" }] }]);
     const compact = render(template).html;
     const pretty = render(template, { pretty: true }).html;
     expect(pretty).not.toBe(compact);
@@ -434,7 +434,7 @@ describe("email HTML", () => {
 
   it("writes web fonts where classic Outlook doesn't read them, and says where they load", () => {
     const { head, diagnostics } = render(
-      email([{ type: "Paragraph", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
+      email([{ type: "Text", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
         props: { width: 600, fonts: [{ family: "Brand Sans", src: "https://fonts.example.com/brand.woff2", weight: 400 }, { family: "Brand Sans", src: "https://fonts.example.com/brand-700.woff2", weight: 700 }] },
       })
     );
@@ -447,7 +447,7 @@ describe("email HTML", () => {
 
   it("warns where a font stack ends on a web font, leaving the client to choose", () => {
     const { diagnostics } = render(
-      email([{ type: "Paragraph", style: { fontFamily: "'Brand Sans'" }, children: ["x"] }, { type: "Paragraph", style: { fontFamily: "Georgia" }, children: ["y"] }], {
+      email([{ type: "Text", style: { fontFamily: "'Brand Sans'" }, children: ["x"] }, { type: "Text", style: { fontFamily: "Georgia" }, children: ["y"] }], {
         props: { width: 600, fonts: [{ family: "Brand Sans", src: "https://fonts.example.com/brand.woff2" }] },
       })
     );
@@ -459,11 +459,11 @@ describe("email HTML", () => {
     const { html } = render(
       email(
         [
-          { type: "Paragraph", children: [evil] },
+          { type: "Text", children: [evil] },
           { type: "Row", children: [{ type: "Column", children: [{ type: "Link", props: { href: `https://example.com/?q=${evil}` }, children: [evil] }] }, { type: "Column", children: [] }] },
           { type: "Image", props: { src: `https://example.com/${evil}.png`, alt: evil } },
-          { type: "Paragraph", children: [{ type: "MergeTag", props: { name: evil } }] },
-          { type: "Paragraph", style: { fontFamily: "X, Arial" }, children: ["x"] },
+          { type: "Text", children: [{ type: "MergeTag", props: { name: evil } }] },
+          { type: "Text", style: { fontFamily: "X, Arial" }, children: ["x"] },
           { type: "List", children: [{ type: "ListItem", children: [evil] }] },
           { type: "Table", children: [{ type: "TableRow", props: { header: true }, children: [{ type: "TableCell", children: [evil] }] }] },
         ],
@@ -673,7 +673,7 @@ describe("email HTML", () => {
     expect(render(email([{ type: "Menu", props: { items: items(2), layout: "vertical" } }])).diagnostics).toEqual([]);
   });
 
-  it("asks no width of a Link or a line of text in a Paragraph, as wide as its text (a Menu's), and still of a Button", () => {
+  it("asks no width of a Link or a line of text in a Text, as wide as its text (a Menu's), and still of a Button", () => {
     const menu = { type: "Menu", props: { items: [{ text: "A", href: "https://a.com" }, { text: "B", href: "https://b.com" }], separator: "|" } };
     expect(render(email([menu])).diagnostics.filter((d) => d.code === "email/width")).toEqual([]);
     const button = { type: "Row", children: [{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["x"] }] };
@@ -693,7 +693,7 @@ describe("email HTML", () => {
     expect(vimeo.body).toContain('<a href="https://vimeo.com/76979871">Video</a>');
     expect(vimeo.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[0].props.thumbnail"]);
     // In a Grid, at its place in the template, not in the Rows the Grid lays it out in.
-    const text = { type: "Paragraph", children: ["a"] };
+    const text = { type: "Text", children: ["a"] };
     const grid = render(email([text, { type: "Grid", children: [text, { type: "Video", props: { src: "https://vimeo.com/76979871" } }] }]));
     expect(grid.diagnostics.map((d) => [d.code, d.path])).toContainEqual(["email/video-thumbnail", "root.children[1].children[1].props.thumbnail"]);
   });
@@ -702,7 +702,7 @@ describe("email HTML", () => {
     const photo = { src: "https://example.com/hero.jpg", width: 1200, height: 600 };
     const layer = (children: unknown[], style: Record<string, unknown> = {}) => email([{ type: "Layer", id: "hero", style, children }]);
     const image = (style: Record<string, unknown> = { width: "100%" }, src: unknown = photo) => ({ type: "Image", props: { src, alt: "Sea" }, style });
-    const over = { type: "Column", children: [{ type: "Paragraph", children: ["Summer sale"] }] };
+    const over = { type: "Column", children: [{ type: "Text", children: ["Summer sale"] }] };
 
     it("draws its Image as the cell's background, as tall as the image at the Layer's width, for every client and Outlook", () => {
       const { body, diagnostics } = render(layer([image(), over], { alignItems: "center", justifyItems: "center" }));
@@ -760,9 +760,9 @@ describe("email HTML", () => {
   });
 
   it("warns before Gmail clips a message, counting its size in UTF-8 without TextEncoder (Jest's jsdom has none)", () => {
-    const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
+    const many = Array.from({ length: 600 }, (_, i) => ({ type: "Text", children: [`Text ${i} with some words in it to take up room.`] }));
     // Two-byte letters: under the limit counted as characters, over it in bytes.
-    const wide = [{ type: "Paragraph", children: ["é".repeat(60_000)] }];
+    const wide = [{ type: "Text", children: ["é".repeat(60_000)] }];
     const encoder = globalThis.TextEncoder;
     try {
       delete (globalThis as { TextEncoder?: unknown }).TextEncoder;
@@ -785,11 +785,11 @@ describe("email HTML", () => {
   });
 
   it("hides on phones at the width it's told, where its phone styles start at its own", () => {
-    const hidden = email([{ type: "Paragraph", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
+    const hidden = email([{ type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
     const told = render(hidden, { hideBelow: 480 }).head;
     expect(told).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{font-size:20px!important[^}]*\}\}@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
     expect(render(hidden).head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{display:none!important\}\}/);
-    const onDesktop = render(email([{ type: "Paragraph", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
+    const onDesktop = render(email([{ type: "Text", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
     expect(onDesktop).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:table-row!important\}\}/);
   });
 
@@ -799,7 +799,7 @@ describe("email HTML", () => {
   });
 
   it("hides a Section at the width it's told, not its own", () => {
-    const words = { type: "Column", children: [{ type: "Paragraph", children: ["Hi"] }] };
+    const words = { type: "Column", children: [{ type: "Text", children: ["Hi"] }] };
     const { head, body } = render(email([{ type: "Section", hidden: { mobile: true }, children: [words] }, { type: "Section", hidden: { desktop: true }, children: [words] }]), { hideBelow: 480 });
     expect(head).toMatch(/@media \(max-width: 480px\)\{\.\w+\{display:none!important\}\.\w+\{display:table-row!important\}\}/);
     expect(body).toContain("<!--[if !mso]><!--><tr");
@@ -809,7 +809,7 @@ describe("email HTML", () => {
     const block = (html: string, extra: Record<string, unknown> = {}) => ({ type: "Html", props: { html }, ...extra });
 
     it("writes its markup as it is, in its place in the stack, in the text around it, as on a page", () => {
-      const { body, text } = render(email([block('<a href="https://example.com">Buy <b>now</b></a>'), { type: "Paragraph", children: ["Hi"] }, block("<hr>", { props: { html: "<hr>", text: "Our own words" } })]));
+      const { body, text } = render(email([block('<a href="https://example.com">Buy <b>now</b></a>'), { type: "Text", children: ["Hi"] }, block("<hr>", { props: { html: "<hr>", text: "Our own words" } })]));
       expect(notOutlook(body)).toMatch(/<tr><td><div style="[^"]*font-size:16px[^"]*"><a href="https:\/\/example\.com">Buy <b>now<\/b><\/a><\/div><\/td><\/tr>/);
       expect(notOutlook(body)).toMatch(/<tr><td><div style="color:#000;[^"]*"><hr><\/div><\/td><\/tr>/);
       expect(text).toBe("Buy now\n\nHi\n\nOur own words");
@@ -827,7 +827,7 @@ describe("email HTML", () => {
   });
 
   describe("a Row whose children wrap as words do", () => {
-    const words = (style: Record<string, unknown> = {}) => render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "words", justifyContent: "center", lineHeight: "normal", ...style }, children: [{ type: "Paragraph", style: { flex: "none" }, children: ["One"] }, { type: "Paragraph", style: { flex: "none" }, children: ["Two"] }] }])).body;
+    const words = (style: Record<string, unknown> = {}) => render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "words", justifyContent: "center", lineHeight: "normal", ...style }, children: [{ type: "Text", style: { flex: "none" }, children: ["One"] }, { type: "Text", style: { flex: "none" }, children: ["Two"] }] }])).body;
 
     it("has a real space between them, of the text's font and size, in every client but Outlook's table", () => {
       const body = words({ letterSpacing: 2 });
@@ -837,29 +837,29 @@ describe("email HTML", () => {
     });
 
     it("leaves a wrapping Row's children touching, in a cell of no text", () => {
-      const body = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap" }, children: [{ type: "Paragraph", style: { flex: "none" }, children: ["One"] }, { type: "Paragraph", style: { flex: "none" }, children: ["Two"] }] }])).body;
+      const body = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap" }, children: [{ type: "Text", style: { flex: "none" }, children: ["One"] }, { type: "Text", style: { flex: "none" }, children: ["Two"] }] }])).body;
       expect(body).toContain("font-size:0");
       expect(notOutlook(body)).not.toMatch(/<\/div> <div/);
     });
   });
 
   it("writes no line height where it's the font's own, and says nothing to Outlook about one", () => {
-    const { body } = render(email([{ type: "Paragraph", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
+    const { body } = render(email([{ type: "Text", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
     expect(body).toContain('style="margin:0;color:#000;font-family:Arial, Helvetica, sans-serif;font-size:14px;text-align:left"');
-    const { head } = render(email([{ type: "Paragraph", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
+    const { head } = render(email([{ type: "Text", style: { lineHeight: "normal", fontSize: 14 }, mobile: { fontSize: 20 }, children: ["Words"] }]));
     expect(head).toContain("font-size:20px!important");
     expect(head).not.toContain("line-height");
   });
 
   it("starts what's in a box of its own height at its top, as on a page", () => {
-    const { body } = render(email([{ type: "Column", style: { height: 40, padding: 1 }, children: [{ type: "Paragraph", children: ["Words"] }] }]));
+    const { body } = render(email([{ type: "Column", style: { height: 40, padding: 1 }, children: [{ type: "Text", children: ["Words"] }] }]));
     expect(body).toMatch(/<td height="40" valign="top"/);
-    expect(render(email([{ type: "Column", style: { padding: 1 }, children: [{ type: "Paragraph", children: ["Words"] }] }])).body).not.toContain('valign="top"');
+    expect(render(email([{ type: "Column", style: { padding: 1 }, children: [{ type: "Text", children: ["Words"] }] }])).body).not.toContain('valign="top"');
   });
 
   it("sets an Image in text in the line, by where it says; alone, as a block", () => {
     const image = { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 100, verticalAlign: "middle" } };
-    expect(render(email([{ type: "Paragraph", children: [image] }])).body).toMatch(/<img[^>]*style="display:inline-block;vertical-align:middle/);
+    expect(render(email([{ type: "Text", children: [image] }])).body).toMatch(/<img[^>]*style="display:inline-block;vertical-align:middle/);
     expect(render(email([{ ...image, style: { width: 100 } }])).body).toMatch(/<img[^>]*style="display:block;width/);
   });
 
@@ -869,11 +869,11 @@ describe("email HTML", () => {
   });
 
   it("hides on phones at the width it's told, where its phone styles start at its own", () => {
-    const hidden = email([{ type: "Paragraph", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
+    const hidden = email([{ type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }]);
     const told = render(hidden, { hideBelow: 480 }).head;
     expect(told).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{font-size:20px!important[^}]*\}\}@media \(max-width: 480px\)\{\.e\w+\{display:none!important\}\}/);
     expect(render(hidden).head).toMatch(/@media \(max-width: 620px\)\{\.e\w+\{display:none!important\}\}/);
-    const onDesktop = render(email([{ type: "Paragraph", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
+    const onDesktop = render(email([{ type: "Text", hidden: { desktop: true }, children: ["Words"] }]), { hideBelow: 480 }).head;
     expect(onDesktop).toMatch(/@media \(max-width: 480px\)\{\.e\w+\{display:table-row!important\}\}/);
   });
 

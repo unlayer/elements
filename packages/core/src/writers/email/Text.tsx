@@ -1,5 +1,5 @@
 /**
- * A Paragraph: a `<p>` with all of its text styles (Outlook doesn't carry styles
+ * A Text: a `<p>` with all of its text styles (Outlook doesn't carry styles
  * down through tables), in its box. A Heading is the same with its own tag.
  */
 import { h, type Html } from "../jsx";
@@ -16,4 +16,4 @@ export const textBlock = ({ node, style, fill, phoneText, text }: Props, Tag: st
   </Box>
 );
 
-export const Paragraph: Component = (props) => textBlock(props, "p");
+export const Text: Component = (props) => textBlock(props, "p");

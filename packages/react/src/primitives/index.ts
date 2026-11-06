@@ -8,7 +8,7 @@ export {
   Section,
   Row,
   Column,
-  Paragraph,
+  Text,
   Heading,
   Span,
   Link,

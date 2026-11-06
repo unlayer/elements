@@ -25,7 +25,7 @@ export const template = (root: "Page" | "Email") =>
       style: { gap: 16 },
       children: [
         // A band with no side padding: every length inside its calc() needs a unit.
-        { type: "Section", style: { backgroundColor: "#222" }, children: [{ type: "Paragraph", children: ["a band"] }] },
+        { type: "Section", style: { backgroundColor: "#222" }, children: [{ type: "Text", children: ["a band"] }] },
         {
           type: "Section",
           style: { backgroundColor: "#111", padding: [24, 20] },
@@ -49,7 +49,7 @@ export const template = (root: "Page" | "Email") =>
               type: "Column",
               style: { width: "40%", padding: 12, border: "2px solid #ccc" },
               children: [
-                { type: "Paragraph", children: ["a"] },
+                { type: "Text", children: ["a"] },
                 { type: "Divider", style: { width: "50%" } },
               ],
             },
@@ -81,7 +81,7 @@ export const template = (root: "Page" | "Email") =>
               type: "Column",
               id: "desktop-only",
               hidden: { mobile: true },
-              children: [{ type: "Paragraph", children: ["desktop"] }],
+              children: [{ type: "Text", children: ["desktop"] }],
             },
           ],
         },
@@ -91,7 +91,7 @@ export const template = (root: "Page" | "Email") =>
           style: { width: "50%" },
         },
         {
-          type: "Paragraph",
+          type: "Text",
           style: { padding: 8, maxWidth: 300 },
           children: ["b"],
         },

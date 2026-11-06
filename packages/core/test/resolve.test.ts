@@ -7,7 +7,7 @@ describe("widths", () => {
   it("gives the root's children its width, and a Section its own padding inside it", () => {
     const { root, diagnostics } = resolve({
       type: "Email",
-      children: [{ type: "Section", style: { padding: 24 }, children: [{ type: "Paragraph", children: ["Hi"] }] }, { type: "Divider" }],
+      children: [{ type: "Section", style: { padding: 24 }, children: [{ type: "Text", children: ["Hi"] }] }, { type: "Divider" }],
     });
     expect(diagnostics).toEqual([]);
     expect([root.width, root.contentWidth]).toEqual([600, 600]);
@@ -79,8 +79,8 @@ describe("widths", () => {
           type: "Column",
           style: { width: 300 },
           children: [
-            { type: "Paragraph", children: ["see ", { type: "Link", props: { href: "#" }, children: [image(1000)] }] },
-            { type: "Paragraph", children: [{ type: "Span", children: [{ type: "Link", props: { href: "#" }, children: [image(100)] }] }] },
+            { type: "Text", children: ["see ", { type: "Link", props: { href: "#" }, children: [image(1000)] }] },
+            { type: "Text", children: [{ type: "Span", children: [{ type: "Link", props: { href: "#" }, children: [image(100)] }] }] },
           ],
         },
       ],
@@ -98,7 +98,7 @@ describe("widths", () => {
       children: [
         { type: "Row", children: [{ type: "Column", style: { width: 400 } }, { type: "Column", style: { width: 300 } }] },
         { type: "Image", props: { src: "https://example.com/a.png" }, style: { width: 700 } },
-        { type: "Paragraph", style: { flex: 2 } },
+        { type: "Text", style: { flex: 2 } },
       ],
     });
     expect(diagnostics.map((d) => [d.code, d.path]).sort()).toEqual([
@@ -125,7 +125,7 @@ describe("text styles", () => {
           style: { textAlign: "center" },
           children: [
             { type: "Heading", props: { level: 2 }, children: ["Title"] },
-            { type: "Paragraph", style: { fontSize: 14 }, children: ["Body ", { type: "Link", props: { href: "#" }, children: ["link"] }] },
+            { type: "Text", style: { fontSize: 14 }, children: ["Body ", { type: "Link", props: { href: "#" }, children: ["link"] }] },
             { type: "Button", props: { href: "#" }, children: ["Go"] },
           ],
         },
@@ -154,7 +154,7 @@ describe("text styles", () => {
 
 describe("checkTarget", () => {
   it("reports a component a target doesn't render once, what's in it with it, and why where its definition says", () => {
-    const document = parseDocument({ root: { type: "Email", children: [{ type: "Paragraph", children: ["x"] }] } });
+    const document = parseDocument({ root: { type: "Email", children: [{ type: "Text", children: ["x"] }] } });
     expect(checkTarget(document, "email")).toEqual([]);
     expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root"]);
     const drawing = parseDocument({ root: { type: "Email", children: [{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { r: 10 } }, { type: "Rect", props: { width: 4, height: 4 } }] }] } });
@@ -350,9 +350,9 @@ describe("text direction", () => {
       type: "Email",
       props: { dir: "rtl" },
       children: [
-        { type: "Paragraph", children: ["inherits right"] },
-        { type: "Paragraph", props: { dir: "ltr" }, children: ["left"] },
-        { type: "Paragraph", props: { dir: "ltr" }, style: { textAlign: "center" }, children: ["center"] },
+        { type: "Text", children: ["inherits right"] },
+        { type: "Text", props: { dir: "ltr" }, children: ["left"] },
+        { type: "Text", props: { dir: "ltr" }, style: { textAlign: "center" }, children: ["center"] },
       ],
     });
     expect([root, child(root, 0), child(root, 1), child(root, 2)].map((n) => n.text.textAlign)).toEqual(["right", "right", "left", "center"]);

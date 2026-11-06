@@ -1,7 +1,7 @@
 /**
  * A text block's runs as the HTML the builder's text tools hold (a heading's, a text's, a button's `text`): words,
  * `<span>` with a run's style, `<sup>`/`<sub>`, `<a>` with its href, target, title and label, `<br>`, merge tags as
- * `{{name}}`. A Paragraph's and a List's are its rich text (`textJson`), what its editor saves, each run a text node
+ * `{{name}}`. A Text's and a List's are its rich text (`textJson`), what its editor saves, each run a text node
  * in its style. What neither can hold (a link's hover) is said in `lost`.
  */
 import { linkParts, type Json, type LinkValue, type Node } from "@unlayer-internal/elements-core";
@@ -131,7 +131,7 @@ function runItems(node: Node, lost: string[], around = "", format = 0): Item[] {
 
 const richText = (children: Item[]) => JSON.stringify({ root: { type: "root", version: 1, format: "", indent: 0, direction: null, children } });
 
-/** A node's runs as a Paragraph's rich text (`textJson`), one paragraph in `style`. */
+/** A node's runs as a Text's rich text (`textJson`), one paragraph in `style`. */
 export function paragraphJson(node: Node, lost: string[], style: string): string {
   const children = runItems(node, lost);
   return richText(children.length ? [{ type: "extended-paragraph", version: 1, format: "", indent: 0, direction: null, textFormat: 0, textStyle: "", isInlineTool: false, style: style || undefined, children: children as Json[] }] : []);
@@ -177,5 +177,5 @@ function listItem(node: Node, lost: string[]): Item {
   };
 }
 
-/** A List as a Paragraph's rich text (`textJson`). */
+/** A List as a Text's rich text (`textJson`). */
 export const listJson = (node: Node, lost: string[]): string => richText([listItem(node, lost)]);

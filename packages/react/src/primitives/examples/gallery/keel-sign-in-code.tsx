@@ -6,7 +6,7 @@
  * so no digit can be mistaken for another, and who asked for it. One deep green, for the bank's
  * mark and the way out if it wasn't you.
  */
-import { Column, Email, Heading, Link, Paragraph, Row, Section, Span, Table, TableCell, TableRow } from "../../index";
+import { Column, Email, Heading, Link, Text, Row, Section, Span, Table, TableCell, TableRow } from "../../index";
 
 const INK = "#0B0D0C";
 const QUIET = "#5A5F5C";
@@ -37,28 +37,28 @@ export const keelSignInCode = (
     style={{ backgroundColor: "#FFFFFF", color: INK, fontFamily: SYSTEM, fontSize: 16, lineHeight: 1.55 }}
   >
     <Section style={{ padding: [48, 24, 56], gap: 32 }} mobile={{ padding: [32, 24, 40], gap: 28 }}>
-      <Paragraph style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.6, lineHeight: 1 }}>
+      <Text style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.6, lineHeight: 1 }}>
         <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
           keel<Span style={{ color: GREEN }}>.</Span>
         </Link>
-      </Paragraph>
+      </Text>
 
       <Column style={{ gap: 10 }}>
         <Heading level={1} style={{ fontSize: 26, fontWeight: 600, lineHeight: 1.2, letterSpacing: -0.4 }}>
           Your sign-in code
         </Heading>
-        <Paragraph style={{ color: QUIET }}>Enter it in the Keel app to finish signing in. It works once, for the next ten minutes.</Paragraph>
+        <Text style={{ color: QUIET }}>Enter it in the Keel app to finish signing in. It works once, for the next ten minutes.</Text>
       </Column>
 
       <Column style={{ backgroundColor: PANEL, borderRadius: 10, padding: [26, 28], gap: 6 }} mobile={{ padding: [22, 20] }}>
-        <Paragraph style={{ fontFamily: MONO, fontSize: 46, fontWeight: 500, letterSpacing: 10, lineHeight: 1.1 }} mobile={{ fontSize: 40, letterSpacing: 8 }}>
+        <Text style={{ fontFamily: MONO, fontSize: 46, fontWeight: 500, letterSpacing: 10, lineHeight: 1.1 }} mobile={{ fontSize: 40, letterSpacing: 8 }}>
           482 913
-        </Paragraph>
-        <Paragraph style={{ fontSize: 13, color: QUIET }}>Expires at 06:52 GMT</Paragraph>
+        </Text>
+        <Text style={{ fontSize: 13, color: QUIET }}>Expires at 06:52 GMT</Text>
       </Column>
 
       <Column style={{ gap: 8 }}>
-        <Paragraph style={{ fontSize: 13, fontWeight: 600, color: QUIET }}>Who asked for it</Paragraph>
+        <Text style={{ fontSize: 13, fontWeight: 600, color: QUIET }}>Who asked for it</Text>
         <Table style={{ fontSize: 15, lineHeight: 1.45, border: { top: `1px solid ${RULE}`, bottom: `1px solid ${RULE}` } }}>
           {asked("Device", "Safari on a Mac")}
           {asked("Near", "Lisbon, Portugal")}
@@ -68,20 +68,20 @@ export const keelSignInCode = (
 
       <Row stackOnMobile={false} style={{ gap: 14, padding: [0, 0, 0, 14], border: { left: `2px solid ${GREEN}` } }}>
         <Column style={{ gap: 6 }}>
-          <Paragraph style={{ fontWeight: 600 }}>Not you?</Paragraph>
-          <Paragraph style={{ fontSize: 15, color: QUIET }}>
+          <Text style={{ fontWeight: 600 }}>Not you?</Text>
+          <Text style={{ fontSize: 15, color: QUIET }}>
             Don’t share this code with anyone, even someone who says they’re from Keel. Freeze your cards in the app, or call us any time on{" "}
             <Link href="tel:+448081570412" style={{ color: GREEN, fontWeight: 600 }}>
               0808 157 0412
             </Link>
             .
-          </Paragraph>
+          </Text>
         </Column>
       </Row>
 
-      <Paragraph style={{ fontSize: 13, lineHeight: 1.6, color: QUIET, padding: [24, 0, 0], border: { top: `1px solid ${RULE}` } }}>
+      <Text style={{ fontSize: 13, lineHeight: 1.6, color: QUIET, padding: [24, 0, 0], border: { top: `1px solid ${RULE}` } }}>
         We’ll never ask for this code by phone, email or text. Keel Bank Ltd, 12 Lantern Yard, London E1 6QL.
-      </Paragraph>
+      </Text>
     </Section>
   </Email>
 );

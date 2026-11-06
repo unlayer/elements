@@ -80,7 +80,7 @@ function samples(key: string, kindName: string, schema: { enum?: Json[] }, fallb
   return byKind[kindName] ?? [];
 }
 
-const text = (words = "words") => ({ type: "Paragraph", children: [words] });
+const text = (words = "words") => ({ type: "Text", children: [words] });
 
 /** A small template with the component in it, `node` its node: in a Row beside a Column for `flex`, else where it goes. */
 function host(root: string, type: string, node: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -97,7 +97,7 @@ function host(root: string, type: string, node: Record<string, unknown>, key: st
     case "MergeTag":
     case "LineBreak":
     case "PageNumber":
-      return doc([{ type: "Paragraph", children: ["before ", node, " after"] }, ...(type === "PageNumber" ? [{ type: "PageBreak" }, text("second page")] : [])]);
+      return doc([{ type: "Text", children: ["before ", node, " after"] }, ...(type === "PageNumber" ? [{ type: "PageBreak" }, text("second page")] : [])]);
     case "ListItem":
       return doc([{ type: "List", children: [node, { type: "ListItem", children: ["second"] }] }]);
     case "TableRow":

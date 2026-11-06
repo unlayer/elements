@@ -87,8 +87,8 @@ describe("custom components", () => {
   it("report what they render that doesn't fit where they are", () => {
     const Nested = defineCustomComponent({ type: "acme.Nested", label: "Nested", props: {}, expand: () => ({ type: "Email" }) });
     const Broken = defineCustomComponent({ type: "acme.Broken", label: "Broken", props: {}, expand: () => { throw new Error("no data"); } });
-    const Many = defineCustomComponent({ type: "acme.Many", label: "Many", props: {}, expand: () => [{ type: "Paragraph" }, { type: "Paragraph" }] });
-    const Bad = defineCustomComponent({ type: "acme.Bad", label: "Bad", props: {}, expand: () => ({ type: "Paragraph", style: { margin: 4 } }) });
+    const Many = defineCustomComponent({ type: "acme.Many", label: "Many", props: {}, expand: () => [{ type: "Text" }, { type: "Text" }] });
+    const Bad = defineCustomComponent({ type: "acme.Bad", label: "Bad", props: {}, expand: () => ({ type: "Text", style: { margin: 4 } }) });
     const components = [Nested, Broken, Many, Bad];
     const document = parseDocument({ root: { type: "Email", children: components.map((c) => ({ type: c.type })) } }, { components });
     const { diagnostics } = expandDocument(document, { components });
@@ -102,7 +102,7 @@ describe("custom components", () => {
   });
 
   it("can render other custom components, and are stopped when one contains itself", () => {
-    const Inner = defineCustomComponent({ type: "acme.Inner", label: "Inner", props: {}, expand: () => ({ type: "Paragraph", children: ["inner"] }) });
+    const Inner = defineCustomComponent({ type: "acme.Inner", label: "Inner", props: {}, expand: () => ({ type: "Text", children: ["inner"] }) });
     const Outer = defineCustomComponent({
       type: "acme.Outer",
       label: "Outer",
@@ -115,7 +115,7 @@ describe("custom components", () => {
     const document = parseDocument({ root: { type: "Email", children: [{ type: "acme.Outer" }] } }, { components: [Outer] });
     const { document: expanded, diagnostics } = expandDocument(document, { components: [Outer] });
     expect(diagnostics).toEqual([]);
-    expect(JSON.stringify(expanded.root)).toBe('{"type":"Email","children":[{"type":"Column","children":[{"type":"Paragraph","children":["inner"]}]}]}');
+    expect(JSON.stringify(expanded.root)).toBe('{"type":"Email","children":[{"type":"Column","children":[{"type":"Text","children":["inner"]}]}]}');
 
     const Loop = defineCustomComponent({ type: "acme.Loop", label: "Loop", props: {}, expand: () => ({ type: "acme.Loop" }) });
     const looping = parseDocument({ root: { type: "Email", children: [{ type: "acme.Loop" }] } }, { components: [Loop] });

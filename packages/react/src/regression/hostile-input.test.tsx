@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import React from "react";
-import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, Row, Section, Social, Span, Table, TableCell, TableRow, Video, render } from "../primitives/index";
+import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Link, List, ListItem, MergeTag, Menu, Page, Text, Row, Section, Social, Span, Table, TableCell, TableRow, Video, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
 import { textJsonHtml } from "../builder/text-json";
 
@@ -37,14 +37,14 @@ function injected(html: string): string[] {
 }
 
 const CASES: Record<string, (v: string) => React.ReactNode> = {
-  "Paragraph text": (v) => <Paragraph>{v}</Paragraph>,
+  "Text text": (v) => <Text>{v}</Text>,
   "Heading text": (v) => <Heading>{v}</Heading>,
-  "Text and Span text": (v) => <Paragraph>{v} <Span style={{ fontWeight: "bold" }}>{v}</Span></Paragraph>,
+  "Text and Span text": (v) => <Text>{v} <Span style={{ fontWeight: "bold" }}>{v}</Span></Text>,
   "Button text": (v) => <Button href="https://example.com">{v}</Button>,
   "Button link": (v) => <Button href={`https://example.com/${v}`}>Go</Button>,
   "Button title and label": (v) => <Button href="https://example.com" title={v} aria-label={v}>Go</Button>,
   "Button attribute": (v) => <Button href="https://example.com" attrs={{ "data-x": v }}>Go</Button>,
-  "Link text, link, title and label": (v) => <Paragraph><Link href={`https://example.com/${v}`} title={v} aria-label={v}>{v}</Link></Paragraph>,
+  "Link text, link, title and label": (v) => <Text><Link href={`https://example.com/${v}`} title={v} aria-label={v}>{v}</Link></Text>,
   "Image source, text and title": (v) => <Image src={`https://example.com/${v}.png`} alt={v} title={v} />,
   "Image in a Link": (v) => <Link href={`https://example.com/${v}`}><Image src="https://example.com/a.png" alt={v} /></Link>,
   "Menu items": (v) => <Menu items={[{ text: v, href: `https://example.com/${v}` }, { text: "B", href: "https://example.com" }]} separator="|" />,
@@ -53,9 +53,9 @@ const CASES: Record<string, (v: string) => React.ReactNode> = {
   "Video title and thumbnail": (v) => <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title={v} thumbnail={`https://example.com/${v}.png`} />,
   "List items": (v) => <List><ListItem>{v}</ListItem></List>,
   "Table cells": (v) => <Table><TableRow header><TableCell>{v}</TableCell></TableRow><TableRow><TableCell>{v}</TableCell></TableRow></Table>,
-  "MergeTag name": (v) => <Paragraph>Hi <MergeTag name={v} /></Paragraph>,
+  "MergeTag name": (v) => <Text>Hi <MergeTag name={v} /></Text>,
   "an Html block's plain text": (v) => <Html html="<b>Kept</b>" text={v} />,
-  "text in a Fragment, deep in a Section": (v) => <Section><Row><Column><Paragraph><>{v}</>{[v, v]}</Paragraph></Column></Row></Section>,
+  "text in a Fragment, deep in a Section": (v) => <Section><Row><Column><Text><>{v}</>{[v, v]}</Text></Column></Row></Section>,
 };
 const ROOT_PROPS: Record<string, (v: string) => Record<string, unknown>> = {
   title: (v) => ({ title: v }),
@@ -93,7 +93,7 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
   const extra = Root === Email ? { previewText: (v: string) => ({ previewText: v }) } : Root === Page ? { description: (v: string) => ({ description: v }) } : {};
   it.each(Object.entries({ ...ROOT_PROPS, ...extra }))("the root's %s can't add markup", async (_, props) => {
     for (const payload of PAYLOADS) {
-      const html = await htmlOf(<R {...props(payload)}><Paragraph>Hello</Paragraph></R>);
+      const html = await htmlOf(<R {...props(payload)}><Text>Hello</Text></R>);
       if (html !== null) expect(injected(html), payload).toEqual([]);
     }
   });

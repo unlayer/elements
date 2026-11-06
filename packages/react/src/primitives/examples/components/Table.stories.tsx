@@ -6,7 +6,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Image, LineBreak, Link, Row, Section, Span, Table, TableCell, TableRow, Paragraph } from "../../index";
+import { Column, Heading, Image, LineBreak, Link, Row, Section, Span, Table, TableCell, TableRow, Text } from "../../index";
 import { drawing } from "./kit-d";
 
 const OAT = "#F4EEE4";
@@ -60,10 +60,10 @@ const story = asEmailAndPage;
 const masthead = (right: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 10], border: { bottom: `1px solid ${ESPRESSO}` } }}>
     <Column>
-      <Paragraph style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.4, lineHeight: 1.2 }}>Fennick</Paragraph>
+      <Text style={{ fontSize: 20, fontWeight: 700, letterSpacing: -0.4, lineHeight: 1.2 }}>Fennick</Text>
     </Column>
     <Column>
-      <Paragraph style={{ ...CAPTION, textAlign: "right" }}>{right}</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "right" }}>{right}</Text>
     </Column>
   </Row>
 );
@@ -171,7 +171,7 @@ export const Borders = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [32, 24], gap: 14 }}>
       {title("How much, for how many")}
-      <Paragraph style={CAPTION}>borderCollapse: "collapse": cells share their borders</Paragraph>
+      <Text style={CAPTION}>borderCollapse: "collapse": cells share their borders</Text>
       <Table style={{ fontSize: 14, cellPadding: [10, 12], borderCollapse: "collapse" }}>
         <TableRow header style={{ fontWeight: 600 }}>
           <TableCell style={{ border: CELL }}>Filter, one cup</TableCell>
@@ -182,7 +182,7 @@ export const Borders = story((Root) => (
           <TableCell style={{ border: CELL }}>30 g to 500 ml</TableCell>
         </TableRow>
       </Table>
-      <Paragraph style={{ ...CAPTION, padding: [10, 0, 0] }}>borderCollapse: "separate": each cell draws its own</Paragraph>
+      <Text style={{ ...CAPTION, padding: [10, 0, 0] }}>borderCollapse: "separate": each cell draws its own</Text>
       <Table style={{ fontSize: 14, cellPadding: [10, 12], borderCollapse: "separate", border: `2px solid ${CHERRY}` }}>
         <TableRow header style={{ fontWeight: 600 }}>
           <TableCell style={{ border: LINE }}>Espresso, single</TableCell>
@@ -234,7 +234,7 @@ export const ImagesAndLinks = story((Root) => (
           <TableCell style={{ ...FIGURE, verticalAlign: "bottom" }}>£14.50</TableCell>
         </TableRow>
       </Table>
-      <Paragraph style={CAPTION}>verticalAlign: one price at the top of its row, one at the bottom</Paragraph>
+      <Text style={CAPTION}>verticalAlign: one price at the top of its row, one at the bottom</Text>
     </Section>
   </Root>
 ));
@@ -270,7 +270,7 @@ export const OnPhones = story((Root) => (
           </TableRow>
         ))}
       </Table>
-      <Paragraph style={CAPTION}>on phones: fontSize 13, cells’ padding [6, 4]</Paragraph>
+      <Text style={CAPTION}>on phones: fontSize 13, cells’ padding [6, 4]</Text>
     </Section>
   </Root>
 ));

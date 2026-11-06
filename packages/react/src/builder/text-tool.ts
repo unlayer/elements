@@ -1,5 +1,5 @@
 /**
- * A text or heading tool read back: a Paragraph or Heading in the styles its fields give (those it takes anyway left
+ * A text or heading tool read back: a Text or Heading in the styles its fields give (those it takes anyway left
  * out) and its hidden properties, its place's spacing its padding (or, where its box has its own, a Column's around
  * it). A `<p>`, or a list, is a block of its own, its margins and indent its padding; text with what no run holds is an
  * Html block of its markup.
@@ -11,7 +11,7 @@ import { outOfMarkup } from "./paint";
 import { boxOf, defined, make, obj, phoneText, placed, str, textStyle, ZERO, type Context } from "./reading";
 import { readText, richText, type TextToolName, withParagraphMargin } from "./text";
 
-/** A text or heading tool: a Paragraph or Heading (a `<p>`, or a list, each a block of its own). */
+/** A text or heading tool: a Text or Heading (a `<p>`, or a list, each a block of its own). */
 export function textTool(tool: "paragraph" | "heading", given: Values, context: Context, builderTool: TextToolName = tool): Node[] {
   // A heading the builder saved with no weight of its own, it draws at 400, not as a heading's bold.
   const fields = tool === "heading" && !given.fontWeight ? { ...given, fontWeight: 400 } : given;
@@ -20,7 +20,7 @@ export function textTool(tool: "paragraph" | "heading", given: Values, context: 
   const values = { ...fields, ...painted };
   const listed = /^\s*<(ul|ol)\b/i.test(plain);
   const level = tool === "heading" ? Number(/^h([1-6])$/.exec(String(values.headingType ?? "h1"))?.[1] ?? 1) : undefined;
-  const type = tool === "heading" ? "Heading" : "Paragraph";
+  const type = tool === "heading" ? "Heading" : "Text";
   const hidden = readHidden(tool, listed ? "List" : type, values, context.say);
   const taken: Record<string, Json> = tool === "heading" ? { ...(HeadingDefinition.defaultStyle as Record<string, Json>), ...(HeadingDefinition.defaultStyleBy!.values as Record<string, Record<string, Json>>)[String(level)] } : {};
   const style = { ...textStyle(values, taken, context), ...hidden.style };
@@ -58,7 +58,7 @@ export function textTool(tool: "paragraph" | "heading", given: Values, context: 
   const margined = parts.map((part) => (part.node.type === "List" && listSpace.indent !== undefined ? { ...part, margin: { top: 0, bottom: 0 } } : part));
   const nodes = margined.map((part, i) => {
     // A list takes the block's text styles, as a heading in text does its own; a heading's part beside one is a
-    // Paragraph in its styles.
+    // Text in its styles.
     const own = part.node.type === "List" || part.node.type === "Heading" ? part.node.type : type;
     // A paragraph in a direction of its own is aligned as its block is (its block's alignment is the one it inherits).
     const dir = own === "List" ? undefined : (part.node.props?.dir as string | undefined);

@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Html, Section, Paragraph } from "../../index";
+import { Column, Heading, Html, Section, Text } from "../../index";
 import { caption, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -57,7 +57,7 @@ const SANS_TYPE = `font-family:'Hanken Grotesk','Helvetica Neue',Helvetica,Arial
 export const YourOwnHtml = story((Root) => (
   <Root {...root}>
     <Section style={{ padding: [44, 32, 48], gap: 18 }} mobile={{ padding: [32, 24, 36], gap: 16 }}>
-      <Paragraph style={label}>Your highlight of the week</Paragraph>
+      <Text style={label}>Your highlight of the week</Text>
       <Html
         html={`<div>
   <blockquote style="${SERIF_TYPE};margin:0;padding:0 0 0 20px;border-left:2px solid ${OXBLOOD};font-size:27px;line-height:1.3">
@@ -66,7 +66,7 @@ export const YourOwnHtml = story((Root) => (
   <p style="${SANS_TYPE};margin:14px 0 0 22px;font-size:14px;line-height:1.5;color:${QUIET}"><cite style="font-style:italic">The Salt Road</cite>, page 212. Saved on Tuesday at 23:40.</p>
 </div>`}
       />
-      <Paragraph style={{ ...caption(QUIET), padding: [6, 0, 0] }}>{"<blockquote>, <mark>, <cite>: written as they are, nothing in them checked"}</Paragraph>
+      <Text style={{ ...caption(QUIET), padding: [6, 0, 0] }}>{"<blockquote>, <mark>, <cite>: written as they are, nothing in them checked"}</Text>
     </Section>
   </Root>
 ));
@@ -82,7 +82,7 @@ export const GradientCard = story((Root) => (
   <div style="font-size:23px;line-height:1.28;font-style:italic">books finished, and the longest was the one you nearly gave up on.</div>
 </div>`}
       />
-      <Paragraph style={caption(QUIET)}>A gradient and a shadow, written as CSS</Paragraph>
+      <Text style={caption(QUIET)}>A gradient and a shadow, written as CSS</Text>
     </Section>
   </Root>
 ));
@@ -127,7 +127,7 @@ export const PlainTextVersion = story((Root) => (
         text={SO_FAR}
         html={`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="text-align:center;border-top:1px solid ${INK};border-bottom:1px solid ${RULE}"><tr>${figure("41", "books", true)}${figure("11,208", "pages", false)}${figure("63", "nights in a row", true)}</tr></table>`}
       />
-      <Paragraph style={caption(QUIET)}>text: "{SO_FAR}"</Paragraph>
+      <Text style={caption(QUIET)}>text: "{SO_FAR}"</Text>
     </Section>
   </Root>
 ));

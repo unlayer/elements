@@ -25,8 +25,8 @@ try {
   const h = React.createElement;
   const content = () => [
     h(p.Heading, { key: 'h' }, 'Heading'),
-    h(p.Paragraph, { key: 'p' }, 'Words ', h(p.Link, { href: 'https://example.com' }, 'a link'), h(p.MergeTag, { name: 'first_name' })),
-    h(p.Row, { key: 'r' }, h(p.Column, null, h(p.Paragraph, null, 'Left')), h(p.Column, null, h(p.Paragraph, null, 'Right'))),
+    h(p.Text, { key: 'p' }, 'Words ', h(p.Link, { href: 'https://example.com' }, 'a link'), h(p.MergeTag, { name: 'first_name' })),
+    h(p.Row, { key: 'r' }, h(p.Column, null, h(p.Text, null, 'Left')), h(p.Column, null, h(p.Text, null, 'Right'))),
     h(p.List, { key: 'l' }, h(p.ListItem, null, 'An item')),
     h(p.Table, { key: 't' }, h(p.TableRow, null, h(p.TableCell, null, 'A cell'))),
     h(p.Button, { key: 'b', href: 'https://example.com' }, 'Button'),

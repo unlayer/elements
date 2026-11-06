@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { chromium } from "playwright";
 import type { ReactElement } from "react";
-import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Paragraph } from "@unlayer/react-elements";
+import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Text } from "@unlayer/react-elements";
 import { renderImage } from "../../../src/image";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
@@ -87,7 +87,7 @@ describe("an image and the Canvas's HTML in Chromium", () => {
         <Heading level={1} style={{ fontSize: 36, lineHeight: 1.2, fontWeight: 400 }}>
           Launch week
         </Heading>
-        <Paragraph style={{ fontSize: 18, color: "#cbd5e1", lineHeight: 1.4 }}>Five days of new things, one a day.</Paragraph>
+        <Text style={{ fontSize: 18, color: "#cbd5e1", lineHeight: 1.4 }}>Five days of new things, one a day.</Text>
       </Canvas>
     );
     // Letters' edges: the two rasterizers smooth them differently. Moved or missing text is thousands.
