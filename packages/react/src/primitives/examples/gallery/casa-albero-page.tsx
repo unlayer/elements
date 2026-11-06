@@ -4,9 +4,10 @@
  * Written for the web: a wide hero with the hills drawn in an arched window (an SVG in a data
  * URI, so nothing to load, and one Image that fits any width), Cormorant Garamond for the voice
  * and Jost for the facts, and the colours of the place: terracotta, olive and the warm white of
- * lime plaster. The rooms are a table, the year is four columns, and booking is a terracotta band.
+ * lime plaster. The rooms are a list, the year is four columns, and booking is a terracotta band.
+ * Every Row wraps, so it looks made for every width: there's only a phone's breakpoint to lean on.
  */
-import { Button, Column, Grid, Heading, Image, Link, Menu, Page, Paragraph, Row, Section, Text } from "../../index";
+import { Button, Column, Heading, Image, Link, Menu, Page, Paragraph, Row, Section, Text } from "../../index";
 
 const PLASTER = "#FBF7F0";
 const STONE = "#F2EADD";
@@ -20,6 +21,9 @@ const SERIF = "'Cormorant Garamond', Garamond, Georgia, serif";
 const SANS = "Jost, Futura, 'Century Gothic', 'Helvetica Neue', Arial, sans-serif";
 
 const SITE = "https://casaalbero.example";
+
+/** A Section's inside, for what the builder keeps as a block of markup: there it would shrink to its words (on phones, width: "100%" does it). */
+const FULL = { width: 1104, maxWidth: "100%" };
 
 const kicker = { fontSize: 13, fontWeight: 500, letterSpacing: 2, textTransform: "uppercase", color: TERRACOTTA } as const;
 
@@ -67,21 +71,22 @@ const HILLS = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w
   </g>
 </svg>`)}`;
 
-/** A room: its name and what it's like, beside what a night costs and who it sleeps (on phones too). */
+/** A room: its name and what it's like, side by side or one over the other as they fit, beside what a night costs and who it sleeps. */
 const room = (name: string, what: string, sleeps: string, from: string) => (
-  <Row stackOnMobile={false} style={{ alignItems: "start", gap: 32, padding: [22, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 16 }}>
-    <Column style={{ width: 300 }} hidden={{ mobile: true }}>
-      <Text style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1 }}>{name}</Text>
-    </Column>
-    <Column style={{ gap: 4, padding: [8, 0, 0] }} mobile={{ padding: 0 }}>
-      <Text hidden={{ desktop: true }} style={{ fontFamily: SERIF, fontSize: 25, fontWeight: 600, lineHeight: 1.1 }}>
-        {name}
-      </Text>
-      <Text style={{ color: QUIET, lineHeight: 1.5 }} mobile={{ fontSize: 15 }}>
-        {what}
-      </Text>
-    </Column>
-    <Column style={{ width: 120, gap: 2 }} mobile={{ width: 84 }}>
+  <Row stackOnMobile={false} style={{ alignItems: "start", gap: 32, padding: [22, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 12 }}>
+    <Row style={{ flexWrap: "wrap", gap: 4 }}>
+      <Column style={{ width: 372, padding: [0, 32, 0, 0] }} mobile={{ padding: 0 }}>
+        <Text style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1.1 }} mobile={{ fontSize: 25 }}>
+          {name}
+        </Text>
+      </Column>
+      <Column style={{ minWidth: 184, padding: [8, 0, 0] }} mobile={{ padding: 0 }}>
+        <Text style={{ color: QUIET, lineHeight: 1.5 }} mobile={{ fontSize: 15 }}>
+          {what}
+        </Text>
+      </Column>
+    </Row>
+    <Column style={{ flex: "none", minWidth: 84, gap: 2 }}>
       <Text style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 500, lineHeight: 1.1, textAlign: "right" }} mobile={{ fontSize: 25 }}>
         {from}
       </Text>
@@ -92,7 +97,7 @@ const room = (name: string, what: string, sleeps: string, from: string) => (
 
 /** A season of the year at the house. */
 const season = (name: string, months: string, what: string) => (
-  <Column style={{ gap: 8, padding: [18, 0, 0], border: { top: `1px solid ${INK}` } }}>
+  <Column style={{ minWidth: 200, gap: 8, padding: [18, 0, 0], border: { top: `1px solid ${INK}` } }}>
     <Text style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 600, lineHeight: 1 }}>{name}</Text>
     <Text style={{ ...kicker, fontSize: 11, color: QUIET }}>{months}</Text>
     <Paragraph style={{ fontSize: 16, lineHeight: 1.55 }}>{what}</Paragraph>
@@ -112,33 +117,35 @@ export const casaAlberoPage = (
     ]}
     style={{ backgroundColor: PLASTER, color: INK, fontFamily: SANS, fontSize: 17, fontWeight: 300, lineHeight: 1.6 }}
   >
-    {/* Navigation */}
+    {/* Navigation: the name and the links on a line, or on two where they don't fit */}
     <Section style={{ padding: [28, 48] }} mobile={{ padding: [20, 20] }}>
-      <Row stackOnMobile={false} style={{ alignItems: "center", gap: 24 }}>
-        <Column style={{ width: 220 }}>
-          <Text style={{ fontFamily: SERIF, fontSize: 30, fontStyle: "italic", fontWeight: 500, lineHeight: 1 }}>
+      <Row stackOnMobile={false} style={{ ...FULL, alignItems: "center", flexWrap: "wrap", gap: 16 }} mobile={{ width: "100%" }}>
+        <Column style={{ minWidth: 130 }}>
+          <Text style={{ fontFamily: SERIF, fontSize: 30, fontStyle: "italic", fontWeight: 500, lineHeight: 1, textAlign: "left" }}>
             <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
               Casa Albero
             </Link>
           </Text>
         </Column>
-        <Menu
-          hidden={{ mobile: true }}
-          items={[
-            { text: "The house", href: `${SITE}/house` },
-            { text: "Rooms", href: `${SITE}/rooms` },
-            { text: "The year", href: `${SITE}/year` },
-            { text: "Getting here", href: `${SITE}/travel` },
-          ]}
-          style={{ color: INK, fontSize: 15, fontWeight: 400, padding: [6, 14], justifyContent: "end" }}
-        />
-        <Button
-          href={`${SITE}/book`}
-          style={{ flex: "none", backgroundColor: "transparent", color: INK, border: `1px solid ${INK}`, fontSize: 14, fontWeight: 500, padding: [10, 18], borderRadius: 999 }}
-          hover={{ backgroundColor: INK, color: PLASTER }}
-        >
-          Book a stay
-        </Button>
+        <Row stackOnMobile={false} style={{ flex: "none", alignItems: "center" }}>
+          <Menu
+            hidden={{ mobile: true }}
+            items={[
+              { text: "House", href: `${SITE}/house` },
+              { text: "Rooms", href: `${SITE}/rooms` },
+              { text: "Year", href: `${SITE}/year` },
+              { text: "Travel", href: `${SITE}/travel` },
+            ]}
+            style={{ flex: "none", color: INK, fontSize: 15, fontWeight: 400, padding: [6, 24, 6, 0] }}
+          />
+          <Button
+            href={`${SITE}/book`}
+            style={{ flex: "none", backgroundColor: "transparent", color: INK, border: `1px solid ${INK}`, fontSize: 14, fontWeight: 500, padding: [10, 18], borderRadius: 999 }}
+            hover={{ backgroundColor: INK, color: PLASTER }}
+          >
+            Book a stay
+          </Button>
+        </Row>
       </Row>
     </Section>
 
@@ -176,15 +183,15 @@ export const casaAlberoPage = (
     </Section>
 
     {/* The house */}
-    <Section style={{ backgroundColor: STONE, padding: [96, 48] }} mobile={{ padding: [56, 20] }}>
-      <Row style={{ gap: 72 }} mobile={{ gap: 24 }}>
-        <Column style={{ gap: 20 }}>
-          <Text style={kicker}>The house</Text>
+    <Section style={{ backgroundColor: STONE, padding: [96, 48], gap: 20 }} mobile={{ padding: [56, 20] }}>
+      <Text style={kicker}>The house</Text>
+      <Row style={{ flexWrap: "wrap", gap: 56 }} mobile={{ gap: 24 }}>
+        <Column style={{ width: 520 }}>
           <Heading level={2} style={{ fontFamily: SERIF, fontSize: 54, fontWeight: 500, lineHeight: 1.02, letterSpacing: -1 }} mobile={{ fontSize: 40 }}>
             A farmhouse that has fed itself from its own hill since 1780.
           </Heading>
         </Column>
-        <Column style={{ gap: 18, padding: [40, 0, 0] }} mobile={{ padding: 0 }}>
+        <Column style={{ minWidth: 280, gap: 18, padding: [8, 0, 0] }} mobile={{ padding: 0 }}>
           <Paragraph>
             The house was built by a family of olive pressers, and the old press is still in the cellar, under the room that now carries its name. We moved here in 2014 with two children and
             no idea how to prune a tree.
@@ -199,15 +206,13 @@ export const casaAlberoPage = (
 
     {/* The rooms */}
     <Section style={{ padding: [96, 48, 40], gap: 28 }} mobile={{ padding: [56, 20, 24], gap: 20 }}>
-      <Row stackOnMobile={false} style={{ alignItems: "end" }}>
-        <Column style={{ gap: 12 }}>
-          <Text style={kicker}>The rooms</Text>
-          <Heading level={2} style={{ fontFamily: SERIF, fontSize: 54, fontWeight: 500, lineHeight: 1, letterSpacing: -1 }} mobile={{ fontSize: 40 }}>
-            Six rooms, no two alike
-          </Heading>
-        </Column>
-      </Row>
-      <Column style={{ border: { bottom: `1px solid ${INK}` } }}>
+      <Column style={{ gap: 12 }}>
+        <Text style={kicker}>The rooms</Text>
+        <Heading level={2} style={{ fontFamily: SERIF, fontSize: 54, fontWeight: 500, lineHeight: 1, letterSpacing: -1 }} mobile={{ fontSize: 40 }}>
+          Six rooms, no two alike
+        </Heading>
+      </Column>
+      <Column style={{ ...FULL, border: { bottom: `1px solid ${INK}` } }} mobile={{ width: "100%" }}>
         {room("La Torre", "Up the tower’s own stair, with windows on all four sides.", "2", "€320")}
         {room("Il Frantoio", "The old olive press room, vaulted, and cool all summer.", "2 or 3", "€260")}
         {room("La Limonaia", "The lemon house, opening onto the garden and the pool.", "2", "€240")}
@@ -221,18 +226,23 @@ export const casaAlberoPage = (
     {/* The year */}
     <Section style={{ padding: [64, 48, 104], gap: 32 }} mobile={{ padding: [40, 20, 64], gap: 24 }}>
       <Text style={kicker}>The year at the house</Text>
-      <Grid columns={4} style={{ gap: 32, rowGap: 32 }} mobile={{ gap: 28 }}>
-        {season("Spring", "March to May", "Wild asparagus in the hedges, the first swims, and the hills green for a few weeks.")}
-        {season("Summer", "June to August", "Long days, the pool, and supper outside under the pergola until the swifts go to bed.")}
-        {season("Autumn", "September to November", "The harvest. Pick with us for a morning, and take home a litre of oil from your trees.")}
-        {season("Winter", "December to February", "We close in January and February: the house rests, and so do we.")}
-      </Grid>
+      <Row style={{ flexWrap: "wrap", gap: 32 }} mobile={{ gap: 28 }}>
+        {/* Two pairs, so it's four across, two by two or one under another: never three and one. */}
+        <Row style={{ minWidth: 280, flexWrap: "wrap", gap: 32 }} mobile={{ gap: 28 }}>
+          {season("Spring", "March to May", "Wild asparagus in the hedges, the first swims, and the hills green for a few weeks.")}
+          {season("Summer", "June to August", "Long days, the pool, and supper outside under the pergola until the swifts go to bed.")}
+        </Row>
+        <Row style={{ minWidth: 280, flexWrap: "wrap", gap: 32 }} mobile={{ gap: 28 }}>
+          {season("Autumn", "September to November", "The harvest. Pick with us for a morning, and take home a litre of oil from your trees.")}
+          {season("Winter", "December to February", "We close in January and February: the house rests, and so do we.")}
+        </Row>
+      </Row>
     </Section>
 
     {/* Booking */}
     <Section style={{ backgroundColor: TERRACOTTA, color: PLASTER, padding: [80, 48] }} mobile={{ padding: [56, 20] }}>
-      <Row style={{ alignItems: "end", gap: 48 }} mobile={{ gap: 28 }}>
-        <Column style={{ gap: 16 }}>
+      <Row style={{ alignItems: "end", flexWrap: "wrap", gap: 48 }} mobile={{ gap: 28 }}>
+        <Column style={{ minWidth: 280, gap: 16 }}>
           <Heading level={2} style={{ fontFamily: SERIF, fontSize: 60, fontWeight: 500, lineHeight: 1, letterSpacing: -1 }} mobile={{ fontSize: 42 }}>
             The harvest weeks are filling up.
           </Heading>
@@ -252,12 +262,12 @@ export const casaAlberoPage = (
 
     {/* Footer */}
     <Section style={{ padding: [40, 48, 48] }} mobile={{ padding: [32, 20, 40] }}>
-      <Row style={{ alignItems: "center", gap: 24 }} mobile={{ gap: 8 }}>
-        <Column>
+      <Row style={{ ...FULL, alignItems: "center", flexWrap: "wrap", gap: 8 }} mobile={{ width: "100%" }}>
+        <Column style={{ minWidth: 280 }}>
           <Text style={{ fontSize: 14, color: QUIET }}>Casa Albero, Via di Vallebuia 14, 55100 Lucca, Italy</Text>
         </Column>
-        <Column>
-          <Text style={{ fontSize: 14, color: QUIET, textAlign: "right" }} mobile={{ textAlign: "left" }}>
+        <Column style={{ flex: "none" }}>
+          <Text style={{ fontSize: 14, color: QUIET }}>
             <Link href="mailto:stay@casaalbero.example" style={{ color: INK }}>
               stay@casaalbero.example
             </Link>
