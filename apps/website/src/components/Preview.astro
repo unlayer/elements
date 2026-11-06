@@ -1,0 +1,69 @@
+---
+// Real output of one example: the email at desktop width (scaled to fit), on a phone, as plain text,
+// as its outline, its diagnostics, and its HTML.
+import { previewHtml, type Example } from "../lib/examples";
+import { Code } from "astro:components";
+import { hyperTheme } from "../lib/shiki-theme.mjs";
+
+interface Props {
+  example: Example;
+  /** The width the desktop view is drawn at, before scaling. */
+  width?: number;
+  height?: number;
+  views?: ("desktop" | "phone" | "text" | "outline" | "diagnostics" | "html")[];
+  class?: string;
+}
+const { example, width = 680, height = 560, views = ["desktop", "phone", "text", "outline", "diagnostics"], class: className } = Astro.props;
+const html = previewHtml(example.html);
+const isDocument = example.root === "Document";
+const labels: Record<string, string> = {
+  desktop: isDocument ? "Print" : example.root === "Page" ? "Page" : "Email",
+  phone: "Phone",
+  text: "Plain text",
+  outline: "Outline",
+  diagnostics: "Diagnostics",
+  html: "HTML",
+};
+const bg = html.match(/<body[^>]*background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})/)?.[1] ?? (isDocument ? "#e5e7eb" : "#ffffff");
+---
+<div class:list={["preview", className]} data-preview style={`--frame-h:${height}px`}>
+  <div class="tabs" role="tablist" aria-label="Output">
+    {views.map((v, i) => (
+      <button role="tab" type="button" aria-selected={i === 0 ? "true" : "false"} data-view={v}>
+        {labels[v]}
+        {v === "diagnostics" && example.diagnostics.length > 0 && <span class="count">{example.diagnostics.length}</span>}
+      </button>
+    ))}
+  </div>
+  <div class="views" style={`height:${height}px`}>
+    {views.includes("desktop") && (
+      <div class="view view-frame" data-view="desktop" data-fit={width} style={`--frame-bg:${bg}`}>
+        <div class="scaler"><iframe title={`${example.title}: desktop`} srcdoc={html} width={width} height={height} loading="lazy"></iframe></div>
+      </div>
+    )}
+    {views.includes("phone") && (
+      <div class="view view-phone" data-view="phone" hidden>
+        <div class="phone"><iframe title={`${example.title}: on a phone`} data-srcdoc={html} loading="lazy"></iframe></div>
+      </div>
+    )}
+    {views.includes("text") && <pre class="view view-text" data-view="text" hidden>{example.text}</pre>}
+    {views.includes("outline") && <pre class="view view-text" data-view="outline" hidden>{example.outline}</pre>}
+    {views.includes("diagnostics") && (
+      <ul class="view diags" data-view="diagnostics" hidden>
+        {example.diagnostics.length === 0 && <li>No diagnostics. Nothing to fix, nothing degraded.</li>}
+        {example.diagnostics.map((d) => (
+          <li>
+            <span class:list={["sev", d.severity]}>{d.severity}</span><span class="dcode">{d.code}</span>
+            <p>{d.message}</p>
+            {d.path && <span class="dpath">{d.path}</span>}
+          </li>
+        ))}
+      </ul>
+    )}
+    {views.includes("html") && (
+      <div class="view view-text" data-view="html" hidden style="padding:0">
+        <Code code={example.html} lang="html" theme={hyperTheme as any} wrap />
+      </div>
+    )}
+  </div>
+</div>

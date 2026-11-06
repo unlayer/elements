@@ -1,0 +1,100 @@
+---
+import Base from "../layouts/Base.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import Cmd from "../components/Cmd.astro";
+import { site } from "../lib/site";
+import { template } from "../lib/examples";
+
+const receipt = template("receipt");
+const loop = [
+  { n: "01", t: "Write", d: "One way to write each thing: styles in style={{}}, space as gap, text as components. Fewer ways to be wrong." },
+  { n: "02", t: "Validate", d: "validate() returns every problem with a code, a path and the fix, without rendering. The agent reads it and corrects itself." },
+  { n: "03", t: "Outline", d: "outline() prints the laid-out template as text: every block, its width, its words. The agent checks the layout without reading HTML." },
+  { n: "04", t: "Render", d: "render() returns html, text and diagnostics. Same input, same bytes, every time." },
+];
+const prompt = `Read ${site.url}/llms.txt. Then write a Hyper Elements email for an order receipt in emails/receipt.tsx. Run validate() and fix every error, then show me outline().`;
+---
+<Base title="For AI agents" description="Hyper Elements is built for coding agents: one way to write things, errors that explain the fix, an outline to check layouts, and docs as llms.txt.">
+  <section class="a-hero">
+    <div class="wrap">
+      <p class="eyebrow">For AI agents</p>
+      <h1 class="h-page"><span class="grad">Describe the email.</span><br /><span class="grad-accent">Your agent ships it.</span></h1>
+      <p class="lede">Most email code fails agents silently: the template renders, and the layout breaks in an inbox nobody checked. Hyper Elements gives an agent a tight loop instead: a small API, errors that say how to fix themselves, and a text outline of the layout it can read.</p>
+      <div class="a-cta">
+        <Cmd text={site.skill} />
+        <a class="btn btn-ghost" href="/llms.txt">llms.txt</a>
+        <a class="btn btn-ghost" href="/llms-full.txt">llms-full.txt</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="loop">
+      {loop.map((s) => (
+        <article class="card reveal">
+          <span class="n">{s.n}</span>
+          <h3>{s.t}</h3>
+          <p>{s.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap split">
+      <div class="reveal">
+        <p class="eyebrow">Give it the guide</p>
+        <h2 class="h-section">The docs ship inside the package.</h2>
+        <p class="lede">GUIDE.md is written from the components' own definitions, so it's never out of date. Point your agent at it once and every session starts knowing the API, including the mistakes agents made before.</p>
+      </div>
+      <div class="stack reveal">
+        <CodeBlock lang="markdown" file="CLAUDE.md" code={`@node_modules/@hyper-elements/react/GUIDE.md`} />
+        <CodeBlock lang="markdown" file="AGENTS.md (Codex, Cursor and others)" code={`Before writing a Hyper Elements template, read
+node_modules/@hyper-elements/react/GUIDE.md.`} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap split">
+      <div class="stack reveal">
+        <CodeBlock lang="text" file="outline(<Receipt />)" code={receipt.outline} />
+      </div>
+      <div class="reveal">
+        <p class="eyebrow">Layout as text</p>
+        <h2 class="h-section">An agent can't see your email. Now it doesn't need to.</h2>
+        <p class="lede">outline() shows what the layout engine decided: which blocks sit side by side, how wide each one is, which stack on phones, and what each one says. Faster for a model to check than 7,000 bytes of tables.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="prompt-card panel panel-glow reveal">
+        <p class="eyebrow">Try it</p>
+        <p class="prompt-text">{prompt}</p>
+        <button class="btn btn-primary" type="button" data-copy={prompt}>Copy prompt</button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .a-hero { padding: 80px 0 56px; position: relative; }
+  .a-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .loop .n { font: 500 12px var(--mono); color: var(--text-3); display: block; margin-bottom: 18px; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: center; }
+  .stack { display: grid; gap: 14px; min-width: 0; }
+  .prompt-card { padding: 40px; text-align: center; display: grid; justify-items: center; gap: 8px; background: #0e0e0e; }
+  .prompt-text { font: 400 17px/1.6 var(--mono); color: var(--text); max-width: 70ch; margin: 0 0 16px; }
+  @media (max-width: 1000px) {
+    .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  }
+  @media (max-width: 560px) {
+    .loop { grid-template-columns: minmax(0, 1fr); }
+    .prompt-card { padding: 24px; }
+    .prompt-text { font-size: 14.5px; }
+  }
+</style>

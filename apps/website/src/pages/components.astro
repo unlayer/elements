@@ -1,0 +1,157 @@
+---
+import Base from "../layouts/Base.astro";
+import Thumb from "../components/Thumb.astro";
+import { components } from "../lib/examples";
+
+const order = ["Layout", "Text", "Blocks", "Data", "Drawing"];
+const all = Object.values(components);
+const groups = order.map((g) => ({ title: g, id: g.toLowerCase(), items: all.filter((c) => c.group === g) })).filter((g) => g.items.length);
+// The components without a gallery preview of their own, by what they're for.
+const rest = [
+  { label: "Roots", items: ["Email", "Page", "Document", "Canvas"] },
+  { label: "Inline text", items: ["Span", "Link", "LineBreak", "MergeTag"] },
+  { label: "Print", items: ["PageHeader", "PageFooter", "PageNumber", "PageBreak"] },
+  { label: "Drawing and markup", items: ["Rect", "Circle", "Path", "Html"] },
+];
+---
+<Base title="Components" description="Every Hyper Elements component, rendered live by the engine: layout, text, blocks, data and drawing.">
+  <section class="c-hero">
+    <div class="wrap c-hero-inner">
+      <h1 class="h-page"><span class="grad">Components</span></h1>
+      <p class="lede">The components for emails, web pages, PDFs and images. Each preview is rendered by Hyper Elements.</p>
+    </div>
+  </section>
+
+  <div class="wrap" data-gallery>
+    <div class="c-tabs" role="tablist" aria-label="Filter components">
+      <button type="button" role="tab" aria-selected="true" data-filter="all">All <span>{all.length}</span></button>
+      {groups.map((g) => <button type="button" role="tab" aria-selected="false" data-filter={g.id}>{g.title} <span>{g.items.length}</span></button>)}
+    </div>
+
+    {groups.map((g) => (
+      <section class="cg" data-group={g.id}>
+        <div class="cg-head">
+          <h2>{g.title}</h2>
+          <span>{g.items.length}</span>
+        </div>
+        <div class="cg-grid">
+          {g.items.map((c) => (
+            <a class="spec" href={`/docs/components/${c.slug}`}>
+              <div class="spec-stage"><Thumb example={c} width={560} height={168} /></div>
+              <div class="spec-body">
+                <h3><code>{`<${c.title} />`}</code></h3>
+                <p>{c.description}</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <section class="also">
+    <div class="wrap also-head">
+      <h2>Also in the box</h2>
+      <a href="/docs/components">Full reference →</a>
+    </div>
+    {rest.map((r) => (
+      <div class="also-line">
+        <div class="wrap also-row">
+          <span class="also-label">{r.label}</span>
+          <div class="also-items">{r.items.map((n) => <a href="/docs/components"><code>{n}</code></a>)}</div>
+        </div>
+      </div>
+    ))}
+  </section>
+</Base>
+
+<script>
+  // Tabs filter the gallery by group; "All" shows every group.
+  document.querySelectorAll<HTMLElement>("[data-gallery]").forEach((root) => {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-filter]")];
+    const groups = [...root.querySelectorAll<HTMLElement>("[data-group]")];
+    tabs.forEach((tab) =>
+      tab.addEventListener("click", () => {
+        const f = tab.dataset.filter;
+        tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+        groups.forEach((g) => (g.hidden = f !== "all" && g.dataset.group !== f));
+        window.dispatchEvent(new Event("resize")); // previews shown again re-fit their width
+      }),
+    );
+  });
+</script>
+
+<style>
+  .c-hero { padding: clamp(40px, 6vh, 64px) 0 32px; }
+  .c-hero-inner { display: grid; justify-items: center; text-align: center; gap: 12px; }
+  .c-hero .h-page { margin: 0; }
+  .c-hero .lede { margin: 0 auto; max-width: 600px; }
+
+  .c-tabs {
+    display: flex; gap: 4px; padding: 4px; margin: 0 auto 40px; width: max-content; max-width: 100%;
+    border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg-1); overflow-x: auto; scrollbar-width: none;
+  }
+  .c-tabs::-webkit-scrollbar { display: none; }
+  .c-tabs button {
+    flex: none; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border: 0; border-radius: 9px;
+    background: transparent; color: var(--text-2); font: 500 14px var(--sans); cursor: pointer; transition: color 0.15s, background 0.15s;
+  }
+  .c-tabs button span { font: 500 11.5px var(--mono); color: var(--text-3); }
+  .c-tabs button:hover { color: var(--text); background: var(--hover); }
+  .c-tabs button[aria-selected="true"] { background: var(--text); color: var(--bg); }
+  .c-tabs button[aria-selected="true"] span { color: inherit; opacity: 0.6; }
+
+  .cg { margin-bottom: 72px; }
+  .cg[hidden] { display: none; }
+  .cg-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 14px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .cg-head h2 { margin: 0; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .cg-head span { font: 500 11px var(--mono); color: var(--text-3); opacity: 0.7; }
+  .cg-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+
+  /* A specimen: the live preview on a dotted stage, then its name and what it's for. */
+  .spec { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-1); overflow: hidden; text-decoration: none; color: inherit; transition: border-color 0.2s; }
+  .spec:hover { border-color: var(--line-3); }
+  .spec-stage {
+    padding: 16px; border-bottom: 1px solid var(--line); background-color: var(--bg-2);
+    background-image: radial-gradient(var(--line-2) 1px, transparent 1px); background-size: 16px 16px;
+  }
+  .spec-stage :global(.thumb) { border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px -6px rgba(0, 0, 0, 0.12); }
+  .spec-body { display: grid; gap: 6px; padding: 18px 20px 20px; }
+  .spec h3 { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .spec h3 code { font: 600 14px var(--mono); color: var(--text); background: none; border: 0; padding: 0; }
+  .spec h3::after { content: "→"; font-size: 14px; color: var(--text-3); opacity: 0; transform: translateX(-4px); transition: opacity 0.15s, transform 0.15s; }
+  .spec:hover h3::after, .spec:focus-visible h3::after { opacity: 1; transform: none; }
+  .spec p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.55; }
+
+  /* The rest, as rows like the home page's strips. */
+  .also { margin-top: 24px; margin-bottom: 120px; border-bottom: 1px solid var(--line); }
+  .also-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 20px; }
+  .also-head h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+  .also-head a { color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .also-head a:hover { color: var(--text); }
+  .also-line { border-top: 1px solid var(--line); }
+  .also-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+  .also-label { align-self: center; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .also-items { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .also-items a { display: flex; align-items: center; padding: 18px 22px; border-left: 1px solid var(--line); text-decoration: none; transition: background 0.15s; min-width: 0; }
+  .also-items a:hover { background: var(--hover); }
+  .also-items code { font: 500 13.5px var(--mono); color: var(--text); background: none; border: 0; padding: 0; }
+
+  @media (max-width: 1000px) {
+    .cg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .also-row { grid-template-columns: 140px minmax(0, 1fr); }
+    .also-items a { padding: 16px 14px; }
+  }
+  @media (max-width: 640px) {
+    .c-tabs { margin-bottom: 40px; width: 100%; }
+    .c-tabs { gap: 2px; }
+    .c-tabs button { flex: 1 1 auto; min-width: 0; justify-content: center; padding: 0 6px; font-size: 13.5px; }
+    .c-tabs button span { display: none; }
+    .cg { margin-bottom: 56px; }
+    .cg-grid { grid-template-columns: minmax(0, 1fr); }
+    .also { margin-bottom: 80px; }
+    .also-row { grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 16px; padding-bottom: 18px; }
+    .also-items { display: flex; flex-wrap: wrap; gap: 8px; }
+    .also-items a { padding: 6px 12px; border: 1px solid var(--line-2); border-radius: 999px; }
+  }
+</style>

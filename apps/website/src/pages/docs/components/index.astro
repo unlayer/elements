@@ -1,0 +1,38 @@
+---
+import { getCollection, getEntry, render } from "astro:content";
+import Docs from "../../../layouts/Docs.astro";
+import { componentGroups } from "../../../lib/site";
+
+const overview = (await getEntry("reference", "overview"))!;
+const { Content, headings } = await render(overview);
+const entries = (await getCollection("reference")).filter((e) => e.id !== "overview").sort((a, b) => a.data.order - b.data.order);
+const groups = componentGroups
+  .map((g) => ({ title: g, items: entries.filter((e) => e.data.group === g) }))
+  .filter((g) => g.items.length);
+---
+<Docs title="Components" description="Every component, what it holds, and every prop and style it takes, written from the components' own definitions." slug="components" headings={[...groups.map((g) => ({ depth: 2, slug: g.title.toLowerCase().replace(/\W+/g, "-"), text: g.title })), ...headings]} markdown={overview.body}>
+  {groups.map((g) => (
+    <section>
+      <h2 id={g.title.toLowerCase().replace(/\W+/g, "-")}>{g.title}</h2>
+      <div class="cgrid">
+        {g.items.map((e) => (
+          <a class="card" href={`/docs/components/${e.id}`}>
+            <h3><code class="cname">{e.data.title}</code></h3>
+            <p>{e.data.summary}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  ))}
+  <h2 id="every-component-takes">Every component takes</h2>
+  <Content />
+</Docs>
+
+<style>
+  .cgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .cgrid .card { padding: 16px 18px; text-decoration: none; }
+  .cgrid .card p { font-size: 14px; color: var(--text-2); margin: 0; }
+  .cgrid h3 { margin: 0 0 6px; }
+  .cname { font: 600 14.5px var(--mono) !important; background: none !important; border: 0 !important; padding: 0 !important; color: var(--text) !important; }
+  @media (max-width: 640px) { .cgrid { grid-template-columns: minmax(0, 1fr); } }
+</style>

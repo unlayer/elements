@@ -1,0 +1,21 @@
+{
+  "name": "@hyper-elements/website",
+  "private": true,
+  "version": "0.0.0",
+  "description": "hyperelements.dev: the Hyper Elements website.",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --port 4321",
+    "generate": "node scripts/generate.mjs"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "^3.7.4",
+    "@unlayer/react-elements": "workspace:*",
+    "astro": "^7.4.7",
+    "esbuild": "^0.25.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

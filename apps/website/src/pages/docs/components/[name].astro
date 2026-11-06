@@ -1,0 +1,48 @@
+---
+import { getCollection, render } from "astro:content";
+import Docs from "../../../layouts/Docs.astro";
+import Preview from "../../../components/Preview.astro";
+import CodeBlock from "../../../components/CodeBlock.astro";
+import { components } from "../../../lib/examples";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("reference");
+  return entries.filter((e) => e.id !== "overview").map((entry) => ({ params: { name: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const example = components[entry.id];
+const import_ = `import { ${entry.data.title.split(".")[0]} } from "@hyper-elements/react";`;
+---
+<Docs
+  title={entry.data.title}
+  description={entry.data.summary}
+  slug={`components/${entry.id}`}
+  headings={[...(example ? [{ depth: 2, slug: "example", text: "Example" }] : []), { depth: 2, slug: "reference", text: "Reference" }, ...headings]}
+  markdown={(example ? `## Example\n\n\`\`\`tsx\n${example.source}\n\`\`\`\n\n` : "") + `## Reference\n\n${entry.body}`}
+>
+  {entry.id !== "values" && <CodeBlock code={import_} />}
+  {example && (
+    <>
+      <h2 id="example">Example</h2>
+      <div class="ex panel">
+        <Preview example={example} height={360} width={560} views={["desktop", "phone", "text", "diagnostics", "html"]} />
+      </div>
+      <details class="ex-src">
+        <summary>Show the code</summary>
+        <CodeBlock code={example.source} file={`${entry.id}.tsx`} />
+      </details>
+    </>
+  )}
+  <h2 id="reference">Reference</h2>
+  <Content />
+</Docs>
+
+<style>
+  .ex { overflow: hidden; margin: 8px 0 14px; background: #0e0e0e; }
+  .ex-src { margin-bottom: 8px; }
+  .ex-src summary { cursor: pointer; color: var(--text-2); font-size: 14px; margin-bottom: 12px; }
+  .ex-src summary:hover { color: var(--text); }
+  :global(.prose) > :global(.code-block) { margin: 0 0 22px; }
+</style>

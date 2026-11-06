@@ -1,0 +1,22 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Not found">
+  <section class="nf wrap">
+    <p class="eyebrow">404</p>
+    <h1 class="h-page"><span class="grad">This page didn't render.</span></h1>
+    <pre class="nf-err"><span>error</span> route/unknown at {Astro.url.pathname}:
+  there's no page here; try the docs or the home page.</pre>
+    <div class="nf-cta">
+      <a class="btn btn-primary" href="/">Home</a>
+      <a class="btn btn-ghost" href="/docs">Docs</a>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .nf { padding: 120px 24px; min-height: 60vh; }
+  .nf-err { font: 400 14px/1.7 var(--mono); color: var(--text-2); margin: 8px 0 32px; white-space: pre-wrap; }
+  .nf-err span { color: var(--err); text-transform: uppercase; font-size: 12px; letter-spacing: 0.06em; }
+  .nf-cta { display: flex; gap: 12px; }
+</style>

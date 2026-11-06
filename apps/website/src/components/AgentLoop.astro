@@ -1,0 +1,194 @@
+---
+// The agent loop, all at once: create → check → validate → fix, and a return path back to create.
+// Everything shown is real: validate()'s output for the template in Create, and the launch email as each
+// client draws it (public/generated/clients/, from the email renderer; see the README).
+const clients = [
+  { id: "classic-outlook", name: "Classic Outlook", warn: true, pos: "50% 66%" },
+  { id: "gmail", name: "Gmail", pos: "50% 0%" },
+  { id: "apple-mail", name: "Apple Mail", pos: "50% 0%" },
+  { id: "apple-mail-dark", name: "Apple Mail dark", warn: true, pos: "50% 0%" },
+];
+---
+<div class="loop" data-loop>
+  <ol class="pipeline">
+    <li class="node" data-node="0">
+      <div class="head"><span class="num">01</span><div><h3>Create</h3><p>Your agent writes JSX</p></div></div>
+      <div class="card panel">
+        <div class="prompt">“Write a launch email for Orbit 2.0”</div>
+        <pre class="code">&lt;<span class="t">Email</span> style={'{{'}
+  backgroundColor: <span class="s">"#f1f2f6"</span>,
+  <mark>padding: 24</mark>
+{'}}'}&gt;
+  &lt;<span class="t">Heading</span>&gt;Orbit 2.0…
+  &lt;<span class="t">Button</span> href=<span class="s">"…"</span>&gt;Try it
+&lt;/<span class="t">Email</span>&gt;</pre>
+      </div>
+    </li>
+
+    <li class="node" data-node="1">
+      <div class="head"><span class="num">02</span><div><h3>Check</h3><p>See it in every client</p></div></div>
+      <div class="card panel">
+        <div class="clients">
+          {clients.map((c) => (
+            <figure class:list={["client", { warn: c.warn }]}>
+              <img src={`/generated/clients/${c.id}.png`} alt={`The email in ${c.name}`} loading="lazy" style={`object-position:${c.pos}`} />
+              <figcaption>{c.warn && <span class="w">⚠</span>}{c.name}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <p class="note warn">⚠ Outlook drops the button's padding</p>
+      </div>
+    </li>
+
+    <li class="node" data-node="2">
+      <div class="head"><span class="num">03</span><div><h3>Validate</h3><p>Errors, lint and spam score</p></div></div>
+      <div class="card panel checks">
+        <div class="chk">
+          <div class="chk-h"><span>validate()</span><span class="bad">1 error</span></div>
+          <p class="mono"><span class="bad">style/unknown</span> <span class="c">root.style.padding</span></p>
+          <p class="msg">"padding" isn't a style an Email takes: a root has no padding; put it on a Column (a card) or a Section (a band) inside it.</p>
+        </div>
+        <div class="chk">
+          <div class="chk-h"><span>Lint</span><span class="w">3 warnings</span></div>
+          <p class="mono"><span class="w">a11y/link-text</span> <span class="c">"Try it" alone</span></p>
+          <p class="mono"><span class="w">best-practice/preview-text</span></p>
+          <p class="mono"><span class="w">deliverability/unsubscribe</span></p>
+        </div>
+        <div class="chk">
+          <div class="chk-h"><span>Spam score</span><span class="w">3.4 / 10</span></div>
+          <div class="meter"><span style="width:34%"></span></div>
+          <p class="mono c">+1.6 no unsubscribe link</p>
+          <p class="mono c">+0.9 vague call to action</p>
+        </div>
+      </div>
+    </li>
+
+    <li class="node" data-node="3">
+      <div class="head"><span class="num">04</span><div><h3>Fix</h3><p>Each finding says how</p></div></div>
+      <div class="card panel">
+        <pre class="code diff"><span class="del">- &lt;Email style={'{{'}padding: 24{'}}'}&gt;</span>
+<span class="add">+ &lt;Email previewText="…"&gt;</span>
+<span class="add">+   &lt;Section</span>
+<span class="add">+     style={'{{'}padding: 24{'}}'}&gt;</span>
+<span class="del">-     &lt;Button …&gt;Try it</span>
+<span class="add">+     &lt;Button …&gt;Try Orbit 2.0</span>
+<span class="add">+     &lt;Link href={'{'}unsubscribe{'}'}&gt;</span>
+<span class="add">+   &lt;/Section&gt;</span></pre>
+        <div class="oks">
+          <span class="ok">✓ valid</span>
+          <span class="ok">✓ lint clean</span>
+          <span class="ok">✓ spam 0.6</span>
+        </div>
+      </div>
+    </li>
+  </ol>
+
+  <!-- The way back: from Fix to Create, until it's clean. -->
+  <div class="return" aria-hidden="true">
+    <svg viewBox="0 0 1000 48" preserveAspectRatio="none">
+      <path class="track" d="M1000 0 V36 Q1000 46 990 46 H10 Q0 46 0 36 V0" />
+      <path class="flow" d="M1000 0 V36 Q1000 46 990 46 H10 Q0 46 0 36 V0" />
+    </svg>
+    <span class="arrow-up">▲</span>
+  </div>
+  <p class="return-label"><span>↺</span> Around again until every check passes and every client looks right</p>
+</div>
+
+<script>
+  // A light steps through the four cards, in order, to show the direction; nothing is hidden.
+  const loop = document.querySelector<HTMLElement>("[data-loop]");
+  if (loop && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const nodes = [...loop.querySelectorAll<HTMLElement>("[data-node]")];
+    let i = 0;
+    let timer: number | undefined;
+    const step = () => {
+      nodes.forEach((n, k) => n.classList.toggle("on", k === i));
+      loop.classList.toggle("returning", i === nodes.length);
+      i = (i + 1) % (nodes.length + 1);
+    };
+    const start = () => {
+      window.clearInterval(timer);
+      step();
+      timer = window.setInterval(step, 1400);
+    };
+    new IntersectionObserver(([e]) => (e.isIntersecting ? start() : window.clearInterval(timer)), { threshold: 0.3 }).observe(loop);
+  }
+</script>
+
+<style>
+  .loop { position: relative; }
+  .pipeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; }
+  .node { position: relative; display: grid; grid-template-rows: auto 1fr; gap: 14px; min-width: 0; }
+  /* The arrow to the next step. */
+  .node:not(:last-child)::after {
+    content: "→"; position: absolute; right: -24px; top: 92px; width: 20px; text-align: center;
+    color: var(--text-3); font: 500 16px var(--mono); transition: color 0.3s;
+  }
+  .node.on:not(:last-child)::after { color: var(--text); }
+
+  .head { display: flex; align-items: center; gap: 12px; }
+  .head h3 { margin: 0; font-size: 18px; letter-spacing: -0.02em; font-weight: 650; }
+  .head p { margin: 2px 0 0; font-size: 13px; color: var(--text-3); }
+  .num { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; border: 1px solid var(--line-2); font: 600 12px var(--mono); color: var(--text-3); transition: background 0.3s, color 0.3s, border-color 0.3s; }
+  .node.on .num { background: var(--text); border-color: var(--text); color: var(--bg); }
+
+  .card { padding: 16px; background: #0e0e0e; min-height: 248px; display: flex; flex-direction: column; gap: 12px; transition: border-color 0.3s, box-shadow 0.3s; }
+  .node { --ring: var(--text); }
+  .node.on .card { box-shadow: 0 0 0 2px var(--ring), var(--shadow); }
+
+  .code { margin: 0; font: 400 12px/1.7 var(--mono); color: #a1a1a1; white-space: pre; overflow: hidden; }
+  .code .t { color: #ededed; } .code .s { color: #cfcfcf; } .code .c { color: #6e6e6e; }
+  .code mark { background: rgba(245, 185, 113, 0.14); color: #f5b971; border-bottom: 1px dashed #f5b971; padding: 0 2px; }
+  .code .bad { color: #ff7b6e; }
+  .diff .del { color: #ff7b6e; background: rgba(255, 123, 110, 0.08); display: inline-block; min-width: 100%; }
+  .diff .add { color: #7ee2a8; background: rgba(126, 226, 168, 0.07); display: inline-block; min-width: 100%; }
+  .prompt { align-self: start; font-size: 12.5px; color: #ededed; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 7px 10px; }
+
+  .clients { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .client { margin: 0; min-width: 0; }
+  .client img { display: block; width: 100%; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.14); background: #f1f2f6; }
+  .client.warn img { border-color: rgba(245, 185, 113, 0.7); }
+  .client figcaption { margin-top: 5px; font-size: 11px; color: #a1a1a1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .client figcaption .w { color: #f5b971; margin-right: 4px; }
+  .note { margin: auto 0 0; font-size: 12px; }
+  .note.warn { color: #f5b971; }
+
+  .checks { gap: 10px; }
+  .chk { display: grid; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  .chk:last-child { border-bottom: 0; padding-bottom: 0; }
+  .chk-h { display: flex; justify-content: space-between; align-items: baseline; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: #a1a1a1; margin-bottom: 2px; }
+  .chk .mono { margin: 0; font: 400 11.5px/1.55 var(--mono); color: #cfcfcf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chk .msg { margin: 0; font-size: 12px; line-height: 1.45; color: #8f8f8f; }
+  .chk .bad { color: #ff7b6e; } .chk .w { color: #f5b971; } .chk .c { color: #6e6e6e; }
+  .meter { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; margin: 2px 0 3px; }
+  .meter span { display: block; height: 100%; border-radius: inherit; background: #f5b971; }
+  .oks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+  .ok { font: 500 11.5px var(--mono); color: #7ee2a8; border: 1px solid rgba(126, 226, 168, 0.35); border-radius: 999px; padding: 4px 9px; }
+
+  /* The return path. */
+  .return { position: relative; height: 48px; margin: 10px 12.5% 0; }
+  .return svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .return path { fill: none; vector-effect: non-scaling-stroke; }
+  .track { stroke: var(--line-3); stroke-width: 1.5; }
+  .flow { stroke: var(--text); stroke-width: 2; stroke-dasharray: 10 24; opacity: 0.35; animation: flow 1.6s linear infinite; transition: opacity 0.3s; }
+  .loop.returning .flow { opacity: 1; }
+  @keyframes flow { to { stroke-dashoffset: -34; } }
+  .arrow-up { position: absolute; left: -6px; top: -13px; font-size: 13px; color: var(--text); line-height: 1; }
+  .return-label { margin: 14px 0 0; text-align: center; font-size: 14px; color: var(--text-2); }
+  .return-label span { display: inline-block; margin-right: 6px; color: var(--text); }
+  .return-label code { font-size: 0.9em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flow { animation: none; opacity: 0.6; }
+  }
+  @media (max-width: 1100px) {
+    .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 32px; }
+    .node:nth-child(2)::after { display: none; }
+    .return { display: none; }
+  }
+  @media (max-width: 640px) {
+    .pipeline { grid-template-columns: minmax(0, 1fr); }
+    .node:not(:last-child)::after { display: block; content: "↓"; right: auto; left: 50%; top: auto; bottom: -27px; margin-left: -10px; }
+    .card { min-height: 0; }
+  }
+</style>

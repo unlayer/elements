@@ -1,0 +1,192 @@
+---
+import Base from "./Base.astro";
+import { getCollection } from "astro:content";
+import { componentGroups, docHref, docsNav } from "../lib/site";
+
+interface Props {
+  title: string;
+  description: string;
+  /** The page's path after /docs/ ("" for /docs). */
+  slug: string;
+  headings?: { depth: number; slug: string; text: string }[];
+  /** The page as Markdown, for "Copy page". */
+  markdown?: string;
+  eyebrow?: string;
+}
+const { title, description, slug, headings = [], markdown, eyebrow } = Astro.props;
+
+const reference = (await getCollection("reference")).filter((e) => e.id !== "overview").sort((a, b) => a.data.order - b.data.order);
+const componentNav = componentGroups
+  .map((group) => ({
+    title: group === "Reference" ? "Reference" : group,
+    items: reference.filter((e) => e.data.group === group).map((e) => ({ slug: `components/${e.id}`, label: e.data.title })),
+  }))
+  .filter((g) => g.items.length);
+
+// Previous and next follow the guide's order, then the components'.
+const flat = [...docsNav.flatMap((g) => g.items), { slug: "components", label: "Components" }, ...componentNav.flatMap((g) => g.items)];
+const at = flat.findIndex((i) => i.slug === slug);
+const prev = at > 0 ? flat[at - 1] : null;
+const next = at >= 0 && at < flat.length - 1 ? flat[at + 1] : null;
+const group = eyebrow ?? [...docsNav, ...componentNav].find((g) => g.items.some((i) => i.slug === slug))?.title ?? (slug === "components" ? "Components" : "");
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const isCurrent = (s: string) => s === slug;
+---
+<Base title={title} description={description}>
+  <div class="docs wrap">
+    <aside class="docs-side" aria-label="Docs">
+      <details class="side-mobile">
+        <summary>Menu <span class="muted">· {title}</span></summary>
+      </details>
+      <nav class="side-nav">
+        {docsNav.map((g) => (
+          <div class="side-group">
+            <p class="side-title">{g.title}</p>
+            <ul>
+              {g.items.map((i) => (
+                <li><a href={docHref(i.slug)} aria-current={isCurrent(i.slug) ? "page" : undefined}>{i.label}</a></li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        <div class="side-group">
+          <p class="side-title"><a href="/docs/components" aria-current={isCurrent("components") ? "page" : undefined}>Components</a></p>
+          {componentNav.map((g) => (
+            <details class="side-sub" open={g.items.some((i) => isCurrent(i.slug)) || undefined}>
+              <summary>{g.title}</summary>
+              <ul>
+                {g.items.map((i) => (
+                  <li><a href={docHref(i.slug)} aria-current={isCurrent(i.slug) ? "page" : undefined}>{i.label}</a></li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
+      </nav>
+    </aside>
+
+    <article class="docs-main">
+      <header class="docs-head">
+        {group && <p class="eyebrow">{group}</p>}
+        <div class="docs-title-row">
+          <h1>{title}</h1>
+          {markdown && (
+            <button class="btn btn-ghost btn-sm" type="button" data-copy-page title="Copy this page as Markdown, for an AI agent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              Copy page
+            </button>
+          )}
+        </div>
+        <p class="docs-desc">{description}</p>
+      </header>
+      <div class="prose"><slot /></div>
+      <nav class="pager" aria-label="Previous and next">
+        {prev ? <a href={docHref(prev.slug)}><span>Previous</span>{prev.label}</a> : <span></span>}
+        {next ? <a class="next" href={docHref(next.slug)}><span>Next</span>{next.label}</a> : <span></span>}
+      </nav>
+    </article>
+
+    <aside class="docs-toc" aria-label="On this page">
+      {toc.length > 0 && (
+        <>
+          <p class="side-title">On this page</p>
+          <ul>
+            {toc.map((h) => <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>)}
+          </ul>
+        </>
+      )}
+      <div class="toc-extra">
+        <a href="/llms.txt">llms.txt</a>
+        <a href="https://github.com/hyper-elements/hyper-elements">Edit on GitHub</a>
+      </div>
+    </aside>
+  </div>
+  {markdown && <script type="text/markdown" id="page-markdown" set:html={`# ${title}\n\n${description}\n\n${markdown.replaceAll("</script", "<\\/script")}`}></script>}
+</Base>
+
+<script>
+  // On phones, the sidebar opens from its summary.
+  const mobile = document.querySelector<HTMLDetailsElement>(".side-mobile");
+  const side = document.querySelector<HTMLElement>(".docs-side");
+  mobile?.addEventListener("toggle", () => side?.classList.toggle("open", mobile.open));
+</script>
+
+<style>
+  .docs { display: grid; grid-template-columns: 240px minmax(0, 1fr) 210px; gap: 48px; max-width: 1360px; padding-top: 40px; padding-bottom: 40px; }
+  .docs-side { position: sticky; top: calc(var(--header) + 24px); align-self: start; max-height: calc(100vh - var(--header) - 48px); overflow: auto; padding-right: 8px; scrollbar-width: thin; }
+  .side-mobile { display: none; }
+  .side-group { margin-bottom: 22px; }
+  .side-title { margin: 0 0 8px; font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .side-title a { color: inherit; text-decoration: none; }
+  .side-title a:hover, .side-title a[aria-current] { color: var(--text); }
+  .side-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+  .side-nav li a { display: block; padding: 5px 10px; border-radius: 7px; color: var(--text-2); text-decoration: none; font-size: 14px; border-left: 1px solid transparent; }
+  .side-nav li a:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+  .side-nav li a[aria-current] { color: var(--text); background: var(--hover-2); box-shadow: inset 2px 0 0 var(--text); }
+  .side-sub summary { cursor: pointer; list-style: none; font-size: 14px; color: var(--text-2); padding: 5px 10px; border-radius: 7px; display: flex; justify-content: space-between; }
+  .side-sub summary::-webkit-details-marker { display: none; }
+  .side-sub summary::after { content: "+"; color: var(--text-3); }
+  .side-sub[open] summary::after { content: "–"; }
+  .side-sub summary:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+  .side-sub ul { padding-left: 10px !important; margin: 2px 0 6px !important; border-left: 1px solid var(--line); margin-left: 10px !important; }
+
+  .docs-main { min-width: 0; max-width: 780px; }
+  .docs-head { padding-bottom: 28px; margin-bottom: 32px; border-bottom: 1px solid var(--line); }
+  .docs-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .docs-head h1 { margin: 0; font-size: clamp(32px, 4vw, 44px); letter-spacing: -0.04em; line-height: 1.08; font-weight: 600; }
+  .docs-desc { margin: 14px 0 0; color: var(--text-2); font-size: 18px; line-height: 1.55; }
+  .docs-title-row .btn { flex: none; margin-top: 6px; }
+
+  .docs-toc { position: sticky; top: calc(var(--header) + 24px); align-self: start; font-size: 13px; max-height: calc(100vh - var(--header) - 48px); overflow: auto; }
+  .docs-toc ul { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 6px; border-left: 1px solid var(--line); }
+  .docs-toc li a { display: block; padding-left: 12px; color: var(--text-3); text-decoration: none; line-height: 1.4; }
+  .docs-toc li.d3 a { padding-left: 24px; }
+  .docs-toc li a:hover { color: var(--text); }
+  .toc-extra { display: grid; gap: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .toc-extra a { color: var(--text-3); text-decoration: none; }
+  .toc-extra a:hover { color: var(--text); }
+
+  .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .pager a { display: grid; gap: 2px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; font-weight: 500; transition: border-color 0.15s; }
+  .pager a:hover { border-color: var(--line-3); }
+  .pager a span { font: 400 12px var(--mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .pager .next { text-align: right; }
+
+  /* Prose */
+  .prose { font-size: 16px; line-height: 1.75; color: var(--prose); }
+  .prose :global(h2) { font-size: 26px; letter-spacing: -0.03em; line-height: 1.2; color: var(--text); margin: 56px 0 16px; font-weight: 600; }
+  .prose :global(h3) { font-size: 19px; letter-spacing: -0.02em; color: var(--text); margin: 36px 0 12px; font-weight: 600; }
+  .prose :global(h4) { font-size: 16px; color: var(--text); margin: 28px 0 8px; }
+  .prose :global(> :first-child) { margin-top: 0; }
+  .prose :global(p), .prose :global(ul), .prose :global(ol) { margin: 0 0 18px; }
+  .prose :global(li) { margin: 6px 0; }
+  .prose :global(li::marker) { color: var(--text-3); }
+  .prose :global(a) { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-3); text-underline-offset: 3px; }
+  .prose :global(a:hover) { text-decoration-color: var(--text); }
+  .prose :global(strong) { color: var(--text); font-weight: 600; }
+  .prose > :global(pre) { margin: 0 0 22px; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px !important; font: 400 13.5px/1.7 var(--mono); overflow: auto; background: #0e0e0e !important; }
+  .prose :global(blockquote) { margin: 0 0 22px; padding: 14px 18px; border: 1px solid var(--line); border-left: 3px solid var(--line-3); border-radius: 10px; background: rgba(239, 70, 56, 0.05); color: var(--text-2); }
+  .prose :global(blockquote p:last-child) { margin-bottom: 0; }
+  .prose :global(table) { width: 100%; border-collapse: collapse; margin: 0 0 22px; font-size: 14.5px; display: block; overflow-x: auto; }
+  .prose :global(th), .prose :global(td) { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .prose :global(th) { color: var(--text); font-weight: 600; font-size: 13px; border-bottom-color: var(--line-2); }
+  /* Code in a table stays on one line, so a tag like <Document> or a path isn't split; a wide table scrolls. */
+  .prose :global(td code), .prose :global(th code) { white-space: nowrap; }
+  .prose :global(hr) { border: 0; height: 1px; background: var(--line); margin: 40px 0; }
+  .prose :global(h2 a), .prose :global(h3 a) { text-decoration: none; }
+
+  @media (max-width: 1180px) {
+    .docs { grid-template-columns: 220px minmax(0, 1fr); }
+    .docs-toc { display: none; }
+  }
+  @media (max-width: 860px) {
+    .docs { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 0; }
+    .docs-side { position: static; max-height: none; overflow: visible; margin: 0 -16px 24px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+    .side-mobile { display: block; }
+    .side-mobile summary { cursor: pointer; padding: 14px 0; font-weight: 500; font-size: 14.5px; list-style: none; }
+    .side-mobile summary::-webkit-details-marker { display: none; }
+    .side-nav { display: none; padding-bottom: 16px; }
+    .docs-side.open .side-nav { display: block; }
+    .docs-title-row { flex-direction: column; }
+  }
+</style>
