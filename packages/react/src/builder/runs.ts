@@ -77,6 +77,11 @@ type Item = Record<string, Json | undefined>;
 /** Lexical's bitmask for a raised run. */
 const RAISED: Record<string, number> = { sub: 32, super: 64 };
 const unescaped = (value: string) => value;
+/** Two styles as one: where both set something, the second's, as an inner style's is over an outer's. */
+const within = (outer: string, inner: string) => {
+  const declared = new Map(`${outer};${inner}`.split(";").filter(Boolean).map((declaration) => [declaration.slice(0, declaration.indexOf(":")), declaration.slice(declaration.indexOf(":") + 1)]));
+  return [...declared].map(([name, value]) => `${name}:${value}`).join(";");
+};
 const textItem = (text: string, style: string, format: number): Item => ({ type: "extended-text", version: 1, detail: 0, format, mode: "normal", style, text });
 
 /** A node's runs as rich text's nodes, each run's text in the style and format of the runs around it. */
@@ -87,7 +92,7 @@ function runItems(node: Node, lost: string[], around = "", format = 0): Item[] {
     if (child.id) lost.push("id on part of its text");
     if (child.type === "Link" && child.props?.attrs) lost.push("other attributes on a link");
     const { verticalAlign, ...style } = child.style ?? {};
-    const own = [around, runCss(style, unescaped)].filter(Boolean).join(";");
+    const own = within(around, runCss(style, unescaped));
     switch (child.type) {
       case "LineBreak":
         return [{ type: "linebreak", version: 1 }];
@@ -113,7 +118,8 @@ function runItems(node: Node, lost: string[], around = "", format = 0): Item[] {
             title: typeof child.props?.title === "string" ? child.props.title : undefined,
             style: runCss(child.style, unescaped) || undefined,
             customAttrs: typeof label === "string" ? { "aria-label": label } : undefined,
-            children: runItems(child, lost, around, format) as Json[],
+            // Its words take what's around it only under its own style: it's inside the link, where the link's wouldn't win.
+            children: runItems(child, lost, around && own, format) as Json[],
           },
         ];
       }

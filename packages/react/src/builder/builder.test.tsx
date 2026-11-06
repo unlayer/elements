@@ -216,6 +216,24 @@ describe("toDesign", () => {
     const back = collectTemplate(fromDesign(JSON.parse(JSON.stringify(design))).element).document!.root.children![0] as any;
     expect(back.children[3]).toMatchObject({ type: "Link", props: { href: { href: "https://x.test/", target: "_blank" }, title: "A title", "aria-label": "A label" } });
   });
+  it("keeps a link's own color over the Span around it", () => {
+    const { design } = toDesign(
+      <Email>
+        <Paragraph>
+          <Span style={{ color: "#ffffff", fontWeight: 700 }}>
+            <Link href="https://x.test/" style={{ color: "#000000" }}>
+              Reset
+            </Link>
+          </Span>
+        </Paragraph>
+      </Email>
+    );
+    const [{ children: [link] }] = JSON.parse(blocks(design)[0].values.textJson).root.children;
+    expect(link.style).toBe("color:#000000");
+    expect(link.children[0].style).toBe("color:#000000;font-weight:700");
+    const back = collectTemplate(fromDesign(JSON.parse(JSON.stringify(design))).element).document!.root.children![0];
+    expect(JSON.stringify(back)).not.toContain("#ffffff");
+  });
   it("writes lines above and below a Row as Dividers in rows of their own, in from the space around it, level whatever its alignItems", () => {
     const row = (style: Record<string, unknown>) => (
       <Row style={{ border: { top: "1px solid #000000", bottom: "2px dashed #ff0000" }, padding: [14, 0], ...style }}>
