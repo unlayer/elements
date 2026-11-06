@@ -7,12 +7,32 @@ export type Width = "desktop" | "phone";
 const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
 const GAP = 16;
 
+/** One thing a render reported: its severity, and what it says. */
+export type Note = { severity: "error" | "warning" | "info"; text: string };
+
 export interface SideBySideProps {
   /** The documents, and what each frame shows. */
   frames: Array<{ label: string; html: string }>;
-  /** What the renders reported (warnings and notes). */
-  notes: string[];
+  /** What the renders reported: warnings, and notes on what some clients draw differently. */
+  notes: Note[];
   width: Width;
+}
+
+/** A list of what a render reported, under a summary that says how many. */
+function Reported({ notes, summary, open }: { notes: Note[]; summary: string; open?: boolean }) {
+  if (!notes.length) return null;
+  return (
+    <details open={open} style={{ font: "13px system-ui, sans-serif", marginTop: 16, color: open ? "#9a3412" : "#57606a" }}>
+      <summary>
+        {summary} ({notes.length})
+      </summary>
+      <ul style={{ paddingLeft: 20 }}>
+        {notes.map((note, index) => (
+          <li key={index}>{note.text}</li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /**
@@ -60,16 +80,9 @@ export function SideBySide({ frames, notes, width }: SideBySideProps) {
           <Frame key={frame.label} label={frame.label} html={frame.html} width={window} scale={scale} />
         ))}
       </div>
-      {notes.length > 0 && (
-        <details style={{ font: "13px system-ui, sans-serif", marginTop: 16 }}>
-          <summary>What the render reported ({notes.length})</summary>
-          <ul style={{ paddingLeft: 20 }}>
-            {notes.map((note, index) => (
-              <li key={index}>{note}</li>
-            ))}
-          </ul>
-        </details>
-      )}
+      {/* Warnings and errors are problems, shown open; info notes say what some email clients draw differently. */}
+      <Reported notes={notes.filter((note) => note.severity !== "info")} summary="Warnings" open />
+      <Reported notes={notes.filter((note) => note.severity === "info")} summary="Notes: what some clients draw differently" />
     </div>
   );
 }
@@ -79,7 +92,7 @@ export type Args = { width: Width };
 export const args: Args = { width: "desktop" };
 export const argTypes = { width: { control: "inline-radio", options: ["desktop", "phone"] } } as const;
 
-const noted = (result: RenderResult) => result.diagnostics.map((d) => `${d.code} at ${d.path}: ${d.message}`);
+const noted = (result: RenderResult): Note[] => result.diagnostics.map((d) => ({ severity: d.severity, text: `${d.code} at ${d.path}: ${d.message}` }));
 
 /** A story of two templates, each rendered with render(), side by side. */
 export const sideBySide = (left: { label: string; template: ReactElement }, right: { label: string; template: ReactElement }): StoryObj<Args> => ({
