@@ -28,6 +28,9 @@ type Child = { child: Node; path: string };
 
 const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (node.children ?? []).some((child) => typeof child !== "string" && holdsPageNumber(child));
 
+/** What shows a box's edges: where these are set, space around it can't move inside it. */
+const PAINT = ["backgroundColor", "border", "borderRadius"];
+
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
 
@@ -188,7 +191,12 @@ export function raise(element: React.ReactElement): Raised {
       } else if (child.type === "Column" && (hasBox(child) || !childrenOf(child, path).length) && !hasLayout(child)) {
         flush(false);
         const o = outer();
-        out.push(boxRow(child, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length)));
+        // A builder row has no room at its sides: the space around a box goes into its column, where nothing shows it
+        // isn't around the box. A box that's painted fills its column, so it's as wide as the row: said, not hidden.
+        const painted = PAINT.some((key) => child.style?.[key] !== undefined || child.mobile?.[key] !== undefined);
+        if (painted && (o.left || o.right)) report.push(`${path}: the builder's row can't keep a painted box in from its sides: the ${o.left || o.right}px around it is left out, so it's as wide as the row`);
+        const inset = painted ? child : { ...child, style: { ...child.style, padding: add(padding(child), { left: o.left, right: o.right }) } };
+        out.push(boxRow(inset, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length)));
       } else run.push({ child, path });
     });
     flush(true);

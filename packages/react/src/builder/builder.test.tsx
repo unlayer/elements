@@ -136,6 +136,25 @@ describe("toDesign", () => {
     ).toEqual(["root.children[0]: the builder's text holds no a link's hover: left out", "root.children[1]: an image without its size (its src's width and height) takes its own size, and in the builder its column's width"]);
   });
 
+  it("says a painted box in a Section loses the space at its sides, and moves it into an unpainted box's column", () => {
+    const template = (style: Record<string, string | number>) => (
+      <Email width={480}>
+        <Section style={{ padding: [0, 24] }}>
+          <Text>above</Text>
+          <Column style={style}>
+            <Text>x</Text>
+          </Column>
+        </Section>
+      </Email>
+    );
+    const painted = toDesign(template({ backgroundColor: "#eeeeee", padding: 20 }));
+    expect(painted.report).toEqual(["root.children[0].children[1]: the builder's row can't keep a painted box in from its sides: the 24px around it is left out, so it's as wide as the row"]);
+    expect(painted.design.body.rows[1].columns[0].values.padding).toBe("20px");
+    const plain = toDesign(template({ height: 80, padding: 20 }));
+    expect(plain.report).toEqual([]);
+    expect(plain.design.body.rows[1].columns[0].values.padding).toBe("20px 44px");
+  });
+
   it("takes an Email, a Page or a Document, which the builder edits", () => {
     expect(() =>
       toDesign(
