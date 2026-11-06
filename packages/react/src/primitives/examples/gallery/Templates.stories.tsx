@@ -1,7 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ReactElement } from "react";
-import { render } from "../../index";
-import { args, argTypes, code, noted, showing, SideBySide, type Args } from "../../../stories/SideBySide";
+import { args, argTypes, browsed, drawn, printed, showing, type Args } from "../../../stories/SideBySide";
 import { gallery } from "./index";
 
 const meta: Meta<Args> = {
@@ -18,49 +16,6 @@ const meta: Meta<Args> = {
   },
 };
 export default meta;
-
-/** A Page in a browser's window: 1280 wide on a desktop, 390 on a phone. */
-const browsed = (template: ReactElement): StoryObj<Args> => ({
-  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
-  loaders: [
-    async () => {
-      const result = await render(template);
-      return { html: result.html, notes: noted(result) };
-    },
-  ],
-  render: ({ width }, { loaded }) => <SideBySide frames={[{ label: "Page", html: loaded.html }]} notes={loaded.notes} width={width} size={width === "phone" ? 390 : 1280} />,
-});
-
-/** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @unlayer/elements-image writes it as a PNG. */
-const drawn = (template: ReactElement, size: number): StoryObj<Args> => ({
-  argTypes: { width: { table: { disable: true } } },
-  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
-  loaders: [
-    async () => {
-      const result = await render(template);
-      return { html: result.html, notes: noted(result) };
-    },
-  ],
-  render: (_, { loaded }) => <SideBySide frames={[{ label: "Canvas", html: loaded.html }]} notes={loaded.notes} width="desktop" size={size} />,
-});
-
-/** A Document's print HTML in a frame as tall as its pages. */
-const printed = (template: ReactElement): StoryObj<Args> => ({
-  argTypes: { width: { table: { disable: true } } },
-  parameters: { docs: { source: { code: code(template), language: "tsx" } } },
-  loaders: [async () => ({ html: (await render(template)).html })],
-  render: (_, { loaded }) => (
-    <iframe
-      title="Print HTML"
-      srcDoc={loaded.html as string}
-      style={{ width: "100%", height: 2400, border: 0 }}
-      onLoad={(event) => {
-        const frame = event.currentTarget;
-        frame.style.height = `${frame.contentDocument?.documentElement.scrollHeight ?? 2400}px`;
-      }}
-    />
-  ),
-});
 
 /** An Email: a product launch on drafting paper, with a technical drawing whose callouts are the list under it. Switch `width` to see it on a phone. */
 export const OyenLaunch: StoryObj<Args> = { ...showing("Email", gallery.oyenLaunch), name: "Oyen FR-2 launch" };
