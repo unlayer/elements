@@ -12,11 +12,12 @@ import { LiveEditor, modeOf } from "./LiveEditor";
 import { Reported, type Note, type Width } from "./Reported";
 import { code, Frame, GAP, noted, WIDTHS, type Args } from "./SideBySide";
 
-/** The design without its hidden properties: only what the builder draws. */
-function withoutHidden(design: Design): Design {
+/** The design without its hidden properties: only what the builder draws. It draws a root's fonts, from the stylesheet on each font. */
+export function withoutHidden(design: Design): Design {
   const copy = JSON.parse(JSON.stringify(design)) as Design;
   const strip = (tool: string, values: Record<string, any>) => {
     for (const { key, path } of HIDDEN[tool] ?? []) {
+      if (path === "props.fonts") continue;
       if (path.startsWith("hidden.")) delete values._override?.[path.slice(7)]?.[key];
       else {
         delete values[key];
