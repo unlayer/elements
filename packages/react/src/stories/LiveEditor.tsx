@@ -151,7 +151,7 @@ export interface LiveEditorProps {
   tall?: number;
 }
 
-/** A template's design in the real editor, with what `toDesign` says the builder can't keep; or why it can't go there. */
+/** A template's design in the real editor, with what `toDesign` says the builder can't keep. */
 export function LiveEditor({ template, width, tall = 680 }: LiveEditorProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(0);
@@ -175,11 +175,7 @@ export function LiveEditor({ template, width, tall = 680 }: LiveEditorProps) {
   // Automated runs have no editor, so nothing of it is worked out for them.
   const made = useMemo(() => {
     if (navigator.webdriver) return undefined;
-    try {
-      return toDesign(template);
-    } catch (error) {
-      return { reason: String((error as Error).message).split("\n").pop()?.replace(/^root: /, "") };
-    }
+    return toDesign(template);
   }, [template]);
 
   const displayMode = modeOf(template);
@@ -189,15 +185,11 @@ export function LiveEditor({ template, width, tall = 680 }: LiveEditorProps) {
 
   return (
     <div ref={box} style={{ marginTop: 24, minWidth: 0 }}>
-      {made && "report" in made && <Reported notes={made.report.map((text) => ({ severity: "info", text }))} summary="What toDesign says the builder can't keep" />}
+      {made && <Reported notes={made.report.map((text) => ({ severity: "info", text }))} summary="What toDesign says the builder can't keep" />}
       <figure style={{ margin: "16px 0 0" }}>
         <figcaption style={{ font: "600 13px system-ui, sans-serif", marginBottom: 8 }}>In the Unlayer editor, live: click anything to edit it</figcaption>
         {!made ? (
           <Placeholder />
-        ) : "reason" in made ? (
-          <div style={{ padding: "28px 24px", outline: "1px solid #d0d7de", background: "#f6f8fa", display: "flex", justifyContent: "center" }}>
-            <p style={say}>This one doesn&rsquo;t go in the editor: {made.reason}.</p>
-          </div>
         ) : room ? (
           <EditorWindow key={device} template={template} design={made.design} displayMode={displayMode} device={device} width={inner} height={height} scale={room / inner} />
         ) : null}

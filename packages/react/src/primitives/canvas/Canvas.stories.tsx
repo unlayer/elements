@@ -17,14 +17,15 @@ const meta: Meta = {
 };
 export default meta;
 
-/** A Canvas's HTML in a frame of its size. */
+/** A Canvas's HTML in a frame of its size (and a Page's, whose Svg these stories show too). */
 const drawn = (template: ReactElement, width: number, height: number): StoryObj => ({
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
   render: (_, { loaded }) => (
     <>
-      <iframe title="Canvas" srcDoc={loaded.html as string} style={{ width, height, border: 0, display: "block" }} />
-      <LiveEditor template={template} width="desktop" />
+      <iframe title="Canvas" srcDoc={loaded.html as string} style={{ width, height, border: 0 }} />
+      {/* The one here that's a Page goes in the editor; a Canvas doesn't. */}
+      {template.type === Page && <LiveEditor template={template} width="desktop" />}
     </>
   ),
 });

@@ -186,12 +186,7 @@ export const drawn = (template: ReactElement, size: number): StoryObj<Args> => (
       return { html: result.html, notes: noted(result) };
     },
   ],
-  render: (_, { loaded }) => (
-    <>
-      <SideBySide frames={[{ label: "Canvas", html: loaded.html }]} notes={loaded.notes} width="desktop" size={size} />
-      <LiveEditor template={template} width="desktop" />
-    </>
-  ),
+  render: (_, { loaded }) => <SideBySide frames={[{ label: "Canvas", html: loaded.html }]} notes={loaded.notes} width="desktop" size={size} />,
 });
 
 /** A Document's print HTML in a frame as tall as its pages. */
