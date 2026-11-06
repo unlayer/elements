@@ -1,23 +1,23 @@
-# @unlayer/elements-image
+# Image output: `@unlayer/react-elements/image`
 
 Image output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Canvas>` from `@unlayer/react-elements` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
 
 ## Installation
 
 ```bash
-npm install @unlayer/elements-image @unlayer/react-elements satori @resvg/resvg-js react
+npm install @unlayer/react-elements satori @resvg/resvg-js react
 ```
 
-Peer dependencies:
+`/image` is an entry of `@unlayer/react-elements`. Its engines are optional peer dependencies, so a project that doesn't import `/image` installs nothing for them, and the main entry never loads them:
 
 | Package | Version | Why |
 |---------|---------|-----|
-| `@unlayer/react-elements` | `^0.3.0` | The components, and the laid-out tree this package reads (below) |
-| `satori` | `^0.33.5` | Lays out the Canvas and draws its text as paths, as SVG |
-| `@resvg/resvg-js` | `^2.6.2` | Draws that SVG as a PNG |
+| `@unlayer/react-elements` | `^0.3.0` | The components, and this entry |
+| `satori` | `^0.33.5` | Lays out the Canvas and draws its text as paths, as SVG (optional: only for `/image`) |
+| `@resvg/resvg-js` | `^2.6.2` | Draws that SVG as a PNG (optional: only for `/image`) |
 | `react` | `>=18` | |
 
-The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the Elements installed writes another, it throws an `ElementsError` (`image/version`) saying which package to update, rather than drawing the template wrong.
+The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the `@unlayer/react-elements` it loads writes another (a second install beside it), it throws an `ElementsError` (`image/version`) rather than drawing the template wrong.
 
 Node.js only: it writes the image on the server.
 
@@ -26,7 +26,7 @@ Node.js only: it writes the image on the server.
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
 import { Canvas, Heading, Paragraph } from "@unlayer/react-elements";
-import { renderImage } from "@unlayer/elements-image";
+import { renderImage } from "@unlayer/react-elements/image";
 
 const SocialCard = () => (
   <Canvas width={1200} height={630} style={{ backgroundColor: "#0f172a", padding: 64, gap: 24, color: "#ffffff", fontFamily: "Inter, sans-serif" }}>
@@ -67,7 +67,7 @@ Nothing is fetched. Give each file the template needs:
 | Code | Severity | When |
 |------|----------|------|
 | `image/root` | error | The template isn't a Canvas |
-| `image/version` | error | The Elements installed lays the template out in another layout version than this package reads |
+| `image/version` | error | The `@unlayer/react-elements` loaded lays the template out in another layout version than `/image` reads |
 | `image/font` | error | The Canvas has text and no font is given |
 | `image/font` | warning | A font in the Canvas's `fonts` isn't given, or a file given is WOFF2 |
 | `image/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |

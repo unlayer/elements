@@ -28,11 +28,11 @@ pnpm test
 
 ```
 packages/
-  react/       → Published package (@unlayer/react-elements)
+  react/       → Published package (@unlayer/react-elements), with a Document written as a PDF (/pdf) and a
+                 Canvas as PNG or SVG (/image) as entries of their own
   core/        → Component definitions, validation, layout, and the writers (src/writers/: email, page and print
-                 HTML, plain text); bundled into react, not published
-  pdf/         → A Document written as a PDF (@unlayer/elements-pdf)
-  image/       → A Canvas written as PNG or SVG (@unlayer/elements-image)
+                 HTML, plain text; src/pdf/ and src/image/: the PDF and image writers, with their own entries);
+                 bundled into react, not published
   migrate/     → The migration CLI (@unlayer/migrate), with the React Email converter (src/react-email/) and what
                  converters share (src/convert/)
 examples/      → The demo application (demo/) and runnable examples

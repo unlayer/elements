@@ -4,7 +4,8 @@ const shared: Options = {
   format: ['cjs', 'esm'],
   dts: {
     // Inline types from the private workspace package so consumers get full type completion without extra installs
-    resolve: ['@unlayer-internal/elements-core'],
+    // (its main entry and the PDF and image ones).
+    resolve: [/^@unlayer-internal\/elements-core($|\/)/],
   },
   splitting: false,
   sourcemap: true,
@@ -20,7 +21,18 @@ const shared: Options = {
   treeshake: true,
 };
 
+// PDF and image output are entries of their own, so the main entry and /builder load no engine and keep their size
+// budgets. Each engine is an optional peer dependency, and each entry imports this package by name (src/pdf and
+// src/image): left external, it's the main entry's `prepare()` and `ElementsError`, not a copy of them.
+const output = (entry: string, engines: string[]): Options => ({
+  ...shared,
+  entry: { [entry]: `src/${entry}/index.ts` },
+  external: [...(shared.external as string[]), ...engines, '@unlayer/react-elements'],
+});
+
 export default defineConfig([
   { ...shared, entry: { primitives: 'src/primitives/index.ts' }, clean: true },
   { ...shared, entry: { builder: 'src/builder/index.ts' } },
+  output('pdf', ['@react-pdf/renderer']),
+  output('image', ['satori', '@resvg/resvg-js']),
 ]);

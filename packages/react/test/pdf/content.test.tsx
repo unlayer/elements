@@ -3,13 +3,13 @@
  * together at random (the react package's testing/templates.ts, as its own content test uses them), each written
  * by the PDF writer.
  *
- *   CONTENT_SEEDS=2000 pnpm vitest run test/content.test.tsx
+ *   CONTENT_SEEDS=2000 pnpm vitest run test/pdf/content.test.tsx
  */
 import * as primitives from "@unlayer/react-elements";
 import { prepare } from "@unlayer/react-elements";
 import { createElement, type ReactElement } from "react";
-import { generate, misplaced, toElement, words } from "../../react/src/primitives/testing/templates";
-import { writeDocument } from "../src/write";
+import { generate, misplaced, toElement, words } from "../../src/primitives/testing/templates";
+import { writeDocument } from "@unlayer-internal/elements-core/pdf";
 
 const SEEDS = Number(process.env.CONTENT_SEEDS ?? 120);
 

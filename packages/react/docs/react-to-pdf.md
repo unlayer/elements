@@ -3,7 +3,7 @@
 Use `@unlayer/react-elements` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@unlayer/react-elements`; then there are two ways to get the file:
 
 - **With Playwright:** `await render(<Document>…</Document>)` produces print-ready HTML, and `page.pdf()` in headless Chromium produces the PDF bytes. It needs Chromium wherever it runs. The rest of this guide and the checked-in example use this way.
-- **Without a browser:** `renderPdf(<Document>…</Document>)` from `@unlayer/elements-pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
+- **Without a browser:** `renderPdf(<Document>…</Document>)` from `@unlayer/react-elements/pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
 
 ## Install
 
@@ -78,15 +78,15 @@ For repeated jobs, reuse a browser with isolated pages/contexts and close each a
 
 ## Without a browser
 
-`@unlayer/elements-pdf` writes a `Document` as a PDF with react-pdf, so a Node.js server needs no Chromium:
+`@unlayer/react-elements/pdf` writes a `Document` as a PDF with react-pdf, so a Node.js server needs no Chromium:
 
 ```bash
-npm install @unlayer/elements-pdf @unlayer/react-elements @react-pdf/renderer react
+npm install @unlayer/react-elements @react-pdf/renderer react
 ```
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { renderPdf } from "@unlayer/elements-pdf";
+import { renderPdf } from "@unlayer/react-elements/pdf";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 
 await mkdir("output", { recursive: true });
@@ -95,6 +95,6 @@ for (const { code, message } of diagnostics) console.warn(code, message);
 await writeFile("output/invoice.pdf", pdf);
 ```
 
-It takes the same template. Nothing is fetched: pass font files in `fonts` and image files in `images`, as bytes. Text whose font has no file given, as in this invoice, is drawn in a standard PDF font, which covers Western European characters only. The [package's guide](../../pdf/README.md) lists its options, diagnostics and limits.
+It takes the same template. Nothing is fetched: pass font files in `fonts` and image files in `images`, as bytes. Text whose font has no file given, as in this invoice, is drawn in a standard PDF font, which covers Western European characters only. The [`/pdf` guide](./render-pdf.md) lists its options, diagnostics and limits.
 
 For email and browser versions of the same content, see [one React template, three outputs](./one-template-email-web-pdf.md).

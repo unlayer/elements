@@ -1,8 +1,8 @@
 /**
  * PDF output for Elements: a `<Document>` written as a PDF on the server, without a browser or the network. Its
  * pages, header and footer and page numbers are the print HTML's, laid out at the same widths. The writer builds the
- * pages as plain data (model.ts); an engine's adapter draws them (react-pdf's, react-pdf.tsx, the only file that
- * imports one), so the engine can change without the writer changing.
+ * pages as plain data (the core's src/pdf/model.ts); an engine's adapter draws them (react-pdf's, react-pdf.tsx beside
+ * it, the only file that imports one), so the engine can change without the writer changing.
  *
  *   const { pdf } = await renderPdf(<Invoice />, { fonts: [{ family: "Inter", src: interRegular }] });
  *
@@ -10,13 +10,9 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so.
  */
-import { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "@unlayer-internal/elements-core";
+import { assetParts, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font, type FontFace } from "@unlayer-internal/elements-core/pdf";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements";
 import type { ReactElement } from "react";
-import type { Font } from "./model";
-import { reactPdf } from "./react-pdf";
-import { pdfFamily } from "./styles";
-import { thumbnailOf, writeDocument } from "./write";
 
 export interface PdfFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
@@ -64,17 +60,17 @@ export async function renderPdf(element: ReactElement, options: PdfOptions = {})
 }
 
 /**
- * The tree prepare() gives, read as this package's copy of the core lays it out: from an Elements that writes another
- * layout version (newer or older), it's refused rather than drawn wrong.
+ * The tree prepare() gives, read as this entry's copy of the core lays it out: from another copy of Elements that
+ * writes another layout version (a second install of the package, or an older one beside it), it's refused rather than
+ * drawn wrong.
  */
 function readable(layout: unknown, output: "pdf" | "image"): void {
   if (layout === LAYOUT_VERSION) return;
-  const update = typeof layout === "number" && layout > LAYOUT_VERSION ? `@unlayer/elements-${output}` : "@unlayer/react-elements";
   throw new ElementsError([
     {
       code: `${output}/version`,
       severity: "error",
-      message: `@unlayer/elements-${output} reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes ${typeof layout === "number" ? layout : "none"}: update ${update}`,
+      message: `@unlayer/react-elements/${output} reads layout version ${LAYOUT_VERSION}; the main entry writes ${typeof layout === "number" ? layout : "none"}: update @unlayer/react-elements`,
       path: "root",
     },
   ]);

@@ -37,10 +37,10 @@ import {
   Video,
 } from "@unlayer/react-elements";
 import type { ReactElement, ReactNode } from "react";
-import { renderImage } from "../src";
-import { writeCanvas } from "../src/write";
+import { writeCanvas } from "@unlayer-internal/elements-core/image";
+import { renderImage } from "../../src/image";
 
-/** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
+/** What prepare() gives, where a test gives another layout version (another copy of Elements, newer or older). */
 const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
 vi.mock("@unlayer/react-elements", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@unlayer/react-elements")>();
@@ -177,14 +177,14 @@ describe("renderImage", () => {
         other.prepared = undefined;
       }
     };
-    const reads = `@unlayer/elements-image reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes`;
-    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/elements-image`);
+    const reads = `@unlayer/react-elements/image reads layout version ${LAYOUT_VERSION}; the main entry writes`;
+    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/react-elements`);
     await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @unlayer/react-elements`);
     await refused({}, `${reads} none: update @unlayer/react-elements`);
   });
 
   it("depends on its engine in one file: the writer builds a canvas as plain data, which Satori's and resvg's adapter draws", () => {
-    const src = join(dirname(fileURLToPath(import.meta.url)), "../src");
+    const src = join(dirname(fileURLToPath(import.meta.url)), "../../../core/src/image");
     const importing = readdirSync(src).filter((file) => /from "(satori|@resvg\/)/.test(readFileSync(join(src, file), "utf8")));
     expect(importing).toEqual(["satori.ts"]);
     // What the writer builds is data: the same after a round trip through JSON.

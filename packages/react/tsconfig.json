@@ -3,7 +3,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2020", "ES2022.Object", "DOM"],
-    "types": ["react", "react-dom", "vitest/globals"]
+    "types": ["react", "react-dom", "vitest/globals", "node"],
+    // src/pdf and src/image import this package by name, as its users do: its main entry.
+    "paths": { "@unlayer/react-elements": ["./src/primitives/index.ts"] }
   },
   "include": ["src/**/*"],
   "exclude": [

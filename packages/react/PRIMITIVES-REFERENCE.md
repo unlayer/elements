@@ -33,7 +33,7 @@ What a property takes, where it says *kind*:
 
 ## Roots
 
-A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@unlayer/elements-pdf`) writes a Document's PDF, and `renderImage()` (`@unlayer/elements-image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).
+A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@unlayer/react-elements/pdf`) writes a Document's PDF, and `renderImage()` (`@unlayer/react-elements/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).
 
 ### Email
 
@@ -97,7 +97,7 @@ Props:
 
 ### Document
 
-A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/elements-pdf.
+A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/react-elements/pdf.
 
 Holds: Section, Row, Column, Grid, Layer, Svg, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html, Document.Page, PageBreak, PageHeader, PageFooter. Drawn in: page.
 
@@ -128,7 +128,7 @@ Props:
 
 ### Canvas
 
-An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/elements-image.
+An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/react-elements/image.
 
 Holds: Section, Row, Column, Grid, Layer, Svg, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: page.
 

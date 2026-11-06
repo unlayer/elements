@@ -178,8 +178,8 @@ Publish the same content as an email campaign, a web archive, and a public landi
 |-----------|-------------|
 | `<Email>` | Root: email-safe HTML (tables for Outlook/Gmail) |
 | `<Page>` | Root: a responsive web page |
-| `<Document>` | Root: print-ready HTML on pages of its size, and PDF with `@unlayer/elements-pdf` |
-| `<Canvas>` | Root: an image of a fixed size, with `@unlayer/elements-image` |
+| `<Document>` | Root: print-ready HTML on pages of its size, and PDF with `@unlayer/react-elements/pdf` |
+| `<Canvas>` | Root: an image of a fixed size, with `@unlayer/react-elements/image` |
 | `<Section>` | A band whose background spans the window |
 | `<Row>` | Its children side by side, stacked on phones |
 | `<Column>` | Its children stacked; with a background, a card |
@@ -255,9 +255,7 @@ For the full API reference, component props, design patterns, and common mistake
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
-| [`@unlayer/elements-pdf`](./packages/pdf) | A `<Document>` written as a PDF, with no browser | Not yet |
-| [`@unlayer/elements-image`](./packages/image) | A `<Canvas>` written as PNG or SVG | Not yet |
+| [`@unlayer/react-elements`](./packages/react) | React components and renderers, and a `<Document>` as a PDF (`/pdf`) and a `<Canvas>` as PNG or SVG (`/image`), with no browser | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
 | [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals; the converter as a library at `@unlayer/migrate/react-email` | Not yet |
 | [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation, layout, and the writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
 
@@ -314,7 +312,7 @@ Email mode writes table-based HTML, with Outlook's markup in conditional comment
 
 ### Is the PDF output a real PDF engine?
 
-`<Document>` renders to print-ready HTML, and [`@unlayer/elements-pdf`](./packages/pdf) writes it as a PDF with no browser. You can also use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-ready HTML to any HTML-to-PDF library: the [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local pipeline. A `<Document>` sets its pages with `size`, `margin`, `<PageBreak>`, `<PageHeader>` and `<PageFooter>`.
+`<Document>` renders to print-ready HTML, and [`@unlayer/react-elements/pdf`](./packages/react/docs/render-pdf.md) writes it as a PDF with no browser. You can also use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-ready HTML to any HTML-to-PDF library: the [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local pipeline. A `<Document>` sets its pages with `size`, `margin`, `<PageBreak>`, `<PageHeader>` and `<PageFooter>`.
 
 ### Can I use Elements without the Unlayer platform?
 

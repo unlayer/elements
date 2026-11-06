@@ -174,7 +174,7 @@ export const browsed = (template: ReactElement): StoryObj<Args> => ({
   ),
 });
 
-/** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @unlayer/elements-image writes it as a PNG. */
+/** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @unlayer/react-elements/image writes it as a PNG. */
 export const drawn = (template: ReactElement, size: number): StoryObj<Args> => ({
   argTypes: { width: { table: { disable: true } } },
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },

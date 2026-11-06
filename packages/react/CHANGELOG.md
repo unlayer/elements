@@ -22,8 +22,9 @@ loops and conditions; what it can't move is listed, and that file is left as it 
   JSON and back. What a builder tool has no field for is kept in the design as a hidden property of that tool; what
   the builder can't arrange comes back with the same look, flatter. `fromDesign()` takes a `toSafeHtml` for a
   design's markup.
-- PDF and images: `@unlayer/elements-pdf` and `@unlayer/elements-image` write a `Document` as a PDF and a `Canvas` as
-  a PNG.
+- PDF and images: `@unlayer/react-elements/pdf` and `@unlayer/react-elements/image` write a `Document` as a PDF and
+  a `Canvas` as a PNG or SVG, on the server, without a browser. Their engines (`@react-pdf/renderer`; `satori` and
+  `@resvg/resvg-js`) are optional peer dependencies: install the ones you use. The main entry loads none.
 - The package has no dependencies of its own (React is a peer): `@unlayer/exporters` and `@unlayer/types` are gone.
 - Types for the main entry and `/builder` resolve under `moduleResolution: "node"` too.
 - Docs: the READMEs, guides, examples and Storybook show the new components.

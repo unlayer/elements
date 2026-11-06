@@ -111,8 +111,8 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 |-----------|-------------|
 | `<Email>` | Email-safe HTML: tables, with Outlook's markup in conditional comments |
 | `<Page>` | A responsive web page |
-| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@unlayer/elements-pdf` |
-| `<Canvas>` | An image of a fixed size, with `@unlayer/elements-image` |
+| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@unlayer/react-elements/pdf` |
+| `<Canvas>` | An image of a fixed size, with `@unlayer/react-elements/image` |
 
 ### Layout
 
@@ -217,7 +217,7 @@ const page = await render(<Page><Invoice /></Page>);
 const printed = await render(<Document size="A4" margin={48}><Invoice /></Document>);
 ```
 
-`printed.html` is print-ready HTML. For PDF files, [`@unlayer/elements-pdf`](https://github.com/unlayer/elements/tree/main/packages/pdf) writes a `Document` with no browser, and [`@unlayer/elements-image`](https://github.com/unlayer/elements/tree/main/packages/image) writes a `Canvas` as PNG or SVG.
+`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
 
 ## Phones and hover
 

@@ -140,45 +140,24 @@ importers:
 
   packages/core:
     devDependencies:
-      '@types/jsdom':
-        specifier: 27.0.0
-        version: 27.0.0
-      jsdom:
-        specifier: 24.1.3
-        version: 24.1.3
-      playwright:
-        specifier: 1.60.0
-        version: 1.60.0
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.0(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.4(@types/node@25.3.5)(happy-dom@20.8.3)(jiti@2.6.1)(jsdom@24.1.3)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-
-  packages/image:
-    devDependencies:
+      '@react-pdf/renderer':
+        specifier: 4.9.0
+        version: 4.9.0(react@18.3.1)
       '@resvg/resvg-js':
         specifier: 2.6.2
         version: 2.6.2
+      '@types/jsdom':
+        specifier: 27.0.0
+        version: 27.0.0
       '@types/node':
         specifier: ^24.9.1
         version: 24.9.1
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.26
-      '@unlayer-internal/elements-core':
-        specifier: workspace:*
-        version: link:../core
-      '@unlayer/react-elements':
-        specifier: workspace:*
-        version: link:../react
-      pdfjs-dist:
-        specifier: 6.5.438
-        version: 6.5.438
+      jsdom:
+        specifier: 24.1.3
+        version: 24.1.3
       playwright:
         specifier: 1.60.0
         version: 1.60.0
@@ -262,42 +241,6 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.9.1)(happy-dom@20.8.3)(jiti@2.6.1)(jsdom@24.1.3)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
 
-  packages/pdf:
-    devDependencies:
-      '@react-pdf/renderer':
-        specifier: 4.9.0
-        version: 4.9.0(react@18.3.1)
-      '@types/node':
-        specifier: ^24.9.1
-        version: 24.9.1
-      '@types/react':
-        specifier: ^18.3.3
-        version: 18.3.26
-      '@unlayer-internal/elements-core':
-        specifier: workspace:*
-        version: link:../core
-      '@unlayer/react-elements':
-        specifier: workspace:*
-        version: link:../react
-      pdfjs-dist:
-        specifier: 6.5.438
-        version: 6.5.438
-      playwright:
-        specifier: 1.60.0
-        version: 1.60.0
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      tsup:
-        specifier: ^8.0.1
-        version: 8.5.0(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.4(@types/node@24.9.1)(happy-dom@20.8.3)(jiti@2.6.1)(jsdom@24.1.3)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-
   packages/react:
     dependencies:
       react:
@@ -307,6 +250,12 @@ importers:
         specifier: '>=18'
         version: 18.3.1(react@18.3.1)
     devDependencies:
+      '@react-pdf/renderer':
+        specifier: 4.9.0
+        version: 4.9.0(react@18.3.1)
+      '@resvg/resvg-js':
+        specifier: 2.6.2
+        version: 2.6.2
       '@storybook/addon-docs':
         specifier: ^9.1.1
         version: 9.1.16(@types/react@18.3.26)(storybook@9.1.16(@testing-library/dom@10.4.1)(prettier@3.6.2)(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)))
@@ -346,6 +295,9 @@ importers:
       jsdom:
         specifier: ^24.1.3
         version: 24.1.3
+      pdfjs-dist:
+        specifier: 6.5.438
+        version: 6.5.438
       playwright:
         specifier: 1.60.0
         version: 1.60.0
@@ -355,6 +307,9 @@ importers:
       react19:
         specifier: npm:react@19.1.0
         version: react@19.1.0
+      satori:
+        specifier: 0.33.5
+        version: 0.33.5
       storybook:
         specifier: ^9.1.1
         version: 9.1.16(@testing-library/dom@10.4.1)(prettier@3.6.2)(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))
@@ -6643,14 +6598,6 @@ snapshots:
     optionalDependencies:
       vite: 6.4.1(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
 
-  '@vitest/mocker@3.2.4(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))':
-    dependencies:
-      '@vitest/spy': 3.2.4
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-
   '@vitest/mocker@3.2.4(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))':
     dependencies:
       '@vitest/spy': 3.2.4
@@ -9366,27 +9313,6 @@ snapshots:
       - tsx
       - yaml
 
-  vite-node@3.2.4(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0):
-    dependencies:
-      cac: 6.7.14
-      debug: 4.4.3
-      es-module-lexer: 1.7.0
-      pathe: 2.0.3
-      vite: 6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-    transitivePeerDependencies:
-      - '@types/node'
-      - jiti
-      - less
-      - lightningcss
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-      - tsx
-      - yaml
-
   vite@6.4.1(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0):
     dependencies:
       esbuild: 0.25.11
@@ -9468,49 +9394,6 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.9.1
-      happy-dom: 20.8.3
-      jsdom: 24.1.3
-    transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
-      - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-      - tsx
-      - yaml
-
-  vitest@3.2.4(@types/node@25.3.5)(happy-dom@20.8.3)(jiti@2.6.1)(jsdom@24.1.3)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0):
-    dependencies:
-      '@types/chai': 5.2.3
-      '@vitest/expect': 3.2.4
-      '@vitest/mocker': 3.2.4(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))
-      '@vitest/pretty-format': 3.2.4
-      '@vitest/runner': 3.2.4
-      '@vitest/snapshot': 3.2.4
-      '@vitest/spy': 3.2.4
-      '@vitest/utils': 3.2.4
-      chai: 5.3.3
-      debug: 4.4.3
-      expect-type: 1.2.2
-      magic-string: 0.30.21
-      pathe: 2.0.3
-      picomatch: 4.0.3
-      std-env: 3.10.0
-      tinybench: 2.9.0
-      tinyexec: 0.3.2
-      tinyglobby: 0.2.15
-      tinypool: 1.1.1
-      tinyrainbow: 2.0.0
-      vite: 6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-      vite-node: 3.2.4(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@types/node': 25.3.5
       happy-dom: 20.8.3
       jsdom: 24.1.3
     transitivePeerDependencies:

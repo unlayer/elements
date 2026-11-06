@@ -3,13 +3,13 @@
  * together at random (the react package's testing/templates.ts, as its own content test uses them), each written
  * by the image writer.
  *
- *   CONTENT_SEEDS=2000 pnpm vitest run test/content.test.tsx
+ *   CONTENT_SEEDS=2000 pnpm vitest run test/image/content.test.tsx
  */
 import * as primitives from "@unlayer/react-elements";
 import { prepare } from "@unlayer/react-elements";
 import { createElement, type ReactElement } from "react";
-import { generate, misplaced, toElement, words } from "../../react/src/primitives/testing/templates";
-import { writeCanvas } from "../src/write";
+import { generate, misplaced, toElement, words } from "../../src/primitives/testing/templates";
+import { writeCanvas } from "@unlayer-internal/elements-core/image";
 
 const SEEDS = Number(process.env.CONTENT_SEEDS ?? 120);
 

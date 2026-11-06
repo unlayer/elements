@@ -18,7 +18,7 @@ const OUTPUTS: Record<string, string> = { email: "email", web: "page", print: "p
 const GROUPS: Array<{ title: string; about: string; has: (c: ComponentDescription) => boolean }> = [
   {
     title: "Roots",
-    about: "A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@unlayer/elements-pdf`) writes a Document's PDF, and `renderImage()` (`@unlayer/elements-image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
+    about: "A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@unlayer/react-elements/pdf`) writes a Document's PDF, and `renderImage()` (`@unlayer/react-elements/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
     has: (c) => c.categories.includes("root"),
   },
   { title: "Sections and layout", about: "Bands and boxes that arrange blocks. None is required: a root stacks its children.", has: (c) => c.categories.includes("section") || c.categories.includes("layout") },

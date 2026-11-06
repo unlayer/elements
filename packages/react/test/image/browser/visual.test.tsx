@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { chromium } from "playwright";
 import type { ReactElement } from "react";
 import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Paragraph } from "@unlayer/react-elements";
-import { renderImage } from "../../src";
+import { renderImage } from "../../../src/image";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
 const fonts = [{ family: "Liberation", src: `data:font/ttf;base64,${FONT.toString("base64")}` }];

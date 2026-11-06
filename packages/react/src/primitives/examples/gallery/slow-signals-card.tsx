@@ -1,6 +1,6 @@
 /**
  * Slow Signals (a fictional podcast about quiet work) shares an episode: its social card, 1200 by
- * 630, written as a PNG by @unlayer/elements-image.
+ * 630, written as a PNG by @unlayer/react-elements/image.
  *
  * Night at sea: a warm near-black, cream type, and the one amber of a lighthouse's beam, drawn
  * with Svg shapes beside the title. DM Serif Display for the title, DM Mono for the rest.

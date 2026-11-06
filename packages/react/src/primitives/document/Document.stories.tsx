@@ -10,7 +10,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "A `<Document>` rendered to print HTML: each page a box of the paper's size, its header and footer on each, numbered. Print it (or save it as PDF) from the frame; `@unlayer/elements-pdf` writes the same pages as a PDF without a browser. The bindery, Kettlestitch, is fictional.",
+          "A `<Document>` rendered to print HTML: each page a box of the paper's size, its header and footer on each, numbered. Print it (or save it as PDF) from the frame; `@unlayer/react-elements/pdf` writes the same pages as a PDF without a browser. The bindery, Kettlestitch, is fictional.",
       },
     },
   },

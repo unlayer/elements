@@ -3,9 +3,12 @@
 Elements' engine, framework-neutral: the template tree, the components' definitions
 (`src/components.ts`), validation, custom components and layout (`src/resolve.ts`), and Elements'
 own writers (`src/writers/`): a laid-out template as HTML for each output, and as plain text.
-Private, bundled into `@unlayer/react-elements` (`@unlayer/elements-pdf` and
-`@unlayer/elements-image` bundle the helpers they use). The plan behind it is
+Private, bundled into `@unlayer/react-elements`. The plan behind it is
 `docs/rfcs/0001-primitives-and-exporters.md`.
+
+Two entries are not framework-neutral: `./pdf` and `./image`, the writers of
+`@unlayer/react-elements/pdf` and `/image` (see [PDF and images](#pdf-and-images)). The main entry
+imports no engine.
 
 ## The writers
 
@@ -88,6 +91,22 @@ Lists and tables are a family of components each: `List` writes its items' rows 
 (page) and `ListItem` an item's content; `Table` writes the table and its column widths, `TableRow`
 and `TableCell` the rest. A table's `cellPadding` and `rowBorder` arrive already on each cell's own
 style: the resolver puts them there, so a cell needs nothing from its table.
+
+## PDF and images
+
+```
+src/pdf/     a Document as pages to draw (write.ts, styles.ts), as plain data (model.ts), and the one
+             file that imports react-pdf (react-pdf.tsx)
+src/image/   a Canvas as an image to draw (write.ts), as plain data (model.ts), and the one file that
+             imports Satori and resvg (satori.ts)
+```
+
+Each folder is an entry of its own (`./pdf`, `./image`), so the main entry loads no engine. The
+public functions, `renderPdf()` and `renderImage()`, are in `packages/react/src/pdf` and
+`src/image` (`@unlayer/react-elements/pdf` and `/image`): they lay the template out with `prepare()`
+and write it with these. A writer builds data and an engine's adapter draws it, so an engine can
+change without the writer changing. Their tests are in `packages/react/test/pdf` and
+`packages/react/test/image`.
 
 ## Adding a component
 

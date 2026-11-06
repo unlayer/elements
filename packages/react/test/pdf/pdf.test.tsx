@@ -44,11 +44,11 @@ import {
   validate,
   Video,
 } from "@unlayer/react-elements";
-import { renderPdf } from "../src";
-import { writeDocument } from "../src/write";
+import { writeDocument } from "@unlayer-internal/elements-core/pdf";
+import { renderPdf } from "../../src/pdf";
 import { toWoff, toWoff2 } from "./woff";
 
-/** What prepare() gives, where a test gives another layout version (the Elements installed newer or older than this package). */
+/** What prepare() gives, where a test gives another layout version (another copy of Elements, newer or older). */
 const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
 vi.mock("@unlayer/react-elements", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@unlayer/react-elements")>();
@@ -552,15 +552,15 @@ describe("renderPdf", () => {
         other.prepared = undefined;
       }
     };
-    const reads = `@unlayer/elements-pdf reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes`;
-    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/elements-pdf`);
+    const reads = `@unlayer/react-elements/pdf reads layout version ${LAYOUT_VERSION}; the main entry writes`;
+    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/react-elements`);
     await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @unlayer/react-elements`);
     await refused({}, `${reads} none: update @unlayer/react-elements`);
   });
 
   it("depends on its engine in one file: the writer builds pages as plain data, which react-pdf's adapter draws", () => {
-    const sources = readdirSync(join(dirname(fileURLToPath(import.meta.url)), "../src"));
-    const importing = sources.filter((file) => /from "@react-pdf\//.test(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../src", file), "utf8")));
+    const src = join(dirname(fileURLToPath(import.meta.url)), "../../../core/src/pdf");
+    const importing = readdirSync(src).filter((file) => /from "@react-pdf\//.test(readFileSync(join(src, file), "utf8")));
     expect(importing).toEqual(["react-pdf.tsx"]);
     // What the writer builds is data: the same after a round trip through JSON (its date aside).
     const { root } = prepare(invoice);

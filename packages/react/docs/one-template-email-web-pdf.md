@@ -1,6 +1,6 @@
 # One React invoice template to email, web, and PDF
 
-Use `@unlayer/react-elements` when a receipt or invoice needs an email, a browser view, and a downloadable PDF with the same content. Write the content once with the components from `@unlayer/react-elements`, and select `Email`, `Page`, or `Document` as its root. `await render(element)` writes the HTML that root asks for. Playwright prints the document HTML to a PDF, or [`@unlayer/elements-pdf`](./react-to-pdf.md#without-a-browser) writes one without a browser.
+Use `@unlayer/react-elements` when a receipt or invoice needs an email, a browser view, and a downloadable PDF with the same content. Write the content once with the components from `@unlayer/react-elements`, and select `Email`, `Page`, or `Document` as its root. `await render(element)` writes the HTML that root asks for. Playwright prints the document HTML to a PDF, or [`@unlayer/react-elements/pdf`](./react-to-pdf.md#without-a-browser) writes one without a browser.
 
 ## Install and run
 

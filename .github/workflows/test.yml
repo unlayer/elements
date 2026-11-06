@@ -57,11 +57,11 @@ jobs:
       # ── Type contract ───────────────────────────────────────────
       # tsc gate over the components' prop types, render()'s and component()'s
       # (src/primitives/types.test-d.tsx and the other files in
-      # tsconfig.typecheck.json), and each engine package's sources. The build
-      # only type-checks each entry's import graph, so this catches a relaxed or
-      # broken input type.
+      # tsconfig.typecheck.json, which include /pdf and /image and their tests)
+      # and the core's sources. The build only type-checks each entry's import
+      # graph, so this catches a relaxed or broken input type.
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer/elements-pdf typecheck && pnpm --filter @unlayer/elements-image typecheck
+        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck
 
       # The CLI, the converters (src/react-email, src/convert), their tests and the benchmark.
       - name: Converter typechecks
@@ -332,14 +332,14 @@ jobs:
         run: pnpm --filter @unlayer-internal/elements-core test:browser
 
       # A Document's PDF (written by react-pdf, without a browser) laid out as its print HTML is: Chromium measures
-      # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/pdf/test/browser).
+      # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/react/test/pdf/browser).
       - name: PDF laid out as its print HTML
-        run: pnpm --filter @unlayer/elements-pdf test:browser
+        run: pnpm --filter @unlayer/react-elements test:browser test/pdf
 
       # A Canvas's image (written by Satori and resvg, without a browser) drawn as Chromium draws the Canvas's HTML,
-      # with the same font file: pixel by pixel, the edges of shapes and letters aside (packages/image/test/browser).
+      # with the same font file: pixel by pixel, the edges of shapes and letters aside (packages/react/test/image/browser).
       - name: Image drawn as its Canvas's HTML
-        run: pnpm --filter @unlayer/elements-image test:browser
+        run: pnpm --filter @unlayer/react-elements test:browser test/image
 
       # ── Migration fidelity smoke test ───────────────────────────
       # Converts the committed fixture templates both ways (codemod and

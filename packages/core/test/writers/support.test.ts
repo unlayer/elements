@@ -17,7 +17,7 @@ const OUTPUTS: Array<{ target: Target; root: string }> = [
   { target: "web", root: "Page" },
   // Print HTML: a page writer's output, with a Document's own components.
   { target: "web", root: "Document" },
-  // A Canvas's HTML (its image is @unlayer/elements-image's).
+  // A Canvas's HTML (its image is @unlayer/react-elements/image's).
   { target: "web", root: "Canvas" },
 ];
 

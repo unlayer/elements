@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2020"],
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node"],
     // The writers' JSX writes strings (src/writers/jsx.ts), not React elements.
     "jsx": "react",
     "jsxFactory": "h",

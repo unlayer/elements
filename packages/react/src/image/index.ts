@@ -1,19 +1,17 @@
 /**
  * Image output for Elements: a `<Canvas>` written as PNG or SVG on the server, without a browser or the network. Its
- * content is laid out at the widths every output uses, written as a canvas any engine can draw (model.ts), and drawn
- * by Satori (layout and text as paths) and resvg (pixels), whose adapter (satori.ts) is the only file naming them.
+ * content is laid out at the widths every output uses, written as a canvas any engine can draw (the core's
+ * src/image/model.ts), and drawn by Satori (layout and text as paths) and resvg (pixels), whose adapter (satori.ts
+ * beside it) is the only file naming them.
  *
  *   const { image } = await renderImage(<SocialCard />, { fonts: [{ family: "Inter", src: interRegular }] });
  *
  * Nothing is fetched: fonts are given (`fonts`, or the Canvas's `fonts` as data: URIs), and so are images (`images`
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  */
-import { assetParts, fontStack, LAYOUT_VERSION, type Asset, type FontFace } from "@unlayer-internal/elements-core";
+import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, writeCanvas, type Asset, type Font, type FontFace } from "@unlayer-internal/elements-core/image";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements";
 import type { ReactElement } from "react";
-import type { Font } from "./model";
-import { satoriResvg } from "./satori";
-import { writeCanvas } from "./write";
 
 export interface ImageFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
@@ -70,17 +68,17 @@ export async function renderImage(element: ReactElement, options: ImageOptions =
 }
 
 /**
- * The tree prepare() gives, read as this package's copy of the core lays it out: from an Elements that writes another
- * layout version (newer or older), it's refused rather than drawn wrong.
+ * The tree prepare() gives, read as this entry's copy of the core lays it out: from another copy of Elements that
+ * writes another layout version (a second install of the package, or an older one beside it), it's refused rather than
+ * drawn wrong.
  */
 function readable(layout: unknown, output: "pdf" | "image"): void {
   if (layout === LAYOUT_VERSION) return;
-  const update = typeof layout === "number" && layout > LAYOUT_VERSION ? `@unlayer/elements-${output}` : "@unlayer/react-elements";
   throw new ElementsError([
     {
       code: `${output}/version`,
       severity: "error",
-      message: `@unlayer/elements-${output} reads layout version ${LAYOUT_VERSION}; this @unlayer/react-elements writes ${typeof layout === "number" ? layout : "none"}: update ${update}`,
+      message: `@unlayer/react-elements/${output} reads layout version ${LAYOUT_VERSION}; the main entry writes ${typeof layout === "number" ? layout : "none"}: update @unlayer/react-elements`,
       path: "root",
     },
   ]);

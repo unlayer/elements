@@ -3,7 +3,7 @@
  * other output), text in the font a stack names that's given (else the first given), images from their bytes, an
  * Svg's shapes as a drawing. No engine is named here: an engine's adapter draws what this writes (satori.ts).
  */
-import { assetParts, fontStack, htmlText, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { assetParts, fontStack, htmlText, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "../index";
 import type { Block, DrawnCanvas, Font, Picture, Run, Shape, Style } from "./model";
 
 export interface WriteContext {

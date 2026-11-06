@@ -7,7 +7,7 @@
 import { chromium } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section } from "@unlayer/react-elements";
-import { renderPdf } from "../../src";
+import { renderPdf } from "../../../src/pdf";
 
 /** Each line by its first word (each a different one). */
 const LINES = ["Quarterly", "Results", "Region", "Revenue", "North", "$1.2M", "South", "$0.9M", "Growth", "Read", "Page"];

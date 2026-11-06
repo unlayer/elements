@@ -3,8 +3,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2020", "ES2022.Object", "DOM"],
-    "types": ["react", "react-dom"],
+    "types": ["react", "react-dom", "vitest/globals", "node"],
+    "paths": { "@unlayer/react-elements": ["./src/primitives/index.ts"] },
     "noEmit": true
   },
-  "include": ["src/primitives/types.test-d.tsx", "src/primitives/template.test.tsx", "src/primitives/custom.test.tsx"]
+  "include": ["src/primitives/types.test-d.tsx", "src/primitives/template.test.tsx", "src/primitives/custom.test.tsx", "src/pdf/**/*", "src/image/**/*", "test/**/*"]
 }

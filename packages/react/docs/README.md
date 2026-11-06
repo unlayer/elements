@@ -13,8 +13,8 @@ npm install @unlayer/react-elements react react-dom
 | Send a React transactional email, receipt, or order confirmation | [Transactional email in React](./transactional-email.md) | Complete HTML, plain text, and provider-ready message |
 | Deliver Elements HTML with an email provider | [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](./email-providers.md) | Five runnable server-side integrations |
 | Share one React template across email, web, and PDF | [One React invoice, three outputs](./one-template-email-web-pdf.md) | Email HTML, responsive page, print HTML, and real PDF |
-| Generate an invoice PDF | [React to PDF](./react-to-pdf.md) | A PDF file printed by headless Chromium, or written by `@unlayer/elements-pdf` without a browser |
-| Write a social card or banner as an image | [`@unlayer/elements-image`](../../image/README.md) | A `Canvas` as a PNG or SVG file |
+| Generate an invoice PDF | [React to PDF](./react-to-pdf.md) | A PDF file printed by headless Chromium, or written by `@unlayer/react-elements/pdf` without a browser |
+| Write a social card or banner as an image | [`@unlayer/react-elements/image`](./render-image.md) | A `Canvas` as a PNG or SVG file |
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `toDesign()` → `loadDesign()` → edited JSON and HTML, and `fromDesign()` back to a template |
 | Move React Email templates to Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @unlayer/migrate`: converted templates, checked against the originals |
 | Open React Email templates in the Unlayer editor | [React Email in the editor](../../../examples/react-email-in-editor) | `npx @unlayer/migrate --design` → `loadDesign()` |
@@ -23,7 +23,7 @@ npm install @unlayer/react-elements react react-dom
 
 Use Elements for reusable content, especially when the same invoice, receipt, announcement, or report must appear in multiple formats. Email-only templates also work. Visual editing is optional: local rendering needs no Unlayer account or API key. A hosted editor integration has its own project configuration and feature availability.
 
-Elements supplies components and renderers. Your email provider handles delivery, retries, bounces, and sender verification. `@unlayer/elements-pdf` writes a `Document` as a PDF and `@unlayer/elements-image` a `Canvas` as an image, or a browser can print a `Document`'s HTML. An application framework handles interactive pages, routing, and data fetching. If you need only those services, Elements does not replace them.
+Elements supplies components and renderers. Your email provider handles delivery, retries, bounces, and sender verification. `@unlayer/react-elements/pdf` writes a `Document` as a PDF and `@unlayer/react-elements/image` a `Canvas` as an image, or a browser can print a `Document`'s HTML. An application framework handles interactive pages, routing, and data fetching. If you need only those services, Elements does not replace them.
 
 ## Agent implementation rules
 

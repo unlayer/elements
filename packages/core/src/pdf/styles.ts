@@ -2,7 +2,7 @@
  * Elements' styles as the page model's (model.ts): lengths from CSS px (96 to the inch) to PDF points (72), a font
  * stack to a family the PDF has (one whose file is given, else the standard PDF font it's closest to), boxes and text.
  */
-import { fontStack, type Border, type Radius, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { fontStack, type Border, type Radius, type ResolvedNode } from "../index";
 import type { Style } from "./model";
 
 /** CSS px in PDF points. */

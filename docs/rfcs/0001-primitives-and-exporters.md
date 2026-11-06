@@ -2,7 +2,7 @@
 
 > **Note (0.3.0):** Elements 0.2's components ("today's components" below) have been deleted from the repository; the history below is kept as written.
 
-> **Note (packages):** the writers (`packages/exporters` below) are core's now, in `packages/core/src/writers` (`@unlayer-internal/elements-core`); `packages/core/README.md` explains them.
+> **Note (packages):** the writers (`packages/exporters` below) are core's now, in `packages/core/src/writers` (`@unlayer-internal/elements-core`); `packages/core/README.md` explains them. PDF and image output are not packages of their own, as this RFC first planned: `@unlayer/react-elements/pdf` and `/image` are entries of `@unlayer/react-elements` (`packages/react/src/pdf`, `src/image`), and their writers are entries of core (`packages/core/src/pdf`, `src/image`).
 
 **Status:** in progress on `feat/primitives-core` ([#76](https://github.com/unlayer/elements/pull/76)), to be merged when
 every step below is done. Built so far: the API, 39 components, the layout resolver, the email, page
@@ -24,7 +24,7 @@ Elements gets a new engine with three parts, all open source and in this repo:
   width in px and every text its styles. Each output's writer reads the same layout, so email (which
   needs px widths for Outlook) and the page agree.
 - **Writers Elements owns** (`packages/exporters`): email, page and print HTML and plain text; PDF and
-  images in packages of their own. They replaced the closed `@unlayer/exporters`, gone since 0.3.0.
+  images as entries of their own (`@unlayer/react-elements/pdf` and `/image`). They replaced the closed `@unlayer/exporters`, gone since 0.3.0.
 
 JSX is the only way to write a template, for developers and agents alike:
 
@@ -112,7 +112,7 @@ The decisions behind the design, with the date each was taken.
 |---|---|
 | The components | `Email`, `Page`, `Section`, `Row`, `Column`, `Paragraph`, `Heading`, `Span`, `Link`, `Button`, `Image`, `Divider`, `LineBreak`, `MergeTag`, `List`, `ListItem`, `Table`, `TableRow`, `TableCell`, `Html` (and the rest in [Components](#components)) |
 | `render(element, options?)` | Resolves to `{ html, text, head, body, bodyStyle, diagnostics }`. Rejects with an `ElementsError` listing the errors. Options: `mergeTag` (how a merge tag is written, `{{name}}` by default), `classPrefix` (the stylesheet's class prefix, `e` by default), `pretty` (indented HTML, for reading) |
-| `prepare(element)` | The template laid out (`{ root, diagnostics, layout }`), for a package that writes another output (`@unlayer/elements-pdf`). Its tree is the writers' input, not a format to store; `layout` is its version (`LAYOUT_VERSION`), raised when its shape changes, and the PDF and image packages refuse one they don't read, saying which package to update |
+| `prepare(element)` | The template laid out (`{ root, diagnostics, layout }`), for an entry that writes another output (`@unlayer/react-elements/pdf`). Its tree is the writers' input, not a format to store; `layout` is its version (`LAYOUT_VERSION`), raised when its shape changes, and the PDF and image entries refuse one they don't read |
 | `validate(element)` | `{ valid, diagnostics }`: everything `render()` checks before writing. Warnings and notes leave a template valid |
 | `component(spec)`, `prop.*` | Custom components (below) |
 | `ElementsError`, `formatDiagnostics` | The error, and diagnostics as text |
@@ -130,10 +130,10 @@ use instead.
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements` | yes (the existing package) | The new API (planned at `/primitives` until a new major made it the main import; correction: 0.3.0 shipped it at the package root, and Elements 0.2's components were removed rather than kept at `/legacy`) |
 | `@unlayer/react-elements/builder` | yes (an entry of the existing package) | The builder adapter, `toDesign()` and `fromDesign()`. It writes the builder's design as today's components wrote it, and reads one as they read it, without them: it bundles the new engine and itself (with its own CI budget) |
-| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. Its peer range takes the Elements minor it's built for (`^0.3.0`); the layout version catches a tree it can't read |
-| `@unlayer/elements-image` | yes | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its peer range and layout version work as the PDF package's do |
+| `@unlayer/react-elements/pdf` | yes (an entry of the existing package) | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as an optional peer dependency. No browser, no network: fonts and images are given as bytes. The writer builds the pages as plain data; react-pdf draws them through one adapter file, so the engine can change without the writer changing. It ships in the same package as the main entry, so the layout version only catches a second copy of the package beside it |
+| `@unlayer/react-elements/image` | yes (an entry of the existing package) | PNG and SVG for a `Canvas`: `renderImage(<Canvas>…</Canvas>, { fonts, images, format, scale })`, with Satori and resvg as optional peer dependencies. No browser, no network: fonts and images are given as bytes. The writer builds the canvas as plain data; Satori and resvg draw it through one adapter file, so the engine can change without the writer changing. Its layout version works as the PDF entry's does |
 
-PDF and image output stay out of the main package, its size budget and its Content-Security-Policy
+PDF and image output stay out of the main entry, its size budget and its Content-Security-Policy
 gate (Satori runs WebAssembly, which a policy without `'wasm-unsafe-eval'` blocks).
 
 Some names mean something else in today's API, which is why the new one has its own entry until the
@@ -174,8 +174,8 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Row` | Children side by side; each takes its `width` or a share of what's left (`flex`). Stacks on phones unless `stackOnMobile={false}` |
 | `Column` | Children stacked, with its own box and spacing |
 | `Grid` | Children in columns of equal width (`columns`, 2 by default), row after row; `gap` and `rowGap`; stacked on phones unless `stackOnMobile={false}` (stacked, every two children are `gap` apart; kept side by side, its last row's cells keep their width). Laid out as the Rows of Columns it is, so every output draws it, and what's said of it points at its place in the template |
-| `Document` | A printed document's root: `size` (A3, A4, A5, Letter, Legal, Tabloid), `orientation`, `margin`. Its children go on pages: each `Document.Page`, and the rest in runs a `PageBreak` ends; one `PageHeader` and one `PageFooter` (a second is an error) are drawn on every page, and a `PageNumber` (inline; `total` for the count) says which. `render()` writes print HTML (a box of the paper's size per page, CSS's `@page`); `@unlayer/elements-pdf` writes the PDF. Nothing flows from one page to the next |
-| `Canvas` | An image's root: `width` and `height` in px, its content laid out in it as on a page (no phone layout), what's past it cut. `render()` writes its HTML, to look at; `@unlayer/elements-image` writes the image |
+| `Document` | A printed document's root: `size` (A3, A4, A5, Letter, Legal, Tabloid), `orientation`, `margin`. Its children go on pages: each `Document.Page`, and the rest in runs a `PageBreak` ends; one `PageHeader` and one `PageFooter` (a second is an error) are drawn on every page, and a `PageNumber` (inline; `total` for the count) says which. `render()` writes print HTML (a box of the paper's size per page, CSS's `@page`); `@unlayer/react-elements/pdf` writes the PDF. Nothing flows from one page to the next |
+| `Canvas` | An image's root: `width` and `height` in px, its content laid out in it as on a page (no phone layout), what's past it cut. `render()` writes its HTML, to look at; `@unlayer/react-elements/image` writes the image |
 | `Svg` | Shapes in a box of their own (`width`, `height`, `viewBox`, `title`): `Rect`, `Circle`, `Ellipse`, `Line`, `Polygon` and `Path`, painted by `fill`, `stroke`, `strokeWidth` and `opacity`. The drawing keeps its size, with its padding around it (it overflows a narrower room, and says so). On a page, in a Canvas and in a PDF; an email can't show one (Gmail and classic Outlook drop inline SVG), and says so |
 | `Layer` | Children over each other in one box as tall as the tallest (CSS grid's one cell), placed by `alignItems` (down) and `justifyItems` (across); `height` makes its first Image cover it. An email draws one shape of it, an Image as wide as the Layer with one child over it, the image as the cell's background (VML for Outlook): `validate()` reports any other for email |
 | `Paragraph`, `Heading` | Blocks of text (`p`, `h1`–`h6` by `level`); `dir` for their own direction |
@@ -383,8 +383,8 @@ JSX ──collect──▶ tree ──check──▶ expand custom components �
 | email | `Email` | classic Outlook (Word), Outlook on the web, Gmail, Apple Mail and other WebKit clients | tables (below) |
 | web | `Page` | browsers | one element per node, its styles inline, flexbox; semantic tags (`main`, `section`, `h1`–`h6`, `p`, `ul`/`ol`, `table`, `a`, `img`); a small stylesheet for phones and hover |
 | print | `Document` | Chromium's print | as web, plus `@page` size and margins and page breaks; one section per `Document.Page` |
-| pdf | `Document` | `@react-pdf/renderer`, behind an adapter | pages as plain data (boxes, text, images, links, drawings; `packages/pdf/src/model.ts`), drawn by react-pdf's adapter (`react-pdf.tsx`, the only file that imports it); each page cut where it ends, page numbers per page |
-| image | `Canvas` | Satori, then resvg, behind an adapter | the canvas as plain data (boxes, text, images, drawings; `packages/image/src/model.ts`), drawn by Satori's and resvg's adapter (`satori.ts`, the only file that imports them); fonts and images passed as data |
+| pdf | `Document` | `@react-pdf/renderer`, behind an adapter | pages as plain data (boxes, text, images, links, drawings; `packages/core/src/pdf/model.ts`), drawn by react-pdf's adapter (`packages/core/src/pdf/react-pdf.tsx`, the only file that imports it); each page cut where it ends, page numbers per page |
+| image | `Canvas` | Satori, then resvg, behind an adapter | the canvas as plain data (boxes, text, images, drawings; `packages/core/src/image/model.ts`), drawn by Satori's and resvg's adapter (`packages/core/src/image/satori.ts`, the only file that imports them); fonts and images passed as data |
 
 Web, print, PDF and images are all drawn by flexbox engines, so `Row` and `Column` mean the same in
 each; email is the one output that needs a different structure. For PDF and images, fonts must be
@@ -460,7 +460,7 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 | `pdf/font`, `image/font` | rendering: a font not given, a file the engine can't draw (WOFF2), or text a standard PDF font can't draw (outside Windows-1252) with no file for it |
 | `pdf/font-weight`, `image/font-weight` | rendering: bold or italic text a family has no file for, drawn in its nearest file |
 | `pdf/image` | rendering: an image a PDF can't draw (an SVG), its alternate text shown in its box |
-| `pdf/version`, `image/version` | rendering: a laid-out tree in a layout version the package doesn't read |
+| `pdf/version`, `image/version` | rendering: a laid-out tree in a layout version the entry doesn't read |
 | `email/size`, `email/style-size` | writing |
 
 ## Moving the existing components and the major version
@@ -630,8 +630,8 @@ Each step ends with its tests in CI.
 | 6. Support data for every output, and the styling vocabulary | done |
 | 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy` (0.3.0 removed today's components instead), the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
-| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
-| 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
+| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/react-elements/pdf` | done |
+| 10. `Canvas`, `Svg` and shapes; `@unlayer/react-elements/image` | done |
 | 11. Builder adapter (`toDesign`, `fromDesign`): Email, Page and Document | done |
 | 12. Today's components render entirely through the new engine, and `@unlayer/exporters` is removed (decision 13) | done |
 

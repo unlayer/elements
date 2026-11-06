@@ -10,7 +10,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "A `<Canvas>` rendered to HTML, to look at: a box of its size, its content laid out in it. `@unlayer/elements-image` writes the same as a PNG or SVG without a browser (its test compares the two pixel by pixel). The forecast app, Umbra, is fictional.",
+          "A `<Canvas>` rendered to HTML, to look at: a box of its size, its content laid out in it. `@unlayer/react-elements/image` writes the same as a PNG or SVG without a browser (its test compares the two pixel by pixel). The forecast app, Umbra, is fictional.",
       },
     },
   },

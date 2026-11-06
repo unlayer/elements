@@ -29,8 +29,22 @@
   ],
   "sideEffects": false,
   "peerDependencies": {
+    "@react-pdf/renderer": "^4.9.0",
+    "@resvg/resvg-js": "^2.6.2",
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "satori": "^0.33.5"
+  },
+  "peerDependenciesMeta": {
+    "@react-pdf/renderer": {
+      "optional": true
+    },
+    "@resvg/resvg-js": {
+      "optional": true
+    },
+    "satori": {
+      "optional": true
+    }
   },
   "type": "module",
   "main": "./dist/primitives.cjs",
@@ -46,12 +60,28 @@
       "import": "./dist/builder.js",
       "require": "./dist/builder.cjs"
     },
+    "./pdf": {
+      "types": "./dist/pdf.d.ts",
+      "import": "./dist/pdf.js",
+      "require": "./dist/pdf.cjs"
+    },
+    "./image": {
+      "types": "./dist/image.d.ts",
+      "import": "./dist/image.js",
+      "require": "./dist/image.cjs"
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
       "builder": [
         "./dist/builder.d.ts"
+      ],
+      "pdf": [
+        "./dist/pdf.d.ts"
+      ],
+      "image": [
+        "./dist/image.d.ts"
       ]
     }
   },
@@ -59,6 +89,8 @@
   "files": [
     "dist/primitives.*",
     "dist/builder.*",
+    "dist/pdf.*",
+    "dist/image.*",
     "README.md",
     "PRIMITIVES.md",
     "PRIMITIVES-REFERENCE.md",
@@ -74,6 +106,7 @@
     "build-storybook": "storybook build",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:browser-runtime": "node scripts/browser-runtime-probe.mjs",
     "test:csp": "node --disallow-code-generation-from-strings scripts/csp-probe.mjs",
     "test:e2e": "node scripts/browser-e2e.mjs",
@@ -82,6 +115,8 @@
     "test-storybook:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"pnpm build-storybook --quiet && http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && pnpm test-storybook\""
   },
   "devDependencies": {
+    "@react-pdf/renderer": "4.9.0",
+    "@resvg/resvg-js": "2.6.2",
     "@storybook/addon-docs": "^9.1.1",
     "@storybook/addon-onboarding": "^9.1.1",
     "@storybook/react-vite": "^9.1.1",
@@ -95,9 +130,11 @@
     "concurrently": "9.2.1",
     "http-server": "14.1.1",
     "jsdom": "^24.1.3",
+    "pdfjs-dist": "6.5.438",
     "playwright": "1.60.0",
     "react-dom19": "npm:react-dom@19.1.0",
     "react19": "npm:react@19.1.0",
+    "satori": "0.33.5",
     "storybook": "^9.1.1",
     "tsup": "^8.0.1",
     "vitest": "^3.2.4",
