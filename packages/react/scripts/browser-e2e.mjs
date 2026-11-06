@@ -46,6 +46,8 @@
 //      and what's hidden on phones or desktop apply at 375px and leave
 //      desktop as it was (with a negative control: the same template
 //      without them fails those checks).
+//  14. Locked block — a block the builder keeps as markup fills its place
+//      in a block, a flex box and a grid.
 //
 // A negative control (a document with a bare <p>) must FAIL the margin
 // check — so a green run also proves the gate can detect the regressions
@@ -57,7 +59,8 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const React = (await import("react")).default;
-const { render, Email, Page, Document, Row, Column, Paragraph, Heading, Button, Divider, Image } = await import("../dist/primitives.js");
+const { render, Email, Page, Document, Row, Column, Paragraph, Heading, Button, Divider, Image, Layer, Text } = await import("../dist/primitives.js");
+const { toDesign } = await import("../dist/builder.js");
 
 /** A template's HTML, as render() writes it. */
 const renderHtml = async (element) => (await render(element)).html;
@@ -443,6 +446,26 @@ async function checkRowSidePadding(page) {
   else pass("row-side-padding", `an email row with 48px sides fits a ${window.width}px window, centred, without sideways scroll`);
 }
 
+/**
+ * Section 14: a block the builder keeps as markup fills its place, whatever draws it there. A page's <main> is
+ * centered by its margins: in a flex box those shrink it to its words, unless it has a width.
+ */
+async function checkLockedBlock(page) {
+  const { design } = toDesign(h(Page, { width: 1000 }, h(Layer, { style: { height: 100 } }, h(Text, null, "Locked"))));
+  const block = design.body.rows.flatMap((row) => row.columns.flatMap((column) => column.contents)).find((content) => content.type === "html");
+  const problems = [];
+  for (const display of ["block", "flex", "grid"]) {
+    await page.setContent(`<!DOCTYPE html><body style="margin:0"><div style="display:${display};flex-direction:column;width:800px">${block.values.html}</div></body>`);
+    const { left, width } = await page.evaluate(() => {
+      const { left, width } = document.querySelector("main").getBoundingClientRect();
+      return { left, width };
+    });
+    if (left !== 0 || width !== 800) problems.push(`in a display:${display} place 800px wide, it's ${Math.round(width)}px wide, ${Math.round(left)}px from its left`);
+  }
+  if (problems.length) fail("locked-block", problems);
+  else pass("locked-block", "a block of markup fills its place in a block, a flex box and a grid");
+}
+
 /** Section 7: preheader — present for inbox preview, invisible on screen. */
 async function checkPreheader(page) {
   const email = DOCUMENTS.find((d) => d.name === "email");
@@ -677,6 +700,7 @@ try {
   await checkNoStack(page);
   await checkDeviceOverrides(page);
   await checkRowSidePadding(page);
+  await checkLockedBlock(page);
   await checkHover(page);
   await checkRtl(page);
   await checkStyleBaseline(page);

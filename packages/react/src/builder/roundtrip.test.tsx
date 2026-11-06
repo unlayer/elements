@@ -173,6 +173,25 @@ describe("to the builder and back", () => {
     expect(await drawn(once.element)).toEqual({ color: "rgb(185, 28, 28)", fontSize: "30px" });
   });
 
+  it("fills its place with a block locked as markup in a Page, where a page's own margins would shrink it in a flex box", () => {
+    const locked = (element: React.ReactElement) => JSON.stringify(toDesign(element).design).match(/\\"[^"]*max-width:600px[^"]*\\"/)?.[0];
+    const table = (
+      <primitives.Table>
+        <primitives.TableRow>
+          <primitives.TableCell>Locked</primitives.TableCell>
+        </primitives.TableRow>
+      </primitives.Table>
+    );
+    expect(locked(<primitives.Page width={600}>{table}</primitives.Page>)).toContain("width:100%;max-width:600px;margin:0 auto;");
+    // Only there: an email's markup fills its place already, and a page written on its own keeps its markup.
+    expect(locked(<primitives.Email width={600}>{table}</primitives.Email>)).not.toContain("width:100%;max-width:600px;margin:0 auto;");
+  });
+
+  it("writes a page on its own without that width", async () => {
+    const { body } = await primitives.render(<primitives.Page width={600}><primitives.Text>Words</primitives.Text></primitives.Page>);
+    expect(body).toMatch(/^<main style="max-width:600px;margin:0 auto;/);
+  });
+
   describe("templates put together at random", () => {
     for (const root of ["Email", "Page", "Document"] as Root[]) {
       it(`draws ${SEEDS} ${root}s as they went`, () => {

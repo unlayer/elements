@@ -22,9 +22,6 @@ const SANS = "Jost, Futura, 'Century Gothic', 'Helvetica Neue', Arial, sans-seri
 
 const SITE = "https://casaalbero.example";
 
-/** A Section's inside, for what the builder keeps as a block of markup: there it would shrink to its words (on phones, width: "100%" does it). */
-const FULL = { width: 1104, maxWidth: "100%" };
-
 const kicker = { fontSize: 13, fontWeight: 500, letterSpacing: 2, textTransform: "uppercase", color: TERRACOTTA } as const;
 
 /** A cypress: a tall flame of dark green, its foot at x, y. */
@@ -86,7 +83,7 @@ const room = (name: string, what: string, sleeps: string, from: string) => (
         </Text>
       </Column>
     </Row>
-    <Column style={{ flex: "none", minWidth: 84, gap: 2 }}>
+    <Column style={{ width: 84, gap: 2 }}>
       <Text style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 500, lineHeight: 1.1, textAlign: "right" }} mobile={{ fontSize: 25 }}>
         {from}
       </Text>
@@ -119,7 +116,7 @@ export const casaAlberoPage = (
   >
     {/* Navigation: the name and the links on a line, or on two where they don't fit */}
     <Section style={{ padding: [28, 48] }} mobile={{ padding: [20, 20] }}>
-      <Row stackOnMobile={false} style={{ ...FULL, alignItems: "center", flexWrap: "wrap", gap: 16 }} mobile={{ width: "100%" }}>
+      <Row stackOnMobile={false} style={{ alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <Column style={{ minWidth: 130 }}>
           <Text style={{ fontFamily: SERIF, fontSize: 30, fontStyle: "italic", fontWeight: 500, lineHeight: 1, textAlign: "left" }}>
             <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
@@ -212,7 +209,7 @@ export const casaAlberoPage = (
           Six rooms, no two alike
         </Heading>
       </Column>
-      <Column style={{ ...FULL, border: { bottom: `1px solid ${INK}` } }} mobile={{ width: "100%" }}>
+      <Column style={{ border: { bottom: `1px solid ${INK}` } }}>
         {room("La Torre", "Up the tower’s own stair, with windows on all four sides.", "2", "€320")}
         {room("Il Frantoio", "The old olive press room, vaulted, and cool all summer.", "2 or 3", "€260")}
         {room("La Limonaia", "The lemon house, opening onto the garden and the pool.", "2", "€240")}
@@ -262,7 +259,7 @@ export const casaAlberoPage = (
 
     {/* Footer */}
     <Section style={{ padding: [40, 48, 48] }} mobile={{ padding: [32, 20, 40] }}>
-      <Row style={{ ...FULL, alignItems: "center", flexWrap: "wrap", gap: 8 }} mobile={{ width: "100%" }}>
+      <Row style={{ alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <Column style={{ minWidth: 280 }}>
           <Text style={{ fontSize: 14, color: QUIET }}>Casa Albero, Via di Vallebuia 14, 55100 Lucca, Italy</Text>
         </Column>
