@@ -11,6 +11,8 @@ import { forTheEditor } from "./editorDesign";
 import { Frame, GAP, Reported, WIDTHS, type Note, type Width } from "./SideBySide";
 
 const EMBED = "https://editor.unlayer.com/embed.js";
+/** The embed's default channel is behind: it can't read a Document's schema. */
+const EDITOR_VERSION = "latest";
 /** How long the editor has to show the design before its window says it couldn't. */
 const SHOWN_WITHIN = 45_000;
 
@@ -99,7 +101,7 @@ function EditorWindow({ template, design, displayMode, device, width, height, sc
     const timer = setTimeout(fail, SHOWN_WITHIN);
     Promise.all([loadEmbed(), forTheEditor(template, design, document.baseURI)]).then(([unlayer, copy]) => {
       if (left) return;
-      const created = unlayer.createEditor({ id, displayMode, fonts: copy.fonts, defaultDevice: device, appearance: { panels: { tools: { forceUncollapseOnSelect: true } } } });
+      const created = unlayer.createEditor({ id, version: EDITOR_VERSION, displayMode, fonts: copy.fonts, defaultDevice: device, appearance: { panels: { tools: { forceUncollapseOnSelect: true } } } });
       editor = created;
       created.addEventListener("editor:ready", () => created.loadDesign(copy.design));
       created.addEventListener("design:loaded", () => {
