@@ -25,5 +25,5 @@ export { compareStyles, DESKTOP_WIDTH, normalizeWord, StyledDocument, type Style
 export { decodeHtmlEntities } from "./entities";
 export { autoTableWidths, htmlText, unbreakableWords, wordWidth, type TableColumn } from "./text-width";
 export { editorFonts, shareEditorFonts, type EditorFont } from "./fonts";
-export { DEFAULT_FROM, MIGRATED, migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "./elements/codemod";
+export { DEFAULT_FROM, MIGRATED, MIGRATED_HEADER, migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "./elements/codemod";
 export { inlineHtml } from "./elements/html";

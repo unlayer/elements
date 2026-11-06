@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
-import { inlineHtml, migrateElements as migrateOnce, type MigrateElementsOptions } from "../src/convert";
+import { inlineHtml, MIGRATED_HEADER, migrateElements as migrateOnce, type MigrateElementsOptions } from "../src/convert";
 import { main, type Io } from "../src/cli";
 import { errors } from "./migrated";
 
@@ -729,7 +729,7 @@ export const T = ({ rows }: { rows: Row[] }) => <Email>{rows.map((row) => <Row k
 });
 
 describe("migrateElements, on a module importing the package (today's components until 0.3.0, the new ones from it)", () => {
-  /** A module on the new components with only names Elements 0.2 had too, and a style, two Columns and a link object. */
+  /** A module written by hand on the new components with only names Elements 0.2 had too, and a style, two Columns and a link object. */
   const NEW = `import { Email, Row, Column, Heading, Paragraph, Button, Image, Divider } from "@unlayer/react-elements";
 export const T = () => (
   <Email width={600} style={{ backgroundColor: "#FFFFFF", fontFamily: "Georgia, serif" }}>
@@ -758,13 +758,35 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
       expect(result.code, installed).toBe(NEW);
       expect(result.current, installed).toBe(true);
     }
-    // Each thing only the new components have is enough on its own.
+    // Each thing only the new components have is enough on its own, with 0.2 installed too.
     const one = (jsx: string) => `import { Email, Row, Column, Paragraph, Button, Image } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
-    for (const jsx of ['<Paragraph style={{ color: "#111111" }}>x</Paragraph>', "<Paragraph hidden={{ mobile: true }}>x</Paragraph>", "<Row stackOnMobile={false}><Column /></Row>", '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Paragraph dir="rtl">x</Paragraph>']) {
-      expect((await migrateOnce(one(jsx))).current, jsx).toBe(true);
+    for (const jsx of ["<Paragraph hidden={{ mobile: true }}>x</Paragraph>", '<Button hover={{ color: "#111111" }} href="https://example.com">x</Button>', '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Paragraph dir="rtl">x</Paragraph>', '<Image src="https://example.com/a.png" alt="" title="A" />']) {
+      for (const installed of [undefined, "0.2.1"]) expect((await migrateOnce(one(jsx), { installed })).current, jsx).toBe(true);
     }
-    const text = `import { Email, Text } from "@unlayer/react-elements";\nexport const T = () => <Email><Text>Hi</Text></Email>;\n`;
-    expect(await migrateOnce(text)).toEqual({ code: text, report: [], current: true });
+    for (const [name, jsx] of [["Text", "<Text>Hi</Text>"], ["Section", "<Section><Paragraph>Hi</Paragraph></Section>"]]) {
+      const source = `import { Email, Paragraph, ${name} } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+      expect(await migrateOnce(source, { installed: "0.2.1" })).toEqual({ code: source, report: [], current: true });
+    }
+  });
+
+  it("counts what 0.2's components took too as neither's: a style, an id, an aria-label, and anything on a Row", async () => {
+    const one = (jsx: string) => `import { Email, Row, Column, Paragraph, Button } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    const shared = ["<Paragraph style={{ fontSize: 24 }}>Hello</Paragraph>", '<Paragraph id="intro">Hello</Paragraph>', '<Button aria-label="Start" href="https://example.com">Go</Button>', '<Row stackOnMobile={false} dir="rtl" hidden={{ mobile: true }} hover={{ color: "#111111" }}><Column /></Row>'];
+    for (const jsx of shared) {
+      // Nothing either way: migrated where 0.2 is installed, left as it is otherwise.
+      expect((await migrateOnce(one(jsx), { installed: "0.2.1" })).code, jsx).toContain(MIGRATED_HEADER);
+      expect((await migrateOnce(one(jsx), { installed: "0.3.0" })).undecided, jsx).toBe(true);
+    }
+    // Beside one of 0.2's own props, it's 0.2's: migrated, not refused (its style is reported, as before).
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const verifiers = await migrateOnce(one('<Paragraph style={{ fontSize: 24 }} html="Hello" />'), { installed });
+      expect(verifiers.refused, installed).toBeUndefined();
+      expect(squash(verifiers.code)).toContain(">Hello</Paragraph>");
+      expect(verifiers.report.join("\n")).toContain("<Paragraph>'s style isn't migrated");
+      const row = await migrateOnce(one('<Row layout="TwoEqual" stackOnMobile={false}><Column /><Column /></Row>'), { installed });
+      expect(row.refused, installed).toBeUndefined();
+      expect(row.code).toContain(MIGRATED_HEADER);
+    }
   });
 
   it("migrates one with what only Elements 0.2's components have, whatever is installed", async () => {
@@ -797,11 +819,41 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
     }
   });
 
+  it("marks what it writes on its first line, and leaves a module so marked as it is, whatever is in it", async () => {
+    // What it writes of a Document has only a style and names 0.2 had too: the line is all that says it's migrated.
+    const document = `import { Document, Paragraph } from "@unlayer/react-elements";\nexport const T = () => <Document><Paragraph>Hi</Paragraph></Document>;\n`;
+    const written = await migrateOnce(document, { installed: "0.2.1" });
+    expect(written.code.split("\n")[0]).toBe(MIGRATED_HEADER);
+    expect(squash(written.code)).toContain('<Documentstyle={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Paragraphstyle=');
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) expect(await migrateOnce(written.code, { installed }), installed).toEqual({ code: written.code, report: [], current: true });
+    // Without the line, 0.2 installed, it would be taken for 0.2's again.
+    const again = await migrateOnce(written.code.slice(MIGRATED_HEADER.length + 1), { installed: "0.2.1" });
+    expect(again.current).toBeUndefined();
+    expect(again.report.join("\n")).toContain("<Document>'s style isn't migrated");
+    // Whatever is in it: a module marked so is never refused or migrated.
+    const mixed = `${MIGRATED_HEADER}\n// The welcome email.\nimport { Email, Row, Column } from "@unlayer/react-elements";\nexport const T = () => <Email><Row layout="TwoEqual"><Column /><Column hidden={{ mobile: true }} /></Row></Email>;\n`;
+    expect(await migrateOnce(mixed, { installed: "0.2.1" })).toEqual({ code: mixed, report: [], current: true });
+    // Only among the comments a module starts with: the line anywhere else doesn't count.
+    const later = `import { Email, Row, Column } from "@unlayer/react-elements";\n${MIGRATED_HEADER}\nexport const T = () => <Email><Row layout="TwoEqual"><Column /><Column /></Row></Email>;\n`;
+    expect((await migrateOnce(later)).code.startsWith(`${MIGRATED_HEADER}\nimport`)).toBe(true);
+    // After a #! line, and in JavaScript.
+    const script = await migrateOnce(`#!/usr/bin/env node\nimport { Email, Row, Column } from "@unlayer/react-elements";\nexport const T = () => <Email><Row layout="TwoEqual"><Column /><Column /></Row></Email>;\n`, { typescript: false });
+    expect(script.code.startsWith(`#!/usr/bin/env node\n${MIGRATED_HEADER}\n`)).toBe(true);
+    expect((await migrateOnce(script.code, { typescript: false, installed: "0.2.1" })).current).toBe(true);
+  });
+
+  it("doesn't mark the React Email converter's source, which comes back on the new components unmarked", async () => {
+    const source = NEITHER.replace('"@unlayer/react-elements"', '"@unlayer/react-elements/legacy"');
+    const { code } = await migrateOnce(`// Migrated from React Email by @unlayer/migrate (codemod mode).\n${source}`);
+    expect(code).toContain('target: "_blank"');
+    expect(code).not.toContain(MIGRATED_HEADER);
+  });
+
   it("refuses one with what only each of the two has, naming both, whatever is installed", async () => {
     const source = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
 export const T = () => (
   <Email>
-    <Row layout="TwoEqual"><Column /><Column><Paragraph style={{ color: "#111111" }}>x</Paragraph></Column></Row>
+    <Row layout="TwoEqual"><Column /><Column><Paragraph hidden={{ mobile: true }}>x</Paragraph></Column></Row>
   </Email>
 );
 `;
@@ -809,7 +861,7 @@ export const T = () => (
       const result = await migrateOnce(source, { installed });
       expect(result.code).toBe(source);
       expect(result.refused).toBe(result.report[0]);
-      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Paragraph style> on line 4\)/);
+      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Paragraph hidden> on line 4\)/);
     }
   });
 
@@ -998,13 +1050,23 @@ describe("unlayer-migrate --from elements", () => {
     commit(dir);
     expect(await main(["emails", "--from", "elements", "--write"], io(dir))).toBe(0);
     const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
-    expect(migrated).not.toBe(TEMPLATE);
+    expect(migrated.split("\n")[0]).toBe(MIGRATED_HEADER);
     commit(dir);
     const again = io(dir);
     expect(await main(["emails", "--from", "elements", "--write"], again)).toBe(0);
     expect(again.out).toBe("emails/welcome.tsx: already uses the new components: left as it is\n");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
     expect(migrated).toContain('"https://example.com/confirm"');
+  });
+
+  it("migrates a template on 0.2 with a style, which 0.2's components took too", async () => {
+    const template = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\nexport default function T() { return <Email><Row><Column><Paragraph style={{ fontSize: 24 }} html="Hello" /><Paragraph style={{ color: "#111111" }}>Hi</Paragraph></Column></Row></Email>; }\n`;
+    const dir = project({ "emails/welcome.tsx": template, "emails/plain.tsx": template.replace(' html="Hello" />', ">Hello</Paragraph>") });
+    const sink = io(dir);
+    expect(await main(["emails", "--from", "elements"], sink)).toBe(0);
+    expect(sink.err).toBe("");
+    expect(sink.out).toContain("emails/welcome.tsx: would be migrated");
+    expect(sink.out).toContain("emails/plain.tsx: would be migrated");
   });
 
   it("decides by what's in each template where the new components are installed: it says which it leaves, and fails one with both", async () => {
@@ -1014,14 +1076,14 @@ describe("unlayer-migrate --from elements", () => {
         "emails/plain.tsx": TEMPLATE,
         "emails/current.tsx": `import { Email, Button } from "./ui";\nexport default function T() { return <Email><Button href={{ href: "https://example.com" }}>Go</Button></Email>; }\n`,
         "emails/todays.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px">'),
-        "emails/both.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px" style={{ color: "#111111" }}>'),
+        "emails/both.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px" hidden={{ mobile: true }}>'),
       },
       "0.3.0"
     );
     const sink = io(dir);
     expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
     expect(sink.err).toBe(
-      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Paragraph containerPadding> on line 2) and what only the new ones have (<Paragraph style> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
+      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Paragraph containerPadding> on line 2) and what only the new ones have (<Paragraph hidden> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
     );
     expect(sink.out).toContain("emails/current.tsx: already uses the new components: left as it is\n");
     expect(sink.out).toContain("emails/plain.tsx: nothing in it is Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n");

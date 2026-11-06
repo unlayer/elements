@@ -150,7 +150,7 @@ export interface MigrateElementsOptions {
    * The version of @unlayer/react-elements the project has, where it's known. The package has been both: below 0.3.0,
    * a module importing it that has nothing of either in it is on today's components, and it's migrated; otherwise
    * (0.3.0 on, or not known) that module is left as it is. A module with something only one of the two has is that
-   * one's whatever is installed: the migration's own output is never migrated again.
+   * one's whatever is installed, and one the migration wrote (it says so on its first line) is never migrated again.
    */
   installed?: string;
 }
@@ -164,7 +164,7 @@ export interface MigrateElementsResult {
   stayed?: boolean;
   /** The lines of `report` about Rows whose Columns are written one under another (their layout can't be read): they move. */
   stacked?: string[];
-  /** The module already uses the new components: it comes back as it was. */
+  /** The module already uses the new components (or the migration wrote it): it comes back as it was. */
   current?: boolean;
   /** Nothing in the module is only today's or only the new components', and 0.2 isn't known to be installed: it comes back as it was. */
   undecided?: boolean;
@@ -202,26 +202,32 @@ const NEW_PROPS: Record<string, string[]> = {
   Html: ["html", "text"],
 };
 /**
- * Props of a new component that today's by its name didn't take, by component, and `hover` and `hidden` on any of them.
- * Today's took a `style` too (put on a wrapper), but nothing in main's templates gives one, the migration leaves it
- * out, and what it writes has one on nearly every block: it counts as the new components'.
+ * Props of a new component that 0.2.1's typings refuse on today's by its name, by component. Not one both take: a
+ * `style` (today's put it on a wrapper), an `id`, an `aria-label` (TypeScript checks no prop with a dash in its
+ * name), nor anything on a Row (today's took any prop).
  */
 const NEW_ONLY_PROPS: Record<string, string[]> = {
   Email: ["dir", "title", "width"],
   Page: ["dir", "title", "width"],
   Document: ["dir", "title", "margin", "orientation", "size"],
-  Row: ["dir", "stackOnMobile"],
   Heading: ["dir"],
   Paragraph: ["dir"],
   Text: ["dir"],
-  Button: ["aria-label", "title"],
+  Button: ["title"],
   Image: ["title"],
   Social: ["size"],
   Html: ["text"],
   Video: ["src", "title"],
 };
-/** Props only the new components take, on any of them. */
-const NEW_ONLY_EVERYWHERE = new Set(["style", "hover", "hidden"]);
+/** Props only the new components take, on any of them but a Row. */
+const NEW_ONLY_EVERYWHERE = new Set(["hover", "hidden"]);
+/** The line the migration writes at the top of a module it migrated (as the React Email converter writes its own). */
+export const MIGRATED_HEADER = "// Migrated from Elements 0.2's components by @unlayer/migrate.";
+/**
+ * That line, among the comments a module starts with: the migration wrote it, in the new components. (Not the React
+ * Email converter's: the source it hands the migration, in today's components, starts with that.)
+ */
+const WRITTEN_BY_MIGRATE = /^\/\/ Migrated from Elements 0\.2's components by @unlayer\/migrate\./m;
 /**
  * The props of today's components the migration reads. One a component has where the new one by its name has no such
  * prop (a Row's layout, a Paragraph's html, a Button's padding; not a Menu's layout or an Html's html) is today's.
@@ -381,9 +387,13 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     return expression;
   };
 
+  // A module the migration wrote says so in its first lines: it's on the new components, whatever is in it, so a
+  // second run changes nothing.
+  if (WRITTEN_BY_MIGRATE.test(source.slice(0, file.statements[0]?.getStart() ?? source.length))) return { code: source, report: [], current: true };
+
   // The package has been both: today's components until 0.3.0, the new ones from it. Its import (or one through the
   // project's modules that pass its components on) is migrated only where something in the module is only today's,
-  // and never where something is only the new ones': the migration's own output comes back as it is.
+  // and never where something is only the new ones'.
   let through = options.through;
   if (from.has(ROOT) && options.from === undefined) {
     const { todays, current } = whichComponents();
@@ -456,7 +466,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
         if (!ts.isJsxAttribute(attribute)) continue;
         const prop = attribute.name.getText(file);
         const itsOwn = NEW_PROPS[component!] ?? [];
-        if (NEW_ONLY_EVERYWHERE.has(prop) || NEW_ONLY_PROPS[component!]?.includes(prop)) note(current, `<${component} ${prop}>`, attribute);
+        if ((NEW_ONLY_EVERYWHERE.has(prop) && component !== "Row") || NEW_ONLY_PROPS[component!]?.includes(prop)) note(current, `<${component} ${prop}>`, attribute);
         else if (TODAYS_PROPS.has(prop) && !NEW_EXTRAS.has(prop) && !itsOwn.includes(prop)) note(todays, `<${component} ${prop}>`, attribute);
         // A link or an image source written as an object: today's action (`{ name: "web", values }`) or image
         // (`{ url }`), or the new components' (`{ href, target }`, `{ src }`).
@@ -1700,6 +1710,12 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   let out = source;
   for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
   if (rowHelpers) out += `\n${sharedRowSource(nameOf("Row"), typescript, rowHelpers)}`;
+  // A template is marked as migrated, on its first line (after a #! line); the React Email converter's intermediate
+  // source isn't one (the converter writes its own).
+  if (file.statements.some((statement) => todaysImport(statement) && statement.moduleSpecifier.text !== TODAYS_COMPONENTS)) {
+    const at = out.startsWith("#!") ? out.indexOf("\n") + 1 || out.length : 0;
+    out = `${out.slice(0, at)}${MIGRATED_HEADER}\n${out.slice(at)}`;
+  }
   // JavaScript is formatted as JavaScript: TypeScript written into it would be an error here, not in the project.
   return { code: typescript ? await formatTsx(out) : await prettier.format(out, { parser: "babel", printWidth: 100 }), report, ...(stacked.length ? { stacked } : {}) };
 }

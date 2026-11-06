@@ -1,12 +1,12 @@
 /**
  * main's examples, migrated by the codemod: primitives/testing/codemod-examples.tsx, which the builder's tests take to
  * the builder and back, is the codemod's output, unedited but for what makes ten modules one: each in a scope of its
- * own, returning its component, their imports merged. Run with UPDATE_LEGACY_EXAMPLES=1 to write it after changing the
+ * own, returning its component, their imports merged, without the line that marks each as a migrated file. Run with UPDATE_LEGACY_EXAMPLES=1 to write it after changing the
  * codemod.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { formatTsx, migrateElements } from "../src/convert";
+import { formatTsx, MIGRATED_HEADER, migrateElements } from "../src/convert";
 import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -46,6 +46,8 @@ const markerOf = (name: string) => `// main's ${mainPath(name)}\n`;
 
 /** The codemod's output as a scope: its imports taken out (the file's own have them), `export` off its declarations, and the components it exported. */
 function scoped(code: string) {
+  if (!code.startsWith(`${MIGRATED_HEADER}\n`)) throw new Error("An output that isn't marked as migrated");
+  code = code.slice(MIGRATED_HEADER.length + 1);
   const file = ts.createSourceFile("example.tsx", code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const imports = new Map<string, Set<string>>();
   const components: string[] = [];
