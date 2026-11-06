@@ -11,14 +11,14 @@ import { isNode, type Component } from "./context";
 import { alignSelf } from "./layout";
 import { hidingClasses } from "./styles";
 
-export const Page: Component = ({ node: root, style, render }) => {
+export const Page: Component = ({ node: root, style, rtl, render }) => {
   const width = root.width ?? 0;
   // A word too long for its line (a long link) breaks onto the next rather than widening the page past a phone's screen.
   const stack: Style = { display: "flex", flexDirection: "column", gap: style.gap };
   const wrap: Style = { overflowWrap: "break-word" };
   // The root's phone gap, between its children and in each run of them.
   const phone = root.mobile?.gap !== undefined ? { gap: root.mobile.gap } : undefined;
-  const content = (children: ResolvedNode[]) => children.map((child) => render(child, alignSelf(child, root)));
+  const content = (children: ResolvedNode[]) => children.map((child) => render(child, alignSelf(child, root, rtl)));
   const nodes = root.children.filter(isNode);
   if (!nodes.some((node) => node.type === "Section")) {
     return (

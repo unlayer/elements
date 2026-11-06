@@ -12,7 +12,7 @@ import { hiding } from "./styles";
 
 type Sides = { top: number; right: number; bottom: number; left: number };
 
-export const Section: Component = ({ node, style, mobile, parent: root, render }) => {
+export const Section: Component = ({ node, style, mobile, parent: root, rtl, render }) => {
   const width = root.width ?? 600;
   const padding = (style.padding as Sides | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const phonePadding = mobile.padding as Sides | undefined;
@@ -36,12 +36,12 @@ export const Section: Component = ({ node, style, mobile, parent: root, render }
             <Table width="100%" style={{ maxWidth: width }}>
               <tr>
                 <td phone={phoneSides} style={padding.left || padding.right ? { padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` } : undefined}>
-                  <Stack node={node} render={render} />
+                  <Stack node={node} rtl={rtl} render={render} />
                 </td>
               </tr>
             </Table>
           ) : (
-            <Stack node={node} render={render} style={{ maxWidth: width }} />
+            <Stack node={node} rtl={rtl} render={render} style={{ maxWidth: width }} />
           )}
         </OutlookWidth>
       </td>

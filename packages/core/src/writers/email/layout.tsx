@@ -51,17 +51,19 @@ export function phoneWidth(value: Json | undefined): Style {
  * with its own size (a Button, an Image, a box with a width) sits where the
  * stack's `align` says, else where its text alignment says. As a cell's
  * `align`, which every client (Word too) applies to the tables and images in it.
+ * Left is a cell's own unless its text runs right to left (`rtl`).
  */
-export function cellAlign(child: ResolvedNode, stack: ResolvedNode): string | undefined {
+export function cellAlign(child: ResolvedNode, stack: ResolvedNode, rtl = false): string | undefined {
+  const text = TEXT_ALIGN[stack.text.textAlign];
+  const written = text === "left" && !rtl ? undefined : text;
   if (child.type === "Divider") {
     if (stack.style.alignItems && stack.style.alignItems !== "stretch") return ALIGN[stack.style.alignItems as string];
-    return TEXT_ALIGN[stack.text.textAlign] === "left" ? undefined : TEXT_ALIGN[stack.text.textAlign];
+    return written;
   }
   if (child.definition.sizing !== "shrink" && !sized(child)) return undefined;
   const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align) return ALIGN[align];
-  const text = TEXT_ALIGN[stack.text.textAlign];
-  return text === "left" ? undefined : text;
+  return written;
 }
 
 /** Whether a node has a box of its own to write: a background, padding, border, corners, a height or a width. */
@@ -130,7 +132,7 @@ export function gapBelow(node: ResolvedNode, at: GapAt): { style: Style; phone?:
 }
 
 /** A node's children stacked down a table, one row each, its `gap` as the cells' bottom padding. */
-export function Stack({ node, render, style }: { node: ResolvedNode; render: Props["render"]; style?: StyleValue }): Html {
+export function Stack({ node, rtl, render, style }: { node: ResolvedNode; rtl: boolean; render: Props["render"]; style?: StyleValue }): Html {
   const children = node.children.filter(isNode).filter(shown);
   const gaps = gapsAfter(children);
   return (
@@ -140,7 +142,7 @@ export function Stack({ node, render, style }: { node: ResolvedNode; render: Pro
         const below = gapBelow(node, gaps[index]);
         const row = (
           <tr class={hidden.class} style={hidden.style}>
-            <td align={cellAlign(child, node)} phone={below.phone} style={below.style}>
+            <td align={cellAlign(child, node, rtl)} phone={below.phone} style={below.style}>
               {render(child)}
             </td>
           </tr>

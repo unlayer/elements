@@ -8,15 +8,17 @@ import { length, type Declarations } from "../shared/css";
 
 export const FLEX_ALIGN: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
 const TEXT_ALIGN: Record<string, string> = { left: "flex-start", justify: "flex-start", center: "center", right: "flex-end" };
+/** The same in a stack whose text runs right to left, where a stack starts on its right. */
+const TEXT_ALIGN_RTL: Record<string, string> = { left: "flex-end", justify: "flex-start", center: "center", right: "flex-start" };
 export const JUSTIFY: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", "space-between": "space-between" };
 
 /**
  * Where a child sits across a stack (root, Section, Column): one that fills
  * the width (a Text, a Row) fills it; one with its own size (a Button, an
  * Image, a box with a width) sits where the stack's `align` says, else where
- * its text alignment says, as in email.
+ * its text alignment says, as in email. `rtl`: the stack's text runs right to left.
  */
-export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declarations {
+export function alignSelf(child: ResolvedNode, stack: ResolvedNode, rtl = false): Declarations {
   if (child.type === "Divider") return [];
   const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
   if (child.definition.sizing !== "shrink" && !sized) return [];
@@ -24,7 +26,7 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declaration
   if (align === "stretch") return [];
   // A box that fills the width up to a maximum still fills it: placed, not shrunk to its content.
   const fill: Declarations = child.definition.sizing === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
-  const place = align ? FLEX_ALIGN[align] : TEXT_ALIGN[stack.text.textAlign];
+  const place = align ? FLEX_ALIGN[align] : (rtl ? TEXT_ALIGN_RTL : TEXT_ALIGN)[stack.text.textAlign];
   // With its padding on top of its width, it may be wider than its place: it runs past the end, as a line of text does.
   const safe: Declarations = child.style.boxSizing === "content-box" && place !== "flex-start" ? [["align-self", `safe ${place}`]] : [];
   return [["align-self", place], ...safe, ...fill];

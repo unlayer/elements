@@ -11,7 +11,7 @@ import { Stack } from "./layout";
 import { bgcolor, OutlookWidth, ownBorders, Table } from "./markup";
 import { spacerRow } from "./spacers";
 
-export const Email: Component = ({ node: root, style, mobile, render }) => {
+export const Email: Component = ({ node: root, style, mobile, rtl, render }) => {
   const width = root.width ?? 600;
   const gap = typeof style.gap === "number" ? style.gap : 0;
   const phoneGap = typeof mobile.gap === "number" ? mobile.gap : gap;
@@ -37,7 +37,7 @@ export const Email: Component = ({ node: root, style, mobile, render }) => {
             <tr>
               <td align="center">
                 <OutlookWidth width={width}>
-                  <Stack node={{ ...root, children: part }} render={render} style={{ maxWidth: width }} />
+                  <Stack node={{ ...root, children: part }} rtl={rtl} render={render} style={{ maxWidth: width }} />
                 </OutlookWidth>
               </td>
             </tr>

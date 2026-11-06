@@ -26,6 +26,8 @@ export interface Props {
   classes(): string | undefined;
   /** Its children: its text and the runs in it, or the nodes it lays out. */
   children(): Html;
+  /** Whether its text runs right to left: its own `dir`, else its parent's (the root's `dir` to start with). */
+  rtl: boolean;
   /** Writes a child with what this node's layout adds to it. */
   render(child: ResolvedNode, placement: Declarations): Html;
   options: PageOptions;

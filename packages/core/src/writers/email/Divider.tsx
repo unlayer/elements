@@ -4,7 +4,7 @@ import type { Component } from "./context";
 import { phoneWidth, TEXT_ALIGN } from "./layout";
 import { ownBorders, Table } from "./markup";
 
-export const Divider: Component = ({ node, style, mobile, fill, parent }) => {
+export const Divider: Component = ({ node, style, mobile, fill, parent, rtl }) => {
   // In a Row its column is already its width: the line fills it.
   const length = fill ? "100%" : style.width;
   const percent = typeof length === "string" && length.endsWith("%");
@@ -22,7 +22,7 @@ export const Divider: Component = ({ node, style, mobile, fill, parent }) => {
   return (
     <Table id={node.id} width="100%">
       <tr>
-        <td align={align === "left" ? undefined : align} phone={{ padding: mobile.padding }} style={{ padding: style.padding }}>
+        <td align={align === "left" && !rtl ? undefined : align} phone={{ padding: mobile.padding }} style={{ padding: style.padding }}>
           {line}
         </td>
       </tr>

@@ -219,6 +219,45 @@ describe("children of their own size in Chromium", () => {
   }
 });
 
+describe("a template written right to left, in Chromium", () => {
+  // Its text starts on the right: a Button and an Image where the text aligns them (and one aligned left), and a List's
+  // items with their markers in the indent on the right, inside the List. Where the email puts each, the page does.
+  it("places each box where the email does, from the right", async () => {
+    const ids = ["b0", "i0", "b1", "li0", "li1"];
+    const template = (root: "Page" | "Email") =>
+      resolveDocument(
+        parseDocument({
+          root: {
+            type: root,
+            props: { width: 600, dir: "rtl", lang: "ar" },
+            style: { gap: 16 },
+            children: [
+              { type: "Button", id: "b0", props: { href: "#" }, children: ["تتبع الطلب"] },
+              { type: "Image", id: "i0", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 120 }, alt: "" } },
+              { type: "Column", style: { textAlign: "left" }, children: [{ type: "Button", id: "b1", props: { href: "#" }, children: ["يسار"] }] },
+              { type: "List", props: { type: "number" }, style: { indent: 32 }, children: [{ type: "ListItem", id: "li0", children: ["نجهز الطلب"] }, { type: "ListItem", id: "li1", children: ["نرسله إليك"] }] },
+            ],
+          },
+        })
+      );
+    const boxes = async (html: string) => {
+      const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
+      await page.setContent(html);
+      const found = await page.evaluate((ids) => ids.map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ x, width }) => [Math.round(x), Math.round(width)]), ids);
+      await page.close();
+      return found;
+    };
+    const page = await boxes(renderPage(template("Page")).html);
+    expect(page).toEqual(await boxes(renderEmail(template("Email")).html));
+    // The page's content runs from 200 to 800: the first Button and the Image end at its right, the other Button starts
+    // at its left, and each item ends the indent in from its right.
+    expect(page[0][0] + page[0][1]).toBe(800);
+    expect(page[1][0] + page[1][1]).toBe(800);
+    expect(page[2][0]).toBe(200);
+    expect(page[3][0] + page[3][1]).toBe(800 - 32);
+  });
+});
+
 describe("a Menu in Chromium", () => {
   const LINKS = ["Home", "Products", "Pricing", "Customers", "Documentation", "Contact us"].map((text) => ({ text, href: `https://example.com/${text}` }));
   const render = (root: "Email" | "Page", props: Record<string, unknown>) =>

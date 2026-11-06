@@ -4,7 +4,7 @@ import { textDeclarations } from "../shared/css";
 import { isNode, type Component } from "./context";
 import { alignSelf, box, stackOf } from "./layout";
 
-export const Canvas: Component = ({ node: root, render }) => (
+export const Canvas: Component = ({ node: root, rtl, render }) => (
   <main
     style={[
       { width: root.props.width as number, height: root.props.height as number, overflow: "hidden", boxSizing: "border-box" },
@@ -13,6 +13,6 @@ export const Canvas: Component = ({ node: root, render }) => (
       textDeclarations(root.text, undefined),
     ]}
   >
-    {root.children.filter(isNode).map((child) => render(child, alignSelf(child, root)))}
+    {root.children.filter(isNode).map((child) => render(child, alignSelf(child, root, rtl)))}
   </main>
 );

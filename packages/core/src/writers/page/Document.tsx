@@ -21,7 +21,7 @@ export function documentCss(root: ResolvedNode): string {
   );
 }
 
-export const Document: Component = ({ node: root, style, render }) => {
+export const Document: Component = ({ node: root, style, rtl, render }) => {
   const box = pageBox(root.props);
   const { margin } = box;
   const { pages, header, footer } = documentPages(root);
@@ -47,7 +47,7 @@ export const Document: Component = ({ node: root, style, render }) => {
           >
             {header && render(header, [])}
             <div style={[{ flex: "1 1 auto", minHeight: 0 }, stackOf(page ?? root), page ? textDeclarations(page.text, root.text) : {}]}>
-              {children.filter(isNode).map((child) => render(child, alignSelf(child, page ?? root)))}
+              {children.filter(isNode).map((child) => render(child, alignSelf(child, page ?? root, rtl)))}
             </div>
             {footer && render(footer, [])}
           </section>

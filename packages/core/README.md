@@ -28,15 +28,15 @@ In `email/` and `page/`, each component has its own file (`Button.tsx`, `Row.tsx
 component, that returns its markup in that output as JSX:
 
 ```tsx
-export const Column: Component = ({ node, fill, render }) => (
+export const Column: Component = ({ node, fill, rtl, render }) => (
   <Box node={node} fill={fill}>
-    <Stack node={node} render={render} />
+    <Stack node={node} rtl={rtl} render={render} />
   </Box>
 );
 ```
 
 The props hold what every component needs, worked out once by the folder's `index.tsx`: the node, its
-`style` and `mobile` styles, its `parent`, its text (`text()` in email, `children()` in page),
+`style` and `mobile` styles, its `parent`, whether its text runs right to left (`rtl`), its text (`text()` in email, `children()` in page),
 `render()` for its children (so components never import each other), and per output: in email
 `fill` (its cell is exactly its width) and `phoneText` (its phone text styles, inherited ones
 included, but a run inside text has only its own: CSS carries the text's to it); in page `placement` (what its parent's layout adds) and `classes()`.

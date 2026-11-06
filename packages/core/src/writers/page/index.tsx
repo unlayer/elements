@@ -91,9 +91,10 @@ const COMPONENTS: Record<string, Component> = {
   Html: HtmlBlock,
 };
 
-/** What a node's component gets. */
-function propsOf(node: ResolvedNode, parent: ResolvedNode, placement: Declarations, options: PageOptions): Props {
-  const render: Props["render"] = (child, childPlacement) => write(child, node, childPlacement, options);
+/** What a node's component gets. `inRtl`: its parent's text runs right to left. */
+function propsOf(node: ResolvedNode, parent: ResolvedNode, placement: Declarations, options: PageOptions, inRtl = false): Props {
+  const rtl = node.props.dir === "rtl" || (inRtl && node.props.dir !== "ltr");
+  const render: Props["render"] = (child, childPlacement) => write(child, node, childPlacement, options, rtl);
   return {
     node,
     style: node.style,
@@ -103,18 +104,19 @@ function propsOf(node: ResolvedNode, parent: ResolvedNode, placement: Declaratio
     children: () => {
       // Text and the runs in it; else the nodes it lays out, each placed by its layout.
       if (node.definition.children.text) return <>{node.children.map((child) => (typeof child === "string" ? child : render(child, [])))}</>;
-      const place = node.type === "Row" ? rowPlacement : node.type === "Layer" ? layerPlacement : alignSelf;
-      return <>{node.children.filter(isNode).map((child) => render(child, place(child, node)))}</>;
+      const place = (child: ResolvedNode) => (node.type === "Row" ? rowPlacement(child, node) : node.type === "Layer" ? layerPlacement(child) : alignSelf(child, node, rtl));
+      return <>{node.children.filter(isNode).map((child) => render(child, place(child)))}</>;
     },
+    rtl,
     render,
     options,
   };
 }
 
-function write(node: ResolvedNode, parent: ResolvedNode, placement: Declarations, options: PageOptions): Html {
+function write(node: ResolvedNode, parent: ResolvedNode, placement: Declarations, options: PageOptions, inRtl: boolean): Html {
   const component = COMPONENTS[node.type];
   if (!component) throw new Error(`[Elements] The page exporter can't render a ${node.type}`);
-  return component(propsOf(node, parent, placement, options));
+  return component(propsOf(node, parent, placement, options, inRtl));
 }
 
 export function renderPage(resolved: ResolvedDocument, options: PageOptions = {}): PageHtml {

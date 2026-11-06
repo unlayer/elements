@@ -97,6 +97,8 @@ interface Place {
   fill: boolean;
   mobile: MobileText;
   inline: boolean;
+  /** The parent's text runs right to left. */
+  rtl: boolean;
 }
 
 /** What a node's component gets. */
@@ -106,7 +108,8 @@ function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props
   // height from the text's phone line height where it has one (as on desktop, the run's size times the text's).
   const ownText = mobileTextOf(node, {});
   if (ownText.fontSize !== undefined && mobileText.lineHeight !== undefined) ownText.lineHeight = mobileText.lineHeight;
-  const render: Props["render"] = (child, how = {}) => write(child, { parent: node, fill: how.fill ?? false, mobile: mobileText, inline: how.inline ?? false }, options);
+  const rtl = node.props.dir === "rtl" || (place.rtl && node.props.dir !== "ltr");
+  const render: Props["render"] = (child, how = {}) => write(child, { parent: node, fill: how.fill ?? false, mobile: mobileText, inline: how.inline ?? false, rtl }, options);
   return {
     node,
     style: node.style,
@@ -116,6 +119,7 @@ function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props
     inline: place.inline,
     phoneText: phoneText(node, place.inline ? ownText : mobileText),
     text: () => <>{node.children.map((child) => (typeof child === "string" ? child : render(child, { inline: true })))}</>,
+    rtl,
     render,
     options,
   };
@@ -160,7 +164,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
   const d = new Diagnostics();
   const fonts = fontFaces(root, { swap: false });
   const width = root.width ?? 600;
-  const email = withStylesheet(sheet, () => String(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false }, options))));
+  const email = withStylesheet(sheet, () => String(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false, rtl: false }, options))));
 
   const background = root.style.backgroundColor as string | undefined;
   const lang = root.props.lang as string | undefined;

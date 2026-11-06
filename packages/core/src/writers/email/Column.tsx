@@ -3,8 +3,8 @@ import { h } from "../jsx";
 import type { Component } from "./context";
 import { Box, Stack } from "./layout";
 
-export const Column: Component = ({ node, fill, render }) => (
+export const Column: Component = ({ node, fill, rtl, render }) => (
   <Box node={node} fill={fill}>
-    <Stack node={node} render={render} />
+    <Stack node={node} rtl={rtl} render={render} />
   </Box>
 );

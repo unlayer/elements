@@ -33,6 +33,8 @@ export interface Props {
   phoneText: Declarations;
   /** Its text, and the runs in it. */
   text(): Html;
+  /** Whether its text runs right to left: its own `dir`, else its parent's (the root's `dir` to start with). */
+  rtl: boolean;
   /** Writes a child: a block (with `fill` where its cell is exactly its width), or with `inline`, a run inside text. */
   render(child: ResolvedNode, how?: { fill?: boolean; inline?: boolean }): Html;
   options: EmailOptions;
