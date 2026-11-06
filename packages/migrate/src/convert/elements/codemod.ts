@@ -182,7 +182,7 @@ const DEFAULT_TO = ROOT;
 /** Names only the new components' entry exports (0.2's has no Text): a module importing one from the package uses them. */
 const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "Text", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
 /** Names only Elements 0.2's entry exported: a module importing one from the package uses today's components. */
-const TODAYS_ONLY = new Set(["Body", "ColumnLayouts", "DEFAULT_CONFIG", "UnlayerProvider", "htmlToTextJson", "registerElementsTool", "registerTool", "renderRowToJson", "renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText", "useUnlayerConfig", "validateColumnLayout"]);
+const TODAYS_ONLY = new Set(["Body", "ColumnLayouts", "DEFAULT_CONFIG", "Paragraph", "UnlayerProvider", "htmlToTextJson", "registerElementsTool", "registerTool", "renderRowToJson", "renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText", "useUnlayerConfig", "validateColumnLayout"]);
 /** What every new component takes besides its own props (and React's key). */
 const NEW_EXTRAS = new Set(["id", "style", "mobile", "hover", "hidden", "children", "key"]);
 /** The new components' own props, by component (the others take none). */
