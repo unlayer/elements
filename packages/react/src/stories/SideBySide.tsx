@@ -1,14 +1,13 @@
 import type { StoryObj } from "@storybook/react-vite";
 import { Fragment, isValidElement, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { Email, Page, render, type RenderResult } from "../primitives/index";
+import { LiveEditor } from "./LiveEditor";
+import { Reported, type Note, type Width } from "./Reported";
 
-/** The window each render is shown in: an email client's on a desktop, or a phone's. */
-export type Width = "desktop" | "phone";
+export type { Note, Width };
+
 export const WIDTHS: Record<Width, number> = { desktop: 760, phone: 375 };
 export const GAP = 16;
-
-/** One thing a render reported: its severity, and what it says. */
-export type Note = { severity: "error" | "warning" | "info"; text: string };
 
 export interface SideBySideProps {
   /** The documents, and what each frame shows. */
@@ -18,23 +17,6 @@ export interface SideBySideProps {
   width: Width;
   /** The window's width in px, where it isn't an email client's for `width` (a browser's for a page, an image's own). */
   size?: number;
-}
-
-/** A list of what a render reported, under a summary that says how many. */
-export function Reported({ notes, summary, open }: { notes: Note[]; summary: string; open?: boolean }) {
-  if (!notes.length) return null;
-  return (
-    <details open={open} style={{ font: "13px system-ui, sans-serif", marginTop: 16, color: open ? "#9a3412" : "#57606a" }}>
-      <summary>
-        {summary} ({notes.length})
-      </summary>
-      <ul style={{ paddingLeft: 20 }}>
-        {notes.map((note, index) => (
-          <li key={index}>{note.text}</li>
-        ))}
-      </ul>
-    </details>
-  );
 }
 
 /**
@@ -105,14 +87,17 @@ export const sideBySide = (left: { label: string; template: ReactElement }, righ
     },
   ],
   render: ({ width }, { loaded }) => (
-    <SideBySide
-      frames={[
-        { label: left.label, html: loaded.first },
-        { label: right.label, html: loaded.second },
-      ]}
-      notes={loaded.notes}
-      width={width}
-    />
+    <>
+      <SideBySide
+        frames={[
+          { label: left.label, html: loaded.first },
+          { label: right.label, html: loaded.second },
+        ]}
+        notes={loaded.notes}
+        width={width}
+      />
+      <LiveEditor template={left.template} width={width} />
+    </>
   ),
 });
 
@@ -160,7 +145,12 @@ export const showing = (label: string, template: ReactElement): StoryObj<Args> =
       return { html: result.html, notes: noted(result) };
     },
   ],
-  render: ({ width }, { loaded }) => <SideBySide frames={[{ label, html: loaded.html }]} notes={loaded.notes} width={width} />,
+  render: ({ width }, { loaded }) => (
+    <>
+      <SideBySide frames={[{ label, html: loaded.html }]} notes={loaded.notes} width={width} />
+      <LiveEditor template={template} width={width} />
+    </>
+  ),
 });
 
 /** A story of one template drawn as an Email and as a Page, with its code. */
@@ -178,7 +168,12 @@ export const browsed = (template: ReactElement): StoryObj<Args> => ({
       return { html: result.html, notes: noted(result) };
     },
   ],
-  render: ({ width }, { loaded }) => <SideBySide frames={[{ label: "Page", html: loaded.html }]} notes={loaded.notes} width={width} size={width === "phone" ? 390 : 1280} />,
+  render: ({ width }, { loaded }) => (
+    <>
+      <SideBySide frames={[{ label: "Page", html: loaded.html }]} notes={loaded.notes} width={width} size={width === "phone" ? 390 : 1280} />
+      <LiveEditor template={template} width={width} />
+    </>
+  ),
 });
 
 /** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @unlayer/elements-image writes it as a PNG. */
@@ -191,7 +186,12 @@ export const drawn = (template: ReactElement, size: number): StoryObj<Args> => (
       return { html: result.html, notes: noted(result) };
     },
   ],
-  render: (_, { loaded }) => <SideBySide frames={[{ label: "Canvas", html: loaded.html }]} notes={loaded.notes} width="desktop" size={size} />,
+  render: (_, { loaded }) => (
+    <>
+      <SideBySide frames={[{ label: "Canvas", html: loaded.html }]} notes={loaded.notes} width="desktop" size={size} />
+      <LiveEditor template={template} width="desktop" />
+    </>
+  ),
 });
 
 /** A Document's print HTML in a frame as tall as its pages. */
@@ -200,14 +200,17 @@ export const printed = (template: ReactElement): StoryObj<Args> => ({
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
   render: (_, { loaded }) => (
-    <iframe
-      title="Print HTML"
-      srcDoc={loaded.html as string}
-      style={{ width: "100%", height: 2400, border: 0 }}
-      onLoad={(event) => {
-        const frame = event.currentTarget;
-        frame.style.height = `${frame.contentDocument?.documentElement.scrollHeight ?? 2400}px`;
-      }}
-    />
+    <>
+      <iframe
+        title="Print HTML"
+        srcDoc={loaded.html as string}
+        style={{ width: "100%", height: 2400, border: 0 }}
+        onLoad={(event) => {
+          const frame = event.currentTarget;
+          frame.style.height = `${frame.contentDocument?.documentElement.scrollHeight ?? 2400}px`;
+        }}
+      />
+      <LiveEditor template={template} width="desktop" />
+    </>
   ),
 });

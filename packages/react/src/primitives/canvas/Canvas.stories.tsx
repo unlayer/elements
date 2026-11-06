@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Canvas, Circle, Column, Ellipse, Grid, Heading, Line, LineBreak, Page, Paragraph, Path, Polygon, Rect, render, Row, Section, Span, Svg, Text, type EmailProps } from "../index";
+import { LiveEditor } from "../../stories/LiveEditor";
 import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
@@ -20,7 +21,12 @@ export default meta;
 const drawn = (template: ReactElement, width: number, height: number): StoryObj => ({
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
-  render: (_, { loaded }) => <iframe title="Canvas" srcDoc={loaded.html as string} style={{ width, height, border: 0 }} />,
+  render: (_, { loaded }) => (
+    <>
+      <iframe title="Canvas" srcDoc={loaded.html as string} style={{ width, height, border: 0, display: "block" }} />
+      <LiveEditor template={template} width="desktop" />
+    </>
+  ),
 });
 
 // Umbra, a fictional forecast app for people who look up: deep night, moonlit cream, and one aurora green.

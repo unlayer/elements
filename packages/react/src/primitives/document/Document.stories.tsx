@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
 import { Column, Document, Grid, Heading, LineBreak, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Path, render, Row, Span, Svg, Text, type EmailProps } from "../index";
+import { LiveEditor } from "../../stories/LiveEditor";
 import { code } from "../../stories/SideBySide";
 
 const meta: Meta = {
@@ -21,15 +22,18 @@ const printed = (template: ReactElement): StoryObj => ({
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },
   loaders: [async () => ({ html: (await render(template)).html })],
   render: (_, { loaded }) => (
-    <iframe
-      title="Print HTML"
-      srcDoc={loaded.html as string}
-      style={{ width: "100%", height: 1400, border: 0 }}
-      onLoad={(event) => {
-        const frame = event.currentTarget;
-        frame.style.height = `${frame.contentDocument?.body.offsetHeight ?? 1400}px`;
-      }}
-    />
+    <>
+      <iframe
+        title="Print HTML"
+        srcDoc={loaded.html as string}
+        style={{ width: "100%", height: 1400, border: 0 }}
+        onLoad={(event) => {
+          const frame = event.currentTarget;
+          frame.style.height = `${frame.contentDocument?.body.offsetHeight ?? 1400}px`;
+        }}
+      />
+      <LiveEditor template={template} width="desktop" />
+    </>
   ),
 });
 
