@@ -16,6 +16,8 @@ export interface SideBySideProps {
   /** What the renders reported: warnings, and notes on what some clients draw differently. */
   notes: Note[];
   width: Width;
+  /** The window's width in px, where it isn't an email client's for `width` (a browser's for a page, an image's own). */
+  size?: number;
 }
 
 /** A list of what a render reported, under a summary that says how many. */
@@ -60,7 +62,7 @@ function Frame({ label, html, width, scale }: { label: string; html: string; wid
 }
 
 /** Two renders of a template, in windows of one width. */
-export function SideBySide({ frames, notes, width }: SideBySideProps) {
+export function SideBySide({ frames, notes, width, size }: SideBySideProps) {
   const box = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(Infinity);
   useLayoutEffect(() => {
@@ -70,7 +72,7 @@ export function SideBySide({ frames, notes, width }: SideBySideProps) {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const window = WIDTHS[width];
+  const window = size ?? WIDTHS[width];
   const scale = Math.min(1, (room - GAP * (frames.length - 1)) / (frames.length * window));
 
   return (
@@ -92,7 +94,7 @@ export type Args = { width: Width };
 export const args: Args = { width: "desktop" };
 export const argTypes = { width: { control: "inline-radio", options: ["desktop", "phone"] } } as const;
 
-const noted = (result: RenderResult): Note[] => result.diagnostics.map((d) => ({ severity: d.severity, text: `${d.code} at ${d.path}: ${d.message}` }));
+export const noted = (result: RenderResult): Note[] => result.diagnostics.map((d) => ({ severity: d.severity, text: `${d.code} at ${d.path}: ${d.message}` }));
 
 /** A story of two templates, each rendered with render(), side by side. */
 export const sideBySide = (left: { label: string; template: ReactElement }, right: { label: string; template: ReactElement }): StoryObj<Args> => ({
