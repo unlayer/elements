@@ -161,6 +161,34 @@ describe("email HTML", () => {
     expect(body).toContain('</td></tr><tr><td style="font-size:0;line-height:10px;mso-line-height-rule:exactly">&nbsp;</td></tr><tr><td align="center">');
   });
 
+  describe("a Section's padding on phones", () => {
+    const band = (style: Record<string, unknown>, mobile: Record<string, unknown>) => render(email([{ type: "Section", style, mobile, children: [{ type: "Text", children: ["a"] }] }]));
+    /** The rule phones get for the class on the cell around the Section's content (the one with its side padding). */
+    const sidesRule = ({ head, body }: { head: string; body: string }) => {
+      const cell = /<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px"><tr><td( class="(\w+)")?( style="[^"]*")?>/.exec(body);
+      if (!cell) return undefined;
+      return { style: cell[3] ?? "", rule: cell[2] ? new RegExp(`\\.${cell[2]}\\{([^}]*)\\}`).exec(head)?.[1] : undefined };
+    };
+
+    it("sets the sides on the cell around the content, as well as the top and bottom on the band", () => {
+      const written = band({ padding: [36, 48] }, { padding: [24, 20] });
+      expect(written.head).toMatch(/\{padding-top:24px!important;padding-bottom:24px!important\}/);
+      expect(sidesRule(written)).toEqual({ style: ' style="padding:0 48px 0 48px"', rule: "padding-left:20px!important;padding-right:20px!important" });
+    });
+
+    it("pads the content on phones where desktop has no side padding", () => {
+      expect(sidesRule(band({ padding: [36, 0] }, { padding: [24, 16, 24, 20] }))).toEqual({ style: "", rule: "padding-left:20px!important;padding-right:16px!important" });
+    });
+
+    it("writes nothing more where the sides are desktop's: only the top and bottom change", () => {
+      for (const sides of [48, 0]) {
+        const { body } = band({ padding: [36, sides] }, { padding: [24, sides] });
+        // The band's class (its top and bottom on phones) is the only difference from a band with no phone padding.
+        expect(body.replace(/ class="\w+"/, "")).toBe(band({ padding: [36, sides] }, {}).body);
+      }
+    });
+  });
+
   it("writes a divider as a bordered table Word can't make taller", () => {
     const { body } = render(email([{ type: "Divider", style: { width: "50%" } }], { style: { textAlign: "center" } }));
     expect(body).toContain(

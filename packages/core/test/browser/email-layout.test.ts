@@ -109,3 +109,25 @@ describe("a Layer whose Image is hidden on phones, in Chromium", () => {
     expect([phone.image, phone.height]).toEqual(["none", phone.over]);
   });
 });
+
+describe("a Section's phone padding, in Chromium", () => {
+  it("moves the content in from the sides phones set, with or without desktop side padding", async () => {
+    const band = (id: string, style: Record<string, unknown>, mobile: Record<string, unknown>) => ({ type: "Section", style, mobile, children: [{ type: "Text", id, children: ["Words in a band"] }] });
+    const { html } = renderTemplate({
+      root: {
+        type: "Email",
+        props: { width: 600 },
+        children: [band("sides", { padding: [36, 48] }, { padding: [24, 20] }), band("none", { padding: [36, 0] }, { padding: [24, 16, 24, 20] }), band("kept", { padding: [36, 48] }, { padding: [24, 48] })],
+      },
+    });
+    const measure = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.setContent(html);
+      return page.evaluate(() => Object.fromEntries(["sides", "none", "kept"].map((id) => [id, (({ left, right }) => [Math.round(left), Math.round(right)])(document.getElementById(id)!.getBoundingClientRect())])));
+    };
+    // On desktop the 600px content sits in the middle of 1280: 340 to 940, less its own side padding.
+    expect(await measure(1280)).toEqual({ sides: [388, 892], none: [340, 940], kept: [388, 892] });
+    // On a phone the content is the window, less the sides phones set.
+    expect(await measure(375)).toEqual({ sides: [20, 355], none: [20, 359], kept: [48, 327] });
+  });
+});

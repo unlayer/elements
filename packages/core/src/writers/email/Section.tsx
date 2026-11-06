@@ -16,6 +16,9 @@ export const Section: Component = ({ node, style, mobile, parent: root, render }
   const width = root.width ?? 600;
   const padding = (style.padding as Sides | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const phonePadding = mobile.padding as Sides | undefined;
+  // The sides phones set, where they're other than desktop's: on the cell that holds the side padding.
+  const phoneSides =
+    phonePadding && (phonePadding.left !== padding.left || phonePadding.right !== padding.right) ? { paddingLeft: phonePadding.left, paddingRight: phonePadding.right } : undefined;
   const hidden = hiding(node, "table-row");
 
   const row = (
@@ -28,11 +31,11 @@ export const Section: Component = ({ node, style, mobile, parent: root, render }
         style={{ paddingTop: padding.top || undefined, paddingBottom: padding.bottom || undefined, backgroundColor: style.backgroundColor, border: style.border }}
       >
         <OutlookWidth width={width}>
-          {padding.left || padding.right ? (
-            // The side padding on a cell around the content.
+          {padding.left || padding.right || phoneSides ? (
+            // The side padding on a cell around the content, and phones' own sides on it.
             <Table width="100%" style={{ maxWidth: width }}>
               <tr>
-                <td style={{ padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` }}>
+                <td phone={phoneSides} style={padding.left || padding.right ? { padding: `0 ${px(padding.right)} 0 ${px(padding.left)}` } : undefined}>
                   <Stack node={node} render={render} />
                 </td>
               </tr>
