@@ -101,7 +101,7 @@ export const Styles = story((Root) => (
     {band(
       <>
         {masthead("Dispatch 07")}
-        <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1008, height: 640 }} alt="A technical drawing of the FR-2 recorder from the front and the side, with four numbered callouts in orange." style={{ width: "100%" }} />
+        <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1020, height: 900 }} alt="A technical drawing of the FR-2 recorder from the front and the side, with four numbered callouts in orange." style={{ width: "100%" }} />
         <Column style={{ gap: 14 }}>
           <Heading level={2} {...big}>
             Record the room

@@ -116,8 +116,7 @@ export const oyenLaunch = (
 
       {/* The drawing: the whole plate on a desktop, the two views larger on a phone */}
       <Column style={{ gap: 12 }} mobile={{ gap: 10 }}>
-        <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1008, height: 640 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ mobile: true }} />
-        <Image src={{ src: "gallery/oyen/fr2-drawing-phone.png", width: 981, height: 1044 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ desktop: true }} />
+        <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1020, height: 900 }} alt={DRAWING} style={{ width: "100%" }} />
         <Text style={label}>Fig. 1 — FR-2, front and side</Text>
       </Column>
 
