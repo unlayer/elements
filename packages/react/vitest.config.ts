@@ -31,6 +31,10 @@ export default defineConfig({
         '**/*.stories.tsx',
         // So are the frames they draw in; and the fixtures: designs in the new components, and the codemod's output
         'src/stories/SideBySide.tsx',
+        'src/stories/LiveEditor.tsx',
+        'src/stories/InTheEditor.tsx',
+        'src/stories/Reported.tsx',
+        'src/primitives/examples/components/*.ts',
         'src/primitives/testing/examples.tsx',
         'src/primitives/testing/codemod-examples.tsx',
         ...coverageConfigDefaults.exclude,
