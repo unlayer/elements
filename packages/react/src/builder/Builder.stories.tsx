@@ -1,8 +1,9 @@
-import type { Meta } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReactElement } from "react";
-import { args, argTypes, sideBySide, type Args } from "../stories/SideBySide";
-import { airbnb, brew, digest, luma, mercury, nike, notion, spotify, stripe, warby } from "../primitives/testing/codemod-examples";
-import { fromDesign, toDesign } from "./index";
+import { args, argTypes, noted, SideBySide, type Args } from "../stories/SideBySide";
+import { gallery } from "../primitives/examples/gallery";
+import { Document, Page, render } from "../primitives/index";
+import { fromDesign, toDesign, type DisplayMode } from "./index";
 import { HIDDEN } from "./manifest";
 import type { Design } from "./write";
 
@@ -14,7 +15,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "Templates in the new components as they're written (left), and the template `fromDesign()` brings back from their design JSON after `toDesign()`, without its hidden properties, which the builder keeps but doesn't draw (right): each field read as the builder draws it.",
+          "The gallery's templates as they're written (left), and the template `fromDesign()` brings back from their design JSON after `toDesign()`, without its hidden properties, which the builder keeps but doesn't draw (right): each field read as the builder draws it. Every gallery template but the Canvas card, which is an image the builder doesn't make.",
       },
     },
   },
@@ -46,20 +47,43 @@ function withoutHidden(design: Design): Design {
   return copy;
 }
 
+/** The builder's display mode for a template's root: a Page's is "web", a Document's "document", an Email's "email". */
+const modeOf = (template: ReactElement): DisplayMode => (template.type === Page ? "web" : template.type === Document ? "document" : "email");
+
+/** The window a template is meant for: a browser's for a Page, its paper's for a Document, an email client's otherwise. */
+const windowOf = (template: ReactElement, width: Args["width"]) => (template.type === Page ? (width === "phone" ? 390 : 1280) : template.type === Document ? 842 : undefined);
+
 /** A template as it's written, next to the one that comes back from what the builder draws of its design. */
-const builder = (template: ReactElement) => {
-  const back = fromDesign(withoutHidden(toDesign(template).design));
-  return { ...sideBySide({ label: "As written", template }, { label: "Back from the builder", template: back.element }), parameters: { docs: { source: { code: back.code, language: "tsx" } } } };
+const builder = (template: ReactElement): StoryObj<Args> => {
+  const back = fromDesign(withoutHidden(toDesign(template).design), { displayMode: modeOf(template) });
+  return {
+    parameters: { docs: { source: { code: back.code, language: "tsx" } } },
+    loaders: [
+      async () => {
+        const [written, returned] = await Promise.all([render(template), render(back.element)]);
+        return { written: written.html, returned: returned.html, notes: [...noted(written), ...noted(returned)] };
+      },
+    ],
+    render: ({ width }, { loaded }) => (
+      <SideBySide
+        frames={[
+          { label: "As written", html: loaded.written },
+          { label: "Back from the builder", html: loaded.returned },
+        ]}
+        notes={loaded.notes}
+        width={width}
+        size={windowOf(template, width)}
+      />
+    ),
+  };
 };
 
-// The examples as the codemod migrated them: what the builder gives back of them.
-export const StripeReceipt = builder(<stripe.StripeReceipt />);
-export const SpotifyWelcome = builder(<spotify.SpotifyPremiumWelcome />);
-export const AirbnbConfirmation = builder(<airbnb.AirbnbConfirmation />);
-export const MercuryReceipt = builder(<mercury.MercuryReceipt />);
-export const LumaEventInvite = builder(<luma.LumaEventInvite />);
-export const WarbyOrderShipped = builder(<warby.WarbyOrderShipped />);
-export const NotionWelcome = builder(<notion.NotionWelcome />);
-export const NikeDrop = builder(<nike.NikeDrop />);
-export const MorningBrewDigest = builder(<brew.MorningBrewDigest />);
-export const ProductDigest = builder(<digest.ProductDigest />);
+// The gallery's templates, through the builder and back.
+export const OyenLaunch = builder(gallery.oyenLaunch);
+export const TarnShipped = builder(gallery.tarnShipped);
+export const QuarryWelcome = builder(gallery.quarryWelcome);
+export const PithWeekly = builder(gallery.pithWeekly);
+export const SaltworksInvitation = builder(gallery.saltworksInvitation);
+export const KeelSignInCode = builder(gallery.keelSignInCode);
+export const CasaAlberoPage = builder(gallery.casaAlberoPage);
+export const PellAshbyInvoice = builder(gallery.pellAshbyInvoice);
