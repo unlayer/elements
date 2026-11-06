@@ -5,9 +5,6 @@
  * the drawing's callouts, the main button, and one closing band. Geist for words, Geist Mono for
  * labels and numbers. A rail of labels at the left and a content column make the grid, and the
  * technical drawing's numbered callouts are the list under it.
- *
- * Each band's side margins are a Column's or a Row's padding inside its Section: a Section's
- * `mobile` padding changes its top and bottom on phones, not its sides.
  */
 import type { ReactNode } from "react";
 import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Table, TableCell, TableRow, Text } from "../../index";
@@ -78,90 +75,88 @@ export const oyenLaunch = (
     ]}
     style={{ backgroundColor: PAPER, color: INK, fontFamily: SANS, fontSize: 16, lineHeight: 1.6 }}
   >
-    <Section style={{ padding: [36, 0, 72] }} mobile={{ padding: [28, 0, 56] }}>
-      <Column style={{ padding: [0, 48], gap: 64 }} mobile={{ padding: [0, 24], gap: 48 }}>
-        {/* Masthead */}
-        <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 14], border: { bottom: `1px solid ${INK}` } }}>
-          <Column style={{ width: 120 }}>
-            <Text style={{ fontSize: 19, fontWeight: 700, letterSpacing: 5, lineHeight: "20px" }}>
-              <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
-                OYEN
-              </Link>
-            </Text>
-          </Column>
-          <Column>
-            <Text style={{ ...label, lineHeight: "18px", textAlign: "right" }}>Dispatch 07 · Nov 2026</Text>
-          </Column>
+    <Section style={{ padding: [36, 48, 72], gap: 64 }} mobile={{ padding: [28, 24, 56], gap: 48 }}>
+      {/* Masthead */}
+      <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 14], border: { bottom: `1px solid ${INK}` } }}>
+        <Column style={{ width: 120 }}>
+          <Text style={{ fontSize: 19, fontWeight: 700, letterSpacing: 5, lineHeight: "20px" }}>
+            <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
+              OYEN
+            </Link>
+          </Text>
+        </Column>
+        <Column>
+          <Text style={{ ...label, lineHeight: "18px", textAlign: "right" }}>Dispatch 07 · Nov 2026</Text>
+        </Column>
+      </Row>
+
+      {/* The announcement */}
+      <Column style={{ gap: 28 }} mobile={{ gap: 24 }}>
+        <Column style={{ gap: 20 }}>
+          <Text style={label}>New instrument — FR-2</Text>
+          <Heading level={1} style={{ fontSize: 62, lineHeight: 1, letterSpacing: -2.6, fontWeight: 500 }} mobile={{ fontSize: 44, letterSpacing: -1.8 }}>
+            Record the room you’re in.
+          </Heading>
+        </Column>
+        <Paragraph style={{ fontSize: 19, lineHeight: 1.5, maxWidth: 400 }} mobile={{ fontSize: 17 }}>
+          FR-2 is a pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.
+        </Paragraph>
+        <Row style={{ alignItems: "center", gap: 20 }} mobile={{ gap: 14 }}>
+          <Button
+            href={`${SITE}/fr-2`}
+            style={{ width: 184, backgroundColor: SIGNAL, color: INK, fontSize: 15, fontWeight: 600, padding: [16, 0], borderRadius: 2 }}
+            hover={{ backgroundColor: SIGNAL_DOWN }}
+            mobile={{ width: "100%" }}
+          >
+            Pre-order FR-2
+          </Button>
+          <Text style={label}>€349 · Ships 2 December</Text>
         </Row>
-
-        {/* The announcement */}
-        <Column style={{ gap: 28 }} mobile={{ gap: 24 }}>
-          <Column style={{ gap: 20 }}>
-            <Text style={label}>New instrument — FR-2</Text>
-            <Heading level={1} style={{ fontSize: 62, lineHeight: 1, letterSpacing: -2.6, fontWeight: 500 }} mobile={{ fontSize: 44, letterSpacing: -1.8 }}>
-              Record the room you’re in.
-            </Heading>
-          </Column>
-          <Paragraph style={{ fontSize: 19, lineHeight: 1.5, maxWidth: 400 }} mobile={{ fontSize: 17 }}>
-            FR-2 is a pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.
-          </Paragraph>
-          <Row style={{ alignItems: "center", gap: 20 }} mobile={{ gap: 14 }}>
-            <Button
-              href={`${SITE}/fr-2`}
-              style={{ width: 184, backgroundColor: SIGNAL, color: INK, fontSize: 15, fontWeight: 600, padding: [16, 0], borderRadius: 2 }}
-              hover={{ backgroundColor: SIGNAL_DOWN }}
-              mobile={{ width: "100%" }}
-            >
-              Pre-order FR-2
-            </Button>
-            <Text style={label}>€349 · Ships 2 December</Text>
-          </Row>
-        </Column>
-
-        {/* The drawing: the whole plate on a desktop, the two views larger on a phone */}
-        <Column style={{ gap: 12 }} mobile={{ gap: 10 }}>
-          <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1008, height: 640 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ mobile: true }} />
-          <Image src={{ src: "gallery/oyen/fr2-drawing-phone.png", width: 981, height: 1044 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ desktop: true }} />
-          <Text style={label}>Fig. 1 — FR-2, front and side</Text>
-        </Column>
-
-        {railed(
-          "What’s on it",
-          <Column>
-            {callout(1, "Capsules that turn", "X/Y for the scene in front of you, A/B for the room around you. A quarter turn sets them, and they stay put.")}
-            {callout(2, "A hold switch", "Slide it and the buttons sleep while the recording carries on: thirty hours on a charge, on a card of up to 1 TB.")}
-            {callout(3, "One dial", "Headphone level, menus and markers. It clicks once per step, so you can work it by feel in the dark.")}
-            {callout(4, "Record, always", "It records in 32-bit float, so there’s no gain to set and nothing to clip. A whisper and a door slam both come home whole.")}
-          </Column>
-        )}
-
-        {railed(
-          "Specifications",
-          <Table style={{ fontSize: 14, lineHeight: "21px", rowBorder: `1px solid ${RULE}` }}>
-            {spec("Recording", "32-bit float, up to 192 kHz", true)}
-            {spec("Capsules", "Two cardioids, X/Y or A/B")}
-            {spec("Input", "3.5 mm, line or plug-in power")}
-            {spec("Battery", "30 hours, USB-C charging")}
-            {spec("Storage", "microSD, up to 1 TB")}
-            {spec("Size", "132 × 68 × 24 mm, 186 g")}
-          </Table>
-        )}
-
-        {railed(
-          "From the field",
-          <Column style={{ gap: 16 }}>
-            <Text style={{ fontSize: 24, lineHeight: 1.32, letterSpacing: -0.6 }} mobile={{ fontSize: 22 }}>
-              “I left it on a fence post through nine hours of rain. It kept recording, and so did the birds.”
-            </Text>
-            <Text style={label}>Maren Achterberg, sound recordist</Text>
-          </Column>
-        )}
       </Column>
+
+      {/* The drawing: the whole plate on a desktop, the two views larger on a phone */}
+      <Column style={{ gap: 12 }} mobile={{ gap: 10 }}>
+        <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1008, height: 640 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ mobile: true }} />
+        <Image src={{ src: "gallery/oyen/fr2-drawing-phone.png", width: 981, height: 1044 }} alt={DRAWING} style={{ width: "100%" }} hidden={{ desktop: true }} />
+        <Text style={label}>Fig. 1 — FR-2, front and side</Text>
+      </Column>
+
+      {railed(
+        "What’s on it",
+        <Column>
+          {callout(1, "Capsules that turn", "X/Y for the scene in front of you, A/B for the room around you. A quarter turn sets them, and they stay put.")}
+          {callout(2, "A hold switch", "Slide it and the buttons sleep while the recording carries on: thirty hours on a charge, on a card of up to 1 TB.")}
+          {callout(3, "One dial", "Headphone level, menus and markers. It clicks once per step, so you can work it by feel in the dark.")}
+          {callout(4, "Record, always", "It records in 32-bit float, so there’s no gain to set and nothing to clip. A whisper and a door slam both come home whole.")}
+        </Column>
+      )}
+
+      {railed(
+        "Specifications",
+        <Table style={{ fontSize: 14, lineHeight: "21px", rowBorder: `1px solid ${RULE}` }}>
+          {spec("Recording", "32-bit float, up to 192 kHz", true)}
+          {spec("Capsules", "Two cardioids, X/Y or A/B")}
+          {spec("Input", "3.5 mm, line or plug-in power")}
+          {spec("Battery", "30 hours, USB-C charging")}
+          {spec("Storage", "microSD, up to 1 TB")}
+          {spec("Size", "132 × 68 × 24 mm, 186 g")}
+        </Table>
+      )}
+
+      {railed(
+        "From the field",
+        <Column style={{ gap: 16 }}>
+          <Text style={{ fontSize: 24, lineHeight: 1.32, letterSpacing: -0.6 }} mobile={{ fontSize: 22 }}>
+            “I left it on a fence post through nine hours of rain. It kept recording, and so did the birds.”
+          </Text>
+          <Text style={label}>Maren Achterberg, sound recordist</Text>
+        </Column>
+      )}
     </Section>
 
     {/* Closing band */}
-    <Section style={{ backgroundColor: SIGNAL, padding: [44, 0, 48] }} mobile={{ padding: [36, 0, 36] }}>
-      <Row style={{ padding: [0, 48], alignItems: "end", gap: 24 }} mobile={{ padding: [0, 24], gap: 28 }}>
+    <Section style={{ backgroundColor: SIGNAL, padding: [44, 48, 48] }} mobile={{ padding: [36, 24] }}>
+      <Row style={{ alignItems: "end", gap: 24 }} mobile={{ gap: 28 }}>
         <Column style={{ gap: 14 }}>
           <Text style={{ ...label, color: INK }}>First run · 2,000 instruments</Text>
           <Heading level={2} style={{ fontSize: 96, lineHeight: 0.9, letterSpacing: -4.5, fontWeight: 500 }} mobile={{ fontSize: 80, letterSpacing: -3.6 }}>
@@ -182,8 +177,8 @@ export const oyenLaunch = (
     </Section>
 
     {/* Footer */}
-    <Section style={{ padding: [32, 0, 56] }} mobile={{ padding: [28, 0, 44] }}>
-      <Row style={{ padding: [0, 48], gap: 24 }} mobile={{ padding: [0, 24], gap: 12 }}>
+    <Section style={{ padding: [32, 48, 56] }} mobile={{ padding: [28, 24, 44] }}>
+      <Row style={{ gap: 24 }} mobile={{ gap: 12 }}>
         <Column style={{ width: RAIL }}>
           <Text style={{ fontSize: 13, fontWeight: 700, letterSpacing: 4 }}>OYEN</Text>
         </Column>
