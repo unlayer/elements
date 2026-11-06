@@ -8,6 +8,7 @@ import path from "node:path";
 import ts from "typescript";
 import { afterEach, describe, expect, it } from "vitest";
 import { inlineHtml, MIGRATED_HEADER, migrateElements as migrateOnce, type MigrateElementsOptions } from "../src/convert";
+import { readsTwice } from "../src/convert/elements/expressions";
 import { main, type Io } from "../src/cli";
 import { errors } from "./migrated";
 
@@ -687,10 +688,29 @@ export const T = () => (
     expect(images).toEqual(["https://example.com/second.png"]);
   });
 
-  it("doesn't run a Button's buttonColors from a call once for each color", async () => {
-    const { code, report } = await migrate('export const T = ({ next }: { next: () => { color: string } }) => <Email><Row><Column><Button href="https://example.com" buttonColors={next()}>A</Button></Column></Row></Email>;');
-    expect(code).not.toContain("next()");
-    expect(report.join("\n")).toContain("this Button's buttonColors are worked out by code (next()), which would run once for each color: they're left out");
+  it("doesn't run a Button's buttonColors from a call once for each color, and keeps them from an object of names", async () => {
+    const { code, report } = await migrate('export const T = ({ nextTheme }: { nextTheme: () => { color: string } }) => <Email><Row><Column><Button href="https://example.com" buttonColors={nextTheme()}>A</Button></Column></Row></Email>;');
+    expect(code).not.toContain("nextTheme()");
+    expect(report.join("\n")).toContain("this Button's buttonColors are worked out by code (nextTheme()), which would run once for each color: they're left out");
+    // An object of the template's values: both colors, as code.
+    const named = await migrate('export const T = ({ fg, bg }: { fg: string; bg: string }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ color: fg, backgroundColor: bg }}>A</Button></Column></Row></Email>;');
+    expect(squash(named.code)).toContain("backgroundColor:{color:fg,backgroundColor:bg}.backgroundColor,color:{color:fg,backgroundColor:bg}.color");
+    expect(named.report.join("\n")).not.toContain("buttonColors");
+    expect(errors(named.code, { fg: "#ffffff", bg: "#111111" })).toEqual([]);
+    // One with a call in it would run the call once for each color.
+    const called = await migrate('export const T = ({ pick }: { pick: () => string }) => <Email><Row><Column><Button href="https://example.com" buttonColors={{ color: pick() }}>A</Button></Column></Row></Email>;');
+    expect(called.code).not.toContain("pick()");
+    expect(called.report.join("\n")).toContain("this Button's buttonColors are worked out by code ({ color: pick() }), which would run once for each color");
+  });
+
+  it("writes twice only what reads the same again and does nothing else", () => {
+    const expression = (code: string) => (ts.createSourceFile("x.ts", `(${code});`, ts.ScriptTarget.Latest, true).statements[0] as ts.ExpressionStatement).expression;
+    for (const code of ["logo", "brand.logo.src", 'images[0] ?? ""', "`${base}/a.png`", "a ? b : c", "!shown", "{ color: fg, backgroundColor: bg }", '{ color, "background-color": bg, [key]: 1, ...theme }', "[fg, , bg]", "this.props.src"]) {
+      expect(readsTwice(expression(code)), code).toBe(true);
+    }
+    for (const code of ["images.shift()", "new URL(src)", "i++", "src = next", "await src", "{ color: pick() }", "{ ...theme() }", "{ [next()]: fg }", "{ get color() { return fg; } }", "{ color() { return fg; } }", "[...colors]", "[pick()]", "tag`x`"]) {
+      expect(readsTwice(expression(code)), code).toBe(false);
+    }
   });
 
   it("takes a Button's and an Image's link and target from today's action, written out or as code", async () => {

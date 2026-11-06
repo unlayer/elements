@@ -1,8 +1,8 @@
 /**
  * Whether the migration may write an expression of the template twice (`(logo) ? <Image src={logo} /> : null`):
  * reading it again gives the same value and does nothing else. A name, a property of one, a literal, and choices,
- * comparisons and joins of those can be; a call, `new`, an assignment, `++`, `await` or `yield` may do something, or
- * give something else, each time it runs (`images.shift()`), so it's written once.
+ * comparisons, joins, objects and arrays of those can be; a call, `new`, an assignment, `++`, `await` or `yield` may
+ * do something, or give something else, each time it runs (`images.shift()`), so it's written once.
  */
 import ts from "typescript";
 
@@ -16,6 +16,17 @@ export function readsTwice(node: ts.Expression): boolean {
   if (ts.isConditionalExpression(node)) return readsTwice(node.condition) && readsTwice(node.whenTrue) && readsTwice(node.whenFalse);
   if (ts.isPrefixUnaryExpression(node)) return node.operator !== ts.SyntaxKind.PlusPlusToken && node.operator !== ts.SyntaxKind.MinusMinusToken && readsTwice(node.operand);
   if (ts.isTypeOfExpression(node)) return readsTwice(node.expression);
+  // An object of such values (`{ color: fg, ...theme }`), by names or by keys that are such values themselves. A method
+  // or an accessor is code of its own.
+  if (ts.isObjectLiteralExpression(node)) {
+    return node.properties.every((property) => {
+      if (ts.isShorthandPropertyAssignment(property)) return !property.objectAssignmentInitializer;
+      if (ts.isSpreadAssignment(property)) return readsTwice(property.expression);
+      return ts.isPropertyAssignment(property) && (!ts.isComputedPropertyName(property.name) || readsTwice(property.name.expression)) && readsTwice(property.initializer);
+    });
+  }
+  // An array of such values. Spreading one (`[...items]`) iterates it, which an iterator does only once.
+  if (ts.isArrayLiteralExpression(node)) return node.elements.every((element) => ts.isOmittedExpression(element) || (!ts.isSpreadElement(element) && readsTwice(element)));
   if (ts.isBinaryExpression(node)) {
     const operator = node.operatorToken.kind;
     const assigns = operator >= ts.SyntaxKind.FirstAssignment && operator <= ts.SyntaxKind.LastAssignment;
