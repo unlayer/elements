@@ -24,6 +24,8 @@ import { phoneWidthInRow } from "../shared/phone-width";
 import type { ResolvedNode } from "../../resolve";
 
 const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "right" };
+/** The most a Row's line or a child's minimum can be and be sure to fit a small phone. */
+const FITS_A_PHONE = 240;
 
 /** A child whose phone width is its cell's or its div's: what's in it fills that, or a percentage would count twice. */
 const filling = (child: ResolvedNode, own: unknown): ResolvedNode => (own === undefined ? child : { ...child, mobile: { ...child.mobile, width: "100%" } });
@@ -136,7 +138,7 @@ function sideBySide(props: Props): Html {
   // its width. On phones, where it could (it looks too wide for a small phone to be sure), the cells hold their widths
   // as far as they fit, and the room goes to the children of their own size rather than the empty cells.
   const line = packed ? oneLineWidth(node) : 0;
-  const tight = line > 240;
+  const tight = line > FITS_A_PHONE;
   const children = node.children.filter(isNode).filter(shown);
   // Children of their own widths on phones leave room there, where they use it all on desktop: a cell only phones have takes it.
   const room = !left && children.some((child) => phoneWidthInRow(child, node) !== undefined) && !children.some((child) => !child.hidden?.mobile && sharing(child));
@@ -157,7 +159,9 @@ function sideBySide(props: Props): Html {
     const own = phoneWidthInRow(child, node);
     const held = packed && typeof child.style.width === "number" && line <= (node.contentWidth ?? 0) ? width : undefined;
     // Its phone width is its cell's, which would otherwise keep its desktop width.
-    const phone = own !== undefined ? { width: own, minWidth: packed ? (typeof own === "number" ? own : 0) : undefined } : tight && held !== undefined ? { minWidth: 0 } : undefined;
+    // A minimum beside a child of its own size holds it there, as far as a phone surely has room: more would push the
+    // email past the screen, where a page's flex item shrinks.
+    const phone = own !== undefined ? { width: own, minWidth: packed ? (typeof own === "number" && own <= FITS_A_PHONE ? own : 0) : undefined } : tight && held !== undefined ? { minWidth: 0 } : undefined;
     // A child whose size only the client knows is as wide as its content on one line, as a flex item of its own size
     // is on the page: beside the empty cells that take the room, its cell would otherwise shrink to its longest word.
     const cell = (

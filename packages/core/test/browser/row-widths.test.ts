@@ -274,6 +274,41 @@ describe("a wrapping Row's gap between its lines, in an email", () => {
   });
 });
 
+describe("a phone width wider than a phone, in a Row kept side by side", () => {
+  it("keeps the email and the page on the screen, and a phone maximum holds the width", async () => {
+    const template = (root: "Page" | "Email", mobile: Record<string, number>) =>
+      renderTemplate({
+        root: {
+          type: root,
+          props: { width: 600 },
+          children: [
+            {
+              type: "Row",
+              props: { stackOnMobile: false },
+              children: [
+                { type: "Column", id: "sized", style: { width: 100 }, mobile, children: [{ type: "Text", children: ["Content"] }] },
+                { type: "Link", props: { href: "#" }, style: { flex: "none" }, children: ["Read"] },
+              ],
+            },
+          ],
+        },
+      }).html;
+    const measure = async (html: string) => {
+      const page = await browser.newPage({ viewport: { width: 375, height: 800 } });
+      await page.setContent(html);
+      const found = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, sized: Math.round(document.getElementById("sized")!.getBoundingClientRect().width) }));
+      await page.close();
+      return found;
+    };
+    for (const root of ["Email", "Page"] as const) {
+      expect((await measure(template(root, { width: 500 }))).scroll, root).toBeLessThanOrEqual(375);
+      const capped = await measure(template(root, { width: 500, maxWidth: 200 }));
+      expect(capped.scroll, root).toBeLessThanOrEqual(375);
+      expect(capped.sized, root).toBe(200);
+    }
+  });
+});
+
 describe("a Grid kept side by side, on phones", () => {
   it("keeps the last row's cells as wide as the others, in the email and on the page", async () => {
     const children = ["a", "b", "c"].map((words, index) => ({ type: "Text", id: `g${index}`, children: [words] }));
