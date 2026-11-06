@@ -228,6 +228,8 @@ export const MIGRATED_HEADER = "// Migrated from Elements 0.2's components by @u
  * Email converter's: the source it hands the migration, in today's components, starts with that.)
  */
 const WRITTEN_BY_MIGRATE = /^\/\/ Migrated from Elements 0\.2's components by @unlayer\/migrate\./m;
+/** The colors today's Button takes together, as `buttonColors`. */
+const BUTTON_COLORS = ["color", "backgroundColor", "hoverColor", "hoverBackgroundColor"];
 /**
  * The props of today's components the migration reads. One a component has where the new one by its name has no such
  * prop (a Row's layout, a Paragraph's html, a Button's padding; not a Menu's layout or an Html's html) is today's.
@@ -1103,11 +1105,20 @@ export async function migrateElements(source: string, options: MigrateElementsOp
   function buttonColors(node: ts.Node, props: Props) {
     const colors = props.get("buttonColors");
     if (!colors) return;
+    // An object written out (`{ color: fg, backgroundColor: theme.bg }`): each color is its own, written once.
+    const object = !isLiteral(colors) && colors.node ? bare(colors.node) : undefined;
+    if (object && ts.isObjectLiteralExpression(object) && object.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)))) {
+      for (const property of object.properties as ts.NodeArray<ts.PropertyAssignment | ts.ShorthandPropertyAssignment>) {
+        const key = (property.name as ts.Identifier).text;
+        if (BUTTON_COLORS.includes(key) && !props.has(key)) props.set(key, valueOf(ts.isPropertyAssignment(property) ? property.initializer : property.name));
+      }
+      return;
+    }
     if (!isLiteral(colors) && !(colors.node && readsTwice(colors.node))) {
       report.push(`${where(node)}: this Button's buttonColors are worked out by code (${code(colors)}), which would run once for each color: they're left out. Give them a name (const colors = …)`);
       return;
     }
-    for (const key of ["color", "backgroundColor", "hoverColor", "hoverBackgroundColor"]) {
+    for (const key of BUTTON_COLORS) {
       if (props.has(key)) continue;
       if (!isLiteral(colors)) props.set(key, { code: `(${code(colors)}).${key}` });
       else if ((colors.literal as Record<string, unknown> | null)?.[key] !== undefined) props.set(key, lit((colors.literal as Record<string, unknown>)[key]));
