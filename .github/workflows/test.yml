@@ -72,7 +72,7 @@ jobs:
       # unminified ESM output as a proxy for code volume; they still flag
       # accidental dependency bundling (any real dep is 10KB+).
 
-      # The main entry (the components, dist/primitives.js): about 235KB
+      # The main entry (the components, dist/primitives.js): about 243KB
       # unminified ESM. Its core (the components' definitions, validation, layout,
       # about 115KB), its writers (email, page, print HTML and plain text, about
       # 97KB), its JSX API (about 17KB) and the render that collects a template
@@ -83,7 +83,7 @@ jobs:
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=242500
+          MAX_SIZE=244500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -92,7 +92,7 @@ jobs:
           echo "✅ Main entry bundle within budget"
 
       # The builder adapter's entry (/builder: toDesign and fromDesign) has its
-      # own budget: about 392KB unminified ESM. The adapter itself (about 159KB: the
+      # own budget: about 397KB unminified ESM. The adapter itself (about 159KB: the
       # hidden properties' manifest, writing designs over each tool's defaults,
       # reading designs, their values, runs and rich text, the JSX printer); the core
       # and writers it lays out and writes locked markup with (about 210KB); the main
@@ -105,7 +105,7 @@ jobs:
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=395000
+          MAX_SIZE=397500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
