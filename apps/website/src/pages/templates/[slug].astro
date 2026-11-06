@@ -2,7 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import CodeBlock from "../../components/CodeBlock.astro";
 import Preview from "../../components/Preview.astro";
-import { templates, type Example } from "../../lib/examples";
+import { templates, thumbWidth, type Example } from "../../lib/examples";
 
 export function getStaticPaths() {
   return templates.map((t) => ({ params: { slug: t.slug }, props: { t } }));
@@ -11,6 +11,12 @@ const { t } = Astro.props as { t: Example };
 const others = templates.filter((o) => o.slug !== t.slug);
 const isDoc = t.root === "Document";
 const isCanvas = t.root === "Canvas";
+// A Document shows its print HTML and its real PDF, and a Canvas its real PNG; an Email or a Page its HTML, on a phone too, and as text.
+const views = isDoc
+  ? (["desktop", "pdf", "outline", "diagnostics"] as const)
+  : isCanvas
+    ? (["image", "outline", "diagnostics"] as const)
+    : (["desktop", "phone", "text", "outline", "diagnostics", "html"] as const);
 const name = t.source.match(/export default function (\w+)/)?.[1] ?? "Template";
 const renderSnippet = isDoc
   ? `import { renderPdf } from "@hyper-elements/react/pdf";\nimport ${name} from "./${t.slug}";\n\nconst { pdf } = await renderPdf(<${name} />);`
@@ -33,7 +39,7 @@ const renderSnippet = isDoc
   </section>
   <div class="wrap t-body">
     <div class="t-preview panel">
-      <Preview example={t} height={760} width={isDoc ? 820 : isCanvas || t.root === "Page" ? 1200 : 680} views={["desktop", ...(isDoc || isCanvas ? [] : ["phone" as const]), "text", "outline", "diagnostics", "html"]} />
+      <Preview example={t} height={isDoc ? 860 : isCanvas ? 640 : 760} width={thumbWidth(t, { page: 1200, document: 820, email: 680 })} views={views} />
     </div>
     <div class="t-code">
       <CodeBlock code={t.source} file={`${t.slug}.tsx`} />
@@ -56,6 +62,10 @@ const renderSnippet = isDoc
   .t-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
   .t-preview { overflow: hidden; background: #0e0e0e; position: sticky; top: calc(var(--header) + 16px); }
   .t-code { display: grid; gap: 16px; min-width: 0; }
+  /* The PDF takes the page's width, with the code out of the way, so its pages are easy to read. */
+  .t-body:has([data-preview][data-active="pdf"]) { grid-template-columns: minmax(0, 1fr); }
+  .t-body:has([data-preview][data-active="pdf"]) .t-code { display: none; }
+  .t-body:has([data-preview][data-active="pdf"]) .t-preview { position: static; }
   .more { margin-top: 64px; }
   .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 16px; }
   .more-list { display: flex; flex-wrap: wrap; gap: 8px; }

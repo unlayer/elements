@@ -68,6 +68,8 @@ document.querySelectorAll<HTMLElement>("[data-preview]").forEach((preview) => {
       t.tabIndex = t === tab ? 0 : -1;
     });
     views.forEach((v) => (v.hidden = v.dataset.view !== tab.dataset.view));
+    // The page can lay itself out for the view shown (a template page widens the preview for its PDF).
+    preview.dataset.active = tab.dataset.view ?? "";
     const shown = views.find((v) => !v.hidden);
     const lazy = shown?.querySelector<HTMLIFrameElement>("iframe[data-srcdoc]");
     if (lazy) {

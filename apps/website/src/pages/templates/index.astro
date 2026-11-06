@@ -1,7 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import Thumb from "../../components/Thumb.astro";
-import { templates } from "../../lib/examples";
+import { templates, thumbWidth } from "../../lib/examples";
 ---
 <Base title="Templates" description="Real templates written with Hyper Elements: receipts, onboarding, newsletters, invites, password resets and invoices.">
   <section class="page-hero">
@@ -15,7 +15,7 @@ import { templates } from "../../lib/examples";
     <div class="grid grid-2">
       {templates.map((t) => (
         <a class="card tcard reveal" href={`/templates/${t.slug}`}>
-          <Thumb example={t} width={t.root === "Canvas" ? 1200 : t.root === "Page" ? 1000 : t.root === "Document" ? 860 : 640} height={340} />
+          <Thumb example={t} width={thumbWidth(t, { page: 1000, document: 860, email: 640 })} height={340} />
           <div class="tcard-body">
             <div class="tcard-top"><h3>{t.title}</h3><span class="chip">{`<${t.root}>`}</span></div>
             <p>{t.description}</p>

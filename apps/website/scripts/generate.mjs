@@ -8,6 +8,10 @@
 //                                    outline and diagnostics
 //   src/generated/reference.md       REFERENCE.md: every component, prop and style
 //   src/generated/guide.md           GUIDE.md: how a template is written
+//   public/generated/                each Document as a real PDF and each Canvas as a real PNG
+//
+// The PDFs and PNGs need the templates' fonts as TTF files (react-pdf and Satori don't read WOFF2):
+// they're fetched from Google Fonts by family and weight, once, into node_modules/.cache.
 //
 // The examples import `@hyper-elements/react`. Until the packages are renamed, that resolves to the
 // workspace's `@unlayer/react-elements`. To use another build (a PR's checkout, say), point
@@ -64,6 +68,8 @@ async function renderAll(kind) {
         `import { outline, render } from "${NEW_NAME}";`,
         `export const meta = mod.meta ?? {};`,
         `export const element = () => <Example />;`,
+        // The root a template returns, for its fonts: the PDF and PNG are drawn in them.
+        `export const rootElement = () => Example({});`,
         `export async function run() {`,
         `  const { html, text, diagnostics } = await render(<Example />);`,
         `  return { html, text, diagnostics, outline: outline(<Example />) };`,
@@ -81,7 +87,7 @@ async function renderAll(kind) {
       logLevel: "warning",
       plugins: [resolvePlugin],
     });
-    const { run, meta, element } = createRequire(import.meta.url)(bundle);
+    const { run, meta, element, rootElement } = createRequire(import.meta.url)(bundle);
     let result;
     try {
       result = await run();
@@ -103,9 +109,20 @@ async function renderAll(kind) {
       outline: result.outline.trimEnd(),
       diagnostics: result.diagnostics.map(({ severity, code, message, path }) => ({ severity, code, message: rename(message), path })),
     };
-    if (kind === "showcase") {
+    const binary = meta.root === "Document" || meta.root === "Canvas";
+    if (binary && kind !== "components") {
       try {
-        out[slug].file = await writeBinary(slug, element(), meta);
+        // The showcase's files keep the names the hero shows; a template's is named after it.
+        const name = kind === "showcase" ? meta.file : `templates/${slug}.${meta.root === "Canvas" ? "png" : "pdf"}`;
+        const { file, diagnostics } = await writeBinary(element(), meta.root, name, rootElement());
+        out[slug].file = file;
+        if (kind === "templates") {
+          // What the PDF or PNG adds (a font it couldn't draw, say) is part of the template's diagnostics.
+          const seen = new Set(out[slug].diagnostics.map((d) => `${d.code} ${d.path}`));
+          for (const { severity, code, message, path } of diagnostics) {
+            if (!seen.has(`${code} ${path}`)) out[slug].diagnostics.push({ severity, code, message: rename(message), path });
+          }
+        }
       } catch (error) {
         const detail = error.diagnostics?.map((d) => `${d.code} at ${d.path}: ${d.message}`).join("\n") ?? String(error.message).slice(0, 600);
         throw new Error(`examples/${kind}/${file} doesn't render to a file:\n${detail}`);
@@ -116,39 +133,66 @@ async function renderAll(kind) {
   return out;
 }
 
-/**
- * The showcase's Canvas as a real PNG (@hyper-elements/react/image) and its Document as a real PDF
- * (@hyper-elements/react/pdf), into public/generated/. Their engines are the package's optional peer
- * dependencies, resolved from the package's own directory (its dev dependencies in the workspace).
- */
-async function writeBinary(slug, el, meta) {
-  if (slug !== "canvas" && slug !== "document") return undefined;
-  const name = slug === "canvas" ? "image" : "pdf";
-  const mod = elementsRequire(join(packageDir, "dist", `${name}.cjs`));
+const fontCache = join(root, "node_modules", ".cache", "hyper-elements-fonts");
+/** The weights fetched for a font given as a range ("200 800"). */
+const WEIGHTS = [300, 400, 500, 600, 700, 800];
+
+/** A Google Fonts family at one weight and style, as TTF: from the cache, else fetched into it. */
+async function googleFont(family, weight, italic) {
+  const file = join(fontCache, `${family.replace(/\W+/g, "-")}-${weight}${italic ? "-italic" : ""}.ttf`);
+  try {
+    return await readFile(file);
+  } catch {}
+  const css = await (await fetch(`https://fonts.googleapis.com/css2?family=${family.replace(/ /g, "+")}:ital,wght@${italic ? 1 : 0},${weight}`)).text();
+  const url = css.match(/url\((https:[^)]+\.ttf)\)/)?.[1];
+  if (!url) return null;
+  const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
+  await mkdir(fontCache, { recursive: true });
+  await writeFile(file, bytes);
+  return bytes;
+}
+
+/** The fonts a root's `fonts` prop names, as files the PDF and image engines read, after a fallback. */
+async function fontsFor(rootEl) {
   const fontDir = join(dirname(elementsRequire.resolve("pdfjs-dist/package.json")), "standard_fonts");
   const fonts = [
     { family: "Liberation Sans", src: await readFile(join(fontDir, "LiberationSans-Regular.ttf")) },
     { family: "Liberation Sans", src: await readFile(join(fontDir, "LiberationSans-Bold.ttf")), weight: 700 },
   ];
-  // Nothing is fetched: every image the site hosts is given by the URL the examples use.
+  for (const f of rootEl?.props?.fonts ?? []) {
+    if (!String(f.src).includes("fonts.gstatic.com")) continue;
+    const [low, high] = String(f.weight ?? 400).split(/\s+/).map(Number);
+    const italic = f.style === "italic";
+    for (const weight of high ? WEIGHTS.filter((w) => w >= low && w <= high) : [low]) {
+      const src = await googleFont(f.family, weight, italic);
+      if (src) fonts.push({ family: f.family, src, weight, ...(italic ? { style: "italic" } : {}) });
+    }
+  }
+  return fonts;
+}
+
+/**
+ * A Canvas as a real PNG (@hyper-elements/react/image) or a Document as a real PDF
+ * (@hyper-elements/react/pdf), into public/generated/. Their engines are the package's optional peer
+ * dependencies, resolved from the package's own directory (its dev dependencies in the workspace).
+ */
+async function writeBinary(el, rootName, name, rootEl) {
+  const mod = elementsRequire(join(packageDir, "dist", `${rootName === "Canvas" ? "image" : "pdf"}.cjs`));
+  const fonts = await fontsFor(rootEl);
+  // Images are given by the URL the examples use: every image the site hosts.
   const imgDir = join(root, "public", "img");
   const images = {};
   for (const f of await readdir(imgDir, { recursive: true })) {
     if (!/\.(png|jpe?g|gif|svg)$/i.test(f)) continue;
     images[`https://hyperelements.dev/img/${f.split("\\").join("/")}`] = await readFile(join(imgDir, f));
   }
-  const pub = join(root, "public", "generated");
-  await mkdir(pub, { recursive: true });
-  if (slug === "canvas") {
-    const { image, diagnostics } = await mod.renderImage(el, { fonts, images, scale: 1 });
-    for (const d of diagnostics) console.log(`  image: ${d.severity} ${d.code} ${d.message}`);
-    await writeFile(join(pub, meta.file), image);
-    return `/generated/${meta.file}`;
-  }
-  const { pdf, diagnostics } = await mod.renderPdf(el, { fonts, images });
-  for (const d of diagnostics) console.log(`  pdf: ${d.severity} ${d.code} ${d.message}`);
-  await writeFile(join(pub, meta.file), pdf);
-  return `/generated/${meta.file}`;
+  const target = join(root, "public", "generated", name);
+  await mkdir(dirname(target), { recursive: true });
+  const { image, pdf, diagnostics } =
+    rootName === "Canvas" ? await mod.renderImage(el, { fonts, images, scale: 1 }) : await mod.renderPdf(el, { fonts, images });
+  for (const d of diagnostics) console.log(`  ${rootName === "Canvas" ? "image" : "pdf"}: ${d.severity} ${d.code} ${d.message}`);
+  await writeFile(target, image ?? pdf);
+  return { file: `/generated/${name}`, diagnostics };
 }
 
 await mkdir(cacheDir, { recursive: true });

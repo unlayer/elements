@@ -253,6 +253,10 @@ a.card:hover { border-color: var(--line-3); }
 .view-frame { background: var(--frame-bg, #f4f4f5); overflow: hidden; height: 100%; }
 .view-frame .scaler { transform-origin: 0 0; width: max-content; }
 .view-frame iframe { display: block; border: 0; background: var(--frame-bg, #fff); max-width: none; }
+.view-file { height: var(--frame-h, 560px); background: #e5e7eb; overflow: hidden; }
+.view-file iframe { display: block; width: 100%; height: 100%; border: 0; }
+/* The PNG at its own proportions, as large as fits, with room around it. */
+.view-file img { display: block; box-sizing: border-box; width: 100%; height: 100%; padding: 24px; object-fit: contain; }
 .view-phone { display: flex; justify-content: center; align-items: flex-start; padding: 28px 16px; background: var(--bg-2); height: 100%; overflow: auto; }
 .phone { width: 375px; max-width: 100%; border-radius: 40px; padding: 10px; background: #161616; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), var(--shadow); }
 .phone iframe { display: block; width: 100%; border: 0; border-radius: 30px; background: #fff; height: 640px; }

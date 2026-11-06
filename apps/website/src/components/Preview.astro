@@ -1,6 +1,7 @@
 ---
 // Real output of one example: the email at desktop width (scaled to fit), on a phone, as plain text,
-// as its outline, its diagnostics, and its HTML.
+// as its outline, its diagnostics, and its HTML. A Document's real PDF and a Canvas's real PNG too,
+// where generate.mjs wrote them (example.file).
 import { previewHtml, type Example } from "../lib/examples";
 import { Code } from "astro:components";
 import { hyperTheme } from "../lib/shiki-theme.mjs";
@@ -10,23 +11,25 @@ interface Props {
   /** The width the desktop view is drawn at, before scaling. */
   width?: number;
   height?: number;
-  views?: ("desktop" | "phone" | "text" | "outline" | "diagnostics" | "html")[];
+  views?: ("desktop" | "phone" | "pdf" | "image" | "text" | "outline" | "diagnostics" | "html")[];
   class?: string;
 }
 const { example, width = 680, height = 560, views = ["desktop", "phone", "text", "outline", "diagnostics"], class: className } = Astro.props;
 const html = previewHtml(example.html);
 const isDocument = example.root === "Document";
 const labels: Record<string, string> = {
-  desktop: isDocument ? "Print" : example.root === "Page" ? "Page" : example.root === "Canvas" ? "Image" : "Email",
+  desktop: isDocument ? "Document" : example.root === "Page" ? "Page" : example.root === "Canvas" ? "Image" : "Email",
   phone: "Phone",
+  pdf: "PDF",
+  image: "Image",
   text: "Plain text",
   outline: "Outline",
   diagnostics: "Diagnostics",
   html: "HTML",
 };
-const bg = html.match(/<body[^>]*background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})/)?.[1] ?? (isDocument ? "#e5e7eb" : "#ffffff");
+const bg = example.root === "Canvas" ? "#e5e7eb" : html.match(/<body[^>]*background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})/)?.[1] ?? (isDocument ? "#e5e7eb" : "#ffffff");
 ---
-<div class:list={["preview", className]} data-preview style={`--frame-h:${height}px`}>
+<div class:list={["preview", className]} data-preview data-active={views[0]} style={`--frame-h:${height}px`}>
   <div class="tabs" role="tablist" aria-label="Output">
     {views.map((v, i) => (
       <button role="tab" type="button" aria-selected={i === 0 ? "true" : "false"} data-view={v}>
@@ -36,8 +39,18 @@ const bg = html.match(/<body[^>]*background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})/)?
     ))}
   </div>
   <div class="views" style={`height:${height}px`}>
+    {views.includes("pdf") && example.file && (
+      <div class="view view-file" data-view="pdf" hidden={views[0] !== "pdf"}>
+        <iframe title={`${example.title}: the PDF`} src={`${example.file}#view=FitH`} loading="lazy"></iframe>
+      </div>
+    )}
+    {views.includes("image") && example.file && (
+      <div class="view view-file" data-view="image" hidden={views[0] !== "image"}>
+        <img src={example.file} alt={`${example.title}: the PNG`} loading="lazy" />
+      </div>
+    )}
     {views.includes("desktop") && (
-      <div class="view view-frame" data-view="desktop" data-fit={width} style={`--frame-bg:${bg}`}>
+      <div class="view view-frame" data-view="desktop" data-fit={width} style={`--frame-bg:${bg}`} hidden={views[0] !== "desktop"}>
         <div class="scaler"><iframe title={`${example.title}: desktop`} srcdoc={html} width={width} height={height} loading="lazy"></iframe></div>
       </div>
     )}
