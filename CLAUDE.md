@@ -42,7 +42,7 @@ Email/Page/Document/Canvas (the root: which output render() writes)
 
 A root, a `Section` and a `Column` stack what they hold. Styles go in `style` (typed, a number is px), phone styles in
 `mobile`, hover styles in `hover`; there are no margins (a parent's `gap`). Every component and prop:
-`packages/react/PRIMITIVES.md` and `PRIMITIVES-REFERENCE.md`, written from the definitions by
+`packages/react/GUIDE.md` and `REFERENCE.md`, written from the definitions by
 `src/primitives/reference.ts`.
 
 ### Components

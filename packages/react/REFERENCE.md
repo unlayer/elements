@@ -2,7 +2,7 @@
 
 <!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
-Every component, what it holds, and every prop and style it takes, with its default and what it does. [PRIMITIVES.md](./PRIMITIVES.md) shows how a template is written; `validate()` checks one against what's here.
+Every component, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a template is written; `validate()` checks one against what's here.
 
 Every component also takes:
 

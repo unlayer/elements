@@ -57,7 +57,7 @@ const { design } = toDesign(element); // open in the visual editor with loadDesi
 Such a template imports from `@unlayer/react-elements`, not `/primitives`, so `render()` can't read it: it throws, naming the markup it found. It keeps working with that import's own functions, as it did before. To move it:
 
 1. Replace each block marked `TODO(convert)` with the new components, and give a computed `Row` its columns as numbers, as the report says.
-2. Run `npx @unlayer/migrate <template> --from elements --write`. The [guide to the new components](../../../docs/migrating-to-primitives.md) lists what it changes.
+2. Run `npx @unlayer/migrate <template> --from elements --write`. The [guide to the new components](./migrating-from-0.2.md) lists what it changes.
 3. Check it against the React Email original (from git, if `--write` replaced it) with `npx @unlayer/migrate compare <original> <migrated>`.
 
 ## Open React Email templates in the Unlayer editor
@@ -90,7 +90,7 @@ For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading 
 
 - To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md` first, read the report, then run it again with `--write`. Don't rewrite templates by hand when the command can do it: it keeps their logic and checks the result.
 - Exit code `2` means a template failed to convert or lost content: report that to the user with the file and the reason from the report. Don't pass `--force` to hide it.
-- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with the new components ([PRIMITIVES.md](../PRIMITIVES.md)), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
+- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with the new components ([GUIDE.md](../GUIDE.md)), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
 - After converting any template by hand, run the same `compare` before reporting it done.
 - React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Section`/`Row`/`Column`; `Container` width → `Email` `width`; `Img` → `Image`, with its file's size in `src={{ src, width, height }}`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; margins → the parent's `gap`; Tailwind classes and inline styles → `style={{ }}`.
 

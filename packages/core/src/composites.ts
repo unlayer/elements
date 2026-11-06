@@ -11,7 +11,7 @@ import type { ExpandContext, ExpandProps } from "./registry";
 import { css, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 
 const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
-const BY_PRIMITIVES: SupportByTarget = { email: { level: "full", source: "writer" }, web: css as SupportByTarget["web"] };
+const BY_PARTS: SupportByTarget = { email: { level: "full", source: "writer" }, web: css as SupportByTarget["web"] };
 
 /** A definition made of primitives: `expand` returns the node it is, from its props and style (defaults applied). */
 function defineComposite<const P extends PropSpecs, const S extends StyleSpecs>(
@@ -40,8 +40,8 @@ export const Social = defineComposite({
     size: prop(number({ min: 1, integer: true }), { support: WRITTEN, label: "Icon size", description: "Each icon's width and height, in px.", default: 32 }),
   },
   style: {
-    gap: { ...layoutStyle.gap, label: "Space between icons", support: BY_PRIMITIVES },
-    justifyContent: { kind: enumOf(["start", "center", "end"]), label: "Alignment", description: "Where the icons sit across the line.", support: BY_PRIMITIVES },
+    gap: { ...layoutStyle.gap, label: "Space between icons", support: BY_PARTS },
+    justifyContent: { kind: enumOf(["start", "center", "end"]), label: "Alignment", description: "Where the icons sit across the line.", support: BY_PARTS },
     ...placementStyle,
   },
   defaultStyle: { gap: 5, justifyContent: "center" },
@@ -89,9 +89,9 @@ export const Menu = defineComposite({
   },
   style: {
     ...pick(textStyle, "color", ...MENU_TEXT),
-    separatorColor: { kind: color(), label: "Separator color", support: BY_PRIMITIVES },
-    padding: { kind: insets(), label: "Each link's padding", description: "Around each link: its sides are the space between them.", support: BY_PRIMITIVES },
-    justifyContent: { kind: enumOf(["start", "center", "end"]), label: "Alignment", description: "Where the links sit.", support: BY_PRIMITIVES },
+    separatorColor: { kind: color(), label: "Separator color", support: BY_PARTS },
+    padding: { kind: insets(), label: "Each link's padding", description: "Around each link: its sides are the space between them.", support: BY_PARTS },
+    justifyContent: { kind: enumOf(["start", "center", "end"]), label: "Alignment", description: "Where the links sit.", support: BY_PARTS },
     ...placementStyle,
   },
   defaultStyle: {

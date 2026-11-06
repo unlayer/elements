@@ -7,7 +7,7 @@ description: Write emails, web pages, printed documents, PDFs and images in code
 
 <!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
-Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.
+Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.
 
 ## Templates from Elements 0.2
 

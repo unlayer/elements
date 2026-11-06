@@ -69,7 +69,7 @@ const { valid } = validate(<Receipt />); // the same checks, without rendering
 console.log(outline(<Receipt />)); // the laid-out template as text: each block, its width, its words
 ```
 
-To write a template, read [PRIMITIVES.md](./PRIMITIVES.md): how a template is written, and every component on a line. [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
+To write a template, read [GUIDE.md](./GUIDE.md): how a template is written, and every component on a line. [REFERENCE.md](./REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
 
 Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-elements-02).
 
@@ -78,10 +78,10 @@ Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-element
 **With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
 
 ```
-@node_modules/@unlayer/react-elements/PRIMITIVES.md
+@node_modules/@unlayer/react-elements/GUIDE.md
 ```
 
-For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/PRIMITIVES.md."
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
 
 Or install the same guide as an agent skill: `npx skills add unlayer/elements`.
 
@@ -221,7 +221,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 
 ## Phones and hover
 
-`mobile` holds a component's styles on phones, `hidden` shows it on one size only, and `hover` holds its styles under the pointer. Each component's list is in [PRIMITIVES.md](./PRIMITIVES.md).
+`mobile` holds a component's styles on phones, `hidden` shows it on one size only, and `hover` holds its styles under the pointer. Each component's list is in [GUIDE.md](./GUIDE.md).
 
 ```tsx
 <Heading style={{ fontSize: 32 }} mobile={{ fontSize: 24, textAlign: "center" }}>Welcome</Heading>
@@ -357,7 +357,7 @@ npx @unlayer/migrate src/emails --from elements   # templates written for Elemen
 npx @unlayer/migrate src/emails                   # React Email templates
 ```
 
-It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/unlayer/elements/blob/main/docs/migrating-to-primitives.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
 
 ## Development
 

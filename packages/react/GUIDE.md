@@ -2,7 +2,7 @@
 
 <!-- Written from the component definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
-Everything needed to write a template, in short. Every prop's and style's details: [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md).
+Everything needed to write a template, in short. Every prop's and style's details: [REFERENCE.md](./REFERENCE.md).
 
 ## How a template is written
 

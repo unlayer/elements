@@ -92,8 +92,8 @@
     "dist/pdf.*",
     "dist/image.*",
     "README.md",
-    "PRIMITIVES.md",
-    "PRIMITIVES-REFERENCE.md",
+    "GUIDE.md",
+    "REFERENCE.md",
     "LICENSE"
   ],
   "publishConfig": {

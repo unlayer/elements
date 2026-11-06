@@ -117,13 +117,13 @@ describe("checkDocument", () => {
     ).diagnostics.map((d) => d.message);
     expect(messages).toEqual([
       'An Email has no prop "backgroundColor": it\'s a style, style={{ backgroundColor: … }}',
-      '"width" isn\'t a style an Email takes: it\'s a prop, width={…}. See Email in @unlayer/react-elements/PRIMITIVES.md',
-      '"padding" isn\'t a style an Email takes: a root has no padding; put it on a Column (a card) or a Section (a band) inside it. See Email in @unlayer/react-elements/PRIMITIVES.md',
-      'A Heading has no prop "levle": did you mean "level"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
-      '"colour" isn\'t a style a Heading takes: did you mean "color"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
-      '"fontsize" isn\'t a style a Heading takes: did you mean "fontSize"? See Heading in @unlayer/react-elements/PRIMITIVES.md',
-      '"zzz" isn\'t a style a Heading takes. See Heading in @unlayer/react-elements/PRIMITIVES.md',
-      "A Row takes layout components, block components; a ListItem can't go in it. See Row in @unlayer/react-elements/PRIMITIVES.md",
+      '"width" isn\'t a style an Email takes: it\'s a prop, width={…}. See Email in @unlayer/react-elements/GUIDE.md',
+      '"padding" isn\'t a style an Email takes: a root has no padding; put it on a Column (a card) or a Section (a band) inside it. See Email in @unlayer/react-elements/GUIDE.md',
+      'A Heading has no prop "levle": did you mean "level"? See Heading in @unlayer/react-elements/GUIDE.md',
+      '"colour" isn\'t a style a Heading takes: did you mean "color"? See Heading in @unlayer/react-elements/GUIDE.md',
+      '"fontsize" isn\'t a style a Heading takes: did you mean "fontSize"? See Heading in @unlayer/react-elements/GUIDE.md',
+      '"zzz" isn\'t a style a Heading takes. See Heading in @unlayer/react-elements/GUIDE.md',
+      "A Row takes layout components, block components; a ListItem can't go in it. See Row in @unlayer/react-elements/GUIDE.md",
     ]);
   });
 
@@ -173,12 +173,12 @@ describe("checkDocument", () => {
       },
     }).diagnostics.map((d) => d.message);
     expect(messages).toEqual([
-      '"align" isn\'t a style a Row takes: it\'s alignItems now. See Row in @unlayer/react-elements/PRIMITIVES.md',
-      '"justify" isn\'t a style a Row takes: it\'s justifyContent now ("between" is "space-between"). See Row in @unlayer/react-elements/PRIMITIVES.md',
-      '"wrap" isn\'t a style a Row takes: a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web. See Row in @unlayer/react-elements/PRIMITIVES.md',
-      '"color" isn\'t a style a Divider takes: a Divider\'s line is its borderTop, with its color. See Divider in @unlayer/react-elements/PRIMITIVES.md',
-      '"thickness" isn\'t a style a Divider takes: a Divider\'s line is borderTop now: "1px solid #bbbbbb". See Divider in @unlayer/react-elements/PRIMITIVES.md',
-      '"textDecoration" isn\'t a style a Column takes. See Column in @unlayer/react-elements/PRIMITIVES.md',
+      '"align" isn\'t a style a Row takes: it\'s alignItems now. See Row in @unlayer/react-elements/GUIDE.md',
+      '"justify" isn\'t a style a Row takes: it\'s justifyContent now ("between" is "space-between"). See Row in @unlayer/react-elements/GUIDE.md',
+      '"wrap" isn\'t a style a Row takes: a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web. See Row in @unlayer/react-elements/GUIDE.md',
+      '"color" isn\'t a style a Divider takes: a Divider\'s line is its borderTop, with its color. See Divider in @unlayer/react-elements/GUIDE.md',
+      '"thickness" isn\'t a style a Divider takes: a Divider\'s line is borderTop now: "1px solid #bbbbbb". See Divider in @unlayer/react-elements/GUIDE.md',
+      '"textDecoration" isn\'t a style a Column takes. See Column in @unlayer/react-elements/GUIDE.md',
     ]);
   });
 });

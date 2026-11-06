@@ -2,9 +2,9 @@
  * The docs the package ships for writing templates, from the components' definitions (`describeComponents()`), so
  * they can't fall behind (a test checks the files are what this writes):
  *
- * - PRIMITIVES.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
+ * - GUIDE.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
  *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
- * - PRIMITIVES-REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
+ * - REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
  * - skills/unlayer-elements/SKILL.md, at the repository's root: the guide as an agent skill.
  */
 import { describeComponents, type ComponentDescription, type PropertyDescription } from "@unlayer-internal/elements-core";
@@ -85,7 +85,7 @@ export function primitivesReference(): string {
     "",
     GENERATED,
     "",
-    "Every component, what it holds, and every prop and style it takes, with its default and what it does. [PRIMITIVES.md](./PRIMITIVES.md) shows how a template is written; `validate()` checks one against what's here.",
+    "Every component, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a template is written; `validate()` checks one against what's here.",
     "",
     "Every component also takes:",
     "",
@@ -159,14 +159,14 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
   return `- **${name(c.type)}**: ${parts.join(" ")}`;
 }
 
-/** PRIMITIVES.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
+/** GUIDE.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
 export function primitivesGuide(example: string): string {
   return [
     "# Writing templates with the new components (`@unlayer/react-elements`)",
     "",
     GENERATED,
     "",
-    "Everything needed to write a template, in short. Every prop's and style's details: [PRIMITIVES-REFERENCE.md](./PRIMITIVES-REFERENCE.md).",
+    "Everything needed to write a template, in short. Every prop's and style's details: [REFERENCE.md](./REFERENCE.md).",
     "",
     guide(example),
   ].join("\n");
@@ -178,7 +178,7 @@ const SKILL_DESCRIPTION =
 
 /**
  * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add unlayer/elements` installs: the
- * guide, as PRIMITIVES.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
+ * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string): string {
@@ -192,7 +192,7 @@ export function primitivesSkill(example: string): string {
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",
-    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (PRIMITIVES.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/PRIMITIVES-REFERENCE.md`.",
+    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.",
     "",
     "## Templates from Elements 0.2",
     "",
@@ -206,7 +206,7 @@ export function primitivesSkill(example: string): string {
   ].join("\n");
 }
 
-/** The guide itself, from "How a template is written" on: the same in PRIMITIVES.md and the skill. */
+/** The guide itself, from "How a template is written" on: the same in GUIDE.md and the skill. */
 function guide(example: string): string {
   const all = describeComponents();
   const named = glossary(all);

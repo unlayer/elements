@@ -628,7 +628,7 @@ Each step ends with its tests in CI.
 | 4. Lists and tables, in every output | done |
 | 5. React Email parity: web fonts, superscript and subscript, `title`/`aria-label`, `dir` per block, `pretty` | done |
 | 6. Support data for every output, and the styling vocabulary | done |
-| 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy` (0.3.0 removed today's components instead), the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
+| 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy` (0.3.0 removed today's components instead), the codemod (`@unlayer/migrate --from elements`, [migration guide](../../packages/react/docs/migrating-from-0.2.md)) | done |
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/react-elements/pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/react-elements/image` | done |
