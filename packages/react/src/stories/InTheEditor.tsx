@@ -1,8 +1,9 @@
 /**
- * A template as Elements draws it, beside the real Unlayer editor holding its design JSON, live and editable.
+ * A template as Elements draws it beside what comes back from the builder, and under them the real Unlayer editor
+ * holding its design JSON, live and editable, as wide as there's room for.
  *
- * Storybook only, and the editor comes from the network: it loads once it's on screen, or when asked for on a Docs
- * page, where eight would be too heavy. Automated runs get a placeholder instead, so they stay offline and stable.
+ * Storybook only, and the editor comes from the network: each loads as it nears the screen, so a Docs page opens only
+ * those it's scrolled to. Automated runs get a placeholder instead, so they stay offline and stable.
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { DisplayMode } from "../builder";
@@ -16,12 +17,8 @@ const EDITOR_VERSION = "latest";
 /** How long the editor has to show the design before its window says it couldn't. */
 const SHOWN_WITHIN = 45_000;
 
-/**
- * The editor's window, inside. Under 768 the editor collapses its own tool panel to the tabs at its side, which is
- * all an email or a phone needs; a Page or a Document needs its whole width beside the open panel.
- */
-const EDITOR_WIDTHS: Record<DisplayMode, number> = { email: 767, document: 1240, web: 1700 };
-const EDITOR_WIDTH_PHONE = 500;
+/** The least the editor's window is wide, inside, with its tool panel open beside the design: narrower, it's drawn smaller. */
+const EDITOR_WIDTHS: Record<DisplayMode, number> = { email: 1100, document: 1300, web: 1700 };
 
 interface Editor {
   addEventListener(type: string, callback: () => void): void;
@@ -63,8 +60,8 @@ const Over = ({ children }: { children: ReactNode }) => (
 
 type Status = "waiting" | "loading" | "shown" | "failed";
 
-/** The real editor, drawn at `scale` so that it's the size of the render beside it, holding the design. */
-function EditorWindow({ template, design, displayMode, device, width, height, scale, onScreen }: {
+/** The real editor, drawn at `scale` where there's less room than it needs, holding the design. */
+function EditorWindow({ template, design, displayMode, device, width, height, scale }: {
   template: ReactElement;
   design: Design;
   displayMode: DisplayMode;
@@ -72,8 +69,6 @@ function EditorWindow({ template, design, displayMode, device, width, height, sc
   width: number;
   height: number;
   scale: number;
-  /** Load it when it's on screen; otherwise, when asked. */
-  onScreen: boolean;
 }) {
   const id = `editor-${useId().replace(/\W/g, "")}`;
   const box = useRef<HTMLDivElement>(null);
@@ -87,11 +82,11 @@ function EditorWindow({ template, design, displayMode, device, width, height, sc
 
   useEffect(() => {
     const element = box.current;
-    if (!onScreen || attempt || !element) return;
-    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && load());
+    if (attempt || !element) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && load(), { rootMargin: "300px" });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [onScreen, attempt]);
+  }, [attempt]);
 
   useEffect(() => {
     if (!attempt) return;
@@ -121,17 +116,7 @@ function EditorWindow({ template, design, displayMode, device, width, height, sc
   return (
     <div ref={box} style={{ position: "relative", width: width * scale, height, overflow: "hidden", outline: "1px solid #d0d7de", background: "#f6f8fa" }}>
       <div id={id} style={{ width, height: height / scale, transform: `scale(${scale})`, transformOrigin: "0 0" }} />
-      {status === "waiting" && (
-        <Over>
-          {!onScreen && (
-            <button type="button" style={action} onClick={load}>
-              Open it in the editor
-            </button>
-          )}
-          <p style={say}>The real editor, from editor.unlayer.com.</p>
-        </Over>
-      )}
-      {status === "loading" && (
+      {status !== "shown" && status !== "failed" && (
         <Over>
           <p style={say}>Loading the editor from editor.unlayer.com…</p>
         </Over>
@@ -149,8 +134,8 @@ function EditorWindow({ template, design, displayMode, device, width, height, sc
 }
 
 /** Where automated runs have the editor: no network, and the same every time. */
-const Placeholder = ({ width }: { width: number }) => (
-  <div style={{ width, padding: "28px 24px", boxSizing: "border-box", outline: "1px solid #d0d7de", background: "#f6f8fa", display: "flex", justifyContent: "center" }}>
+const Placeholder = () => (
+  <div style={{ padding: "28px 24px", boxSizing: "border-box", outline: "1px solid #d0d7de", background: "#f6f8fa", display: "flex", justifyContent: "center" }}>
     <p style={say}>The real editor loads from editor.unlayer.com in a browser, and is left out of automated runs.</p>
   </div>
 );
@@ -168,21 +153,19 @@ export interface InTheEditorProps {
   width: Width;
   /** The window's width in px, where it isn't an email client's for `width`. */
   size?: number;
-  /** Load the editor once it's on screen; a Docs page asks first. */
-  onScreen: boolean;
 }
 
-/** The render and the editor side by side at one scale; under the render, what CI pins and what `toDesign` reported. */
-export function InTheEditor({ template, design, report, displayMode, written, back, notes, width, size, onScreen }: InTheEditorProps) {
+/** The render and what comes back from the builder side by side, what they report under them, and the editor below, as wide as they are together. */
+export function InTheEditor({ template, design, report, displayMode, written, back, notes, width, size }: InTheEditorProps) {
   const box = useRef<HTMLDivElement>(null);
-  const [room, setRoom] = useState(Infinity);
+  const [room, setRoom] = useState(0);
   const [tall, setTall] = useState(760);
   useLayoutEffect(() => {
     const element = box.current;
     if (!element) return;
     const measure = () => {
       setRoom(element.clientWidth);
-      setTall(Math.max(520, Math.min(window.innerHeight - 56, 860)));
+      setTall(Math.max(640, Math.min(window.innerHeight - 40, 900)));
     };
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -196,27 +179,28 @@ export function InTheEditor({ template, design, report, displayMode, written, ba
   // A Document has no phones: its paper is its paper.
   const device = width === "phone" && displayMode !== "document" ? "mobile" : "desktop";
   const page = size ?? WIDTHS[width];
-  const editor = device === "mobile" ? EDITOR_WIDTH_PHONE : EDITOR_WIDTHS[displayMode];
-  const scale = Math.min(1, (room - GAP) / (page + editor));
+  const scale = room ? Math.min(1, (room - GAP) / (page * 2)) : 1;
+  const editor = Math.max(room, EDITOR_WIDTHS[displayMode]);
+  const editorScale = room ? room / editor : 1;
 
   return (
-    <div ref={box} style={{ display: "flex", gap: GAP, alignItems: "flex-start" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24, flex: "none", width: page * scale }}>
+    <div ref={box} style={{ display: "flex", flexDirection: "column", gap: 24, minWidth: 0 }}>
+      <div style={{ display: "flex", gap: GAP, alignItems: "flex-start" }}>
         <Frame label="As written, in Elements" html={written} width={page} scale={scale} />
         <Frame label="Back from the builder" html={back} width={page} scale={scale} />
-        <div>
-          <Reported notes={notes.filter((note) => note.severity !== "info")} summary="Warnings" open />
-          <Reported notes={report.map((text) => ({ severity: "info", text }))} summary="What toDesign says the builder can't keep" />
-          <Reported notes={notes.filter((note) => note.severity === "info")} summary="Notes: what some clients draw differently" />
-        </div>
       </div>
-      <figure style={{ margin: 0, flex: "none", position: "sticky", top: 12 }}>
+      <div>
+        <Reported notes={notes.filter((note) => note.severity !== "info")} summary="Warnings" open />
+        <Reported notes={report.map((text) => ({ severity: "info", text }))} summary="What toDesign says the builder can't keep" />
+        <Reported notes={notes.filter((note) => note.severity === "info")} summary="Notes: what some clients draw differently" />
+      </div>
+      <figure style={{ margin: 0 }}>
         <figcaption style={{ font: "600 13px system-ui, sans-serif", marginBottom: 8 }}>In the Unlayer editor, live: click anything to edit it</figcaption>
         {navigator.webdriver ? (
-          <Placeholder width={editor * scale} />
-        ) : (
-          <EditorWindow key={device} template={template} design={design} displayMode={displayMode} device={device} width={editor} height={tall} scale={scale} onScreen={onScreen} />
-        )}
+          <Placeholder />
+        ) : room ? (
+          <EditorWindow key={device} template={template} design={design} displayMode={displayMode} device={device} width={editor} height={tall} scale={editorScale} />
+        ) : null}
       </figure>
     </div>
   );

@@ -16,7 +16,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "The gallery's templates as Elements draws them, beside the real Unlayer editor holding their `toDesign()` JSON, live and editable (it loads from editor.unlayer.com: on this page, when you ask). Under each render is the template `fromDesign()` brings back from that JSON, without its hidden properties, which the builder keeps but doesn't draw: each field read as the builder draws it. Every gallery template but the Canvas card, which is an image the builder doesn't make.",
+          "The gallery's templates as Elements draws them, beside the template `fromDesign()` brings back from their `toDesign()` JSON without its hidden properties, which the builder keeps but doesn't draw: each field read as the builder draws it. Below them, the real Unlayer editor holding that JSON, live and editable. It loads from editor.unlayer.com as you reach it. Every gallery template but the Canvas card, which is an image the builder doesn't make.",
       },
     },
   },
@@ -54,7 +54,7 @@ const modeOf = (template: ReactElement): DisplayMode => (template.type === Page 
 /** The window a template is meant for: a browser's for a Page, its paper's for a Document, an email client's otherwise. */
 const windowOf = (template: ReactElement, width: Args["width"]) => (template.type === Page ? (width === "phone" ? 390 : 1280) : template.type === Document ? 842 : undefined);
 
-/** A template as it's written, beside the real editor holding its design, over the one that comes back from what the builder draws of it. */
+/** A template as it's written, beside the one that comes back from what the builder draws of it, over the real editor holding its design. */
 const builder = (template: ReactElement): StoryObj<Args> => {
   const { design, report } = toDesign(template);
   const back = fromDesign(withoutHidden(design), { displayMode: modeOf(template) });
@@ -66,7 +66,7 @@ const builder = (template: ReactElement): StoryObj<Args> => {
         return { written: written.html, returned: returned.html, notes: [...noted(written), ...noted(returned)] };
       },
     ],
-    render: ({ width }, { loaded, viewMode }) => (
+    render: ({ width }, { loaded }) => (
       <InTheEditor
         template={template}
         design={design}
@@ -77,7 +77,6 @@ const builder = (template: ReactElement): StoryObj<Args> => {
         notes={loaded.notes}
         width={width}
         size={windowOf(template, width)}
-        onScreen={viewMode !== "docs"}
       />
     ),
   };
