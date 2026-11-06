@@ -1,6 +1,6 @@
 import { Column, Document, Heading, Image, Line, PageFooter, PageHeader, PageNumber, Text, Rect, Row, Svg, Table, TableCell, TableRow } from "@hyper-elements/react";
 
-export const meta = { title: "Growth report", root: "Document", component: "GrowthReport", file: "q3-growth-report.pdf" };
+export const meta = { title: "Growth report", root: "Document", component: "GrowthReport" };
 
 const kpis = [
   { label: "Annual recurring revenue", value: "$2.4M", delta: "+18% QoQ" },

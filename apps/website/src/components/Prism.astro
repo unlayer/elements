@@ -1,9 +1,9 @@
 ---
-// The hero's object: one template goes into the engine and comes out as four real outputs.
-// Everything shown in the cards was rendered by Hyper Elements when the site was built:
-// the email, the page and the print HTML as HTML, the image as a PNG, the document as a PDF.
+// The hero's object: templates go into the engine and come out as four real outputs, one of the
+// gallery's templates for each. Everything in the cards was rendered by Hyper Elements when the site
+// was built: the email, the page and the print HTML as HTML, the image as a PNG, the document as a PDF.
 import Logo from "./Logo.astro";
-import { previewHtml, showcase } from "../lib/examples";
+import { previewHtml, template, type Example } from "../lib/examples";
 
 // Small line icons for the "render as" control.
 const svg = (d: string) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -13,13 +13,25 @@ const icons: Record<string, string> = {
   pdf: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
   image: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>'),
 };
-const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
-const { email, page, document: doc, canvas } = showcase;
+// One of the templates for each output (examples/templates/), as the gallery shows them.
+const email = template("tarn-shipped");
+const page = template("casa-albero-page");
+const doc = template("pell-ashby-invoice");
+const canvas = template("gridline-workshop-banner");
+/** A template's component, as its file names it. */
+const component = (t: Example) => t.source.match(/export default function (\w+)/)?.[1] ?? t.title;
+/** The value of a prop on the template's root, as written in its source. */
+const rootProp = (t: Example, prop: string) => t.source.match(new RegExp(`\\n\\s+${prop}=(?:"([^"]*)"|\\{(\\d+)\\})`))?.slice(1).find(Boolean) ?? "";
+/** The domain a template links to (its SITE constant), for the browser's address bar. */
+const domain = (t: Example) => t.source.match(/const SITE = "https?:\/\/([^"]+)"/)?.[1] ?? "example.com";
+const mail = { from: email.title.split(" ")[0], subject: rootProp(email, "title") };
+const fileName = (t: Example) => t.file?.split("/").pop() ?? "";
+const size = `${rootProp(canvas, "width")} × ${rootProp(canvas, "height")}`;
 const outputs = [
-  { id: "email", label: "Email", root: "Email", fn: "render", comp: email.component, out: `launch.html + .txt · ${kb(email.html.length)}`, chrome: "inbox", width: 640, html: email.html },
-  { id: "page", label: "Web page", root: "Page", fn: "render", comp: page.component, out: "landing.html · no client JS", chrome: "browser", width: 1180, html: page.html },
-  { id: "pdf", label: "PDF", root: "Document", fn: "renderPdf", comp: doc.component, out: `${doc.file?.split("/").pop()} · A4`, chrome: "paper", width: 794, html: doc.html, file: doc.file },
-  { id: "image", label: "Image", root: "Canvas", fn: "renderImage", comp: canvas.component, out: `${canvas.file?.split("/").pop()} · 1200×630`, chrome: "image", file: canvas.file },
+  { id: "email", label: "Email", root: "Email", fn: "render", comp: component(email), out: `${email.slug}.html + .txt`, chrome: "inbox", width: 640, html: email.html },
+  { id: "page", label: "Web page", root: "Page", fn: "render", comp: component(page), out: "index.html · no client JS", chrome: "browser", width: 1200, html: page.html },
+  { id: "pdf", label: "PDF", root: "Document", fn: "renderPdf", comp: component(doc), out: `${fileName(doc)} · ${rootProp(doc, "size") || "A4"}`, chrome: "paper", width: 794, html: doc.html, file: doc.file },
+  { id: "image", label: "Image", root: "Canvas", fn: "renderImage", comp: component(canvas), out: fileName(canvas), chrome: "image", file: canvas.file },
 ];
 ---
 <div class="prism" data-prism>
@@ -81,16 +93,16 @@ const outputs = [
       {outputs.map((o, i) => (
         <figure class:list={["out-card", `chrome-${o.chrome}`]} data-card={i} data-pos={i} aria-label={`${o.label} output`}>
           <div class="oc-bar">
-            {o.chrome === "browser" && <><span class="dots"><i></i><i></i><i></i></span><span class="url"><span class="lock">●</span>{page.url}</span><span class="tabs-fake"></span></>}
+            {o.chrome === "browser" && <><span class="dots"><i></i><i></i><i></i></span><span class="url"><span class="lock">●</span>{domain(page)}</span><span class="tabs-fake"></span></>}
             {o.chrome === "inbox" && (
               <>
-                <span class="avatar">O</span>
-                <span class="mail-meta"><b>{email.from}</b><span>{email.subject}</span></span>
+                <span class="avatar">{mail.from[0]}</span>
+                <span class="mail-meta"><b>{mail.from}</b><span>{mail.subject}</span></span>
                 <span class="when">9:41 AM</span>
               </>
             )}
-            {o.chrome === "paper" && <><span class="pdf">PDF</span><span class="subj">{doc.file?.split("/").pop()}</span><a class="dl" href={o.file} download>Download ↓</a></>}
-            {o.chrome === "image" && <><span class="pdf img">PNG</span><span class="subj">{canvas.file?.split("/").pop()}</span><span class="dim">1200 × 630</span></>}
+            {o.chrome === "paper" && <><span class="pdf">PDF</span><span class="subj">{fileName(doc)}</span><a class="dl" href={o.file} download>Download ↓</a></>}
+            {o.chrome === "image" && <><span class="pdf img">PNG</span><span class="subj">{fileName(canvas)}</span><span class="dim">{size}</span></>}
           </div>
           <div class="oc-body">
             {o.html ? (
@@ -100,7 +112,7 @@ const outputs = [
                 </div>
               </div>
             ) : (
-              <img src={o.file} alt="A launch week graphic, a 1200 by 630 PNG rendered by Hyper Elements" width="1200" height="630" />
+              <img src={o.file} alt={`${canvas.title}: ${canvas.description}`} width={rootProp(canvas, "width")} height={rootProp(canvas, "height")} />
             )}
           </div>
         </figure>
@@ -245,8 +257,15 @@ const outputs = [
     position: relative; height: var(--stage-h);
     display: grid; grid-template-columns: 330px 1fr; align-items: center;
     perspective: 1800px; transform-style: preserve-3d;
+    /* Tilted, the code card's left side sits behind the stage's own plane: the stage mustn't take its
+       clicks, so only what's on it does (the tilt listens on the whole prism). */
+    pointer-events: none;
   }
   .stage > * { transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform 0.4s cubic-bezier(.2,.7,.2,1); }
+  /* The deck's cards sit at depths of their own too: each takes its clicks, the deck doesn't. Their previews
+     aren't interactive, so a click on one reaches its card. */
+  .stage > .input, .out-card { pointer-events: auto; }
+  .out-card iframe { pointer-events: none; }
 
   /* Input */
   .code-card {

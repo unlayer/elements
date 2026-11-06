@@ -38,4 +38,4 @@ export const thumbWidth = (t: Example, widths: { page: number; document: number;
 export const linesOf = (s: string) => s.split("\n").length;
 
 /** One template (examples/showcase/_launch.tsx) with each root: the hero's four outputs. `file` is the real PNG or PDF. */
-export const showcase = (data as any).showcase as Record<"email" | "page" | "document" | "canvas" | "responsive" | "receipt", Example & { file?: string }>;
+export const showcase = (data as any).showcase as Record<"email" | "page" | "document" | "responsive" | "receipt", Example & { file?: string }>;

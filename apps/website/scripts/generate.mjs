@@ -109,10 +109,11 @@ async function renderAll(kind) {
       outline: result.outline.trimEnd(),
       diagnostics: result.diagnostics.map(({ severity, code, message, path }) => ({ severity, code, message: rename(message), path })),
     };
-    const binary = meta.root === "Document" || meta.root === "Canvas";
-    if (binary && kind !== "components") {
+    // Every Document or Canvas template as a file; a showcase example only where its meta names one.
+    const binary = (meta.root === "Document" || meta.root === "Canvas") && (kind === "templates" || (kind === "showcase" && meta.file));
+    if (binary) {
       try {
-        // The showcase's files keep the names the hero shows; a template's is named after it.
+        // A showcase file keeps the name its meta gives; a template's is named after it.
         const name = kind === "showcase" ? meta.file : `templates/${slug}.${meta.root === "Canvas" ? "png" : "pdf"}`;
         const { file, diagnostics } = await writeBinary(element(), meta.root, name, rootElement());
         out[slug].file = file;
