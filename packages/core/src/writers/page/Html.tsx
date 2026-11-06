@@ -1,14 +1,11 @@
-/** An Html block: its markup written as it is; in a div where it has an id, classes or a place in a Row. */
+/** An Html block: its markup written as it is, in one div, so a stack's gap goes around the block and not between what's in it, as in an email. */
 import { h, raw } from "../jsx";
 import type { Component } from "./context";
 
 export const HtmlBlock: Component = ({ node, placement, classes }) => {
-  const html = raw(String(node.props.html));
-  const names = classes();
-  if (!node.id && !names && placement.length === 0) return html;
   return (
-    <div id={node.id} class={names} style={placement}>
-      {html}
+    <div id={node.id} class={classes()} style={placement}>
+      {raw(String(node.props.html))}
     </div>
   );
 };

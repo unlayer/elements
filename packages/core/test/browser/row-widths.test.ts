@@ -219,6 +219,22 @@ describe("children of their own size in Chromium", () => {
   }
 });
 
+describe("an Html block in a stack with a gap, in Chromium", () => {
+  it("keeps the gap around the block, not between what's in it, as the email does", async () => {
+    const html = (root: "Page" | "Email") =>
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Column", style: { gap: 24 }, children: [{ type: "Html", props: { html: '<div id="a">a</div><div id="b">b</div>' } }, { type: "Text", id: "c", children: ["c"] }] }] } }).html;
+    const tops = async (markup: string) => {
+      const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
+      await page.setContent(markup);
+      const found = await page.evaluate(() => ["a", "b", "c"].map((id) => document.getElementById(id)!.getBoundingClientRect()).map(({ top, bottom }) => [top, bottom]));
+      await page.close();
+      return { inside: found[1][0] - found[0][1], around: found[2][0] - found[1][1] };
+    };
+    expect(await tops(html("Page"))).toEqual({ inside: 0, around: 24 });
+    expect(await tops(html("Email"))).toEqual({ inside: 0, around: 24 });
+  });
+});
+
 describe("a template written right to left, in Chromium", () => {
   // Its text starts on the right: a Button and an Image where the text aligns them (and one aligned left), and a List's
   // items with their markers in the indent on the right, inside the List. Where the email puts each, the page does.

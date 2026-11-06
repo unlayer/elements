@@ -454,16 +454,16 @@ describe("web HTML", () => {
     expect(web(page([{ type: "Video", props: { src: "https://player.vimeo.com/video/76979871" } }])).body).toContain('src="https://player.vimeo.com/video/76979871"');
   });
 
-  it("writes an Html block's markup as it is, in a div only where it needs one: an id, classes, a place in a Row", () => {
+  it("writes an Html block's markup as it is, in one div, with its id, classes and place in a Row on it", () => {
     const html = (extra: Record<string, unknown> = {}) => ({ type: "Html", props: { html: "<p>Sale</p>" }, ...extra });
     const { body } = web(page([html(), html({ id: "again", hidden: { mobile: true } }), { type: "Row", children: [html()] }]));
-    expect(body).toMatch(/<main[^>]*><p>Sale<\/p><div id="again" class="[^"]+"><p>Sale<\/p><\/div>/);
+    expect(body).toMatch(/<main[^>]*><div><p>Sale<\/p><\/div><div id="again" class="[^"]+"><p>Sale<\/p><\/div>/);
     expect(body).toMatch(/<div style="[^"]*flex[^"]*"><p>Sale<\/p><\/div>/);
   });
 
   it("writes an Html block's markup as it is, and its text (or its markup's words) in the plain text", () => {
     const { body, text } = web(page([{ type: "Html", props: { html: "<p>Sale <b>now</b></p>" } }, { type: "Html", id: "own", props: { html: "<hr>", text: "Our own words" } }]));
-    expect(body).toContain('<p>Sale <b>now</b></p><div id="own"><hr></div>');
+    expect(body).toContain('<div><p>Sale <b>now</b></p></div><div id="own"><hr></div>');
     expect(text).toBe("Sale now\n\nOur own words");
   });
 
