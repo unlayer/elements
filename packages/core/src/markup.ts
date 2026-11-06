@@ -1,12 +1,15 @@
 /**
  * The words of markup an Html block holds, for what can't show markup: the plain-text version, a PDF, an image. Not a
  * browser: what a browser hides (a style sheet, a script, a comment, which holds Outlook's own markup) is left out, a
- * block ends its line, and the entities text uses most are read; everything else is its words as written.
+ * block ends its line, a table's cells are a space apart, and the entities text uses most are read; everything else is
+ * its words as written.
  */
 
 const DROPPED = /<(style|script|head|title|template)\b[^>]*>[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->/gi;
 /** Tags that end a line (a block, a cell's row, a line break). */
 const LINE = /<\s*(br|\/?(p|div|h[1-6]|li|ul|ol|tr|table|blockquote|section|article|header|footer|pre))\b[^>]*>/gi;
+/** The end of a table's cell: its words and the next cell's are apart. */
+const CELL = /<\s*\/\s*(td|th)\s*>/gi;
 const TAG = /<[^>]*>/g;
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", copy: "©", reg: "®", trade: "™", mdash: "—", ndash: "–", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", bull: "•", middot: "·", euro: "€", pound: "£" };
 
@@ -19,7 +22,7 @@ const decode = (text: string) =>
 
 /** Markup's words, a line for each block, blank lines between none. */
 export function markupText(html: string): string {
-  const text = decode(html.replace(DROPPED, "").replace(LINE, "\n").replace(TAG, ""));
+  const text = decode(html.replace(DROPPED, "").replace(LINE, "\n").replace(CELL, " ").replace(TAG, ""));
   return text
     .split("\n")
     .map((line) => line.replace(/[ \t\r\f\v\u00a0]+/g, " ").trim())

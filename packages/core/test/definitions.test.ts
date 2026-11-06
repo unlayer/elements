@@ -44,7 +44,8 @@ describe("property discovery", () => {
 
   it("reads markup's words for what can't show markup: blocks a line each, what a browser hides left out", () => {
     expect(markupText("<style>p{color:red}</style><p>Sale&nbsp;<b>today</b></p><!--[if mso]><p>Outlook</p><![endif]--><div>Ends &amp; soon</div>x<br>y")).toBe("Sale today\nEnds & soon\nx\ny");
-    expect(markupText("<table><tr><td>a</td><td>b</td></tr><tr><td>c</td></tr></table>")).toBe("ab\nc");
+    // A row a line, its cells' words a space apart (not run together); words inside a cell as written.
+    expect(markupText("<table><tr><th>Item</th><TH>Price</TH></tr><tr><td>a</td><td>b<b>c</b></td></ tr><tr><td>d</td></tr></table>")).toBe("Item Price\na bc\nd");
     expect(markupText("&copy; &#8364;5 &unknown;")).toBe("© €5 &unknown;");
     expect(htmlText({ props: { html: "<b>Sale</b>", text: " Sale today " } })).toBe("Sale today");
     expect(htmlText({ props: { html: "<b>Sale</b>" } })).toBe("Sale");
