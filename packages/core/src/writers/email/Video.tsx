@@ -5,8 +5,9 @@
 import { assetParts, videoParts, type Asset } from "../../kinds";
 import { h } from "../jsx";
 import type { Component } from "./context";
+import { fluidImage } from "./layout";
 
-export const Video: Component = ({ node }) => {
+export const Video: Component = ({ node, style, mobile, fill }) => {
   const url = String(node.props.src);
   const title = String(node.props.title);
   const thumbnail = node.props.thumbnail !== undefined ? assetParts(node.props.thumbnail as Asset).src : videoParts(url)?.thumbnail;
@@ -17,10 +18,10 @@ export const Video: Component = ({ node }) => {
       </a>
     );
   }
-  const width = node.width ?? undefined;
+  const fluid = fluidImage(node, style, mobile, fill);
   return (
     <a id={node.id} href={url} title={title}>
-      <img src={thumbnail} alt={title} width={width} border="0" style={{ display: "block", width: width !== undefined ? "100%" : undefined, maxWidth: width ?? "100%", height: "auto", border: "0" }} />
+      <img phone={fluid.phone} src={thumbnail} alt={title} width={node.width ?? undefined} border="0" style={{ display: "block", ...fluid.style, height: "auto", border: "0" }} />
     </a>
   );
 };

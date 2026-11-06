@@ -39,6 +39,27 @@ export function boxWidth(node: ResolvedNode, fill: boolean): { width?: string; m
   return max !== null ? { maxWidth: max } : {};
 }
 
+/** Where an image sits in its cell on phones: its margins (the cell's `align` is for desktop). */
+export const PLACE: Record<string, Style> = { start: { marginLeft: 0, marginRight: "auto" }, center: { marginLeft: "auto", marginRight: "auto" }, end: { marginLeft: "auto", marginRight: 0 } };
+
+/** An image's width (an Image's, a Video's thumbnail): 100% of its cell up to its width, and on phones what `mobile` says. */
+export function fluidImage(node: ResolvedNode, style: Record<string, Json>, mobile: Record<string, Json>, fill: boolean): { style: Style; phone: Style[] } {
+  const width = node.width ?? undefined;
+  // A percentage of its cell on phones too, where it isn't the whole of a Row's cell; with a maximum, its width
+  // as written and its size in px as the cap.
+  const percent = !fill && typeof style.width === "string" && style.width.endsWith("%") ? style.width : undefined;
+  const capped = percent !== undefined && style.maxWidth !== undefined;
+  // The cap: its width, or the maximum as given where its width is that maximum rounded (a share of a column can be a
+  // fraction of a pixel, which the cap keeps so the image is as wide as the share).
+  const given = typeof style.maxWidth === "number" || /^\d*\.?\d+px$/.test(String(style.maxWidth)) ? toNumber(style.maxWidth as Json) : undefined;
+  const cap = given !== undefined && width !== undefined && Math.round(given) === width ? given : width;
+  return {
+    style: { width: capped ? percent : width !== undefined ? "100%" : undefined, maxWidth: capped ? cap : (percent ?? width ?? "100%") },
+    // (With a maximum, a share of its cell is its own on phones. A width there replaces that share, or it would still be the share.)
+    phone: [{ width: mobile.maxWidth !== undefined || capped ? mobile.width : undefined, maxWidth: mobile.maxWidth ?? mobile.width }, PLACE[mobile.alignSelf as string]],
+  };
+}
+
 /** A phone width for a table or div: a percentage of its cell, or a px maximum. */
 export function phoneWidth(value: Json | undefined): Style {
   const written = length(value);

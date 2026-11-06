@@ -146,3 +146,34 @@ describe("a Section's phone padding, in Chromium", () => {
     expect(await measure(375)).toEqual({ sides: [20, 355], none: [20, 359], kept: [48, 327] });
   });
 });
+
+describe("a Video on phones, in Chromium", () => {
+  const thumbnail = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 675 };
+  const template = (root: "Email" | "Page", style: Record<string, unknown>, mobile?: Record<string, unknown>) =>
+    renderTemplate({ root: { type: root, props: { width: 512 }, children: [{ type: "Video", id: "film", props: { src: "https://youtu.be/dQw4w9WgXcQ", title: "A film", thumbnail }, style, ...(mobile ? { mobile } : {}) }] } }).html;
+  /** Where the video is, and how wide: in an email the thumbnail inside its link, on a page its player's box. */
+  const box = async (html: string, viewport: number) => {
+    await page.setViewportSize({ width: viewport, height: 900 });
+    await page.setContent(html);
+    return page.evaluate(() => {
+      const film = document.getElementById("film")!;
+      const { left, width } = (film.querySelector("img") ?? film).getBoundingClientRect();
+      return [Math.round(left), Math.round(width)];
+    });
+  };
+
+  for (const [name, style, mobile, phone] of [
+    ["its phone width in %", { width: 320 }, { width: "100%" }, [0, 375]],
+    ["its phone width in px", { width: 320 }, { width: 100 }, [0, 100]],
+    ["its phone maximum", { width: 320 }, { maxWidth: 100 }, [0, 100]],
+    ["a percentage of its place", { width: "50%" }, undefined, [0, 188]],
+    ["a percentage up to a maximum", { width: "50%", maxWidth: 200 }, undefined, [0, 188]],
+  ] as const) {
+    it(`takes ${name}, as the page does, and leaves desktop as it was`, async () => {
+      const [email, web] = [template("Email", style, mobile), template("Page", style, mobile)];
+      expect(await box(web, 375)).toEqual(phone);
+      expect(await box(email, 375)).toEqual(phone);
+      expect(await box(email, 1000)).toEqual(await box(web, 1000));
+    });
+  }
+});
