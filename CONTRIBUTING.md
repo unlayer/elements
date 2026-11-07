@@ -28,12 +28,12 @@ pnpm test
 
 ```
 packages/
-  react/       → Published package (@unlayer/react-elements), with a Document written as a PDF (/pdf) and a
+  react/       → Published package (@hyper-elements/react), with a Document written as a PDF (/pdf) and a
                  Canvas as PNG or SVG (/image) as entries of their own
   core/        → Component definitions, validation, layout, and the writers (src/writers/: email, page and print
                  HTML, plain text; src/pdf/ and src/image/: the PDF and image writers, with their own entries);
                  bundled into react, not published
-  migrate/     → The migration CLI (@unlayer/migrate), with the React Email converter (src/react-email/) and what
+  migrate/     → The migration CLI (@hyper-elements/migrate), with the React Email converter (src/react-email/) and what
                  converters share (src/convert/)
 examples/      → The demo application (demo/) and runnable examples
 tests/
@@ -91,7 +91,7 @@ JSX → one React render collects the template (packages/react/src/primitives/co
 ```
 
 `render()` writes the output its root says (`<Email>`, `<Page>`, `<Document>`, `<Canvas>`); `toDesign()` and
-`fromDesign()` (`@unlayer/react-elements/builder`) take a template to the Unlayer builder's design JSON and back.
+`fromDesign()` (`@hyper-elements/react/builder`) take a template to the Unlayer builder's design JSON and back.
 
 ### Key Dependencies
 

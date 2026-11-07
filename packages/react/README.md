@@ -1,21 +1,21 @@
-# @unlayer/react-elements
+# @hyper-elements/react
 
 React components for transactional emails, email templates, landing pages, invoices, reports and documents. One template renders to email-safe HTML, a responsive web page, print-ready HTML, a PDF or an image, on your own server, with no network calls.
 
 ## Installation
 
 ```bash
-npm install @unlayer/react-elements
+npm install @hyper-elements/react
 # or
-pnpm add @unlayer/react-elements
+pnpm add @hyper-elements/react
 ```
 
 ## Quick start
 
-Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
+Import from `@hyper-elements/react`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@hyper-elements/react";
 
 export default function Receipt() {
   return (
@@ -62,7 +62,7 @@ export default function Receipt() {
 ```
 
 ```tsx
-import { outline, render, validate } from "@unlayer/react-elements";
+import { outline, render, validate } from "@hyper-elements/react";
 
 const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
 const { valid } = validate(<Receipt />); // the same checks, without rendering
@@ -78,10 +78,10 @@ Upgrading from Unlayer Elements? See [Moving from Unlayer Elements](#moving-from
 **With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
 
 ```
-@node_modules/@unlayer/react-elements/GUIDE.md
+@node_modules/@hyper-elements/react/GUIDE.md
 ```
 
-For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing a Hyper Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing a Hyper Elements template, read node_modules/@hyper-elements/react/GUIDE.md."
 
 Or install the same guide as an agent skill: `npx skills add hyper-elements/hyper-elements`.
 
@@ -111,8 +111,8 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 |-----------|-------------|
 | `<Email>` | Email-safe HTML: tables, with Outlook's markup in conditional comments |
 | `<Page>` | A responsive web page |
-| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@unlayer/react-elements/pdf` |
-| `<Canvas>` | An image of a fixed size, with `@unlayer/react-elements/image` |
+| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@hyper-elements/react/pdf` |
+| `<Canvas>` | An image of a fixed size, with `@hyper-elements/react/image` |
 
 ### Layout
 
@@ -148,7 +148,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 A `Column` in a `Row` takes its `width`, or a share of what's left.
 
 ```tsx
-import { Column, Grid, Row } from "@unlayer/react-elements";
+import { Column, Grid, Row } from "@hyper-elements/react";
 
 // Equal shares.
 <Row style={{ gap: 16 }}>
@@ -202,7 +202,7 @@ The options are `pretty` (the HTML indented, for reading it), `mergeTag` (how a 
 Share the content, and give each output its root:
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Text, render } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, render } from "@hyper-elements/react";
 
 const Invoice = () => (
   <Column style={{ gap: 12 }}>
@@ -217,7 +217,7 @@ const page = await render(<Page><Invoice /></Page>);
 const printed = await render(<Document size="A4" margin={48}><Invoice /></Document>);
 ```
 
-`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
+`printed.html` is print-ready HTML. For PDF files, [`@hyper-elements/react/pdf`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@hyper-elements/react/image`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
 
 ## Phones and hover
 
@@ -301,7 +301,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 A function that returns components is a component of your own, as in [One template, every output](#one-template-every-output). For a named block with typed props and its own editors, use `component()`:
 
 ```tsx
-import { Button, Column, Heading, Image, component, prop } from "@unlayer/react-elements";
+import { Button, Column, Heading, Image, component, prop } from "@hyper-elements/react";
 
 const ProductCard = component({
   type: "acme.ProductCard",
@@ -326,10 +326,10 @@ For markup no component says, `<Html html="…" />` writes it as it is, in an em
 
 ## To the Unlayer builder and back
 
-`@unlayer/react-elements/builder`: `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
+`@hyper-elements/react/builder`: `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
 
 ```tsx
-import { fromDesign, toDesign } from "@unlayer/react-elements/builder";
+import { fromDesign, toDesign } from "@hyper-elements/react/builder";
 
 const { design, report } = toDesign(<Receipt />); // report: what the builder can't hold as it is, one line each
 // …the design is edited in the builder, and saved…
@@ -350,14 +350,14 @@ See [when to choose Hyper Elements](https://github.com/hyper-elements/hyper-elem
 
 ## Moving from Unlayer Elements
 
-Unlayer Elements' components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in Hyper Elements: the package's components are these. The codemod moves templates written with them:
+Unlayer Elements (`@unlayer/react-elements`) is the old package. Its components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in this one. The codemod moves templates written with them:
 
 ```bash
-npx @unlayer/migrate src/emails --from unlayer-elements   # templates written with Unlayer Elements
-npx @unlayer/migrate src/emails                           # React Email templates
+npx @hyper-elements/migrate src/emails --from unlayer-elements   # templates written with Unlayer Elements
+npx @hyper-elements/migrate src/emails                           # React Email templates
 ```
 
-It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) and [`@unlayer/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). Then install `@hyper-elements/react`, and remove `@unlayer/react-elements` once nothing imports it. What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) and [`@hyper-elements/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
 
 ## Development
 

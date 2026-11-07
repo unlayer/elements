@@ -1,20 +1,20 @@
-Internal React Email converter, published as `@unlayer/migrate/react-email`.
+Internal React Email converter, published as `@hyper-elements/migrate/react-email`.
 
-# @unlayer/migrate/react-email
+# @hyper-elements/migrate/react-email
 
-Convert React Email (`@react-email/components`) templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements)' components (`@unlayer/react-elements` 0.3.0, with their styles in `style={{ }}`). The [`@unlayer/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
+Convert React Email (`@react-email/components`) templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements)' components (`@hyper-elements/react` 0.3.0, with their styles in `style={{ }}`). The [`@hyper-elements/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
 
 ```bash
-npm install @unlayer/migrate @unlayer/react-elements
+npm install @hyper-elements/migrate @hyper-elements/react
 ```
 
 ## Convert what a template renders
 
-`convertReactEmail` renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor, or to get it as Hyper Elements code. To migrate a template's source (its props, loops and conditions stay), run the CLI: `npx @unlayer/migrate`.
+`convertReactEmail` renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor, or to get it as Hyper Elements code. To migrate a template's source (its props, loops and conditions stay), run the CLI: `npx @hyper-elements/migrate`.
 
 ```ts
-import { convertReactEmail } from "@unlayer/migrate/react-email";
-import { render } from "@unlayer/react-elements";
+import { convertReactEmail } from "@hyper-elements/migrate/react-email";
+import { render } from "@hyper-elements/react";
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);

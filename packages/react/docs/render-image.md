@@ -1,23 +1,23 @@
-# Image output: `@unlayer/react-elements/image`
+# Image output: `@hyper-elements/react/image`
 
-Image output for [Hyper Elements](https://github.com/hyper-elements/hyper-elements): a `<Canvas>` from `@unlayer/react-elements` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
+Image output for [Hyper Elements](https://github.com/hyper-elements/hyper-elements): a `<Canvas>` from `@hyper-elements/react` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
 
 ## Installation
 
 ```bash
-npm install @unlayer/react-elements satori @resvg/resvg-js react
+npm install @hyper-elements/react satori @resvg/resvg-js react
 ```
 
-`/image` is an entry of `@unlayer/react-elements`. Its engines are optional peer dependencies, so a project that doesn't import `/image` installs nothing for them, and the main entry never loads them:
+`/image` is an entry of `@hyper-elements/react`. Its engines are optional peer dependencies, so a project that doesn't import `/image` installs nothing for them, and the main entry never loads them:
 
 | Package | Version | Why |
 |---------|---------|-----|
-| `@unlayer/react-elements` | `^0.3.0` | The components, and this entry |
+| `@hyper-elements/react` | `^0.3.0` | The components, and this entry |
 | `satori` | `^0.33.5` | Lays out the Canvas and draws its text as paths, as SVG (optional: only for `/image`) |
 | `@resvg/resvg-js` | `^2.6.2` | Draws that SVG as a PNG (optional: only for `/image`) |
 | `react` | `>=18` | |
 
-The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the `@unlayer/react-elements` it loads writes another (a second install beside it), it throws an `ElementsError` (`image/version`) rather than drawing the template wrong.
+The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the `@hyper-elements/react` it loads writes another (a second install beside it), it throws an `ElementsError` (`image/version`) rather than drawing the template wrong.
 
 Node.js only: it writes the image on the server.
 
@@ -25,8 +25,8 @@ Node.js only: it writes the image on the server.
 
 ```tsx
 import { readFile, writeFile } from "node:fs/promises";
-import { Canvas, Heading, Text } from "@unlayer/react-elements";
-import { renderImage } from "@unlayer/react-elements/image";
+import { Canvas, Heading, Text } from "@hyper-elements/react";
+import { renderImage } from "@hyper-elements/react/image";
 
 const SocialCard = () => (
   <Canvas width={1200} height={630} style={{ backgroundColor: "#0f172a", padding: 64, gap: 24, color: "#ffffff", fontFamily: "Inter, sans-serif" }}>
@@ -67,7 +67,7 @@ Nothing is fetched. Give each file the template needs:
 | Code | Severity | When |
 |------|----------|------|
 | `image/root` | error | The template isn't a Canvas |
-| `image/version` | error | The `@unlayer/react-elements` loaded lays the template out in another layout version than `/image` reads |
+| `image/version` | error | The `@hyper-elements/react` loaded lays the template out in another layout version than `/image` reads |
 | `image/font` | error | The Canvas has text and no font is given |
 | `image/font` | warning | A font in the Canvas's `fonts` isn't given, or a file given is WOFF2 |
 | `image/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |
@@ -75,7 +75,7 @@ Nothing is fetched. Give each file the template needs:
 | `image/unsupported` | warning | What an image can't show that the HTML can: a hover, a Video's player |
 | `canvas/overflow` | warning | The content looks taller than the Canvas (an estimate: text isn't measured yet) |
 
-`validate()` from `@unlayer/react-elements` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage` makes them.
+`validate()` from `@hyper-elements/react` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage` makes them.
 
 ## Known limits
 

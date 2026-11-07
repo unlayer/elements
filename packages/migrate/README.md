@@ -1,10 +1,10 @@
-# @unlayer/migrate
+# @hyper-elements/migrate
 
 Migrate React Email templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements). Your templates keep their props, loops and conditions; they become Hyper Elements' new components, with their styles in `style={{ }}`, that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
 
 ```bash
-npx @unlayer/migrate emails           # converts and checks your templates, and writes nothing
-npx @unlayer/migrate emails --write   # then replaces them (committed in git first, so git can undo it)
+npx @hyper-elements/migrate emails           # converts and checks your templates, and writes nothing
+npx @hyper-elements/migrate emails --write   # then replaces them (committed in git first, so git can undo it)
 ```
 
 Run it from your project folder, with Node.js 20.6 or later (an older one stops with exit code `1`, saying so). Each template is:
@@ -47,35 +47,35 @@ Without `--write` or `--out`, nothing is written: the command converts and check
 
 Default exports wrapped in React `memo` or `forwardRef` are supported, including nested wrappers. Preview props are read from the outer wrapper first, then from its inner component.
 
-All templates are converted and checked before any output is written. With `--write` (and in a dry run, which says what `--write` does), a template another scanned template renders (it uses its default export, directly or through other files) is left in place and reported as skipped, as are components that don't render `<Html>`, files that render an email inside other markup (an app page or a preview around a template), and layouts (components that render their `children` or take content in props typed to hold JSX, such as `content: ReactNode`); their markup is inlined into the converted templates that use them. Migrating a file rewrites only its default export, so a template that only takes a constant or a named component from another doesn't keep it in place, and a file that only lists or sends templates (an `index.ts`, a send helper) doesn't either. Importers that fail the check keep using the original shared components. When the templates that use one are written and no longer need it, it's migrated in the same run. A framework's route file (a Next.js `page.tsx` or layout under `app/`, a page under `pages/` beside a `next.config`, a Remix route under `app/routes/`) is the app's own code: it's never rewritten as an email, and the template it renders is migrated (the page then renders the migrated one). With `--write`, the project's files that still use a migrated template (a route or a helper that sends it with React Email's `render()` or a sender's `react:` option, a component that renders it, a test) are listed after the summary, from the nearest `package.json` above the folder given, not only in it (outside `node_modules` and build output, also through an `index.ts` that re-exports the template): render it there with `await render()` from `@unlayer/react-elements`, since React Email's `render()` can't render Hyper Elements' components. A module imported by a path worked out when it runs (`` import(`./${name}`) ``) stops a run that would write in place, since what it renders can't be told: use `--out`. `--out` also writes separate converted copies of those shared files.
+All templates are converted and checked before any output is written. With `--write` (and in a dry run, which says what `--write` does), a template another scanned template renders (it uses its default export, directly or through other files) is left in place and reported as skipped, as are components that don't render `<Html>`, files that render an email inside other markup (an app page or a preview around a template), and layouts (components that render their `children` or take content in props typed to hold JSX, such as `content: ReactNode`); their markup is inlined into the converted templates that use them. Migrating a file rewrites only its default export, so a template that only takes a constant or a named component from another doesn't keep it in place, and a file that only lists or sends templates (an `index.ts`, a send helper) doesn't either. Importers that fail the check keep using the original shared components. When the templates that use one are written and no longer need it, it's migrated in the same run. A framework's route file (a Next.js `page.tsx` or layout under `app/`, a page under `pages/` beside a `next.config`, a Remix route under `app/routes/`) is the app's own code: it's never rewritten as an email, and the template it renders is migrated (the page then renders the migrated one). With `--write`, the project's files that still use a migrated template (a route or a helper that sends it with React Email's `render()` or a sender's `react:` option, a component that renders it, a test) are listed after the summary, from the nearest `package.json` above the folder given, not only in it (outside `node_modules` and build output, also through an `index.ts` that re-exports the template): render it there with `await render()` from `@hyper-elements/react`, since React Email's `render()` can't render Hyper Elements' components. A module imported by a path worked out when it runs (`` import(`./${name}`) ``) stops a run that would write in place, since what it renders can't be told: use `--out`. `--out` also writes separate converted copies of those shared files.
 
-`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked directories within the output folder. These checks also apply with `--force` and `--overwrite`. A template or design file already at a destination, which the run didn't produce, stops it too unless you pass `--overwrite`, and `--overwrite` replaces only a template an earlier run wrote in an `--out` folder and nobody edited since, a design that's the same as the one the run writes, or what git can restore (`--allow-dirty` for anything else). Each migrated template records a hash of its content in its header (`// @unlayer/migrate hash …`), so an edit is told apart from what the run wrote; line endings and trailing whitespace don't count. A template written by 0.1.0, which recorded no hash, is treated as possibly edited: it's replaced only when git can restore it, or with `--allow-dirty`. A `--report` file is replaced when it's a report an earlier run wrote; any other file there needs `--overwrite`, even on a dry run. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked directories within the output folder. These checks also apply with `--force` and `--overwrite`. A template or design file already at a destination, which the run didn't produce, stops it too unless you pass `--overwrite`, and `--overwrite` replaces only a template an earlier run wrote in an `--out` folder and nobody edited since, a design that's the same as the one the run writes, or what git can restore (`--allow-dirty` for anything else). Each migrated template records a hash of its content in its header (`// @hyper-elements/migrate hash …`), so an edit is told apart from what the run wrote; line endings and trailing whitespace don't count. A template written by 0.1.0, which recorded no hash, is treated as possibly edited: it's replaced only when git can restore it, or with `--allow-dirty`. A `--report` file is replaced when it's a report an earlier run wrote; any other file there needs `--overwrite`, even on a dry run. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
 
 Verification uses a temporary file in the destination folder. The command removes it after the check, also when the run is interrupted (Ctrl-C, a kill) or fails, and removes any empty folders it created for that check. A template whose destination folder can't be written fails with that reason. Every template is written, also one whose content differs (flagged): with `--write`, git restores the original, and `--out` leaves it where it was. With `--strict`, a failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output. A template edited while the run converts it isn't replaced: it fails, and the edit stays. The same holds for a file the run replaces at an `--out` destination, a design JSON or a report: one edited after the run decided it could replace it (while templates load) is kept, and its template fails.
 
-Exit codes: `0` when every template converted with the same content (what looks different is listed), `1` for a usage error, when no templates were found, or when a template was left unchecked for a file that renders it and isn't migrated (a preview around it: migrate it with `--out`), `2` when a template failed to convert (or couldn't be written in the components), its content differs (with `--strict`, anything differs), a file couldn't be read (a link to a file that's gone), or the run couldn't go on. A run never ends with `0` without checking what it was given. Use it in CI to keep migrated templates honest: templates already migrated (importing `@unlayer/react-elements`: an import, not a comment that names it) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
+Exit codes: `0` when every template converted with the same content (what looks different is listed), `1` for a usage error, when no templates were found, or when a template was left unchecked for a file that renders it and isn't migrated (a preview around it: migrate it with `--out`), `2` when a template failed to convert (or couldn't be written in the components), its content differs (with `--strict`, anything differs), a file couldn't be read (a link to a file that's gone), or the run couldn't go on. A run never ends with `0` without checking what it was given. Use it in CI to keep migrated templates honest: templates already migrated (importing `@hyper-elements/react`: an import, not a comment that names it) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
 
 ## Check a template you migrated yourself
 
 ```bash
-npx @unlayer/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
+npx @hyper-elements/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
 ```
 
-The migrated template must be written in Hyper Elements' components (`@unlayer/react-elements` 0.3.0). Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks that every word, link, image and `alt` text is still there and that the visual editor gets the template (its design JSON). No new words may appear. What looks different is listed. Exit code `0` when the content is the same, `2` with missing or extra content (with `--strict`, with any difference). A template migrated by hand in Unlayer Elements' components (it imports `ColumnLayouts` or `renderToHtml`, say) isn't checked (exit code `1`): the command says how to move it to the new components with `--from unlayer-elements`, then compare it.
+The migrated template must be written in Hyper Elements' components (`@hyper-elements/react` 0.3.0). Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks that every word, link, image and `alt` text is still there and that the visual editor gets the template (its design JSON). No new words may appear. What looks different is listed. Exit code `0` when the content is the same, `2` with missing or extra content (with `--strict`, with any difference). A template migrated by hand in Unlayer Elements' components (it imports `@unlayer/react-elements`) isn't checked (exit code `1`): the command says how to move it to the new components with `--from unlayer-elements`, then compare it.
 
 ## After migrating
 
 ```bash
-npm install @unlayer/react-elements@^0.3.0
+npm install @hyper-elements/react@^0.3.0
 ```
 
-The migrated templates import `@unlayer/react-elements`: until it's installed, they don't compile. When a run writes them where it isn't installed, it ends with this command, for the project's package manager (by its lockfile: npm, pnpm, yarn or bun).
+The migrated templates import `@hyper-elements/react`: until it's installed, they don't compile. When a run writes them where it isn't installed, it ends with this command, for the project's package manager (by its lockfile: npm, pnpm, yarn or bun).
 
-Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), and where `--out` writes them, so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` before writing anything, with the install command to run.
+Migrations render with the `@hyper-elements/react` installed where your templates are (in a monorepo, the app's), and where `--out` writes them, so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` before writing anything, with the install command to run.
 
 ```tsx
-import { render } from "@unlayer/react-elements";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { render } from "@hyper-elements/react";
+import { toDesign } from "@hyper-elements/react/builder";
 import Welcome from "./emails/welcome";
 
 const { html, text } = await render(<Welcome name="Alex" />); // send with any provider
@@ -90,19 +90,19 @@ A template that calls React hooks (`useMemo`, `useId`, …) migrates like any ot
 
 ## Programmatic use
 
-Install `@unlayer/migrate` to use the React Email converter from an agent, a build step or a server. The subpath supports ESM and CommonJS.
+Install `@hyper-elements/migrate` to use the React Email converter from an agent, a build step or a server. The subpath supports ESM and CommonJS.
 
 ```bash
-npm install @unlayer/migrate
+npm install @hyper-elements/migrate
 ```
 
 ```ts
-import { convertReactEmail, NewComponentsError } from "@unlayer/migrate/react-email";
+import { convertReactEmail, NewComponentsError } from "@hyper-elements/migrate/react-email";
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome); // rendered with its PreviewProps, and checked against it
 const tsx = conversion.code; // the template in Hyper Elements' components
-const html = await conversion.html(); // render(conversion.element) from @unlayer/react-elements
+const html = await conversion.html(); // render(conversion.element) from @hyper-elements/react
 const design = conversion.design(); // toDesign(): open in the visual editor with loadDesign()
 const customFonts = conversion.editorFonts(); // register when creating the editor: fonts: { customFonts }
 conversion.report.missingText; // [] when nothing was lost
@@ -112,17 +112,17 @@ conversion.report.missingText; // [] when nothing was lost
 
 ## From Unlayer Elements
 
-`--from unlayer-elements` rewrites templates written with Unlayer Elements (`@unlayer/react-elements` before 0.3.0) with Hyper Elements' components. Props, loops and helpers stay; the defaults Unlayer Elements' components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
+`--from unlayer-elements` rewrites templates written with Unlayer Elements (`@unlayer/react-elements`) with Hyper Elements' components, from `@hyper-elements/react`. Props, loops and helpers stay; the defaults Unlayer Elements' components draw are written out, and what may draw a little differently is listed. One template is printed; `--write` replaces them, only where git can restore them.
 
 Templates are the files that import Unlayer Elements' components, from the package or through your own modules that pass them on (an index with `export { Email } from "@unlayer/react-elements"` or `export *` from it, followed as your `tsconfig` resolves it). Other files, such as one that only calls `renderToHtml` or that index itself, are left as they are and aren't listed. A template that imports a namespace of them another module passes on (`export * as E from "@unlayer/react-elements"`) isn't followed: the run fails it, saying so.
 
 ```bash
-npx @unlayer/migrate src/emails --from unlayer-elements --write
+npx @hyper-elements/migrate src/emails --from unlayer-elements --write
 ```
 
-Each template it migrates starts with the line `// Migrated from Unlayer Elements by @unlayer/migrate.`, and a template with that line is left as it is, so a second run changes nothing. `@unlayer/react-elements` has been both, so a template without it is migrated only where something in it is only Unlayer Elements': a name such as `Body`, `ColumnLayouts` or `renderToHtml`, or a prop only one of its components has (a Row's `layout`, a Paragraph's `html`, a Button's `padding`). One with something only the new components have (a name such as `Section` or `Text`, `hover` or `hidden`, a Button's `href={{ href }}`) already uses them and is left as it is; what both took, such as a `style`, counts as neither's. One with neither is migrated where Unlayer Elements is installed (`@unlayer/react-elements` below 0.3.0) and left as it is otherwise, saying so; one with both fails, naming what it found. Run it before upgrading the package, or remove what's left of the other version.
+Each template it migrates starts with the line `// Migrated from Unlayer Elements by @hyper-elements/migrate.`, and a template with that line is left as it is, so a second run changes nothing. A template that imports `@hyper-elements/react` is on the new components already: it's left as it is, saying so. What it keeps of the old package's API (`renderToHtml`, say) stays imported from it and is listed for you to replace; once nothing imports it, remove `@unlayer/react-elements`.
 
-From code: `migrateElements(source, { installed })` from `@unlayer/migrate/elements` returns `{ code, report }`, where `installed` is the version of `@unlayer/react-elements` the project has, where it's known. A module that comes back as it was says why: `current` (it uses the new components), `undecided` (nothing in it is only either's) or `refused` (it has both; the reason). The [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) lists what changes.
+From code: `migrateElements(source)` from `@hyper-elements/migrate/elements` returns `{ code, report }`. A module that comes back as it was because it's on the new components has `current: true`. The [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) lists what changes.
 
 ## What changes
 
@@ -139,4 +139,4 @@ The report lists every difference for each template. The common ones:
 
 The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` and `jsconfig` aliases work, imports TypeScript can't follow are resolved as Node does, and workspace packages are followed to their source). Templates are the files that import React Email, or that import your own components that do (a `ui` file that wraps or re-exports it). The automatic JSX runtime applies to templates and imported helpers in ESM and CommonJS projects, including helpers outside the input folder and workspace packages. React Email and Hyper Elements load from each template's own folder, as where it runs, and React is one copy, the project's: in a monorepo, an app's templates use the app's packages. Pass one app's templates per run; a run whose templates would load different copies stops and says which folder to migrate on its own. It reads your templates and executes them to check the result: a template's module code runs, and its component is rendered, as React Email's preview does. Only files whose default export is a component (a function or a React `Component` class, not async, returning JSX or with `PreviewProps`) are loaded; others, like a helper that sends an email, are reported as skipped and never run. A template wrapped in another function (`export default withTracking(Welcome)`) fails: export the component itself. A template that calls `process.exit` fails instead of ending the run; one that throws later, from a timer or a promise, makes the run exit with `2` after its summary. A template that isn't saved as UTF-8 fails instead of being written back with replaced characters; CRLF line endings are kept. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
 
-For the full `@unlayer/migrate/react-email` API, see the [React Email converter documentation](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate/src/react-email#readme).
+For the full `@hyper-elements/migrate/react-email` API, see the [React Email converter documentation](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate/src/react-email#readme).

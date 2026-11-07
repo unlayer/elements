@@ -1,6 +1,6 @@
 # Send React email with Resend, AWS SES, Postmark, SendGrid, or Nodemailer
 
-Use these integrations to deliver HTML and plain text rendered by `@unlayer/react-elements`. Each provider receives the same [transactional invoice message](./transactional-email.md#create-the-provider-ready-message). `render()` is async, so `deliveryMessage()` is too: await it, then pass the rendered `html` string, including its head styles, to the provider. The provider does not need to render the React tree again.
+Use these integrations to deliver HTML and plain text rendered by `@hyper-elements/react`. Each provider receives the same [transactional invoice message](./transactional-email.md#create-the-provider-ready-message). `render()` is async, so `deliveryMessage()` is too: await it, then pass the rendered `html` string, including its head styles, to the provider. The provider does not need to render the React tree again.
 
 ## Shared setup
 
@@ -19,7 +19,7 @@ export EMAIL_FROM='receipts@your-verified-domain.com'
 export EMAIL_TO='your-test-inbox@example.com'
 ```
 
-Replace both addresses. Set the provider-specific variables below in the process environment or your deployment's secret manager. The scripts do not load `.env` files automatically. No credentials belong in browser code. For standalone use, install `@unlayer/react-elements react react-dom`, add `tsx` to dev dependencies, set `"type": "module"` and `"jsx": "react-jsx"`, and copy the shared files plus your chosen provider file. Then use `npx tsx src/providers/<provider>.ts`.
+Replace both addresses. Set the provider-specific variables below in the process environment or your deployment's secret manager. The scripts do not load `.env` files automatically. No credentials belong in browser code. For standalone use, install `@hyper-elements/react react react-dom`, add `tsx` to dev dependencies, set `"type": "module"` and `"jsx": "react-jsx"`, and copy the shared files plus your chosen provider file. Then use `npx tsx src/providers/<provider>.ts`.
 
 SDK errors are allowed to fail the process; Resend's returned `error` is explicitly thrown. A successful ID/status means the provider accepted the request, not that the recipient received it. Use provider events for delivery/bounce tracking and application-level deduplication for retries.
 

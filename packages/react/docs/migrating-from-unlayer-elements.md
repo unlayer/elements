@@ -1,15 +1,15 @@
 # Migrating from Unlayer Elements
 
-From 0.3.0, `@unlayer/react-elements` is Hyper Elements' components: typed `style` props, with new outputs and checks. Unlayer Elements' components (`Body`,
-`ColumnLayouts`, `renderToHtml()` and the rest) aren't in it, so templates written with them move to the new ones
-when the project upgrades.
+Hyper Elements (`@hyper-elements/react`) is a new package, with new components: typed `style` props, new outputs and
+checks. Unlayer Elements' components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest, from
+`@unlayer/react-elements`) aren't in it, so templates written with them move to the new ones.
 
 ## Run the codemod
 
 ```bash
-npx @unlayer/migrate src/emails --from unlayer-elements          # lists what it would change
-npx @unlayer/migrate src/emails/welcome.tsx --from unlayer-elements > welcome.next.tsx   # prints one template
-npx @unlayer/migrate src/emails --from unlayer-elements --write  # replaces them (only files git can restore)
+npx @hyper-elements/migrate src/emails --from unlayer-elements          # lists what it would change
+npx @hyper-elements/migrate src/emails/welcome.tsx --from unlayer-elements > welcome.next.tsx   # prints one template
+npx @hyper-elements/migrate src/emails --from unlayer-elements --write  # replaces them (only files git can restore)
 ```
 
 It rewrites the import and the JSX of Unlayer Elements' components, and nothing else: props, loops, conditions,
@@ -24,7 +24,15 @@ A template whose root is chosen at run time (`const Root = web ? Page : Email`) 
 write it with one root, or by hand in the new components. Hyper Elements doesn't have those components, so a file left as it
 was needs that before it builds.
 
-From code, `migrateElements(source)` (from `@unlayer/migrate/elements`) returns `{ code, report }`.
+Then install the new package, and remove the old one once nothing imports it. What the codemod keeps of the old
+package's API (`renderToHtml`, say) stays imported from it, and is listed for you to replace.
+
+```bash
+npm install @hyper-elements/react
+npm uninstall @unlayer/react-elements
+```
+
+From code, `migrateElements(source)` (from `@hyper-elements/migrate/elements`) returns `{ code, report }`.
 
 ## What it writes
 

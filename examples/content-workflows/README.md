@@ -1,6 +1,6 @@
 # React transactional email, web, PDF, and visual editing example
 
-One invoice template, written with the components from `@unlayer/react-elements`, demonstrates rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
+One invoice template, written with the components from `@hyper-elements/react`, demonstrates rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
 
 ## Install and run
 
@@ -25,7 +25,7 @@ The files are written to `examples/content-workflows/output/`:
 
 All contain invoice INV-1001 for Ada Lovelace, paid $49.00. The render commands create files locally and do not send email. System fonts and no remote images make this sample independent of asset downloads.
 
-`await render(element)` writes each HTML file and the plain text: the template's root (`Email`, `Page` or `Document`) says which output it is. `toDesign(element)` from `@unlayer/react-elements/builder` writes the design JSON. Printing the PDF needs Chromium; [`@unlayer/react-elements/pdf`](../../packages/react/docs/render-pdf.md) writes one without a browser, as the [PDF guide](../../packages/react/docs/react-to-pdf.md#without-a-browser) shows.
+`await render(element)` writes each HTML file and the plain text: the template's root (`Email`, `Page` or `Document`) says which output it is. `toDesign(element)` from `@hyper-elements/react/builder` writes the design JSON. Printing the PDF needs Chromium; [`@hyper-elements/react/pdf`](../../packages/react/docs/render-pdf.md) writes one without a browser, as the [PDF guide](../../packages/react/docs/react-to-pdf.md#without-a-browser) shows.
 
 ```bash
 pnpm --filter @unlayer/content-workflows-example preview

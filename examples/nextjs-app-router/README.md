@@ -11,7 +11,7 @@ pnpm install
 pnpm dev
 ```
 
-It needs `@unlayer/react-elements` 0.3.0 or later, the first version with `/primitives`.
+It needs `@hyper-elements/react` 0.3.0 or later, the first version with `/primitives`.
 
 Then open:
 
