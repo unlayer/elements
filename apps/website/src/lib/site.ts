@@ -70,7 +70,7 @@ export const docsNav: DocGroup[] = [
     title: "Migrate",
     items: [
       { slug: "migrate/react-email", label: "From React Email" },
-      { slug: "migrate/elements", label: "From older Elements" },
+      { slug: "migrate/unlayer-elements", label: "From Unlayer Elements" },
     ],
   },
 ];

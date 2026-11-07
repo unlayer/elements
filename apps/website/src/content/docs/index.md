@@ -68,7 +68,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 | `@hyper-elements/react/builder` | `toDesign()` and `fromDesign()`: a template as the Unlayer builder's design JSON, and a design back as a template |
 | `@hyper-elements/react/pdf` | `renderPdf()`: a `Document` as a PDF, with react-pdf, no browser |
 | `@hyper-elements/react/image` | `renderImage()`: a `Canvas` as PNG or SVG, with Satori and resvg |
-| `@hyper-elements/migrate` | `npx @hyper-elements/migrate`: React Email templates converted and checked against the originals, and templates written with Elements 0.2's components rewritten, with what may draw differently listed |
+| `@hyper-elements/migrate` | `npx @hyper-elements/migrate`: React Email templates converted and checked against the originals, and templates written with Unlayer Elements rewritten, with what may draw differently listed |
 
 The source is on GitHub at [hyper-elements/hyper-elements](https://github.com/hyper-elements/hyper-elements), MIT licensed.
 

@@ -125,8 +125,8 @@ Each of these made an agent's first try fail:
 - `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.
 - `items={[{ text: "Home", link: "/" }]}` → `items={[{ text: "Home", href: "/" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.
 - `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.
-- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are props of the older Elements components, not these: use a `Row` of `Column`s, `level`, `alt`, and text as children.
-- `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.
+- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are props of Unlayer Elements' components, not these: use a `Row` of `Column`s, `level`, `alt`, and text as children.
+- `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Hyper Elements warns.
 
 ## Rules worth giving your agent
 
@@ -134,5 +134,5 @@ Each of these made an agent's first try fail:
 - A template has one root: `Email`, `Page`, `Document` or `Canvas`. The root decides the output.
 - Raw tags such as `<b>`, `<br>` or `<div>` are errors. Use `Span`, `LineBreak` and the layout components.
 - Build reusable trees with a plain synchronous function that returns the root. Fetch data first: a component that is async or suspends is an error.
-- Pass dynamic values as children or props, which Elements escapes. Only put markup you trust in an `Html` block.
+- Pass dynamic values as children or props, which Hyper Elements escapes. Only put markup you trust in an `Html` block.
 - To move React Email templates, run `npx @hyper-elements/migrate` instead of rewriting them by hand. It keeps their logic and checks the result. Exit code `2` means a template failed to convert or lost content: report it, with the file and the reason. Don't pass `--force` to hide it. See [From React Email](/docs/migrate/react-email).
