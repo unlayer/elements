@@ -1,1 +1,0 @@
-const n=(s,o,g)=>({src:`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${o}" viewBox="0 0 ${s} ${o}">${g}</svg>`)}`,width:s,height:o});export{n as d};
