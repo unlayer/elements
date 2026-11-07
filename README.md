@@ -29,7 +29,7 @@ Hyper Elements is an open-source React component library for transactional email
 - **Document** → Print-ready HTML for PDF generation
 
 <p align="center">
-  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Hyper Elements: Architecture" width="1200" />
+  <img width="1672" height="941" alt="hyperelementsflow" src="https://github.com/user-attachments/assets/e3730f39-d183-401e-9bd8-72e197c1bd54" />
 </p>
 
 Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
