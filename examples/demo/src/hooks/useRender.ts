@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 
 interface Rendered {
   html: string;

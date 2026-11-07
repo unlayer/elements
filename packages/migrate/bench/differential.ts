@@ -11,8 +11,8 @@
  * Pairs Chromium calls the same but the check fails are counted (false fails:
  * worth fixing, not a broken guarantee).
  *
- *   pnpm --filter @unlayer/migrate test:differential            # the fixed seeds CI runs
- *   pnpm --filter @unlayer/migrate test:differential --count 3000 --from 100000
+ *   pnpm --filter @hyper-elements/migrate test:differential            # the fixed seeds CI runs
+ *   pnpm --filter @hyper-elements/migrate test:differential --count 3000 --from 100000
  *
  * Fonts are the machine's: a difference within twice a tolerance is
  * "borderline" and not counted either way, so another machine's text widths
@@ -24,7 +24,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import React from "react";
 import { render } from "@react-email/components";
-import { render as renderElements } from "@unlayer/react-elements";
+import { render as renderElements } from "@hyper-elements/react";
 import { chromium, type Page } from "playwright";
 import { checkFails, compareText, convertReactEmail, convertSource, findTailwind, phoneDiffers } from "../src/react-email/index";
 import { BASES } from "./differential/bases";

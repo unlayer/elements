@@ -64,11 +64,11 @@ jobs:
       # and the core's sources. The build only type-checks each entry's import
       # graph, so this catches a relaxed or broken input type.
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck
+        run: pnpm --filter @hyper-elements/react typecheck && pnpm --filter @unlayer-internal/elements-core typecheck
 
       # The CLI, the converters (src/react-email, src/convert), their tests and the benchmark.
       - name: Converter typechecks
-        run: pnpm --filter @unlayer/migrate typecheck
+        run: pnpm --filter @hyper-elements/migrate typecheck
 
       # ── Bundle size budgets ─────────────────────────────────────
       # Each entry's ESM bundle against its budget. The budgets track the
@@ -127,7 +127,7 @@ jobs:
       # Every package's unit tests but migrate's (the codemod's and the converters', their own job) and react's, which
       # run once, with coverage.
       - name: Run tests
-        run: pnpm -r --filter "./packages/*" --filter "!@unlayer/react-elements" --filter "!@unlayer/migrate" run test
+        run: pnpm -r --filter "./packages/*" --filter "!@hyper-elements/react" --filter "!@hyper-elements/migrate" run test
 
       - name: Run test coverage
         run: pnpm test:coverage
@@ -137,7 +137,7 @@ jobs:
       # --disallow-code-generation-from-strings (a CSP without 'unsafe-eval').
       # HARD gate: fails if this package evaluates a string at import/render.
       - name: CSP safety gate
-        run: pnpm --filter @unlayer/react-elements test:csp
+        run: pnpm --filter @hyper-elements/react test:csp
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
@@ -155,7 +155,7 @@ jobs:
             coverage/
           retention-days: 30
 
-  # @unlayer/migrate's tests, the converters' included: the slowest suite (the codemod converts and checks whole
+  # @hyper-elements/migrate's tests, the converters' included: the slowest suite (the codemod converts and checks whole
   # templates).
   codemod:
     name: Codemod tests
@@ -198,7 +198,7 @@ jobs:
         run: pnpm build
 
       - name: Codemod tests
-        run: pnpm --filter @unlayer/migrate test
+        run: pnpm --filter @hyper-elements/migrate test
 
   storybook:
     name: Storybook smoke and visual drift
@@ -242,14 +242,14 @@ jobs:
         run: pnpm build
 
       - name: Install Playwright Chromium
-        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
+        run: pnpm --filter @hyper-elements/react exec playwright install --with-deps chromium
 
       # ── Storybook browser smoke test ────────────────────────────
       # Opens every story in headless Chromium and asserts each component
       # paints visible content with no console / page errors. Runs against the
       # production static build (storybook build → http-server).
       - name: Storybook smoke test
-        run: pnpm --filter @unlayer/react-elements test-storybook:ci
+        run: pnpm --filter @hyper-elements/react test-storybook:ci
 
       # ── Storybook visual-drift gate ─────────────────────────────
       # Fingerprints the computed styles and the visible text of every story
@@ -258,7 +258,7 @@ jobs:
       # exact stories and properties (or lines of text) that changed —
       # answers "did any story change?" without paging through them by hand.
       - name: Storybook visual-drift gate
-        run: pnpm --filter @unlayer/react-elements test:visual
+        run: pnpm --filter @hyper-elements/react test:visual
 
   browser:
     name: Browser gates and consumer apps
@@ -302,7 +302,7 @@ jobs:
         run: pnpm build
 
       - name: Install Playwright Chromium
-        run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
+        run: pnpm --filter @hyper-elements/react exec playwright install --with-deps chromium
 
       - name: Content workflow examples (HTML, JSON, and real PDF; no email delivery)
         run: |
@@ -320,7 +320,7 @@ jobs:
       # Includes a negative control that reproduces the original
       # `process.env.IS_OFFLINE` crash so a green result proves the gate works.
       - name: Browser runtime safety gate
-        run: pnpm --filter @unlayer/react-elements test:browser-runtime
+        run: pnpm --filter @hyper-elements/react test:browser-runtime
 
       # ── Browser E2E gate (rendered documents) ───────────────────
       # Renders full documents with the BUILT dist for all three modes and
@@ -329,7 +329,7 @@ jobs:
       # title/styles/links parsed, no console or page errors. Includes a
       # negative control proving the gate detects the failures it guards.
       - name: Browser E2E gate
-        run: pnpm --filter @unlayer/react-elements test:e2e
+        run: pnpm --filter @hyper-elements/react test:e2e
 
       # Elements primitives: what Chromium lays out matches the widths the resolver works out,
       # on desktop and on phones (packages/core/test/browser).
@@ -339,12 +339,12 @@ jobs:
       # A Document's PDF (written by react-pdf, without a browser) laid out as its print HTML is: Chromium measures
       # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/react/test/pdf/browser).
       - name: PDF laid out as its print HTML
-        run: pnpm --filter @unlayer/react-elements test:browser test/pdf
+        run: pnpm --filter @hyper-elements/react test:browser test/pdf
 
       # A Canvas's image (written by Satori and resvg, without a browser) drawn as Chromium draws the Canvas's HTML,
       # with the same font file: pixel by pixel, the edges of shapes and letters aside (packages/react/test/image/browser).
       - name: Image drawn as its Canvas's HTML
-        run: pnpm --filter @unlayer/react-elements test:browser test/image
+        run: pnpm --filter @hyper-elements/react test:browser test/image
 
       # ── Migration fidelity smoke test ───────────────────────────
       # Converts the committed fixture templates both ways (codemod and
@@ -353,7 +353,7 @@ jobs:
       # a word shown at another size on desktop, or words moved (on phones,
       # only for the fixtures that match there).
       - name: Migration fidelity smoke test
-        run: pnpm --filter @unlayer/migrate test:fidelity
+        run: pnpm --filter @hyper-elements/migrate test:fidelity
 
       # ── Migration check vs Chromium (differential) ──────────────
       # 400 fixed seeds: one side of a base (hand-written documents and the
@@ -363,18 +363,18 @@ jobs:
       # Chromium and fail the check. A false pass writes its pair to
       # .bench-out/differential/ and fails the job.
       - name: Migration check vs Chromium
-        run: pnpm --filter @unlayer/migrate test:differential
+        run: pnpm --filter @hyper-elements/migrate test:differential
 
       # ── Next.js integration test ────────────────────────────────
-      # Packs the built react-elements as a tarball and installs it
+      # Packs the built package as a tarball and installs it
       # in a real Next.js app — exactly like a consumer would.
       # Catches SSR, bundling, and Server Component compatibility issues
       # that unit tests can't detect.
-      - name: Pack react-elements
+      - name: Pack @hyper-elements/react
         run: |
           cd packages/react
           pnpm pack --pack-destination /tmp
-          echo "TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)" >> $GITHUB_ENV
+          echo "TARBALL=$(ls /tmp/hyper-elements-react-*.tgz)" >> $GITHUB_ENV
 
       - name: Next.js integration build
         run: |

@@ -26,7 +26,7 @@ const tree = (element: React.ReactElement): Node => collectTemplate(element).doc
 function run(code: string): React.ReactElement {
   const js = ts.transpileModule(code, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const module = { exports: {} as { default: () => React.ReactElement } };
-  const modules: Record<string, unknown> = { "@unlayer/react-elements": primitives, "react/jsx-runtime": jsxRuntime };
+  const modules: Record<string, unknown> = { "@hyper-elements/react": primitives, "react/jsx-runtime": jsxRuntime };
   new Function("require", "module", "exports", js)((name: string) => modules[name], module, module.exports);
   return module.exports.default();
 }

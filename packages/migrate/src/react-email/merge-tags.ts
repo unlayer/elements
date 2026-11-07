@@ -201,7 +201,7 @@ export function testedProps(source: string, asGiven: ReadonlySet<string> = new S
   // Names imported from React, react-dom, React Email or Elements: their components and functions show text as given.
   const library = new Set<string>();
   for (const statement of file.statements)
-    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && /^(@react-email\/|react-email$|@unlayer\/react-elements$|react$|react-dom(\/|$))/.test(statement.moduleSpecifier.text)) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && /^(@react-email\/|react-email$|@hyper-elements\/react$|react$|react-dom(\/|$))/.test(statement.moduleSpecifier.text)) {
       const clause = statement.importClause;
       if (clause?.name) library.add(clause.name.text);
       const bindings = clause?.namedBindings;

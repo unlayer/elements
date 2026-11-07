@@ -106,7 +106,7 @@ const Countdown = component({
 
 /** A countdown from its props: with their defaults, and with its own. */
 export const CountdownTimer = story(
-  `import { Column, component, Email, Heading, prop, Row, Section, Text } from "@unlayer/react-elements";
+  `import { Column, component, Email, Heading, prop, Row, Section, Text } from "@hyper-elements/react";
 
 const Countdown = component({
   type: "longshelf.Countdown",
@@ -190,7 +190,7 @@ const BookCard = component({
 
 /** A book card: a required jacket and link, and a color and a button's words with defaults. Two sit in a `Row`, one with a larger `flex`. */
 export const ProductCards = story(
-  `import { Button, Column, component, Email, Heading, Image, Text, prop, Row, Section } from "@unlayer/react-elements";
+  `import { Button, Column, component, Email, Heading, Image, Text, prop, Row, Section } from "@hyper-elements/react";
 
 const BookCard = component({
   type: "longshelf.BookCard",
@@ -273,7 +273,7 @@ const review = (rating: ReactElement, words: string, from: string) => (
 
 /** A rating worked out from its props in `render`: a number, a choice of sizes, and a switch. */
 export const WorkedOutFromProps = story(
-  `import { component, Email, prop, Section, Text } from "@unlayer/react-elements";
+  `import { component, Email, prop, Section, Text } from "@hyper-elements/react";
 
 const Rating = component({
   type: "longshelf.Rating",
@@ -340,7 +340,7 @@ const Hero = component({
 
 /** `placement: "section"` makes a custom component a band of its own: it goes where a `Section` goes, and renders one. */
 export const AWholeSection = story(
-  `import { component, Email, Heading, Text, prop, Section } from "@unlayer/react-elements";
+  `import { component, Email, Heading, Text, prop, Section } from "@hyper-elements/react";
 
 const Hero = component({
   type: "longshelf.Hero",

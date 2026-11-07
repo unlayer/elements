@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Browser import/runtime gate for @unlayer/react-elements.
+// Browser import/runtime gate for @hyper-elements/react.
 //
 // The normal browser E2E generates HTML in Node and only loads that HTML into
 // Chromium. This probe instead bundles the shipped entries (the main one and

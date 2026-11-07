@@ -3,8 +3,8 @@
  * visual editor opens, with toDesign().
  */
 import type React from "react";
-import { render } from "@unlayer/react-elements";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { render } from "@hyper-elements/react";
+import { toDesign } from "@hyper-elements/react/builder";
 
 export async function htmlOf(element: React.ReactElement): Promise<string> {
   return (await render(element)).html;

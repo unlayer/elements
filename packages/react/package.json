@@ -1,5 +1,5 @@
 {
-  "name": "@unlayer/react-elements",
+  "name": "@hyper-elements/react",
   "version": "0.3.0",
   "description": "React components for transactional emails, landing pages, invoices and PDFs: email-safe HTML, responsive web HTML, and print-ready PDF HTML from one component tree.",
   "license": "MIT",

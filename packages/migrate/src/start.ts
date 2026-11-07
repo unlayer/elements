@@ -1,5 +1,5 @@
 /**
- * The `unlayer-migrate` command, once bin.ts has checked the Node.js version.
+ * The `hyper-elements-migrate` command, once bin.ts has checked the Node.js version.
  * Module resolution is set up first (see hooks.ts), then the CLI loads.
  */
 

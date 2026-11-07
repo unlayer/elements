@@ -36,15 +36,15 @@ import {
   TableRow,
   validate,
   Video,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 import type { ReactElement, ReactNode } from "react";
 import { writeCanvas } from "@unlayer-internal/elements-core/image";
 import { renderImage } from "../../src/image";
 
 /** What prepare() gives, where a test gives another layout version (another copy of Elements, newer or older). */
 const other = vi.hoisted(() => ({ prepared: undefined as { layout?: number } | undefined }));
-vi.mock("@unlayer/react-elements", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@unlayer/react-elements")>();
+vi.mock("@hyper-elements/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@hyper-elements/react")>();
   return {
     ...actual,
     prepare: (element: ReactElement) => {
@@ -178,10 +178,10 @@ describe("renderImage", () => {
         other.prepared = undefined;
       }
     };
-    const reads = `@unlayer/react-elements/image reads layout version ${LAYOUT_VERSION}; the main entry writes`;
-    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @unlayer/react-elements`);
-    await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @unlayer/react-elements`);
-    await refused({}, `${reads} none: update @unlayer/react-elements`);
+    const reads = `@hyper-elements/react/image reads layout version ${LAYOUT_VERSION}; the main entry writes`;
+    await refused({ layout: LAYOUT_VERSION + 1 }, `${reads} ${LAYOUT_VERSION + 1}: update @hyper-elements/react`);
+    await refused({ layout: LAYOUT_VERSION - 1 }, `${reads} ${LAYOUT_VERSION - 1}: update @hyper-elements/react`);
+    await refused({}, `${reads} none: update @hyper-elements/react`);
   });
 
   it("depends on its engine in one file: the writer builds a canvas as plain data, which Satori's and resvg's adapter draws", () => {

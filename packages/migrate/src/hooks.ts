@@ -8,7 +8,7 @@
  * React Email and Elements come from the importing module's own location, as
  * where the template runs (an app in a monorepo has its own), and the
  * converter's from the project. A module that imports one its location doesn't
- * have, like @unlayer/react-elements before it's installed, gets the project's,
+ * have, like @hyper-elements/react before it's installed, gets the project's,
  * else this package's copy. Everything else resolves as usual.
  */
 

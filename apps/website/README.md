@@ -27,7 +27,7 @@ Everything generated is committed, so the site builds without the engine. Run `g
 
 An example that doesn't render fails the script with the engine's own error.
 
-The examples import `@hyper-elements/react`. Until the packages are renamed, the script resolves that to the workspace's `@unlayer/react-elements`. To render with another build, point it at that checkout's built `packages/react`:
+The examples import `@hyper-elements/react`. Until the packages are renamed, the script resolves that to the workspace's `@hyper-elements/react`. To render with another build, point it at that checkout's built `packages/react`:
 
 ```bash
 HYPER_ELEMENTS_PACKAGE=/path/to/checkout/packages/react pnpm --filter @hyper-elements/website generate

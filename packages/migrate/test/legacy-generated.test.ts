@@ -171,11 +171,9 @@ describe("templates in today's components, migrated", () => {
       const { code } = await migrateElements(source);
       const found = errors(code);
       if (found.length) failures.push(`seed ${seed}: ${found.join("; ")}\n${source}`);
-      // What it wrote comes back as it is from a second run, whichever version of the package is installed.
-      for (const installed of [undefined, "0.2.1", "0.3.0"]) {
-        const again = await migrateElements(code, { installed });
-        if (again.code !== code) failures.push(`seed ${seed}: a second run (${installed ?? "no version known"}) changed it\n${code}`);
-      }
+      // What it wrote comes back as it is from a second run.
+      const again = await migrateElements(code);
+      if (again.code !== code) failures.push(`seed ${seed}: a second run changed it\n${code}`);
     }
     expect(failures.slice(0, 6)).toEqual([]);
   }, 120_000);

@@ -56,7 +56,7 @@ jobs:
         run: pnpm build
 
       - name: Build Storybook
-        run: pnpm --filter @unlayer/react-elements run build-storybook
+        run: pnpm --filter @hyper-elements/react run build-storybook
 
       # Get the GitHub Pages URL dynamically
       - name: Get Pages URL

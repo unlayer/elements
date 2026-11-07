@@ -229,7 +229,7 @@ describe("Preview inside Body", () => {
 describe("verifyNewComponents", () => {
   it("lists what the visual editor wouldn't get (toDesign refuses the template), with a prop flipped too", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Canvas, Email, Text: ElementsText } = await import("@unlayer/react-elements");
+    const { Canvas, Email, Text: ElementsText } = await import("@hyper-elements/react");
     const { createElement: h } = await import("react");
     const Original = Object.assign(({ big }: { big: boolean }) => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), { PreviewProps: { big: false } });
     // Renders, but the builder edits an Email, a Page or a Document, not a Canvas.
@@ -246,7 +246,7 @@ describe("verifyNewComponents", () => {
 
   it("includes added words when only a flipped prop exposes them", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@hyper-elements/react");
     const { createElement: h } = await import("react");
     const Original = Object.assign(() => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), {PreviewProps:{trial:false}});
     const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(ElementsText, null, `Welcome${trial ? " Unexpected" : ""}`))));
@@ -258,7 +258,7 @@ describe("verifyNewComponents", () => {
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
     const { Body, Container, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@hyper-elements/react");
     const React = await import("react");
     const h = React.createElement;
     const Original = Object.assign(
@@ -434,7 +434,7 @@ describe("returns that render nothing", () => {
     for (const [source, name] of [[early, "early-null"], [ternary, "ternary-null"]] as const) {
       const { codemod, check } = await convertBoth(source, name);
       expect(codemod.code).toContain("null");
-      expect(codemod.code).toContain('from "@unlayer/react-elements";');
+      expect(codemod.code).toContain('from "@hyper-elements/react";');
       expect(check.missing).toEqual([]);
     }
   });
@@ -535,7 +535,7 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
   });
 
   it("reads a migrated template's code through memo() for its design JSON", async () => {
-    const { Email, Row, Column, Text } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text } = await import("@hyper-elements/react");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name, company }: { name: string; company: string }) =>
@@ -550,7 +550,7 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
 
 describe("merge tags in a migrated template's design JSON", () => {
   it("tags the preview text (preheaderText) as well as the body", async () => {
-    const { Email, Row, Column, Text } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text } = await import("@hyper-elements/react");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name }: { name: string }) =>

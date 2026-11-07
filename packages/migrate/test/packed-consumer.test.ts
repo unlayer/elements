@@ -8,16 +8,16 @@ describe("published migration library", () => {
   it("packs self-contained declarations and the same API for ESM and CommonJS consumers: convertReactEmail and migrateElements", () => {
     const packageRoot = path.resolve(import.meta.dirname, "..");
     // Outside the workspace so private packages cannot accidentally resolve.
-    const consumer = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-consumer-"));
+    const consumer = fs.mkdtempSync(path.join(os.tmpdir(), "hyper-elements-migrate-consumer-"));
     try {
       const packed = spawnSync("pnpm", ["pack", "--pack-destination", consumer], { cwd: packageRoot, encoding: "utf8" });
       expect(packed.status, packed.stderr + packed.stdout).toBe(0);
-      const target = path.join(consumer, "node_modules/@unlayer/migrate");
+      const target = path.join(consumer, "node_modules/@hyper-elements/migrate");
       fs.mkdirSync(target, { recursive: true });
       const tarball = fs.readdirSync(consumer).find((name) => name.endsWith(".tgz"))!;
       const unpacked = spawnSync("tar", ["-xzf", path.join(consumer, tarball), "--strip-components=1", "-C", target], { encoding: "utf8" });
       expect(unpacked.status, unpacked.stderr).toBe(0);
-      for (const name of ["react", "react-dom", "@types/react", "@types/react-dom", "@types/node", "@react-email/components", "@unlayer/react-elements", "typescript", "prettier"]) {
+      for (const name of ["react", "react-dom", "@types/react", "@types/react-dom", "@types/node", "@react-email/components", "@hyper-elements/react", "typescript", "prettier"]) {
         const link = path.join(consumer, "node_modules", name);
         fs.mkdirSync(path.dirname(link), { recursive: true });
         fs.symlinkSync(path.join(packageRoot, "node_modules", name), link, "dir");
@@ -30,12 +30,12 @@ describe("published migration library", () => {
       for (const name of declarations) {
         // Self-contained: they import only what a consumer installs, never one of the converters' own modules.
         const imported = [...fs.readFileSync(path.join(target, "dist", name), "utf8").matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((match) => match[1]);
-        expect(imported.filter((specifier) => !/^(react|react-dom|@react-email\/components|@unlayer\/react-elements(\/builder)?)$/.test(specifier)), name).toEqual([]);
+        expect(imported.filter((specifier) => !/^(react|react-dom|@react-email\/components|@hyper-elements\/react(\/builder)?)$/.test(specifier)), name).toEqual([]);
       }
       expect(declarations).toContain("elements.d.ts");
       for (const extension of ["mts", "cts"]) {
-        fs.writeFileSync(path.join(consumer, `index.${extension}`), `import { convertReactEmail, NewComponentsError, type RuntimeOptions, type Conversion, type ConversionReport, type EditorFont } from "@unlayer/migrate/react-email";
-import { migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "@unlayer/migrate/elements";
+        fs.writeFileSync(path.join(consumer, `index.${extension}`), `import { convertReactEmail, NewComponentsError, type RuntimeOptions, type Conversion, type ConversionReport, type EditorFont } from "@hyper-elements/migrate/react-email";
+import { migrateElements, type MigrateElementsOptions, type MigrateElementsResult } from "@hyper-elements/migrate/elements";
 type PublicTypes = [RuntimeOptions, Conversion, ConversionReport, EditorFont, MigrateElementsOptions, MigrateElementsResult];
 const types: PublicTypes | undefined = undefined;
 async function check(Template: () => null) {
@@ -45,11 +45,10 @@ async function check(Template: () => null) {
   const design: Record<string, unknown> = conversion.design();
   const missing: string[] | undefined = conversion.report.missingText;
   const intermediate: string = new NewComponentsError("why", "source").intermediate;
-  const migrated = await migrateElements("source", { installed: "0.2.1" });
+  const migrated = await migrateElements("source");
   const notes: string[] = migrated.report;
-  const left: boolean | undefined = migrated.current ?? migrated.undecided;
-  const refused: string | undefined = migrated.refused;
-  console.log(types, code, html, design, missing, intermediate, notes, left, refused);
+  const left: boolean | undefined = migrated.current;
+  console.log(types, code, html, design, missing, intermediate, notes, left);
 }
 void check;
 `);
@@ -58,8 +57,8 @@ void check;
       }
       for (const extension of ["mjs", "cjs"]) {
         const imports = extension === "mjs"
-          ? 'import * as api from "@unlayer/migrate/react-email";\nimport * as elements from "@unlayer/migrate/elements";\nimport React from "react";\nimport { Html, Body, Text, Button } from "@react-email/components";'
-          : 'const api = require("@unlayer/migrate/react-email");\nconst elements = require("@unlayer/migrate/elements");\nconst React = require("react");\nconst { Html, Body, Text, Button } = require("@react-email/components");';
+          ? 'import * as api from "@hyper-elements/migrate/react-email";\nimport * as elements from "@hyper-elements/migrate/elements";\nimport React from "react";\nimport { Html, Body, Text, Button } from "@react-email/components";'
+          : 'const api = require("@hyper-elements/migrate/react-email");\nconst elements = require("@hyper-elements/migrate/elements");\nconst React = require("react");\nconst { Html, Body, Text, Button } = require("@react-email/components");';
         fs.writeFileSync(path.join(consumer, `runtime.${extension}`), `${imports}
 async function main() {
   const h = React.createElement;
@@ -68,14 +67,14 @@ async function main() {
   // A link the new components don't write: a typed error, with the template as it was written first.
   const Refused = () => h(Html, null, h(Body, null, h(Button, { href: "javascript:void(0)" }, "Go")));
   const error = await api.convertReactEmail(Refused).catch((e) => e);
-  // As in a project on Elements 0.2: nothing in the template is only either's.
-  const migrated = await elements.migrateElements('import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\\nexport const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;', { installed: "0.2.1" });
+  // A template on the old package: nothing in it is only the old components', and its import says it's theirs.
+  const migrated = await elements.migrateElements('import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\\nexport const T = () => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;');
   console.log(JSON.stringify({
     exports: Object.keys(api).sort(),
     elements: Object.keys(elements).sort(),
     missing: conversion.report.missingText,
     html: (await conversion.html()).includes("Hello"),
-    code: conversion.code.includes('from "@unlayer/react-elements";'),
+    code: conversion.code.includes('from "@hyper-elements/react";'),
     design: conversion.design().body.rows.length > 0,
     refused: error instanceof api.NewComponentsError && error.intermediate.includes("javascript:void(0)"),
     migrated: migrated.code.includes("<Section>"),
@@ -104,7 +103,7 @@ main().catch((error) => { console.error(error); process.exitCode = 1; });
 
 it.each(["module", "commonjs"])("runs the installed CLI with its React 19 dependencies against a React 18 %s project", (type) => {
   const root = path.resolve(import.meta.dirname, "..");
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-react-versions-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "hyper-elements-migrate-react-versions-"));
   const tool = path.join(directory, "tool");
   const project = path.join(directory, "project");
   try {
@@ -112,7 +111,7 @@ it.each(["module", "commonjs"])("runs the installed CLI with its React 19 depend
     fs.mkdirSync(project, { recursive: true });
     const packed = spawnSync("pnpm", ["pack", "--pack-destination", tool], { cwd: root, encoding: "utf8" });
     expect(packed.status, packed.stderr + packed.stdout).toBe(0);
-    const target = path.join(tool, "node_modules/@unlayer/migrate");
+    const target = path.join(tool, "node_modules/@hyper-elements/migrate");
     fs.mkdirSync(target, { recursive: true });
     const tarball = fs.readdirSync(tool).find((name) => name.endsWith(".tgz"))!;
     const unpacked = spawnSync("tar", ["-xzf", path.join(tool, tarball), "--strip-components=1", "-C", target], { encoding: "utf8" });
@@ -122,7 +121,7 @@ it.each(["module", "commonjs"])("runs the installed CLI with its React 19 depend
       fs.cpSync(fs.realpathSync(path.join(root, "node_modules", installed)), path.join(tool, "node_modules", name), { recursive: true });
       fs.cpSync(fs.realpathSync(path.join(root, "node_modules", name)), path.join(project, "node_modules", name), { recursive: true });
     }
-    for (const name of ["@react-email/components", "@unlayer/react-elements", "typescript", "prettier", "tsx"]) {
+    for (const name of ["@react-email/components", "@hyper-elements/react", "typescript", "prettier", "tsx"]) {
       const link = path.join(tool, "node_modules", name);
       fs.mkdirSync(path.dirname(link), { recursive: true });
       fs.symlinkSync(path.join(root, "node_modules", name), link, "dir");
@@ -139,12 +138,12 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
     const migrated = run(["template.jsx", "--out", "converted", "--design"]);
     expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0);
     const written = fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8");
-    expect(written).toContain("@unlayer/react-elements");
+    expect(written).toContain("@hyper-elements/react");
     expect(written).toContain("{name}");
     expect(written).not.toContain("htmlText");
     const compared = run(["compare", "template.jsx", "converted/template.jsx"]);
     expect(compared.status, compared.stderr + compared.stdout).toBe(0);
-    expect(fs.readdirSync(project).filter((name) => name.includes("unlayer-migrate"))).toEqual([]);
+    expect(fs.readdirSync(project).filter((name) => name.includes("hyper-elements-migrate"))).toEqual([]);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -153,32 +152,32 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
 it("stops the installed CLI when the project's Elements is older than it supports", () => {
   const root = path.resolve(import.meta.dirname, "..");
   const range = `^${JSON.parse(fs.readFileSync(path.join(root, "../react/package.json"), "utf8")).version}`;
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-old-elements-"));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "hyper-elements-migrate-old-elements-"));
   const tool = path.join(directory, "tool");
   const project = path.join(directory, "project");
   try {
     fs.mkdirSync(tool, { recursive: true });
     const packed = spawnSync("pnpm", ["pack", "--pack-destination", tool], { cwd: root, encoding: "utf8" });
     expect(packed.status, packed.stderr + packed.stdout).toBe(0);
-    const target = path.join(tool, "node_modules/@unlayer/migrate");
+    const target = path.join(tool, "node_modules/@hyper-elements/migrate");
     fs.mkdirSync(target, { recursive: true });
     const tarball = fs.readdirSync(tool).find((name) => name.endsWith(".tgz"))!;
     expect(spawnSync("tar", ["-xzf", path.join(tool, tarball), "--strip-components=1", "-C", target]).status).toBe(0);
-    expect(JSON.parse(fs.readFileSync(path.join(target, "package.json"), "utf8")).peerDependencies["@unlayer/react-elements"]).toBe(range);
-    for (const name of ["react", "react-dom", "@react-email/components", "@unlayer/react-elements", "typescript", "prettier", "tsx"]) {
+    expect(JSON.parse(fs.readFileSync(path.join(target, "package.json"), "utf8")).peerDependencies["@hyper-elements/react"]).toBe(range);
+    for (const name of ["react", "react-dom", "@react-email/components", "@hyper-elements/react", "typescript", "prettier", "tsx"]) {
       const link = path.join(tool, "node_modules", name);
       fs.mkdirSync(path.dirname(link), { recursive: true });
       fs.symlinkSync(path.join(root, "node_modules", name), link, "dir");
     }
     // The project installed an Elements release from before this one.
-    const old = path.join(project, "node_modules/@unlayer/react-elements");
+    const old = path.join(project, "node_modules/@hyper-elements/react");
     fs.mkdirSync(old, { recursive: true });
-    fs.writeFileSync(path.join(old, "package.json"), JSON.stringify({ name: "@unlayer/react-elements", version: "0.1.22", exports: { "./package.json": "./package.json" } }));
+    fs.writeFileSync(path.join(old, "package.json"), JSON.stringify({ name: "@hyper-elements/react", version: "0.0.1", exports: { "./package.json": "./package.json" } }));
     fs.writeFileSync(path.join(project, "package.json"), "{}");
     fs.writeFileSync(path.join(project, "welcome.tsx"), `import { Html, Body, Text } from "@react-email/components";\nexport default function T() { return <Html><Body><Text>Hi</Text></Body></Html>; }\n`);
     const run = spawnSync(process.execPath, [path.join(target, "dist/bin.js"), "welcome.tsx", "--out", "converted"], { cwd: project, encoding: "utf8" });
     expect(run.status, run.stderr + run.stdout).toBe(1);
-    expect(run.stderr).toContain(`needs @unlayer/react-elements ${range}, but this project has 0.1.22`);
+    expect(run.stderr).toContain(`needs @hyper-elements/react ${range}, but this project has 0.0.1`);
     expect(fs.existsSync(path.join(project, "converted"))).toBe(false);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

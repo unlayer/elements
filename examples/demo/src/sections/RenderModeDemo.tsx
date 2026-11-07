@@ -10,7 +10,7 @@ import {
   Text,
   Row,
   Section,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 import { useRender } from "../hooks/useRender";
 import SectionHeader from "../components/SectionHeader";
 import DeviceFrame from "../components/DeviceFrame";

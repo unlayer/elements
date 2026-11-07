@@ -20,7 +20,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     // src/pdf and src/image (and their tests) import this package by name, as its users do: its main entry, here its source.
-    alias: [{ find: /^@unlayer\/react-elements$/, replacement: fileURLToPath(new URL('./src/primitives/index.ts', import.meta.url)) }],
+    alias: [{ find: /^@hyper-elements\/react$/, replacement: fileURLToPath(new URL('./src/primitives/index.ts', import.meta.url)) }],
   },
   test: {
     coverage: {

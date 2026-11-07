@@ -23,7 +23,7 @@ importers:
       '@astrojs/sitemap':
         specifier: ^3.7.4
         version: 3.7.4
-      '@unlayer/react-elements':
+      '@hyper-elements/react':
         specifier: workspace:*
         version: link:../../packages/react
       astro:
@@ -38,12 +38,12 @@ importers:
       '@aws-sdk/client-sesv2':
         specifier: ^3.0.0
         version: 3.1146.0
+      '@hyper-elements/react':
+        specifier: workspace:*
+        version: link:../../packages/react
       '@sendgrid/mail':
         specifier: ^8.1.0
         version: 8.1.6
-      '@unlayer/react-elements':
-        specifier: workspace:*
-        version: link:../../packages/react
       nodemailer:
         specifier: ^7.0.0
         version: 7.0.13
@@ -87,7 +87,7 @@ importers:
 
   examples/demo:
     dependencies:
-      '@unlayer/react-elements':
+      '@hyper-elements/react':
         specifier: workspace:*
         version: link:../../packages/react
       prism-react-renderer:
@@ -124,15 +124,15 @@ importers:
 
   examples/react-email-in-editor:
     dependencies:
+      '@hyper-elements/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
+      '@hyper-elements/react':
+        specifier: workspace:*
+        version: link:../../packages/react
       '@react-email/components':
         specifier: ^1.0.12
         version: 1.0.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@unlayer/migrate':
-        specifier: workspace:*
-        version: link:../../packages/migrate
-      '@unlayer/react-elements':
-        specifier: workspace:*
-        version: link:../../packages/react
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -194,12 +194,12 @@ importers:
 
   packages/migrate:
     dependencies:
+      '@hyper-elements/react':
+        specifier: workspace:^0.3.0
+        version: link:../react
       '@react-email/components':
         specifier: ^1.0.12
         version: 1.0.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@unlayer/react-elements':
-        specifier: workspace:^0.3.0
-        version: link:../react
       prettier:
         specifier: ^3.3.3
         version: 3.6.2
@@ -7253,7 +7253,7 @@ snapshots:
       detect-libc: 2.1.2
       is-glob: 4.0.3
       node-addon-api: 7.1.1
-      picomatch: 4.0.3
+      picomatch: 4.0.7
     optionalDependencies:
       '@parcel/watcher-android-arm64': 2.5.6
       '@parcel/watcher-darwin-arm64': 2.5.6
@@ -8246,7 +8246,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 24.9.1
+      '@types/node': 24.19.2
     optional: true
 
   '@types/yargs-parser@21.0.3': {}
@@ -9395,7 +9395,7 @@ snapshots:
 
   happy-dom@20.8.3:
     dependencies:
-      '@types/node': 24.9.1
+      '@types/node': 24.19.2
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       entities: 7.0.1
@@ -10438,7 +10438,7 @@ snapshots:
   needle@3.3.1:
     dependencies:
       iconv-lite: 0.6.3
-      sax: 1.5.0
+      sax: 1.6.1
     optional: true
 
   neotraverse@1.0.1: {}
@@ -11023,7 +11023,7 @@ snapshots:
     dependencies:
       chokidar: 4.0.3
       immutable: 5.1.5
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
     optionalDependencies:
       '@parcel/watcher': 2.5.6
     optional: true

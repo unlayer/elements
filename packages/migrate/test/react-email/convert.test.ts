@@ -24,7 +24,7 @@ describe.each(TEMPLATES)("%s", (name) => {
   it("codemod mode: TSX that renders with the template's own props", async () => {
     const result = await convertSource(fs.readFileSync(path.join(fixtures, `${name}.tsx`), "utf8"), { fileName: `${name}.tsx` });
     expect(result.report.nativeRatio).toBe(1);
-    expect(result.code).toContain('from "@unlayer/react-elements";');
+    expect(result.code).toContain('from "@hyper-elements/react";');
     expect(result.code).not.toContain(TODAYS_COMPONENTS);
     expect(result.code).not.toContain("@react-email/components");
     await expect(result.code).toMatchFileSnapshot(`__snapshots__/${name}.codemod.tsx.snap`);
@@ -111,7 +111,7 @@ describe("runtime mode in the new components", () => {
   it("writes code that renders as the element it gives, with a design from toDesign", async () => {
     const { default: Template } = await import(path.join(fixtures, "welcome.tsx"));
     const conversion = await convertReactEmail(Template);
-    expect(conversion.code).toContain('from "@unlayer/react-elements";');
+    expect(conversion.code).toContain('from "@hyper-elements/react";');
     expect(conversion.code).not.toContain(TODAYS_COMPONENTS);
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     try {
@@ -759,7 +759,7 @@ Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.c
       expect(injected(await runtime.html())).toBe(false);
       // The check gives text props markup itself: a migration that renders one as HTML fails.
       expect(check.variants).toEqual([]);
-      const { Email, Html } = await import("@unlayer/react-elements");
+      const { Email, Html } = await import("@hyper-elements/react");
       const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Html, { html: p.title }));
       const OnlyTitle = (p: { title: string }) => Original({ ...p, name: "", url: "" });
       OnlyTitle.PreviewProps = { title: "Welcome" };

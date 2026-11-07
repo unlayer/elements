@@ -1,25 +1,26 @@
 ---
 name: hyper-elements
-description: Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
+description: Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@hyper-elements/react), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
 ---
 
 # Hyper Elements
 
-<!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
+<!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @hyper-elements/react test reference -->
 
-Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.
+Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @hyper-elements/react`). This is the package's own guide to its components at `@hyper-elements/react` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@hyper-elements/react/REFERENCE.md`.
 
 ## Templates from Unlayer Elements
 
-A project may have templates written with Unlayer Elements: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor="#fff"`. Those components aren't in Hyper Elements: the package's components are these.
+A project may have templates written with Unlayer Elements: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor="#fff"`. Those components aren't in Hyper Elements, a new package: these are its components.
 
-- Move them with the codemod: `npx @unlayer/migrate src/emails --from unlayer-elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @unlayer/migrate --help`.
+- Move them with the codemod: `npx @hyper-elements/migrate src/emails --from unlayer-elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @hyper-elements/migrate --help`.
 - What the codemod can't move is listed, and the file is left as it was: rewrite that part by hand with these components.
-- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in these components and checks each against its original.
+- Then `npm install @hyper-elements/react`, and remove `@unlayer/react-elements` once nothing imports it.
+- Templates in React Email: `npx @hyper-elements/migrate src/emails` writes them in these components and checks each against its original.
 
 ## How a template is written
 
-- Import from `@unlayer/react-elements`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
+- Import from `@hyper-elements/react`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.
 - Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `"12px 24px"`. A box's text styles are inherited by what it holds.
 - There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.
 - A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.
@@ -43,7 +44,7 @@ Each of these made an agent's first try fail:
 ## A whole template
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@hyper-elements/react";
 
 export default function Receipt() {
   return (
@@ -91,12 +92,12 @@ export default function Receipt() {
 
 ## A Canvas as an image
 
-`renderImage(element, options)` (`@unlayer/react-elements/image`) writes a `Canvas` as a PNG (`format: "svg"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.
+`renderImage(element, options)` (`@hyper-elements/react/image`) writes a `Canvas` as a PNG (`format: "svg"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.
 
 ```tsx
 import { readFile } from "node:fs/promises";
-import { Canvas, Heading, Image } from "@unlayer/react-elements";
-import { renderImage } from "@unlayer/react-elements/image";
+import { Canvas, Heading, Image } from "@hyper-elements/react";
+import { renderImage } from "@hyper-elements/react/image";
 
 const { image, diagnostics } = await renderImage(
   <Canvas width={1200} height={630} style={{ padding: 64, gap: 24, fontFamily: "Inter", textAlign: "center", justifyContent: "center" }}>
@@ -118,8 +119,8 @@ const { image, diagnostics } = await renderImage(
 
 - **Email**: An email. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), previewText (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
 - **Page**: A web page. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), description (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
-- **Document**: A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/react-elements/pdf. Holds sections, layout, blocks, Document.Page, PageBreak, PageHeader, PageFooter. Props: size (A3|A4|A5|Letter|Legal|Tabloid), orientation (portrait|landscape), margin (insets), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
-- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/react-elements/image. Holds sections, layout, blocks. Props: width (a length (a number of px)), height (a length (a number of px)), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
+- **Document**: A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @hyper-elements/react/pdf. Holds sections, layout, blocks, Document.Page, PageBreak, PageHeader, PageFooter. Props: size (A3|A4|A5|Letter|Legal|Tabloid), orientation (portrait|landscape), margin (insets), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
+- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @hyper-elements/react/image. Holds sections, layout, blocks. Props: width (a length (a number of px)), height (a length (a number of px)), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
 
 ### Sections and layout
 

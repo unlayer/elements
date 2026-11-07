@@ -7,7 +7,7 @@
 /** React and React DOM: the project's copy for every module, as one copy only shares hooks and context. */
 const ONE_COPY = /^(react|react-dom)(\/.*)?$/;
 /** React Email and Elements: a module's own copy first, as it loads them where it runs. */
-const OWN_COPY = /^(@react-email\/[^/]+|react-email|@unlayer\/react-elements)(\/.*)?$/;
+const OWN_COPY = /^(@react-email\/[^/]+|react-email|@hyper-elements\/react)(\/.*)?$/;
 
 /** The project (the templates' folder), the importing module, or this CLI's own copy. */
 export type Origin = "project" | "importer" | "self";

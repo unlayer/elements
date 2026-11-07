@@ -30,7 +30,7 @@ interface PrimitiveCollection {
   async?: boolean;
 }
 
-const SHARED = Symbol.for("@unlayer/react-elements/primitives/collecting");
+const SHARED = Symbol.for("@hyper-elements/react/primitives/collecting");
 const frames = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as PrimitiveCollection[];
 
 export function collectingPrimitives(): PrimitiveCollection | undefined {
@@ -146,7 +146,7 @@ function read(html: string, collection: PrimitiveCollection, diagnostics: Diagno
       diagnostics.push({
         code: "jsx/markup",
         severity: "error",
-        message: `HTML ${where} isn't part of an Elements document: use the primitives (Text, Link, Image, …) instead of ${JSON.stringify(between.slice(0, 60))}. Every component: @unlayer/react-elements/GUIDE.md`,
+        message: `HTML ${where} isn't part of an Elements document: use the primitives (Text, Link, Image, …) instead of ${JSON.stringify(between.slice(0, 60))}. Every component: @hyper-elements/react/GUIDE.md`,
         path: "jsx",
       });
       return;

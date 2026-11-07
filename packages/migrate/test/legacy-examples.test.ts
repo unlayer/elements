@@ -87,8 +87,8 @@ async function generated() {
   for (const output of outputs) for (const [module, names] of output.imports) imports.set(module, new Set([...(imports.get(module) ?? []), ...names]));
   return formatTsx(
     [
-      "// main's examples, migrated by @unlayer/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.",
-      "// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @unlayer/migrate test legacy-examples",
+      "// main's examples, migrated by @hyper-elements/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.",
+      "// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @hyper-elements/migrate test legacy-examples",
       ...[...imports].map(([module, names]) => `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(module)};`),
       "",
       ...outputs.flatMap(({ name, report, components, body }) => [
@@ -137,14 +137,12 @@ describe("main's examples, migrated", () => {
   it("come back as they are from a second run, whichever version of the package is installed", async () => {
     // Each example as the codemod writes it in a project (importing the package), and the generated file as one.
     const outputs = await Promise.all(EXAMPLES.map(async (name) => (await migrateElements(template(fs.readFileSync(sourceOf(name), "utf8")), { from: ["../index", "./index"] })).code));
-    outputs.push(written().replace('from "../index"', 'from "@unlayer/react-elements"'));
+    outputs.push(written().replace('from "../index"', 'from "@hyper-elements/react"'));
     for (const output of outputs) {
-      expect(output).toContain('from "@unlayer/react-elements"');
-      for (const installed of [undefined, "0.2.1", "0.3.0"]) {
-        const again = await migrateElements(output, { installed });
-        expect(again.code, installed).toBe(output);
-        expect(again.current, installed).toBe(true);
-      }
+      expect(output).toContain('from "@hyper-elements/react"');
+      const again = await migrateElements(output);
+      expect(again.code).toBe(output);
+      expect(again.current).toBe(true);
     }
   }, 60000);
 });

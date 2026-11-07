@@ -15,7 +15,7 @@ const read = (file: string) => readFileSync(join(root, file), "utf8");
 /** The skill `npx skills add hyper-elements/hyper-elements` installs, at the repository's root. */
 const SKILL = "../../skills/hyper-elements/SKILL.md";
 
-const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');
+const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@hyper-elements/react";');
 const components = Object.entries(entry).filter(([name, value]) => typeof value === "function" && (value as { displayName?: string }).displayName === name);
 
 describe("GUIDE.md, REFERENCE.md and the skill", () => {
@@ -51,7 +51,7 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
     const guide = read("GUIDE.md");
     expect(skill.endsWith(guide.slice(guide.indexOf("## How a template is written")))).toBe(true);
     expect(skill).toContain("## Templates from Unlayer Elements");
-    expect(skill).toContain("npx @unlayer/migrate src/emails --from unlayer-elements");
+    expect(skill).toContain("npx @hyper-elements/migrate src/emails --from unlayer-elements");
   });
 
   it("says what a list prop's items are, and the mistakes agents made on their first try", () => {

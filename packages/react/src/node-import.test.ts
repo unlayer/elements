@@ -47,8 +47,8 @@ describe("each entry's types, for every moduleResolution", () => {
     const dir = resolve(__dirname, "..");
     const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
     const project = mkdtempSync(join(tmpdir(), "elements-types-"));
-    const installed = join(project, "node_modules", "@unlayer", "react-elements");
-    mkdirSync(join(project, "node_modules", "@unlayer"), { recursive: true });
+    const installed = join(project, "node_modules", "@hyper-elements", "react");
+    mkdirSync(join(project, "node_modules", "@hyper-elements"), { recursive: true });
     symlinkSync(dir, installed, "dir");
     // The declarations each entry names, which a build writes: there for the resolver whether built or not.
     const entries = Object.entries(pkg.exports as Record<string, { types?: string }>).filter(([, entry]) => typeof entry === "object" && entry.types);
@@ -64,7 +64,7 @@ describe("each entry's types, for every moduleResolution", () => {
     const found: Record<string, string> = {};
     const want: Record<string, string> = {};
     for (const [subpath, entry] of entries) {
-      const name = `@unlayer/react-elements${subpath.slice(1)}`;
+      const name = `@hyper-elements/react${subpath.slice(1)}`;
       for (const [setting, options] of settings) {
         const resolved = ts.resolveModuleName(name, join(project, "index.ts"), options, host).resolvedModule?.resolvedFileName;
         found[`${setting} ${name}`] = resolved ? inPackage(resolved) : "(not found)";

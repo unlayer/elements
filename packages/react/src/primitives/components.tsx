@@ -72,7 +72,7 @@ type StyleOf<D> = D extends ComponentDefinition<any, infer S> ? { [K in keyof S]
 type PropsOf<D, Style> = D extends ComponentDefinition<infer P, any> ? PropsInput<P> & Extras<Style> : never;
 
 /** Marks a primitive's component type. */
-export const PRIMITIVE = Symbol.for("@unlayer/react-elements/primitive");
+export const PRIMITIVE = Symbol.for("@hyper-elements/react/primitive");
 
 function createPrimitive<D extends ComponentDefinition<any, any>>(definition: D): React.FC<PrimitiveProps<D>> {
   const Primitive = (props: PrimitiveProps<D>): React.ReactElement => {

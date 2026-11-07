@@ -1,5 +1,5 @@
-// main's examples, migrated by @unlayer/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.
-// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @unlayer/migrate test legacy-examples
+// main's examples, migrated by @hyper-elements/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.
+// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @hyper-elements/migrate test legacy-examples
 import {
   Button,
   Column,

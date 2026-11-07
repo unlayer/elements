@@ -1,7 +1,7 @@
 /**
  * Fidelity benchmark: convert every template in .corpus/ and measure.
  *
- *   pnpm --filter @unlayer/migrate bench [filter,filter…]
+ *   pnpm --filter @hyper-elements/migrate bench [filter,filter…]
  *
  * For each template: original HTML (React Email render) vs converted HTML
  * (the new components' render()), compared three ways:

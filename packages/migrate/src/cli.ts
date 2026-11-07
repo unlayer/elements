@@ -1,5 +1,5 @@
 /**
- * npx @unlayer/migrate — migrate React Email templates to Hyper Elements.
+ * npx @hyper-elements/migrate — migrate React Email templates to Hyper Elements.
  *
  * For each template: convert its source (props, loops and conditions stay),
  * then check the result: render the original and the migrated template with
@@ -34,8 +34,8 @@ export interface Io {
 export const USAGE = `Migrate React Email templates to Hyper Elements.
 
 Usage:
-  npx @unlayer/migrate <files or folders...> [options]
-  npx @unlayer/migrate compare <original> <migrated>
+  npx @hyper-elements/migrate <files or folders...> [options]
+  npx @hyper-elements/migrate compare <original> <migrated>
 
 Each template is converted to Hyper Elements' components, with their styles in
 style={{ }} (its props, loops and conditions stay), then checked: the
@@ -202,7 +202,9 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
 }
 
 /** After a usage mistake: where the options are, in a line (the help itself would push the mistake off the screen). */
-const SEE_HELP = "Run npx @unlayer/migrate --help to see the options.";
+/** The old package, whose templates `--from unlayer-elements` migrates. */
+const OLD_ELEMENTS = "@unlayer/react-elements";
+const SEE_HELP = "Run npx @hyper-elements/migrate --help to see the options.";
 
 async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   let args: Args;
@@ -228,7 +230,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (from === "unlayer-elements" && args.positional.length) {
     const { migrateLegacy } = await import("./legacy/command");
-    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver, installed: installedElements });
+    return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver });
   }
   if (!args.positional.length) {
     // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
@@ -294,7 +296,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     // Run again after --write (in CI): the templates are done.
     const done = inputs.files.filter((f) => f.migrated).length;
     if (done) {
-      io.stdout(`${listed.length ? "\n" : ""}${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
+      io.stdout(`${listed.length ? "\n" : ""}${done} template${done === 1 ? "" : "s"} already migrated (importing @hyper-elements/react): nothing to do.\n`);
       return 0;
     }
     if (listed.length) {
@@ -302,7 +304,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
       return 1;
     }
-    io.stderr("No React Email templates found (files that import react-email or @react-email/*, or the project's components that do).\n");
+    io.stderr(`No React Email templates found (files that import react-email or @react-email/*, or the project's components that do).\n${oldElementsHint(inputs.files)}`);
     return 1;
   }
 
@@ -379,7 +381,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
           continue;
         }
         if (kind === "unknown") {
-          results.push({ file: relative(io.cwd, input.path), status: "failed", reason: `imported through ${via} by ${by}, and whether it's an email of its own or a shared piece that module renders can't be told (its props aren't typed here): --write leaves it. If it's an email, migrate it on its own: npx @unlayer/migrate ${relative(io.cwd, input.path)} --write` });
+          results.push({ file: relative(io.cwd, input.path), status: "failed", reason: `imported through ${via} by ${by}, and whether it's an email of its own or a shared piece that module renders can't be told (its props aren't typed here): --write leaves it. If it's an email, migrate it on its own: npx @hyper-elements/migrate ${relative(io.cwd, input.path)} --write` });
           continue;
         }
       }
@@ -458,8 +460,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   // again after --write (in CI) doesn't read as finding nothing. Only the run's own: a route that renders with
   // Elements isn't a template done.
   const done = inputs.files.filter((f) => f.written).length;
-  io.stdout(`\n${summary(results, options).replace(/^No email templates\./, done ? "No email templates left to migrate." : "$&")}\n`);
-  if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements).\n`);
+  io.stdout(`\n${summary(results, options).replace(/^No email templates\./, done ? "No email templates left to migrate." : "$&")}\n${oldElementsHint(inputs.files)}`);
+  if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @hyper-elements/react).\n`);
   // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
   // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole
   // project, not only the folder given (`migrate emails --write` from a Next.js app: its routes send them).
@@ -468,7 +470,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
     if (users.length) {
       io.stdout(
-        `\nStill using a migrated template: render it with await render() from @unlayer/react-elements (its html), not React Email's render() (nor a sender's \`react:\` option), which can't render Elements' components; or render it in an Elements template:\n` +
+        `\nStill using a migrated template: render it with await render() from @hyper-elements/react (its html), not React Email's render() (nor a sender's \`react:\` option), which can't render Elements' components; or render it in an Elements template:\n` +
           `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
       );
     }
@@ -528,10 +530,12 @@ interface Input {
   base: string;
   /** Imports React Email, or (a template) the project's files that do. */
   reactEmail: boolean;
-  /** Imports @unlayer/react-elements: migrated already. */
+  /** Imports @hyper-elements/react: migrated already. */
   migrated: boolean;
-  /** A template a run wrote (its header says so) that imports @unlayer/react-elements. */
+  /** A template a run wrote (its header says so) that imports @hyper-elements/react. */
   written: boolean;
+  /** It isn't React Email's, and imports the old package: a run from React Email leaves it, and says so. */
+  oldElements: boolean;
 }
 
 function outputPath(input: Input, options: Options, cwd: string): string {
@@ -677,9 +681,9 @@ function overwriteRefusal(files: string[]): string {
 }
 
 /** The header the converter starts a migrated template with: its first two lines. */
-const OUTPUT_HEADER = /^﻿?\/\*\* @jsxRuntime automatic \*\/[ \t]*\r?\n\/\/ Migrated from React Email by @unlayer\/migrate[^\r\n]*(?:\r?\n|$)/;
+const OUTPUT_HEADER = /^﻿?\/\*\* @jsxRuntime automatic \*\/[ \t]*\r?\n\/\/ Migrated from React Email by @hyper-elements\/migrate[^\r\n]*(?:\r?\n|$)/;
 /** The line after it where a run records what it wrote (a hash of the file without this line). */
-const HASH_LINE = /^\/\/ @unlayer\/migrate hash ([0-9a-f]{16})\b[^\r\n]*(?:\r?\n|$)/;
+const HASH_LINE = /^\/\/ @hyper-elements\/migrate hash ([0-9a-f]{16})\b[^\r\n]*(?:\r?\n|$)/;
 
 /**
  * A hash of a migrated template as written: LF line endings, no trailing whitespace or blank lines at the end, so an
@@ -698,7 +702,7 @@ export function withContentHash(code: string): string {
   const header = OUTPUT_HEADER.exec(code);
   if (!header) return code;
   const eol = header[0].endsWith("\r\n") ? "\r\n" : "\n";
-  return `${header[0]}// @unlayer/migrate hash ${contentHash(code)}: a run with --overwrite replaces this file only while it's unchanged.${eol}${code.slice(header[0].length)}`;
+  return `${header[0]}// @hyper-elements/migrate hash ${contentHash(code)}: a run with --overwrite replaces this file only while it's unchanged.${eol}${code.slice(header[0].length)}`;
 }
 
 /**
@@ -725,7 +729,7 @@ async function whoWrote(path: string, design: boolean): Promise<string> {
   if (earlier === "intact") return "written by an earlier run";
   if (earlier === "edited") return "written by an earlier run, and edited since";
   // Without the hash a run now records: 0.1.0's, which can't say whether it's edited since.
-  if (earlier === "unhashed") return "written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since";
+  if (earlier === "unhashed") return "written by an earlier version of @hyper-elements/migrate, which didn't record whether it's edited since";
   if (design) {
     try {
       const parsed = JSON.parse(text);
@@ -734,7 +738,7 @@ async function whoWrote(path: string, design: boolean): Promise<string> {
       // Not a design: someone's file.
     }
   }
-  return "not written by @unlayer/migrate";
+  return "not written by @hyper-elements/migrate";
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */
@@ -871,7 +875,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const bytes = await readFile(file);
   const source = bytes.toString("utf8");
   // Run again on migrated templates (in CI, or after --write): they're done.
-  if (await importsElements(file, source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
+  if (await importsElements(file, source)) return { file: name, status: "skipped", reason: "already migrated: it imports @hyper-elements/react" };
+  // A template written with the old package isn't React Email's: it has a migration of its own.
+  if (await importsElements(file, source, OLD_ELEMENTS)) return { file: name, status: "skipped", reason: `it imports ${OLD_ELEMENTS}, not React Email: migrate it with --from unlayer-elements` };
   // Checking a template runs its code and calls its default export: a helper (one that sends an email) is never loaded.
   const notLoaded = await notATemplate(file, source);
   if (notLoaded) return { file: name, status: notLoaded.fail ? "failed" : "skipped", reason: notLoaded.reason };
@@ -921,7 +927,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     if (missing.length) return { file: name, status: "failed", reason: `the migrated template imports ${missing.join(", ")}, which this project doesn't have: install it (npm install ${missing.join(" ")})` };
     const extension = extname(file);
     // A new name each time: removing it never removes someone else's file.
-    const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
+    const probe = join(dirname(target), `.${basename(file, extension)}.hyper-elements-migrate-${randomUUID()}${extension}`);
     let firstCreated: string | undefined;
     const removeProbe = () => {
       rmSync(probe, { force: true });
@@ -1042,7 +1048,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
 
 async function compare(paths: string[], args: Args, io: Io, library?: Library): Promise<number> {
   if (paths.length !== 2) {
-    io.stderr(`compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>\n${SEE_HELP}\n`);
+    io.stderr(`compare needs the original template and the migrated one: npx @hyper-elements/migrate compare <original> <migrated>\n${SEE_HELP}\n`);
     return 1;
   }
   const [originalPath, migratedPath] = paths.map((p) => resolve(io.cwd, p));
@@ -1058,16 +1064,16 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     io.stderr(`${copies}\n`);
     return 1;
   }
-  // A template migrated by hand in Elements 0.2's components: 0.3.0 doesn't have them, so it's moved first.
+  // A template migrated by hand in Unlayer Elements' components: Hyper Elements doesn't have them, so it's moved first.
   const old = await oldElementsImports(migratedPath, await readFile(migratedPath, "utf8"));
   if (old.length) {
     const [original, migrated] = paths.map((p) => shellWord(relative(io.cwd, resolve(io.cwd, p))));
     const names = old.filter((name) => !name.startsWith("@"));
-    const what = [...(names.length ? [`${names.join(", ")} from @unlayer/react-elements`] : []), ...old.filter((name) => name.startsWith("@"))];
+    const what = [...(names.length ? [`${names.join(", ")} from ${OLD_ELEMENTS}`] : []), ...old.filter((name) => name.startsWith("@"))];
     io.stderr(
       `${relative(io.cwd, migratedPath)} is written in Unlayer Elements' components (it imports ${what.join(", and ")}), which Hyper Elements doesn't have. Move it to the new components, then compare:\n` +
-        `  npx @unlayer/migrate --from unlayer-elements ${migrated} --write\n` +
-        `  npx @unlayer/migrate compare ${original} ${migrated}\n`
+        `  npx @hyper-elements/migrate --from unlayer-elements ${migrated} --write\n` +
+        `  npx @hyper-elements/migrate compare ${original} ${migrated}\n`
     );
     return 1;
   }
@@ -1129,29 +1135,33 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   }
 }
 
+/** A line for files a run from React Email left because they're on the old package, which has a migration of its own. */
+function oldElementsHint(files: Array<{ oldElements: boolean }>): string {
+  const count = files.filter((f) => f.oldElements).length;
+  return count ? `${count} file${count === 1 ? " imports" : "s import"} ${OLD_ELEMENTS}: migrate ${count === 1 ? "it" : "them"} with --from unlayer-elements.\n` : "";
+}
+
 /**
- * What a module imports of Elements that 0.3.0 doesn't have: a name its main entry doesn't export (`ColumnLayouts`,
- * `renderToHtml`: Elements 0.2's), or an entry it doesn't have (`@unlayer/react-elements/legacy`). Types aren't counted.
+ * What a module imports of the old package: each name from its main entry, or another entry of it. Types aren't counted.
  */
 async function oldElementsImports(path: string, source: string): Promise<string[]> {
-  if (!source.includes("@unlayer/react-elements")) return [];
+  if (!source.includes(OLD_ELEMENTS)) return [];
   const ts = (await import("typescript")).default;
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
-  const exported = new Set(Object.keys(await import("@unlayer/react-elements")));
   const found: string[] = [];
   for (const statement of file.statements) {
     if (!(ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const specifier = statement.moduleSpecifier.text;
-    if (!/^@unlayer\/react-elements(\/|$)/.test(specifier) || specifier === "@unlayer/react-elements/builder") continue;
-    if (specifier !== "@unlayer/react-elements") {
-      found.push(specifier);
+    if (specifier !== OLD_ELEMENTS && !specifier.startsWith(`${OLD_ELEMENTS}/`)) continue;
+    if (ts.isImportDeclaration(statement) ? statement.importClause?.isTypeOnly : statement.isTypeOnly) continue;
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : statement.exportClause;
+    if (specifier !== OLD_ELEMENTS || !bindings || ts.isNamespaceImport(bindings) || ts.isNamespaceExport(bindings)) {
+      if (!found.includes(specifier)) found.push(specifier);
       continue;
     }
-    const bindings = ts.isImportDeclaration(statement) ? (statement.importClause?.isTypeOnly ? undefined : statement.importClause?.namedBindings) : statement.exportClause;
-    if (!bindings || ts.isNamespaceImport(bindings) || ts.isNamespaceExport(bindings)) continue;
     for (const element of bindings.elements) {
       const name = (element.propertyName ?? element.name).text;
-      if (!element.isTypeOnly && !exported.has(name) && !found.includes(name)) found.push(name);
+      if (!element.isTypeOnly && !found.includes(name)) found.push(name);
     }
   }
   return found;
@@ -1609,7 +1619,8 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
     // import React Email: not a template to migrate, nor one --write would replace. A file of the project's own that
     // imports both, without that header, still is.
     const written = migrated && earlierOutput(text) !== undefined;
-    files.push({ path, base, reactEmail: !written && REACT_EMAIL_IMPORT.test(text), migrated, written });
+    const reactEmail = !written && REACT_EMAIL_IMPORT.test(text);
+    files.push({ path, base, reactEmail, migrated, written, oldElements: !reactEmail && (await importsElements(path, text, OLD_ELEMENTS)) });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
@@ -1629,9 +1640,9 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
   return { files: files.sort((a, b) => a.path.localeCompare(b.path)), missing, unreadable };
 }
 
-/** Whether a module imports Elements: an import or export from it, not a comment or a string that names it. */
-async function importsElements(path: string, source: string): Promise<boolean> {
-  if (!source.includes("@unlayer/react-elements")) return false;
+/** Whether a module imports Elements (by default the new package): an import or export from it, not a comment or a string that names it. */
+async function importsElements(path: string, source: string, packageName = "@hyper-elements/react"): Promise<boolean> {
+  if (!source.includes(packageName)) return false;
   const ts = (await import("typescript")).default;
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
   // Types only (`import type { EmailProps }`) don't make a template migrated: it still renders with React Email.
@@ -1646,7 +1657,7 @@ async function importsElements(path: string, source: string): Promise<boolean> {
       (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) &&
       !!s.moduleSpecifier &&
       ts.isStringLiteral(s.moduleSpecifier) &&
-      s.moduleSpecifier.text === "@unlayer/react-elements" &&
+      s.moduleSpecifier.text === packageName &&
       !typesOnly(s)
   );
   // Re-exporting Elements (or importing it for its effects) counts as using it.
@@ -1829,13 +1840,13 @@ function resolveFrom(folder: string, name: string): string | undefined {
 function otherCopies(io: Pick<Io, "cwd" | "project">, files: string[]): string | undefined {
   if (io.project === undefined) return undefined; // called directly: packages resolve as usual
   const self = dirname(fileURLToPath(import.meta.url));
-  for (const name of ["@react-email/components", "@unlayer/react-elements"]) {
+  for (const name of ["@react-email/components", "@hyper-elements/react"]) {
     const used = resolveFrom(io.project, name) ?? resolveFrom(self, name);
     for (const folder of new Set(files.map((file) => dirname(file)))) {
       const own = resolveFrom(folder, name);
       if (own && own !== used) {
         const where = relative(io.cwd, folder) || ".";
-        return `${where} has its own ${name}, other than the one this run checks with (from ${relative(io.cwd, io.project) || "."}): migrate that folder in a run of its own (npx @unlayer/migrate ${where}), writing inside it.`;
+        return `${where} has its own ${name}, other than the one this run checks with (from ${relative(io.cwd, io.project) || "."}): migrate that folder in a run of its own (npx @hyper-elements/migrate ${where}), writing inside it.`;
       }
     }
   }
@@ -1886,7 +1897,7 @@ async function importFile(
   const { tsImport } = await import("tsx/esm/api");
   const tsconfig = join(
     tmpdir(),
-    `unlayer-migrate-tsconfig-${randomUUID()}.json`,
+    `hyper-elements-migrate-tsconfig-${randomUUID()}.json`,
   );
   const base = projectConfig(dirname(configFrom)) ?? projectConfig(dirname(path));
   const ts = (await import("typescript")).default;
@@ -1907,9 +1918,9 @@ async function importFile(
   // CJS imports bypass ESM hooks. Only supply Elements from the CLI when
   // neither the template's folder nor the project has it (hooks.ts's order),
   // and retain the project's resolved aliases.
-  if (!resolveFrom(dirname(path), "@unlayer/react-elements") && !resolveFrom(project, "@unlayer/react-elements")) {
-    paths["@unlayer/react-elements"] = [
-      createRequire(import.meta.url).resolve("@unlayer/react-elements"),
+  if (!resolveFrom(dirname(path), "@hyper-elements/react") && !resolveFrom(project, "@hyper-elements/react")) {
+    paths["@hyper-elements/react"] = [
+      createRequire(import.meta.url).resolve("@hyper-elements/react"),
     ];
   }
   // tsx applies the JSX settings only to the files `include` lists, by their real
@@ -2449,33 +2460,28 @@ export function supportedElements(io: Pick<Io, "cwd" | "stderr">, files: string[
   return !messages.size;
 }
 
-export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@unlayer/react-elements"]): { error?: string } {
+export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@hyper-elements/react"]): { error?: string } {
   const minimum = parseVersion(/^\^(.+)$/.exec(range ?? "")?.[1]); // a workspace link in development: nothing to check
   if (!minimum) return {};
-  for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@unlayer/migrate came with"]] as const) {
+  for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@hyper-elements/migrate came with"]] as const) {
     const version = elementsVersion(from);
     if (version === undefined) continue; // not installed there
     const found = parseVersion(version);
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
-    const newer = compareVersions(found, minimum) > 0 ? ", or update @unlayer/migrate" : "";
-    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@unlayer/react-elements", range!)}${newer}` };
+    const newer = compareVersions(found, minimum) > 0 ? ", or update @hyper-elements/migrate" : "";
+    return { error: `@hyper-elements/migrate needs @hyper-elements/react ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@hyper-elements/react", range!)}${newer}` };
   }
   return {};
 }
 
-/** The version of @unlayer/react-elements a module at `from` loads ("" where its package.json has none), or undefined where it has none. */
+/** The version of @hyper-elements/react a module at `from` loads ("" where its package.json has none), or undefined where it has none. */
 function elementsVersion(from: string): string | undefined {
   try {
-    return String(JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version ?? "");
+    return String(JSON.parse(readFileSync(createRequire(from).resolve("@hyper-elements/react/package.json"), "utf8")).version ?? "");
   } catch {
     return undefined;
   }
-}
-
-/** The version of @unlayer/react-elements the project a folder is in has installed, or undefined where it has none. */
-export function installedElements(folder: string): string | undefined {
-  return elementsVersion(join(folder, "noop.js"));
 }
 
 /**
@@ -2501,19 +2507,19 @@ function addCommand(folder: string): string {
 }
 
 /**
- * What to install where migrated templates were written and their import of @unlayer/react-elements doesn't resolve:
+ * What to install where migrated templates were written and their import of @hyper-elements/react doesn't resolve:
  * one line per project (the nearest package.json). An Elements outside the supported range stopped the run before.
  */
 function installElements(written: string[], cwd: string): string[] {
-  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.3.0";
+  const range = ownPackage().peerDependencies?.["@hyper-elements/react"] ?? "^0.3.0";
   const lines = new Set<string>();
   for (const folder of new Set(written.map((file) => dirname(file)))) {
     // In the node_modules folders above it, as the project's own build finds it (require.resolve here would also read
     // the NODE_PATH a package manager's script sets).
-    if (installed(folder, "@unlayer/react-elements")) continue;
+    if (installed(folder, "@hyper-elements/react")) continue;
     const root = findUp("package.json", folder);
     const where = root && dirname(root) !== cwd ? ` in ${relative(cwd, dirname(root)) || "."}` : "";
-    lines.add(`Install Elements${where}: ${addCommand(folder)} ${packageSpec("@unlayer/react-elements", range)}`);
+    lines.add(`Install Elements${where}: ${addCommand(folder)} ${packageSpec("@hyper-elements/react", range)}`);
   }
   return [...lines];
 }

@@ -1,6 +1,6 @@
 # Conversion fidelity
 
-How closely converted templates match their React Email originals, measured on 106 real templates. Rerun with `pnpm --filter @unlayer/migrate bench`; `tsx bench/summary.ts` prints the tables below. CI runs a smoke version on the fixture templates in `test/react-email/fixtures` (`pnpm --filter @unlayer/migrate test:fidelity`): content, desktop text sizes, and words moved on desktop (and on phones for the fixtures that match there).
+How closely converted templates match their React Email originals, measured on 106 real templates. Rerun with `pnpm --filter @hyper-elements/migrate bench`; `tsx bench/summary.ts` prints the tables below. CI runs a smoke version on the fixture templates in `test/react-email/fixtures` (`pnpm --filter @hyper-elements/migrate test:fidelity`): content, desktop text sizes, and words moved on desktop (and on phones for the fixtures that match there).
 
 ## Results
 

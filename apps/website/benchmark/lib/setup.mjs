@@ -20,7 +20,7 @@ await writeFile(join(dest, "package.json"), JSON.stringify({
   peerDependencies: { react: ">=18", "react-dom": ">=18" },
 }, null, 2));
 for (const f of ["GUIDE.md", "REFERENCE.md"]) {
-  const text = (await readFile(join(src, f), "utf8")).replaceAll("@unlayer/react-elements", "@hyper-elements/react").replace(/^<!-- Written from the component definitions.*\n/m, "");
+  const text = (await readFile(join(src, f), "utf8")).replace(/^<!-- Written from the component definitions.*\n/m, "");
   await writeFile(join(dest, f), text);
 }
 console.log(`@hyper-elements/react ${version} → ${dest}`);

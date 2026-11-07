@@ -5,7 +5,7 @@
  * content, or when a word renders at another size or lands somewhere else
  * (on phones, only for fixtures that match there).
  *
- *   pnpm --filter @unlayer/migrate test:fidelity
+ *   pnpm --filter @hyper-elements/migrate test:fidelity
  *
  * The network is off: images show at their given size, fonts are the
  * system's, the same on both sides. The full benchmark (run.ts) measures the
@@ -16,7 +16,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import React from "react";
 import { render } from "@react-email/components";
-import { render as renderElements } from "@unlayer/react-elements";
+import { render as renderElements } from "@hyper-elements/react";
 import { chromium, type BrowserContext } from "playwright";
 import { compareText, convertReactEmail, convertSource, findTailwind } from "../src/react-email/index";
 import { layoutScore, resizedWords, SETTLED, WORDS, type Word } from "./layout";

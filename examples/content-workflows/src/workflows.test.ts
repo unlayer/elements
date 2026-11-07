@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { toDesign } from "@unlayer/react-elements/builder";
-import { render } from "@unlayer/react-elements";
+import { toDesign } from "@hyper-elements/react/builder";
+import { render } from "@hyper-elements/react";
 import { chromium } from "playwright";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { renderInvoiceEmail } from "./message";

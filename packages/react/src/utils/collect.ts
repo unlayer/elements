@@ -7,7 +7,7 @@
  */
 
 // Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own).
-const SHARED = Symbol.for("@unlayer/react-elements/collecting");
+const SHARED = Symbol.for("@hyper-elements/react/collecting");
 const frames: Array<object | null> = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Array<object | null>;
 
 /** The collecting render under way, if any (and not a render of Elements' own inside it). */
@@ -26,7 +26,7 @@ export function within<T>(frame: object | null, run: () => T): T {
 }
 
 // Shared by every copy of Elements a process loads, as the collecting stack is: no two renders get one nonce.
-const RENDERS = Symbol.for("@unlayer/react-elements/renders");
+const RENDERS = Symbol.for("@hyper-elements/react/renders");
 
 /**
  * A collection's nonce, so markup a template's data holds can't name it: letters, digits and "_", from the count of

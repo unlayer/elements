@@ -1,5 +1,5 @@
 /**
- * The React Email converter (@unlayer/migrate/react-email): React Email templates in Hyper Elements' new components.
+ * The React Email converter (@hyper-elements/migrate/react-email): React Email templates in Hyper Elements' new components.
  *
  * Both modes write a template in Elements 0.2's components first, as source text, and move it to the new ones at once
  * (`toNewComponents`, in ../convert); what's checked, rendered and opened in the editor is the template in the new
@@ -8,8 +8,8 @@
 
 import React from "react";
 import { render } from "@react-email/components";
-import * as Elements from "@unlayer/react-elements";
-import { toDesign } from "@unlayer/react-elements/builder";
+import * as Elements from "@hyper-elements/react";
+import { toDesign } from "@hyper-elements/react/builder";
 import {
   checkFails,
   compareText,
@@ -37,7 +37,7 @@ type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unkno
 type MigratedTemplate = ((props: any) => React.ReactElement) | React.ExoticComponent<any>;
 
 /** What a template the converter writes from a tree imports: the new components, and React. */
-const MODULES = { "@unlayer/react-elements": Elements as unknown as Record<string, unknown>, react: React as unknown as Record<string, unknown> };
+const MODULES = { "@hyper-elements/react": Elements as unknown as Record<string, unknown>, react: React as unknown as Record<string, unknown> };
 
 /** Whether a template's output is nothing: not an element (`null`), or an empty fragment (`<></>`). */
 function rendersNothing(output: unknown): boolean {
@@ -134,7 +134,7 @@ export interface RuntimeOptions {
 export interface Conversion {
   /** The template in the new components, as a module (TSX): what it renders with the props given, flattened. */
   code: string;
-  /** Its root element: render it with `render()` from @unlayer/react-elements. */
+  /** Its root element: render it with `render()` from @hyper-elements/react. */
   element: React.ReactElement;
   /** The web fonts' stylesheets the template loads. */
   fonts: Array<{ url: string }>;
@@ -174,7 +174,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   const element = React.createElement(Template, props);
   const converted = await convertElement(element);
   const { fonts, report } = converted;
-  const print = { componentName: options.componentName ?? "Template", header: ["Converted from a React Email template by @unlayer/migrate (runtime mode)."] };
+  const print = { componentName: options.componentName ?? "Template", header: ["Converted from a React Email template by @hyper-elements/migrate (runtime mode)."] };
   // Checked with the sample values: merge tags stand in for them only where that changes nothing else.
   const sample = await inNewComponents(converted.tree, print);
   let html: string;

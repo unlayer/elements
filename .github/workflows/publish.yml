@@ -42,9 +42,9 @@ on:
         required: true
         type: choice
         options:
-          - react-elements
+          - react
           - migrate
-        default: react-elements
+        default: react
       bump:
         description: 'Version bump type'
         required: true
@@ -145,7 +145,7 @@ jobs:
             git diff --quiet "$tag" HEAD -- "$@" && echo false || echo true
           }
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
+            ELEMENTS=$([ "${{ inputs.package }}" = "react" ] && descends 'v*' && echo true || echo false)
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
             ELEMENTS=$(changed 'v*' packages/react packages/core pnpm-workspace.yaml)
@@ -154,8 +154,8 @@ jobs:
             MIGRATE=$(changed 'migrate-v*' packages/migrate pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
-          if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
-            echo "::notice::@unlayer/migrate isn't on npm yet: publish its first version by hand, tag it migrate-v<version>, and add its trusted publisher."
+          if [ "$MIGRATE" = "true" ] && ! npm view @hyper-elements/migrate version >/dev/null 2>&1; then
+            echo "::notice::@hyper-elements/migrate isn't on npm yet: publish its first version by hand, tag it migrate-v<version>, and add its trusted publisher."
             MIGRATE=false
           fi
           echo "elements=$ELEMENTS" >> $GITHUB_OUTPUT
@@ -163,7 +163,7 @@ jobs:
           echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE"
 
   publish:
-    name: Publish @unlayer/react-elements
+    name: Publish @hyper-elements/react
     needs: [build-and-test, changes]
     if: needs.changes.outputs.elements == 'true'
     runs-on: ubuntu-latest
@@ -258,7 +258,7 @@ jobs:
         run: |
           COMMITTED=$(node -p "require('./package.json').version")
           # Read latest published version from npm (falls back to package.json for first publish)
-          CURRENT=$(npm view @unlayer/react-elements version 2>/dev/null || echo "$COMMITTED")
+          CURRENT=$(npm view @hyper-elements/react version 2>/dev/null || echo "$COMMITTED")
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
 
           # Write current version to package.json so npm version can bump from it
@@ -275,13 +275,13 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # Published @unlayer/migrate refuses an Elements outside its range (^0.2.0 holds 0.2.x only). A release
+      # Published @hyper-elements/migrate refuses an Elements outside its range (^0.2.0 holds 0.2.x only). A release
       # outside it (a minor, 0.3.0) must raise the range in packages/migrate/package.json in the same change, so
       # migrate publishes after it with the new range; otherwise every published migrate refuses the newest Elements.
       - name: Check migrate supports this Elements
         working-directory: packages/react
         run: |
-          RANGE=$(node -p "require('../migrate/package.json').peerDependencies['@unlayer/react-elements']")
+          RANGE=$(node -p "require('../migrate/package.json').peerDependencies['@hyper-elements/react']")
           VERSION="${{ steps.version.outputs.version }}"
           if node -e '
             const [range, version] = process.argv.slice(1);
@@ -293,9 +293,9 @@ jobs:
             const atLeast = x !== M ? x > M : y !== m ? y > m : z >= p;
             process.exit(sameLine && atLeast ? 0 : 1);
           ' "$RANGE" "$VERSION"; then
-            echo "Elements $VERSION is inside @unlayer/migrate's range $RANGE"
-          elif npm view @unlayer/migrate version >/dev/null 2>&1; then
-            echo "::error::Elements $VERSION is outside @unlayer/migrate's Elements range ($RANGE): every published migrate would refuse it. Raise the range in packages/migrate/package.json in this change (the converter must support $VERSION), so migrate publishes after it."
+            echo "Elements $VERSION is inside @hyper-elements/migrate's range $RANGE"
+          elif npm view @hyper-elements/migrate version >/dev/null 2>&1; then
+            echo "::error::Elements $VERSION is outside @hyper-elements/migrate's Elements range ($RANGE): every published migrate would refuse it. Raise the range in packages/migrate/package.json in this change (the converter must support $VERSION), so migrate publishes after it."
             exit 1
           else
             echo "::notice::Elements $VERSION is outside migrate's range ($RANGE), and migrate isn't on npm yet."
@@ -312,7 +312,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Package** | \`@unlayer/react-elements\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`@hyper-elements/react\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Auth** | Trusted publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
@@ -328,7 +328,7 @@ jobs:
         working-directory: packages/react
         run: |
           pnpm pack --pack-destination /tmp
-          TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
+          TARBALL=$(ls /tmp/hyper-elements-react-*.tgz)
           npm publish "$TARBALL" --access public
 
       - name: Tag release
@@ -360,7 +360,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-migrate:
-    name: Publish @unlayer/migrate
+    name: Publish @hyper-elements/migrate
     needs: [build-and-test, changes, publish]
     # After Elements (when it publishes too), so the Elements range migrate requires is on npm.
     if: >-
@@ -454,7 +454,7 @@ jobs:
         working-directory: packages/migrate
         run: |
           COMMITTED=$(node -p "require('./package.json').version")
-          CURRENT=$(npm view @unlayer/migrate version 2>/dev/null || echo "$COMMITTED")
+          CURRENT=$(npm view @hyper-elements/migrate version 2>/dev/null || echo "$COMMITTED")
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           npm version "$CURRENT" --no-git-tag-version --allow-same-version
           VERSION=$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)
@@ -474,14 +474,14 @@ jobs:
         id: elements
         working-directory: packages/migrate
         run: |
-          RANGE=$(node -p "require('./package.json').peerDependencies['@unlayer/react-elements'].replace(/^workspace:/, '')")
+          RANGE=$(node -p "require('./package.json').peerDependencies['@hyper-elements/react'].replace(/^workspace:/, '')")
           case "$RANGE" in ^[0-9]*) ;; *) echo "::error::migrate's Elements range must be a committed ^<version> (found $RANGE)"; exit 1 ;; esac
           echo "range=$RANGE" >> $GITHUB_OUTPUT
           for attempt in 1 2 3 4 5 6; do
-            if [ -n "$(npm view "@unlayer/react-elements@$RANGE" version 2>/dev/null)" ]; then exit 0; fi
+            if [ -n "$(npm view "@hyper-elements/react@$RANGE" version 2>/dev/null)" ]; then exit 0; fi
             sleep 10
           done
-          echo "::error::@unlayer/react-elements@$RANGE isn't on npm: release Elements first."
+          echo "::error::@hyper-elements/react@$RANGE isn't on npm: release Elements first."
           exit 1
 
       - name: Pre-publish summary
@@ -490,7 +490,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Package** | \`@unlayer/migrate\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`@hyper-elements/migrate\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Elements range** | ${{ steps.elements.outputs.range }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
@@ -499,7 +499,7 @@ jobs:
         working-directory: packages/migrate
         run: |
           pnpm pack --pack-destination /tmp
-          TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          TARBALL=$(ls /tmp/hyper-elements-migrate-*.tgz)
           npm publish "$TARBALL" --access public
 
       - name: Tag release
@@ -523,7 +523,7 @@ jobs:
             echo "Release $TAG already exists — skipping"
           else
             gh release create "$TAG" \
-              --title "@unlayer/migrate ${{ steps.version.outputs.version }}" \
+              --title "@hyper-elements/migrate ${{ steps.version.outputs.version }}" \
               --generate-notes \
               --latest=false \
               ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}

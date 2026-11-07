@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 import WelcomeEmail from "@/emails/welcome-email";
 
 export async function GET() {

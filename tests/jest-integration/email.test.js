@@ -2,8 +2,8 @@
 // first build threw when it was imported there ("TextEncoder is not defined"), where 0.1.22 rendered.
 const React = require("react");
 const { renderToString } = require("react-dom/server");
-const { Email, Text, render } = require("@unlayer/react-elements");
-const { toDesign } = require("@unlayer/react-elements/builder");
+const { Email, Text, render } = require("@hyper-elements/react");
+const { toDesign } = require("@hyper-elements/react/builder");
 
 const h = React.createElement;
 const email = h(Email, null, h(Text, null, "Hello jest"));
@@ -23,15 +23,15 @@ test("works out a design inside a page's react-dom/server render, and the page's
 });
 
 test("the main entry is the new components, and today's aren't in the package", () => {
-  const main = require("@unlayer/react-elements");
+  const main = require("@hyper-elements/react");
   expect(typeof main.render).toBe("function");
   expect(main.renderToHtml).toBeUndefined();
-  expect(() => require("@unlayer/react-elements/legacy")).toThrow();
+  expect(() => require("@hyper-elements/react/legacy")).toThrow();
 });
 
 test("renders a template in the new components, and takes it to the builder's design (/builder)", async () => {
-  const {Email, Heading, Text, render} = require("@unlayer/react-elements");
-  const { toDesign } = require("@unlayer/react-elements/builder");
+  const {Email, Heading, Text, render} = require("@hyper-elements/react");
+  const { toDesign } = require("@hyper-elements/react/builder");
   const template = h(Email, null, h(Heading, null, "Hello jest"), h(Text, null, "New components"));
   const { html, text } = await render(template);
   expect(html).toContain("Hello jest");
