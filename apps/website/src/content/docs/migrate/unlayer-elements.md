@@ -3,7 +3,7 @@ title: "From Unlayer Elements"
 description: "Move templates written with Unlayer Elements to Hyper Elements with a codemod that keeps your props, loops and helpers."
 ---
 
-Hyper Elements doesn't include Unlayer Elements' components (`ColumnLayouts`, `html` props, `renderToHtml()`): templates written with them move before you upgrade, so stay on Unlayer Elements until they have. A codemod rewrites them with the new components. It rewrites the imports and the JSX, and nothing else: your props, loops, conditions, helpers and constants stay as they are.
+Hyper Elements is a new package. It doesn't include the components of Unlayer Elements, `@unlayer/react-elements` (`ColumnLayouts`, `html` props, `renderToHtml()`), so templates written with them have to move, and nothing changes until they do. A codemod rewrites them with the new components. It rewrites the imports and the JSX, and nothing else: your props, loops, conditions, helpers and constants stay as they are.
 
 A template uses one set of components or the other, never both. Move a template whole.
 
@@ -15,7 +15,14 @@ npx @hyper-elements/migrate src/emails/welcome.tsx --from unlayer-elements > wel
 npx @hyper-elements/migrate src/emails --from unlayer-elements --write          # replaces them (only files git can restore)
 ```
 
-Run it before you upgrade the package: a template with nothing in it that only Unlayer Elements has is migrated only while Unlayer Elements is installed. Each migrated template starts with the line `// Migrated from Unlayer Elements by @hyper-elements/migrate.`, so a second run changes nothing.
+Then install the new package, and remove the old one once nothing imports it. What the codemod keeps of the old package's API (`renderToHtml()`, say) stays imported from it, and it's listed for you to replace:
+
+```bash
+npm install @hyper-elements/react
+npm uninstall @unlayer/react-elements
+```
+
+Each migrated template starts with the line `// Migrated from Unlayer Elements by @hyper-elements/migrate.`, so a second run changes nothing.
 
 `--write` only replaces templates git can restore, so commit first. `--allow-dirty` skips that check. `--report notes.md` (or `.json`) writes what the codemod noted for each template.
 
@@ -32,10 +39,10 @@ A namespace re-export (`export * as E from ...`) isn't followed: a template that
 ```ts
 import { migrateElements } from "@hyper-elements/migrate/elements";
 
-const { code, report } = await migrateElements(source, { installed: "0.2.1" });
+const { code, report } = await migrateElements(source);
 ```
 
-`installed` is the version of `@hyper-elements/react` the project has, where it's known. A module that comes back as it was says why: `current` (it already uses the new components), `undecided` (nothing in it is only either's) or `refused` (it has both, with the reason).
+A module that comes back as it was because it's already on the new components has `current: true`.
 
 ## Before and after
 
