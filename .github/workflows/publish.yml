@@ -205,7 +205,7 @@ jobs:
           version: 9.7.0
 
       # setup-node with registry-url enables OIDC token exchange for npm publish.
-      # All @unlayer deps are public — no NPM_TOKEN needed.
+      # Trusted publishing needs no NPM_TOKEN.
       - name: Setup Node.js 24 (with npm registry for OIDC)
         uses: actions/setup-node@v4
         with:
