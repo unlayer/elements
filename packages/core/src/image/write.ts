@@ -25,6 +25,15 @@ type Sides = { top: number; right: number; bottom: number; left: number };
 const FLEX: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch", "space-between": "space-between" };
 const flex = (value: unknown) => (typeof value === "string" ? FLEX[value] : undefined);
 
+/**
+ * A block of text's style, its alignment also as the flex box's: Satori aligns by textAlign only the lines of text
+ * that wrap, so a line that doesn't would sit at the start.
+ */
+const aligned = (style: Style): Style => {
+  const justify = { center: "center", right: "flex-end" }[String(style.textAlign)];
+  return justify ? { ...style, justifyContent: justify } : style;
+};
+
 export function writeCanvas(root: ResolvedNode, context: WriteContext): DrawnCanvas {
   const write = new Writer(context);
   return {
@@ -141,10 +150,10 @@ class Writer {
         return this.table(node, placed);
       case "Html":
         // An image can't draw markup: its plain text (validate() says so).
-        return { kind: "text", style: { display: "flex", ...this.text(node), ...placed }, runs: [htmlText(node)] };
+        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...placed }), runs: [htmlText(node)] };
       case "Video":
         // An image can't play a video: its title, as an email or a PDF without its thumbnail shows it.
-        return { kind: "text", style: { display: "flex", ...this.text(node), ...this.box(node), ...placed }, runs: [String(node.props.title ?? "Video")] };
+        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...this.box(node), ...placed }), runs: [String(node.props.title ?? "Video")] };
       case "Section":
       case "Column":
         return {
@@ -228,7 +237,7 @@ class Writer {
   /** A block of text: its runs, a line break starting a new line. */
   paragraph(node: ResolvedNode, style: Style): Block {
     const breaks = node.children.some((child) => typeof child !== "string" && child.type === "LineBreak");
-    return { kind: "text", style: { display: "flex", flexWrap: "wrap", ...this.text(node), ...style, whiteSpace: breaks ? "pre-wrap" : undefined }, runs: this.runs(node) };
+    return { kind: "text", style: aligned({ display: "flex", flexWrap: "wrap", ...this.text(node), ...style, whiteSpace: breaks ? "pre-wrap" : undefined }), runs: this.runs(node) };
   }
 
   runs(node: ResolvedNode): Run[] {
