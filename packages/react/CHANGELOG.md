@@ -9,7 +9,7 @@ the code still works: `<Email>` is still there, but `<Email containerPadding={20
 `renderToHtml()`. **Stay on 0.2 until you've migrated.** A range like `^0.2.1` doesn't install 0.3.0; `>=0.2`, `0.x`
 or `*` does.
 
-**To upgrade:** run `npx @unlayer/migrate src/emails --from elements`. It lists what it would change; `--write`
+**To upgrade:** run `npx @unlayer/migrate src/emails --from unlayer-elements`. It lists what it would change; `--write`
 replaces the templates (only those git can restore). It rewrites the imports and the JSX and keeps props, loops and
 conditions; what it can't move is listed, and that file is left as it was to rewrite by hand.
 

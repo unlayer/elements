@@ -29,18 +29,18 @@ Hyper Elements is an open-source React component library for transactional email
   <img width="1672" height="941" alt="hyperelementsflow" src="https://github.com/user-attachments/assets/e3730f39-d183-401e-9bd8-72e197c1bd54" />
 </p>
 
-Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
+Hyper Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
 
-## Why Elements?
+## Why Hyper Elements?
 
 | Tool          | Email | Web | PDF |
 |---------------|:-----:|:---:|:---:|
 | React Email   |  ✅   | ❌  | ❌  |
 | MJML          |  ✅   | ❌  | ❌  |
 | PDF libraries |  ❌   | ❌  | ✅  |
-| **Elements**  |  ✅   | ✅  | ✅  |
+| **Hyper Elements**  |  ✅   | ✅  | ✅  |
 
-Elements is designed for teams that need to generate email, web, and document experiences from a single React codebase.
+Hyper Elements is designed for teams that need to generate email, web, and document experiences from a single React codebase.
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ function WelcomeEmail() {
 const { html, text } = await render(<WelcomeEmail />);
 ```
 
-Upgrading from Elements 0.2, whose components aren't in 0.3.0? See [Moving from Elements 0.2](./packages/react/README.md#moving-from-elements-02).
+Upgrading from Unlayer Elements, whose components aren't in Hyper Elements? See [Moving from Unlayer Elements](./packages/react/README.md#moving-from-unlayer-elements).
 
 ## Email Client Compatibility Notes
 
@@ -106,7 +106,7 @@ Validation references:
 
 ### CSP Safety Validation
 
-Elements includes a strict CSP gate that runs the built package under:
+Hyper Elements includes a strict CSP gate that runs the built package under:
 
 - `node --disallow-code-generation-from-strings`
 
@@ -253,7 +253,7 @@ For the full API reference, component props, design patterns, and common mistake
 | Package | Description | Published |
 |---------|-------------|-----------|
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers, and a `<Document>` as a PDF (`/pdf`) and a `<Canvas>` as PNG or SVG (`/image`), with no browser | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
-| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals; the converter as a library at `@unlayer/migrate/react-email` | Not yet |
+| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Hyper Elements, checked against the originals; the converter as a library at `@unlayer/migrate/react-email` | Not yet |
 | [`@unlayer-internal/elements-core`](./packages/core) | Component definitions, validation, layout, and the writers: email, page and print HTML, plain text | Internal (bundled into `@unlayer/react-elements`) |
 
 ## Examples
@@ -290,9 +290,9 @@ pnpm storybook:hub
 
 ## FAQ
 
-### What makes Elements production ready?
+### What makes Hyper Elements production ready?
 
-Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/hyper-elements/hyper-elements/releases), so any change to the API or output is visible before you upgrade.
+Hyper Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/hyper-elements/hyper-elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 
@@ -311,13 +311,13 @@ Email mode writes table-based HTML, with Outlook's markup in conditional comment
 
 `<Document>` renders to print-ready HTML, and [`@unlayer/react-elements/pdf`](./packages/react/docs/render-pdf.md) writes it as a PDF with no browser. You can also use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-ready HTML to any HTML-to-PDF library: the [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local pipeline. A `<Document>` sets its pages with `size`, `margin`, `<PageBreak>`, `<PageHeader>` and `<PageFooter>`.
 
-### Can I use Elements without the Unlayer platform?
+### Can I use Hyper Elements without the Unlayer platform?
 
 Yes. The package is MIT-licensed, makes no network calls, requires no API key or account, and has no runtime dependency on Unlayer's platform. `render()` runs entirely in your own process, and the output is plain, static HTML that you own outright. The platform integration (design JSON through `toDesign()` and `fromDesign()`) is strictly opt-in: valuable if you also use the Unlayer builder, ignorable if you don't.
 
-### Is there a visual editor for Elements?
+### Is there a visual editor for Hyper Elements?
 
-Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `toDesign()` writes your template as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing, and `fromDesign()` reads an edited design back as a template. See [the builder adapter](./packages/react/README.md#to-the-unlayer-builder-and-back) for what the builder can hold.
+Yes. Hyper Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `toDesign()` writes your template as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing, and `fromDesign()` reads an edited design back as a template. See [the builder adapter](./packages/react/README.md#to-the-unlayer-builder-and-back) for what the builder can hold.
 
 ### Can I create custom components?
 
@@ -325,7 +325,7 @@ Yes. A function that returns components is a component of your own, and `compone
 
 ## Task Guides
 
-Start with [when to use Elements](./packages/react/docs/README.md), or go directly to a runnable workflow:
+Start with [when to use Hyper Elements](./packages/react/docs/README.md), or go directly to a runnable workflow:
 
 - [Build transactional emails in React](./packages/react/docs/transactional-email.md) — HTML and plain-text receipts, order confirmations, and password reset patterns.
 - [Send with Resend, AWS SES, Postmark, SendGrid, or Nodemailer](./packages/react/docs/email-providers.md) — provider setup and complete server-side integrations.

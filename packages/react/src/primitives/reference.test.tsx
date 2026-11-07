@@ -50,8 +50,8 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
     expect(frontmatter![1]).toMatch(/emails.*pages.*documents.*PDFs.*images/);
     const guide = read("GUIDE.md");
     expect(skill.endsWith(guide.slice(guide.indexOf("## How a template is written")))).toBe(true);
-    expect(skill).toContain("## Templates from Elements 0.2");
-    expect(skill).toContain("npx @unlayer/migrate src/emails --from elements");
+    expect(skill).toContain("## Templates from Unlayer Elements");
+    expect(skill).toContain("npx @unlayer/migrate src/emails --from unlayer-elements");
   });
 
   it("says what a list prop's items are, and the mistakes agents made on their first try", () => {

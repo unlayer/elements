@@ -7,13 +7,13 @@ description: Write emails, web pages, printed documents, PDFs and images in code
 
 <!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
-Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.
+Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.
 
-## Templates from Elements 0.2
+## Templates from Unlayer Elements
 
-A project may have templates written for Elements 0.2: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor="#fff"`. Those components aren't in 0.3.0: the package's components are these.
+A project may have templates written with Unlayer Elements: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor="#fff"`. Those components aren't in Hyper Elements: the package's components are these.
 
-- Move them with the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @unlayer/migrate --help`.
+- Move them with the codemod: `npx @unlayer/migrate src/emails --from unlayer-elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @unlayer/migrate --help`.
 - What the codemod can't move is listed, and the file is left as it was: rewrite that part by hand with these components.
 - Templates in React Email: `npx @unlayer/migrate src/emails` writes them in these components and checks each against its original.
 
@@ -37,8 +37,8 @@ Each of these made an agent's first try fail:
 - `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.
 - `items={[{ text: "Home", link: "/" }]}` → `items={[{ text: "Home", href: "/" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.
 - `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.
-- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Elements 0.2's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.
-- `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.
+- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Unlayer Elements' props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.
+- `<Image src="https://example.com/logo.png">` → `src={{ src: "https://example.com/logo.png", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Hyper Elements warns.
 
 ## A whole template
 

@@ -71,7 +71,7 @@ console.log(outline(<Receipt />)); // the laid-out template as text: each block,
 
 To write a template, read [GUIDE.md](./GUIDE.md): how a template is written, and every component on a line. [REFERENCE.md](./REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
 
-Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-elements-02).
+Upgrading from Unlayer Elements? See [Moving from Unlayer Elements](#moving-from-unlayer-elements).
 
 ## Using with an AI agent
 
@@ -81,7 +81,7 @@ Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-element
 @node_modules/@unlayer/react-elements/GUIDE.md
 ```
 
-For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing a Hyper Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
 
 Or install the same guide as an agent skill: `npx skills add hyper-elements/hyper-elements`.
 
@@ -336,7 +336,7 @@ const { design, report } = toDesign(<Receipt />); // report: what the builder ca
 const { element, code, report: read } = fromDesign(saved, { displayMode: "email" }); // "web" a Page, "document" a Document
 ```
 
-The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`. A line height goes in the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px is `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet: a `PageNumber` goes as its token, which the editor's PDF prints as it is, and `report` says so.
+The design holds no Hyper Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Hyper Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`. A line height goes in the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px is `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet: a `PageNumber` goes as its token, which the editor's PDF prints as it is, and `report` says so.
 
 ## Task guides and runnable examples
 
@@ -346,18 +346,18 @@ The design holds no Elements data. A style or prop a builder tool has no field f
 - [React invoice PDF with Playwright](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
 - [React to Unlayer visual editing](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/visual-editing.md): `toDesign()`, editor loading, export, and what the builder can hold.
 
-See [when to choose Elements](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/content-workflows).
+See [when to choose Hyper Elements](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/content-workflows).
 
-## Moving from Elements 0.2
+## Moving from Unlayer Elements
 
-Elements 0.2's components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in 0.3.0: the package's components are these. The codemod moves templates written with them:
+Unlayer Elements' components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in Hyper Elements: the package's components are these. The codemod moves templates written with them:
 
 ```bash
-npx @unlayer/migrate src/emails --from elements   # templates written for Elements 0.2
-npx @unlayer/migrate src/emails                   # React Email templates
+npx @unlayer/migrate src/emails --from unlayer-elements   # templates written with Unlayer Elements
+npx @unlayer/migrate src/emails                           # React Email templates
 ```
 
-It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) and [`@unlayer/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
 
 ## Development
 
