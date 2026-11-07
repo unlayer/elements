@@ -531,7 +531,7 @@ describe("text props with markup", () => {
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     fs.writeFileSync(path.join(dir, "original.tsx"), original);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Text } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Text } from "@hyper-elements/react";
 export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
   return <Email><Row><Column>${body}</Column></Row></Email>;
 }`);
@@ -1170,7 +1170,7 @@ export default function T({ compact = false }: { compact?: boolean }) {
   </Row></Section></Body></Html>;
 }
 T.PreviewProps = { compact: false };`);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Text } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Text } from "@hyper-elements/react";
 export default function T({ compact = false }: { compact?: boolean }) {
   if (compact) return <Email><Row><Column><Text>Short column words</Text></Column></Row><Row><Column><Text>Right column words</Text></Column></Row></Email>;
   return <Email><Row><Column style={{ width: "50%" }}><Text>Left column words</Text></Column><Column style={{ width: "50%" }}><Text>Right column words</Text></Column></Row></Email>;

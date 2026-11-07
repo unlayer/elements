@@ -1,9 +1,9 @@
-// A template in the new components (@unlayer/react-elements) rendered on the server with render(), and
-// taken to the builder's design with toDesign() (@unlayer/react-elements/builder): what verify.mjs checks comes out as
+// A template in the new components (@hyper-elements/react) rendered on the server with render(), and
+// taken to the builder's design with toDesign() (@hyper-elements/react/builder): what verify.mjs checks comes out as
 // an email (tables) with its words in the HTML and the plain text, and a design with its rows.
 import React from "react";
-import { Button, Column, Email, Heading, Row, Text, render } from "@unlayer/react-elements";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { Button, Column, Email, Heading, Row, Text, render } from "@hyper-elements/react";
+import { toDesign } from "@hyper-elements/react/builder";
 
 const h = React.createElement;
 

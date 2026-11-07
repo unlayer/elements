@@ -1,4 +1,4 @@
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 import { invoiceTemplate, sampleInvoice, type InvoiceData } from "./invoice";
 
 export async function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {

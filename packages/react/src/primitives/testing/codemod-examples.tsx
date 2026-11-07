@@ -1,5 +1,5 @@
-// main's examples, migrated by @unlayer/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.
-// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @unlayer/migrate test legacy-examples
+// main's examples, migrated by @hyper-elements/migrate's codemod (packages/migrate/src/legacy): generated, don't edit.
+// Regenerate: UPDATE_LEGACY_EXAMPLES=1 pnpm --filter @hyper-elements/migrate test legacy-examples
 import {
   Button,
   Column,
@@ -189,8 +189,8 @@ export const airbnb = (() => {
 // main's examples/LumaEventInvite.fixture.tsx
 //
 // What the codemod reported:
-// - line 153: today's draw this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
-// - line 163: today's draw this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 153: Unlayer Elements draws this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 163: Unlayer Elements draws this Image's 48px as 17.14% of its column, at most 51.42px: that's written out so it doesn't move (give it its width in px to draw it at that)
 export const luma = (() => {
   // Luma-style event invite — modern, energetic, full-bleed hero.
   const INK = "#0B0B0F";
@@ -657,7 +657,7 @@ export const mercury = (() => {
 //
 // What the codemod reported:
 // - line 37: <Email>'s linkStyle isn't migrated: it's left out (the new components have nothing it becomes)
-// - line 246: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu
+// - line 246: written as a Row of its links, spaced as Unlayer Elements' Menu spaces them (the new Menu leaves out the space that one puts between its links): in the visual editor it's a row of text, not a Menu
 export const brew = (() => {
   // Morning-Brew-style daily digest. Friendly, editorial, readable.
   // Styled text wordmark (no logo image), a date line, three story
@@ -1280,7 +1280,7 @@ export const notion = (() => {
 // main's examples/ProductDigest.fixture.tsx
 //
 // What the codemod reported:
-// - line 102: written as a Row of its links, spaced as today's Menu spaces them (the new Menu leaves out the space today's puts between its links): in the visual editor it's a row of text, not a Menu
+// - line 102: written as a Row of its links, spaced as Unlayer Elements' Menu spaces them (the new Menu leaves out the space that one puts between its links): in the visual editor it's a row of text, not a Menu
 export const digest = (() => {
   // Reconstructed from the "fresh agent" SaaS-digest build — verbatim natural
   // forms: heading fonts, inline <a> via Paragraph html, ColumnLayouts.TwoEqual,
@@ -2012,7 +2012,7 @@ export const warby = (() => {
 //
 // What the codemod reported:
 // - line 31: its html comes from an expression (desc): it's written as text, so markup in it would show; write that with Span, Link and LineBreak
-// - line 42: today's draw this Image's 120px as 20.69% of its column, at most 124.14px: that's written out so it doesn't move (give it its width in px to draw it at that)
+// - line 42: Unlayer Elements draws this Image's 120px as 20.69% of its column, at most 124.14px: that's written out so it doesn't move (give it its width in px to draw it at that)
 export const spotify = (() => {
   // Spotify brand: bright green #1ED760, near-black #121212, muted #B3B3B3.
   const GREEN = "#1ED760";

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { toDesign } from "@hyper-elements/react/builder";
 import { templates } from "../templates";
 
 declare global {

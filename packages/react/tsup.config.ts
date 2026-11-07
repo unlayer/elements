@@ -27,7 +27,7 @@ const shared: Options = {
 const output = (entry: string, engines: string[]): Options => ({
   ...shared,
   entry: { [entry]: `src/${entry}/index.ts` },
-  external: [...(shared.external as string[]), ...engines, '@unlayer/react-elements'],
+  external: [...(shared.external as string[]), ...engines, '@hyper-elements/react'],
 });
 
 export default defineConfig([

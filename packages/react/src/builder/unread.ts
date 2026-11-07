@@ -52,7 +52,7 @@ function empty(value: unknown): boolean {
 
 /** What a value of these is called in a line of the report. */
 const WHAT: Record<string, string> = {
-  displayCondition: "display condition, which today's writers keep for the email service to apply, isn't read: it's shown to everyone",
+  displayCondition: "display condition, which the builder's exporters keep for the email service to apply, isn't read: it's shown to everyone",
   anchor: "anchor isn't read: links to it go nowhere",
   backgroundImage: "background image isn't one Elements draws: left out",
   linkStyle: "link style, the body's own, isn't one Elements draws for every link: left out",

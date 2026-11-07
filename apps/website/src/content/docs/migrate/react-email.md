@@ -96,7 +96,7 @@ Files that aren't templates (shared components, helpers, a framework's routes) a
 | `--force` | With `--strict`, write templates the check fails anyway. |
 | `--overwrite` | Replace files already at a destination that this run didn't produce: what an earlier run wrote in an `--out` folder (not once it's edited), or files git can restore. |
 | `--allow-dirty` | Replace files git can't restore (changed since the last commit, not committed, or not in a repository), with `--write` or `--overwrite`. |
-| `--from <source>` | `react-email` (the default), or `elements` to [move older Elements templates](/docs/migrate/elements). |
+| `--from <source>` | `react-email` (the default), or `unlayer-elements` to [move Unlayer Elements templates](/docs/migrate/unlayer-elements). |
 | `-h`, `--help` | Show the help. |
 | `-v`, `--version` | Show the version. |
 

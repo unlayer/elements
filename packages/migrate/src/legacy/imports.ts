@@ -21,6 +21,7 @@ export interface TodaysImports {
 }
 
 const TODAYS = new Set(DEFAULT_FROM);
+const NEW_PACKAGE = "@hyper-elements/react";
 /** A namespace of today's components passed on (`export * as E from "@unlayer/react-elements"`). */
 const NAMESPACE = "*";
 /** How many modules passing today's components on are followed, one through another. */
@@ -62,6 +63,11 @@ function ownExports(file: ts.SourceFile, imported: Set<string>): Set<string> {
 }
 
 /** Finds a module's imports of today's components, following the project's modules with `resolve`. */
+/** Whether a module imports the new package (types aren't counted): it's on the new components already. */
+export function importsNewPackage(path: string, source: string): boolean {
+  return importsOf(parse(path, source)).some(({ specifier }) => specifier === NEW_PACKAGE || specifier.startsWith(`${NEW_PACKAGE}/`));
+}
+
 export function todaysImports(resolve: Resolve): (path: string, source: string) => Promise<TodaysImports | undefined> {
   const done = new Map<string, Map<string, string>>();
 

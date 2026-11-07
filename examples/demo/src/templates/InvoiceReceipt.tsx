@@ -11,10 +11,10 @@ import {
   Table,
   TableCell,
   TableRow,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
-//   import { render } from "@unlayer/react-elements";
-//   import { toDesign } from "@unlayer/react-elements/builder";
+//   import { render } from "@hyper-elements/react";
+//   import { toDesign } from "@hyper-elements/react/builder";
 //   const { html } = await render(<InvoiceReceipt />);
 //
 // Cloud PDF export (server only):

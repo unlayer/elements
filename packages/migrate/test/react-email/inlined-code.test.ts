@@ -634,7 +634,7 @@ export default function Note({ footer }: { footer?: any }) {
 Note.PreviewProps = { footer: "reply to this email" };
 `,
     }, "note.tsx");
-    const { Email, Column, Text, Span } = await import("@unlayer/react-elements");
+    const { Email, Column, Text, Span } = await import("@hyper-elements/react");
     // A migration whose text is right and whose kept branch (for elements) loses the value.
     function holdsElements(...values: unknown[]): boolean {
       return values.some((value) => React.isValidElement(value));
@@ -1020,7 +1020,7 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     const Broken = () => {
       throw new Error("no data");
     };
-    const { Email, Row, Column } = await import("@unlayer/react-elements");
+    const { Email, Row, Column } = await import("@hyper-elements/react");
     const Leaves = () => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Broken))));
     console.error = () => undefined;
     try {

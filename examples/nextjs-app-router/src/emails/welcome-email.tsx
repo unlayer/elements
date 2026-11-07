@@ -8,7 +8,7 @@ import {
   Text,
   Row,
   Span,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 import { requireSafeUrl } from "@/utils/safe";
 
 const font = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";

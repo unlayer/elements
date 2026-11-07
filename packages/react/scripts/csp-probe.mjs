@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Run with: node --disallow-code-generation-from-strings scripts/csp-probe.mjs
 //
-// CSP safety gate for @unlayer/react-elements.
+// CSP safety gate for @hyper-elements/react.
 //
 // If any code render() or the builder adapter reaches evaluates a string (eval /
 // new Function) at import or render time, a strict
@@ -12,7 +12,7 @@
 // output is CSP-safe.
 //
 // This is a HARD gate. It fails if importing or rendering the built `dist/`
-// evaluates a string anywhere. A green check must mean "@unlayer/react-elements
+// evaluates a string anywhere. A green check must mean "@hyper-elements/react
 // is genuinely CSP-safe."
 
 const CSP_ERROR = /Code generation from strings disallowed/;
@@ -44,14 +44,14 @@ try {
   fromDesign(toDesign(h(p.Email, null, content())).design);
 
   console.info(
-    `CSP_OK: @unlayer/react-elements imports + renders its components in every root (HTML and plain text), and ` +
+    `CSP_OK: @hyper-elements/react imports + renders its components in every root (HTML and plain text), and ` +
       `takes them to the builder and back, under strict CSP — no eval / new Function`,
   );
 } catch (err) {
   const message = String((err && err.message) || err);
   if (CSP_ERROR.test(message)) {
     console.error(
-      `CSP_FAIL: @unlayer/react-elements evaluates a string (eval / new Function) at import or render — ` +
+      `CSP_FAIL: @hyper-elements/react evaluates a string (eval / new Function) at import or render — ` +
         `it would throw under a Content-Security-Policy without 'unsafe-eval'.\n${message}`,
     );
   } else {

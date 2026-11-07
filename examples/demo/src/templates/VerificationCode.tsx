@@ -6,7 +6,7 @@ import {
   Text,
   Section,
   Span,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 const monoFont = "'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace";
 

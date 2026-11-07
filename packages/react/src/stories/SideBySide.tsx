@@ -131,7 +131,7 @@ function jsx(node: unknown, indent: string, names: Set<string>): string[] {
 export const code = (template: ReactElement) => {
   const names = new Set<string>();
   const lines = jsx(template, "  ", names);
-  return `import { ${[...names].sort().join(", ")} } from "@unlayer/react-elements";\n\nconst template = (\n${lines.join("\n")}\n);`;
+  return `import { ${[...names].sort().join(", ")} } from "@hyper-elements/react";\n\nconst template = (\n${lines.join("\n")}\n);`;
 };
 
 /** A story of one template, with its code. */
@@ -174,7 +174,7 @@ export const browsed = (template: ReactElement): StoryObj<Args> => ({
   ),
 });
 
-/** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @unlayer/react-elements/image writes it as a PNG. */
+/** A Canvas's HTML at its own size (drawn smaller where it doesn't fit), as @hyper-elements/react/image writes it as a PNG. */
 export const drawn = (template: ReactElement, size: number): StoryObj<Args> => ({
   argTypes: { width: { table: { disable: true } } },
   parameters: { docs: { source: { code: code(template), language: "tsx" } } },

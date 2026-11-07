@@ -14,7 +14,7 @@ import {
   Table,
   TableCell,
   TableRow,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 const sansFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 

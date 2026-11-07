@@ -8,7 +8,7 @@ import {
   Image,
   Text,
   Section,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 const sansFont = "'Inter', system-ui, -apple-system, sans-serif";
 

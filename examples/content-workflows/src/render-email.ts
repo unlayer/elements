@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { toDesign } from "@hyper-elements/react/builder";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { renderInvoiceEmail } from "./message";
 

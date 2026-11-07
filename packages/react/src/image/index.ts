@@ -10,7 +10,7 @@
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  */
 import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, writeCanvas, type Asset, type Font, type FontFace } from "@unlayer-internal/elements-core/image";
-import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements";
+import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 
 export interface ImageFont {
@@ -78,7 +78,7 @@ function readable(layout: unknown, output: "pdf" | "image"): void {
     {
       code: `${output}/version`,
       severity: "error",
-      message: `@unlayer/react-elements/${output} reads layout version ${LAYOUT_VERSION}; the main entry writes ${typeof layout === "number" ? layout : "none"}: update @unlayer/react-elements`,
+      message: `@hyper-elements/react/${output} reads layout version ${LAYOUT_VERSION}; the main entry writes ${typeof layout === "number" ? layout : "none"}: update @hyper-elements/react`,
       path: "root",
     },
   ]);

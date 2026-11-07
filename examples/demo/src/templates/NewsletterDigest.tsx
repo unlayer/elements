@@ -12,7 +12,7 @@ import {
   Row,
   Section,
   Span,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 const sansFont = "Georgia, 'Times New Roman', Times, serif";
 

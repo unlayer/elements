@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-// Migrated from React Email by @unlayer/migrate (codemod mode).
+// Migrated from React Email by @hyper-elements/migrate (codemod mode).
 import {
   Button,
   Column,
@@ -11,7 +11,7 @@ import {
   Section,
   Span,
   Text,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 import * as React from "react";
 
 interface WelcomeEmailProps {

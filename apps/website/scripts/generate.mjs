@@ -12,9 +12,8 @@
 // The PDFs and PNGs need the templates' fonts as TTF files (react-pdf and Satori don't read WOFF2):
 // they're fetched from Google Fonts by family and weight, once, into node_modules/.cache.
 //
-// The examples import `@hyper-elements/react`. Until the packages are renamed, that resolves to the
-// workspace's `@unlayer/react-elements`. To use another build (a PR's checkout, say), point
-// HYPER_ELEMENTS_PACKAGE at its packages/react directory; it must be built.
+// The examples import `@hyper-elements/react`, which resolves to the workspace's. To use another build
+// (a PR's checkout, say), point HYPER_ELEMENTS_PACKAGE at its packages/react directory; it must be built.
 import { build } from "esbuild";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -25,11 +24,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cacheDir = join(root, ".cache");
 const outDir = join(root, "src/generated");
 
-const NEW_NAME = "@hyper-elements/react";
-const CURRENT_NAME = "@unlayer/react-elements";
+const NAME = "@hyper-elements/react";
 const override = process.env.HYPER_ELEMENTS_PACKAGE ? resolve(process.env.HYPER_ELEMENTS_PACKAGE) : null;
 const siteRequire = createRequire(join(root, "package.json"));
-const packageDir = override ?? dirname(siteRequire.resolve(`${CURRENT_NAME}/package.json`));
+const packageDir = override ?? dirname(siteRequire.resolve(`${NAME}/package.json`));
 
 // One copy of React: the one the Elements build resolves.
 const elementsRequire = createRequire(join(packageDir, "package.json"));
@@ -39,18 +37,12 @@ const resolvePlugin = {
   setup(b) {
     b.onResolve({ filter: /^@hyper-elements\/react(\/.*)?$/ }, ({ path }) => {
       // The package's main entry is built as dist/primitives; /builder, /pdf and /image as their own.
-      const subpath = path.slice(NEW_NAME.length).replace(/^\//, "") || "primitives";
+      const subpath = path.slice(NAME.length).replace(/^\//, "") || "primitives";
       return { path: join(packageDir, "dist", `${subpath}.cjs`) };
     });
     b.onResolve({ filter: /^react(-dom)?(\/.*)?$/ }, ({ path }) => ({ path: elementsRequire.resolve(path) }));
   },
 };
-
-/** The package's own names, as the site names them. */
-const rename = (s) =>
-  s
-    .replaceAll("@unlayer/react-elements", NEW_NAME)
-    .replaceAll("@unlayer/migrate", "@hyper-elements/migrate");
 
 async function renderAll(kind) {
   const dir = join(root, "examples", kind);
@@ -63,7 +55,7 @@ async function renderAll(kind) {
       entry,
       [
         `import Example, * as mod from ${JSON.stringify(join(dir, file))};`,
-        `import { outline, render } from "${NEW_NAME}";`,
+        `import { outline, render } from "${NAME}";`,
         `export const meta = mod.meta ?? {};`,
         `export const element = () => <Example />;`,
         // The root a template returns, for its fonts: the PDF and PNG are drawn in them.
@@ -105,7 +97,7 @@ async function renderAll(kind) {
       html: result.html,
       text: result.text.trim(),
       outline: result.outline.trimEnd(),
-      diagnostics: result.diagnostics.map(({ severity, code, message, path }) => ({ severity, code, message: rename(message), path })),
+      diagnostics: result.diagnostics.map(({ severity, code, message, path }) => ({ severity, code, message, path })),
     };
     // Every Document or Canvas template as a real file too, named after it.
     if (kind === "templates" && (meta.root === "Document" || meta.root === "Canvas")) {
@@ -116,7 +108,7 @@ async function renderAll(kind) {
         // What the PDF or PNG adds (a font it couldn't draw, say) is part of the template's diagnostics.
         const seen = new Set(out[slug].diagnostics.map((d) => `${d.code} ${d.path}`));
         for (const { severity, code, message, path } of diagnostics) {
-          if (!seen.has(`${code} ${path}`)) out[slug].diagnostics.push({ severity, code, message: rename(message), path });
+          if (!seen.has(`${code} ${path}`)) out[slug].diagnostics.push({ severity, code, message, path });
         }
       } catch (error) {
         const detail = error.diagnostics?.map((d) => `${d.code} at ${d.path}: ${d.message}`).join("\n") ?? String(error.message).slice(0, 600);
@@ -232,7 +224,7 @@ function splitReference(md) {
   return { intro: intro.join("\n").trim(), pages };
 }
 
-const reference = rename(await readFile(join(packageDir, "REFERENCE.md"), "utf8"));
+const reference = await readFile(join(packageDir, "REFERENCE.md"), "utf8");
 const { intro, pages } = splitReference(reference);
 const refDir = join(outDir, "reference");
 await rm(refDir, { recursive: true, force: true });

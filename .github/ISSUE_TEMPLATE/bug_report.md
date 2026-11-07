@@ -26,7 +26,7 @@ What actually happened. Include any error messages or screenshots.
 
 ## Environment
 
-- `@unlayer/react-elements` version:
+- `@hyper-elements/react` version:
 - React version:
 - Node.js version:
 - Framework (Next.js, Remix, Vite, etc.):

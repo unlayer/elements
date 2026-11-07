@@ -1,11 +1,11 @@
 # Build and send transactional email in React
 
-Use `@unlayer/react-elements` for React receipts, order confirmations, welcome emails, and password reset emails. Write the template with the components from `@unlayer/react-elements`, `await render()` it into HTML and plain text in your server or job worker, then pass both strings to an email provider. Elements does not deliver messages.
+Use `@hyper-elements/react` for React receipts, order confirmations, welcome emails, and password reset emails. Write the template with the components from `@hyper-elements/react`, `await render()` it into HTML and plain text in your server or job worker, then pass both strings to an email provider. Elements does not deliver messages.
 
 ## Install and choose a template
 
 ```bash
-npm install @unlayer/react-elements react react-dom
+npm install @hyper-elements/react react react-dom
 npm install --save-dev tsx typescript @types/node @types/react @types/react-dom
 ```
 
@@ -16,7 +16,7 @@ The runnable [invoice template](./one-template-email-web-pdf.md#define-the-share
 [src/message.ts](../../../examples/content-workflows/src/message.ts):
 
 ```ts
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 import { invoiceTemplate, sampleInvoice, type InvoiceData } from "./invoice";
 
 export async function renderInvoiceEmail(data: InvoiceData = sampleInvoice) {
@@ -51,7 +51,7 @@ export async function deliveryMessage() {
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { toDesign } from "@unlayer/react-elements/builder";
+import { toDesign } from "@hyper-elements/react/builder";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { renderInvoiceEmail } from "./message";
 
@@ -64,7 +64,7 @@ await writeFile("output/invoice.design.json", JSON.stringify(design, null, 2));
 console.info("Wrote output/invoice.email.html, invoice.txt and invoice.design.json");
 ```
 
-`toDesign()` from `@unlayer/react-elements/builder` writes the design JSON for the [visual editor](./visual-editing.md), and it is synchronous.
+`toDesign()` from `@hyper-elements/react/builder` writes the design JSON for the [visual editor](./visual-editing.md), and it is synchronous.
 
 Run the checked-in example from the repository root:
 

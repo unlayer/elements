@@ -21,7 +21,7 @@ type Build = typeof defaultBuild;
 
 // The builds rendering (an Elements render, or the app's render one is called in), innermost last, shared by every
 // copy of Elements a process loads (they share react-dom).
-const SHARED = Symbol.for("@unlayer/react-elements/render-builds");
+const SHARED = Symbol.for("@hyper-elements/react/render-builds");
 const using = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Build[];
 
 /** The same module (a bundler can wrap one in two objects). */

@@ -1,6 +1,6 @@
 export const reactSample = `import {
   Email, Column, Text, Heading, Button
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 export default function WelcomeEmail() {
   return (
@@ -37,5 +37,5 @@ export interface FrameworkSample {
 }
 
 export const frameworks: FrameworkSample[] = [
-  { id: "react", name: "React", language: "tsx", code: reactSample, packageName: "@unlayer/react-elements" },
+  { id: "react", name: "React", language: "tsx", code: reactSample, packageName: "@hyper-elements/react" },
 ];

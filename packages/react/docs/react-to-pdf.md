@@ -1,16 +1,16 @@
 # Generate a React invoice PDF
 
-Use `@unlayer/react-elements` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@unlayer/react-elements`; then there are two ways to get the file:
+Use `@hyper-elements/react` for invoices, receipts, and reports that need a real PDF file. Write the template with a `<Document>` from `@hyper-elements/react`; then there are two ways to get the file:
 
 - **With Playwright:** `await render(<Document>…</Document>)` produces print-ready HTML, and `page.pdf()` in headless Chromium produces the PDF bytes. It needs Chromium wherever it runs. The rest of this guide and the checked-in example use this way.
-- **Without a browser:** `renderPdf(<Document>…</Document>)` from `@unlayer/react-elements/pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
+- **Without a browser:** `renderPdf(<Document>…</Document>)` from `@hyper-elements/react/pdf` writes the PDF on the server, from font and image files you give it. See [below](#without-a-browser).
 
 ## Install
 
 In a Node.js 20+ project:
 
 ```bash
-npm install @unlayer/react-elements react react-dom playwright
+npm install @hyper-elements/react react react-dom playwright
 npm install --save-dev tsx typescript @types/node @types/react @types/react-dom
 npm pkg set type=module
 npx playwright install chromium
@@ -48,7 +48,7 @@ Save this as `src/render-pdf.ts` alongside `invoice.tsx` and `pdf.ts`:
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 
@@ -78,15 +78,15 @@ For repeated jobs, reuse a browser with isolated pages/contexts and close each a
 
 ## Without a browser
 
-`@unlayer/react-elements/pdf` writes a `Document` as a PDF with react-pdf, so a Node.js server needs no Chromium:
+`@hyper-elements/react/pdf` writes a `Document` as a PDF with react-pdf, so a Node.js server needs no Chromium:
 
 ```bash
-npm install @unlayer/react-elements @react-pdf/renderer react
+npm install @hyper-elements/react @react-pdf/renderer react
 ```
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { renderPdf } from "@unlayer/react-elements/pdf";
+import { renderPdf } from "@hyper-elements/react/pdf";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 
 await mkdir("output", { recursive: true });

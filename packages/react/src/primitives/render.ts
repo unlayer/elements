@@ -62,7 +62,7 @@ export function outline(element: React.ReactElement): string {
 }
 
 /**
- * A template laid out, for an entry that writes another output (`@unlayer/react-elements/pdf`): its tree, every block's
+ * A template laid out, for an entry that writes another output (`@hyper-elements/react/pdf`): its tree, every block's
  * width worked out, and what was found. What render() does before it writes HTML; `root` is null where there are
  * errors. The tree is the writers' input, not a format to store: it changes with Elements, and `layout` says which
  * format it's in (a writer refuses one it doesn't read).

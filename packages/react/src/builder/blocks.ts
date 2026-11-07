@@ -76,7 +76,7 @@ function button(values: Values, context: Context): Node[] {
 
 /** Says where text holds an email service's tag (<%name%>, {% if %}), which Elements writes escaped: the service can't fill it in. */
 function tagged(text: string, what: string, say: (message: string) => void): void {
-  if (serviceTag(text)) say(`${what} has an email service's tag, which today's writers keep as written and Elements writes escaped: the service won't fill it in`);
+  if (serviceTag(text)) say(`${what} has an email service's tag, which the builder's exporters keep as written and Elements writes escaped: the service won't fill it in`);
 }
 
 /** A button's width (its `size`): px or a share, where it isn't its own size. */

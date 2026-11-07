@@ -94,7 +94,7 @@ Welcome.PreviewProps = { name: "Alex" };`;
     const dir = setup();
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements";');
+    expect(written(dir)).toContain('from "@hyper-elements/react";');
     expect(written(dir)).toContain("style={{");
     expect(written(dir)).not.toContain("/legacy");
     // Its Button still opens in a new window, and the helpers today's markup needed are gone where nothing uses them.
@@ -117,7 +117,7 @@ export default memo(Welcome);`,
     });
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@hyper-elements/react"');
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
   });
@@ -147,7 +147,7 @@ export default memo(Welcome);`,
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated", "--report", "report.json"], out, stacking), out.out + out.err).toBe(0);
     expect(out.out).toContain(`looks different: columns written one under another: ${stacked}`);
-    expect(written(dir)).toContain('from "@unlayer/react-elements";');
+    expect(written(dir)).toContain('from "@hyper-elements/react";');
     const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
     expect(result.looks).toContain(`columns written one under another: ${stacked}`);
     // Listed once: not also among what the migration did.
@@ -170,7 +170,7 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>Hello <strong>{name}</strong> <Link href={note}><em>{name}</em></Link></Text>', '{ name: "Alex", note: "https://example.com/a" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@hyper-elements/react"');
     expect(written(dir)).toContain("{name}");
     expect(written(dir)).not.toMatch(/htmlText|escapeHtml/);
     const compare = io(dir);
@@ -181,7 +181,7 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>{note ? <em>{note}</em> : null}</Text>', '{ note: "Soon" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@hyper-elements/react"');
     expect(written(dir)).toContain("{note}");
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
@@ -191,7 +191,7 @@ Welcome.PreviewProps = ${preview};`,
     const dir = emails('<Text>Hi {name}</Text><table><tbody><tr><td style={{ color: "#123456" }}>{note}</td></tr></tbody></table>', '{ name: "Tom & Jerry", note: "a < b" }');
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@hyper-elements/react"');
     expect(written(dir)).not.toContain("KeptHtml");
     const compare = io(dir);
     expect(await run(["compare", "emails/welcome.tsx", "migrated/welcome.tsx"], compare, lib), compare.out + compare.err).toBe(0);
@@ -205,11 +205,11 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
     });
     const out = io(dir);
     expect(await run(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
-    expect(written(dir)).toContain('from "@unlayer/react-elements"');
+    expect(written(dir)).toContain('from "@hyper-elements/react"');
   });
 
   it("are checked with text props that hold markup: a template that escapes them twice fails, though its preview draws the same", async () => {
-    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@hyper-elements/react");
     const { Html, Body, Text } = await import("@react-email/components");
     const React = (await import("react")).default;
     const Original = ({ name }: { name: string }) => React.createElement(Html, null, React.createElement(Body, null, React.createElement(Text, null, name)));
@@ -271,7 +271,7 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
   });
 });
 
-describe("unlayer-migrate", () => {
+describe("hyper-elements-migrate", () => {
   it("loads JSX helpers outside the input folder with the project's automatic JSX runtime", async () => {
     const template = `import { Html, Body, Text } from "@react-email/components";
 import { CTA } from "../shared/cta";
@@ -363,7 +363,7 @@ Template.PreviewProps = { href: undefined };`;
     const { tsImport } = await import("tsx/esm/api");
     const mod = await tsImport(path.join(dir, "migrated/default.tsx"), { parentURL: import.meta.url });
     const Template = mod.default.default ?? mod.default;
-    const { render } = await import("@unlayer/react-elements");
+    const { render } = await import("@hyper-elements/react");
     const html = (await render(Template({ href: undefined }))).html.replace(/<!--[\s\S]*?-->/g, "");
     const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
     const cta = links.find(([, , text]) => text.replace(/<[^>]*>/g, "").trim() === "Pay invoice");
@@ -431,7 +431,7 @@ export default Exported;`;
       const { tsImport } = await import("tsx/esm/api");
       const mod = await tsImport(path.join(dir, "migrated/greeting.tsx"), { parentURL: import.meta.url });
       const Template = mod.default.default ?? mod.default;
-      const { render } = await import("@unlayer/react-elements");
+      const { render } = await import("@hyper-elements/react");
       const { html } = await render(React.createElement(Template, { name: "Ada" }));
       expect(html).toContain('lang="ar"');
       expect(html).toContain('dir="rtl"');
@@ -586,7 +586,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome</Text></Bod
     expect(out.out).toMatch(/- emails\/components\/button\.tsx: skipped: no default-exported component/);
 
     const migrated = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
-    expect(migrated).toContain('from "@unlayer/react-elements"');
+    expect(migrated).toContain('from "@hyper-elements/react"');
     expect(migrated).not.toContain("@react-email/components");
     // The same-file layout was inlined; the import still reaches lib/format from the new folder.
     expect(migrated).not.toContain("function Layout");
@@ -679,7 +679,7 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     // It has no default export, so migrating never rewrites it: what the receipt takes from it stays as it is.
     expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped: no default-exported component/);
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
-    expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@hyper-elements/react");
   });
 
   it("counts a file reached through `export *` as used only when it defines the imported name", async () => {
@@ -836,15 +836,15 @@ Notice.PreviewProps = { title: "Heads up" };`;
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toContain("1 migrated and checked. 1 written.");
-    expect(fs.readFileSync(path.join(dir, "emails/notice.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    expect(fs.readFileSync(path.join(dir, "emails/notice.tsx"), "utf8")).toContain("@hyper-elements/react");
   });
 
   it("migrates a template whose comment mentions Elements' import: only a real import means it's done", async () => {
-    const source = `// Next: import { Email } from "@unlayer/react-elements" once migrated.
+    const source = `// Next: import { Email } from "@hyper-elements/react" once migrated.
 import { Html, Body, Text } from "@react-email/components";
-/* see from "@unlayer/react-elements" */
+/* see from "@hyper-elements/react" */
 export default function T() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;
-    const dir = project({ "emails/t.tsx": source, "emails/done.tsx": `import { Email } from "@unlayer/react-elements";\nexport default function Done() { return <Email />; }` });
+    const dir = project({ "emails/t.tsx": source, "emails/done.tsx": `import { Email } from "@hyper-elements/react";\nexport default function Done() { return <Email />; }` });
     const out = io(dir);
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/t\.tsx: 100% editable/);
@@ -894,13 +894,13 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard frie
     const again = io(dir);
     expect(await main(["emails", "--write"], again, lib), again.out + again.err).toBe(0);
     expect(first.out).toContain("\nStill importing React Email, as they were (the migrated templates have what they used written in): delete the ones nothing imports any more before you remove React Email:\n  emails/components/footer.tsx\n");
-    expect(again.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). 0 written.\n1 template already migrated (importing @unlayer/react-elements).\n");
+    expect(again.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). 0 written.\n1 template already migrated (importing @hyper-elements/react).\n");
     expect(again.err).not.toContain("No email template was checked");
     // With a template left unwritten (it fails the check, --strict), React Email can't go: no files to delete are named.
     const failing = `import { Html, Body, Text } from "@react-email/components";
 import { Footer } from "./components/footer";
 export default function Notice() {
-  const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
+  const text = import.meta.url.includes(".hyper-elements-migrate-") ? "Changed" : "Keep this content";
   return <Html><Body><Text>{text}</Text><Footer /></Body></Html>;
 }`;
     const strictDir = project({ "emails/welcome.tsx": welcome, "emails/notice.tsx": failing, "emails/components/footer.tsx": footer });
@@ -912,13 +912,41 @@ export default function Notice() {
     // A dry run has nothing to write either: it doesn't say how to write it.
     const dry = io(dir);
     expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
-    expect(dry.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). Nothing to write.\n1 template already migrated (importing @unlayer/react-elements).\n");
+    expect(dry.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). Nothing to write.\n1 template already migrated (importing @hyper-elements/react).\n");
     expect(dry.out).not.toContain("pass --write");
+  });
+
+  it("skips a template on the old package, saying which migration it needs, and converts the React Email ones beside it", async () => {
+    const old = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function Old() { return <Email><Row><Column><Paragraph>Old words here</Paragraph></Column></Row></Email>; }`;
+    const reactEmail = `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
+    const dir = project({ "emails/old.tsx": old, "emails/welcome.tsx": reactEmail });
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--allow-dirty"], out, lib)).toBe(0);
+    expect(out.out).toContain("1 file imports @unlayer/react-elements: migrate it with --from unlayer-elements.\n");
+    expect(fs.readFileSync(path.join(dir, "emails/old.tsx"), "utf8")).toBe(old);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain('from "@hyper-elements/react"');
+  });
+
+  it("skips a file with both React Email and the old package, and says it with no React Email templates at all", async () => {
+    const both = `import { Html, Body, Text } from "@react-email/components";
+import { renderToHtml } from "@unlayer/react-elements";
+export const html = () => renderToHtml(null as never);
+export default function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
+    const mixed = project({ "emails/both.tsx": both });
+    const out = io(mixed);
+    await main(["emails"], out, lib);
+    expect(out.out).toContain("it imports @unlayer/react-elements, not React Email: migrate it with --from unlayer-elements");
+    const onlyOld = project({ "emails/old.tsx": `import { Email } from "@unlayer/react-elements";\nexport default function Old() { return <Email />; }` });
+    const alone = io(onlyOld);
+    expect(await main(["emails"], alone, lib)).toBe(1);
+    expect(alone.err).toContain("1 file imports @unlayer/react-elements: migrate it with --from unlayer-elements.\n");
   });
 
   it("doesn't count a file of the project's that renders with Elements as a template already migrated", async () => {
     // A route that renders with Elements, and a React Email file with no default export: no template was checked.
-    const route = `import { renderToHtml } from "@unlayer/react-elements";
+    const route = `import { renderToHtml } from "@hyper-elements/react";
 export function render(node: unknown) { return renderToHtml(node as never); }`;
     const named = `import { Html, Body, Text } from "@react-email/components";
 export function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
@@ -931,8 +959,8 @@ export function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text
 
   it("migrates a template that takes only types from Elements", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
-import type { EmailProps } from "@unlayer/react-elements";
-import { type RowProps } from "@unlayer/react-elements";
+import type { EmailProps } from "@hyper-elements/react";
+import { type RowProps } from "@hyper-elements/react";
 export default function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
     const dir = project({ "emails/welcome.tsx": source });
     const out = io(dir);
@@ -962,8 +990,8 @@ export default function Hello() { return <Html><Body><Text>Hello</Text></Body></
 
     const write = io(dir);
     expect(await main(["emails", "--write"], write, lib)).toBe(0);
-    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain('from "@unlayer/react-elements"');
-    expect(fs.readdirSync(path.join(dir, "emails")).filter((f) => f.includes("unlayer-migrate"))).toEqual([]);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain('from "@hyper-elements/react"');
+    expect(fs.readdirSync(path.join(dir, "emails")).filter((f) => f.includes("hyper-elements-migrate"))).toEqual([]);
   });
 
   it("reports a template that doesn't render, exits with 2 and leaves it as it is", async () => {
@@ -1003,7 +1031,7 @@ export default function Hi({ name }: { name: string }) {
 Hi.PreviewProps = { name: "Alex" };
 `;
     // The original's look: a white page, and a button that looks like a link on the left (React Email's Button has no colors of its own).
-    const migrated = (text: string, button = 'style={{ backgroundColor: "transparent", color: "#0000ee", fontSize: 16, padding: 0 }}') => `import { Button, Column, Email, Text, Section } from "@unlayer/react-elements";
+    const migrated = (text: string, button = 'style={{ backgroundColor: "transparent", color: "#0000ee", fontSize: 16, padding: 0 }}') => `import { Button, Column, Email, Text, Section } from "@hyper-elements/react";
 export default function Hi({ name }: { name: string }) {
   return <Email style={{ backgroundColor: "#ffffff" }}><Section><Column style={{ alignItems: "start" }}><Text>${text}</Text><Button href={{ href: "https://example.com", target: "_blank" }} ${button}>Start</Button></Column></Section></Email>;
 }
@@ -1045,16 +1073,16 @@ export default function Hi() { return <Email><Row><Column><Paragraph>Hi</Paragra
     expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], out, lib)).toBe(1);
     expect(out.out).toBe("");
     expect(out.err).toBe(
-      `migrated/old hi.tsx is written in Elements 0.2's components (it imports ColumnLayouts, Paragraph from @unlayer/react-elements), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
-        `  npx @unlayer/migrate --from elements "migrated/old hi.tsx" --write\n` +
-        `  npx @unlayer/migrate compare emails/hi.tsx "migrated/old hi.tsx"\n`
+      `migrated/old hi.tsx is written in Unlayer Elements' components (it imports Column, ColumnLayouts, Email, Paragraph, Row from @unlayer/react-elements), which Hyper Elements doesn't have. Move it to the new components, then compare:\n` +
+        `  npx @hyper-elements/migrate --from unlayer-elements "migrated/old hi.tsx" --write\n` +
+        `  npx @hyper-elements/migrate compare emails/hi.tsx "migrated/old hi.tsx"\n`
     );
     const entry = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/legacy.tsx"], entry, lib)).toBe(1);
-    expect(entry.err).toContain("migrated/legacy.tsx is written in Elements 0.2's components (it imports @unlayer/react-elements/legacy), which 0.3.0 doesn't have.");
+    expect(entry.err).toContain("migrated/legacy.tsx is written in Unlayer Elements' components (it imports @unlayer/react-elements/legacy), which Hyper Elements doesn't have.");
     // The two commands it gives: the template moved, then checked.
     const moved = io(dir);
-    expect(await main(["--from", "elements", "migrated/old hi.tsx", "--write"], moved, lib), moved.out + moved.err).toBe(0);
+    expect(await main(["--from", "unlayer-elements", "migrated/old hi.tsx", "--write"], moved, lib), moved.out + moved.err).toBe(0);
     const checked = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], checked, lib), checked.out + checked.err).toBe(0);
     expect(checked.out).toContain("same words, links and images");
@@ -1118,6 +1146,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       [["nope"], "Not found: nope"],
       [["--bogus"], "Unknown option: --bogus"],
       [["--from", "mjml", "x"], 'Unknown --from "mjml"'],
+      [["--from", "elements", "x"], 'Unknown --from "elements". Supported: react-email, unlayer-elements.'],
     ];
     for (const [argv, message] of mistakes) {
       const out = io(dir);
@@ -1125,10 +1154,10 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       expect(out.err, argv.join(" ")).toContain(message);
     }
     // The mistake, and where the options are: not the whole help, which would push it off the screen.
-    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>"], [["nope-dir"], "Not found: nope-dir"], [["compare", "a.tsx", "b.tsx"], "Not found: a.tsx"]] as const) {
+    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @hyper-elements/migrate compare <original> <migrated>"], [["nope-dir"], "Not found: nope-dir"], [["compare", "a.tsx", "b.tsx"], "Not found: a.tsx"]] as const) {
       const out = io(dir);
       expect(await main([...argv], out, lib)).toBe(1);
-      expect(out.err, argv.join(" ")).toBe(`${message}\nRun npx @unlayer/migrate --help to see the options.\n`);
+      expect(out.err, argv.join(" ")).toBe(`${message}\nRun npx @hyper-elements/migrate --help to see the options.\n`);
     }
     // Run with nothing at all, it says how it's used.
     const bare = io(dir);
@@ -1136,7 +1165,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Hyper Elements\.\n\nUsage:/);
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);
-    expect(help.out).toContain("npx @unlayer/migrate");
+    expect(help.out).toContain("npx @hyper-elements/migrate");
   });
 
   it("prints its version", async () => {
@@ -1220,7 +1249,7 @@ export default function T() { return <Html><Body><Text>Pay $1.00 today</Text></B
   });
 
   it("rejects a changed price in compare", async () => {
-    const migrated = `import { Email, Row, Column, Text } from "@unlayer/react-elements";
+    const migrated = `import { Email, Row, Column, Text } from "@hyper-elements/react";
 export default function T() { return <Email><Row><Column><Text>Pay $100 today</Text></Column></Row></Email>; }`;
     const dir = project({ "emails/t.tsx": source, "wrong.tsx": migrated });
     const out = io(dir);
@@ -1235,7 +1264,7 @@ describe("failed verification writes", () => {
   it("writes a template whose content differs, flagged; with --strict leaves originals and outputs untouched unless --force, and cleans probes", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function T() {
-  const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
+  const text = import.meta.url.includes(".hyper-elements-migrate-") ? "Changed" : "Keep this content";
   return <Html><Body><Text>{text}</Text></Body></Html>;
 }`;
     // By default it's written, flagged as a converter bug (exit 2).

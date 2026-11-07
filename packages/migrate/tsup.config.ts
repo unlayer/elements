@@ -13,7 +13,7 @@ const cli = defineConfig({
   noExternal: ["entities", "parse5"],
   // bin.ts checks the Node.js version before loading start.js, which registers the hooks before loading cli.js: keep
   // those runtime imports.
-  external: ["react", "react-dom", /^@react-email\//, /^@unlayer\/react-elements(\/|$)/, "typescript", "prettier", /^tsx/, "./cli.js", "./start.js"],
+  external: ["react", "react-dom", /^@react-email\//, /^@hyper-elements\/react(\/|$)/, "typescript", "prettier", /^tsx/, "./cli.js", "./start.js"],
   esbuildOptions(options) {
     options.jsx = "automatic";
   },
@@ -35,7 +35,7 @@ const reactEmail = defineConfig({
   clean: false,
   noExternal: ["entities", "parse5"],
   // Elements (its components and /builder) is the project's: a peer dependency.
-  external: ["react", "react-dom", /^@react-email\//, /^@unlayer\/react-elements(\/|$)/, "typescript", "prettier"],
+  external: ["react", "react-dom", /^@react-email\//, /^@hyper-elements\/react(\/|$)/, "typescript", "prettier"],
   esbuildOptions(options) {
     options.jsx = "automatic";
   },

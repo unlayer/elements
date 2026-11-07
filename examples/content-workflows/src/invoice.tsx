@@ -1,4 +1,4 @@
-import { Button, Column, Document, Email, Heading, Page, Text, Span } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, Span } from "@hyper-elements/react";
 
 export interface InvoiceData {
   number: string;

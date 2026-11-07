@@ -1,14 +1,14 @@
 import { Highlight, themes } from "prism-react-renderer";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 
-const installCmd = "npm install @unlayer/react-elements";
+const installCmd = "npm install @hyper-elements/react";
 
 const steps = [
   {
     num: "1",
     title: "Install",
     desc: "One dependency, zero config",
-    code: `npm i @unlayer/react-elements`,
+    code: `npm i @hyper-elements/react`,
     lang: "bash",
   },
   {

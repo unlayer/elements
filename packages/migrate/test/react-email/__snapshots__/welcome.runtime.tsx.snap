@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-// Converted from a React Email template by @unlayer/migrate (runtime mode).
+// Converted from a React Email template by @hyper-elements/migrate (runtime mode).
 import {
   Button,
   Column,
@@ -10,7 +10,7 @@ import {
   Link,
   Section,
   Text,
-} from "@unlayer/react-elements";
+} from "@hyper-elements/react";
 
 export default function Template() {
   return (

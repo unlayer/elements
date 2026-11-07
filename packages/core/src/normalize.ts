@@ -80,7 +80,7 @@ function allowedIn(parent: ComponentDefinition, child: ComponentDefinition): boo
 }
 
 /** Where each component's props and styles are listed: the guide the package ships. */
-const GUIDE = "@unlayer/react-elements/GUIDE.md";
+const GUIDE = "@hyper-elements/react/GUIDE.md";
 /** A message, then where to look the component up. */
 const seeing = (message: string, type: string) => `${message}${/[?.]$/.test(message) ? "" : "."} See ${type} in ${GUIDE}`;
 const a = (type: string) => `${/^[AEIOU]/.test(type) ? "An" : "A"} ${type}`;

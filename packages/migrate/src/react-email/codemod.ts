@@ -3937,7 +3937,7 @@ class Converter {
     }
     const header = [
       "/** @jsxRuntime automatic */",
-      "// Migrated from React Email by @unlayer/migrate (codemod mode).",
+      "// Migrated from React Email by @hyper-elements/migrate (codemod mode).",
       ...(this.fallbackRanges.length ? ["// Blocks marked TODO(convert) still render their React Email markup as HTML."] : []),
     ].join("\n");
     // Copied constants the converted JSX no longer reads (their values were written in).

@@ -1,21 +1,28 @@
 ---
-title: "From older Elements"
-description: "Move templates written with the older Elements components to the new ones with a codemod that keeps your props, loops and helpers."
+title: "From Unlayer Elements"
+description: "Move templates written with Unlayer Elements to Hyper Elements with a codemod that keeps your props, loops and helpers."
 ---
 
-Hyper Elements 0.3 doesn't include the older Elements components (`ColumnLayouts`, `html` props, `renderToHtml()`): templates written with them move before you upgrade, so stay on 0.2 until they have. A codemod rewrites them with the new components. It rewrites the imports and the JSX, and nothing else: your props, loops, conditions, helpers and constants stay as they are.
+Hyper Elements is a new package. It doesn't include the components of Unlayer Elements, `@unlayer/react-elements` (`ColumnLayouts`, `html` props, `renderToHtml()`), so templates written with them have to move, and nothing changes until they do. A codemod rewrites them with the new components. It rewrites the imports and the JSX, and nothing else: your props, loops, conditions, helpers and constants stay as they are.
 
 A template uses one set of components or the other, never both. Move a template whole.
 
 ## Run the codemod
 
 ```bash
-npx @hyper-elements/migrate src/emails --from elements                  # lists what it would change
-npx @hyper-elements/migrate src/emails/welcome.tsx --from elements > welcome.next.tsx   # prints one template
-npx @hyper-elements/migrate src/emails --from elements --write          # replaces them (only files git can restore)
+npx @hyper-elements/migrate src/emails --from unlayer-elements                  # lists what it would change
+npx @hyper-elements/migrate src/emails/welcome.tsx --from unlayer-elements > welcome.next.tsx   # prints one template
+npx @hyper-elements/migrate src/emails --from unlayer-elements --write          # replaces them (only files git can restore)
 ```
 
-Run it before you upgrade the package: a template with nothing in it that only 0.2 has is migrated only while 0.2 is installed. Each migrated template starts with the line `// Migrated from Elements 0.2's components by @hyper-elements/migrate.`, so a second run changes nothing.
+Then install the new package, and remove the old one once nothing imports it. What the codemod keeps of the old package's API (`renderToHtml()`, say) stays imported from it, and it's listed for you to replace:
+
+```bash
+npm install @hyper-elements/react
+npm uninstall @unlayer/react-elements
+```
+
+Each migrated template starts with the line `// Migrated from Unlayer Elements by @hyper-elements/migrate.`, so a second run changes nothing.
 
 `--write` only replaces templates git can restore, so commit first. `--allow-dirty` skips that check. `--report notes.md` (or `.json`) writes what the codemod noted for each template.
 
@@ -23,7 +30,7 @@ JSX inside expressions (`items.map(...)`, `cond && ...`) is rewritten in place. 
 
 ### Which files it touches
 
-Templates are the files that import the older components, directly or through your own modules that pass them on (an index with `export { Email } from ...` or `export *` from it, followed as your `tsconfig` resolves it). Other files, such as one that only calls `renderToHtml()` or that index itself, are left as they are and aren't listed.
+Templates are the files that import Unlayer Elements' components, directly or through your own modules that pass them on (an index with `export { Email } from ...` or `export *` from it, followed as your `tsconfig` resolves it). Other files, such as one that only calls `renderToHtml()` or that index itself, are left as they are and aren't listed.
 
 A namespace re-export (`export * as E from ...`) isn't followed: a template that uses one fails, naming the file. A template whose root is chosen at run time (`const Root = web ? Page : Email`) stays as it was, with a note: write it with one root.
 
@@ -32,10 +39,10 @@ A namespace re-export (`export * as E from ...`) isn't followed: a template that
 ```ts
 import { migrateElements } from "@hyper-elements/migrate/elements";
 
-const { code, report } = await migrateElements(source, { installed: "0.2.1" });
+const { code, report } = await migrateElements(source);
 ```
 
-`installed` is the version of `@hyper-elements/react` the project has, where it's known. A module that comes back as it was says why: `current` (it already uses the new components), `undecided` (nothing in it is only either's) or `refused` (it has both, with the reason).
+A module that comes back as it was because it's already on the new components has `current: true`.
 
 ## Before and after
 
@@ -78,7 +85,7 @@ const { code, report } = await migrateElements(source, { installed: "0.2.1" });
 </Email>
 ```
 
-The new template draws what the old one drew. The older components filled in defaults (a 500px email, Arial, 10px of padding on every block), and the new ones don't, so the codemod writes those values out. Delete the ones you don't want.
+The new template draws what the old one drew. Unlayer Elements' components filled in defaults (a 500px email, Arial, 10px of padding on every block), and the new ones don't, so the codemod writes those values out. Delete the ones you don't want.
 
 ## What it writes
 
@@ -131,4 +138,4 @@ The codemod never drops anything quietly. It lists, with the line:
 - **Runtime roots.** A template with `const Root = web ? Page : Email` wasn't changed. Write it with one root.
 - **Look at it.** The codemod's tests check what each old component becomes, and round-trip each migrated example through the builder and back. No test draws a migrated template next to the old one in a browser, so render yours and look at it before you send it.
 
-> **Tip:** Run `npx @hyper-elements/migrate src/emails --from elements --report notes.md` first, without `--write`, and read `notes.md`. Then write.
+> **Tip:** Run `npx @hyper-elements/migrate src/emails --from unlayer-elements --report notes.md` first, without `--write`, and read `notes.md`. Then write.

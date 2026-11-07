@@ -5,6 +5,6 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
-    include: ["@unlayer/react-elements", "@unlayer/react-elements/builder"],
+    include: ["@hyper-elements/react", "@hyper-elements/react/builder"],
   },
 });

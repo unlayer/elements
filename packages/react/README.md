@@ -1,21 +1,21 @@
-# @unlayer/react-elements
+# @hyper-elements/react
 
 React components for transactional emails, email templates, landing pages, invoices, reports and documents. One template renders to email-safe HTML, a responsive web page, print-ready HTML, a PDF or an image, on your own server, with no network calls.
 
 ## Installation
 
 ```bash
-npm install @unlayer/react-elements
+npm install @hyper-elements/react
 # or
-pnpm add @unlayer/react-elements
+pnpm add @hyper-elements/react
 ```
 
 ## Quick start
 
-Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
+Import from `@hyper-elements/react`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@hyper-elements/react";
 
 export default function Receipt() {
   return (
@@ -62,7 +62,7 @@ export default function Receipt() {
 ```
 
 ```tsx
-import { outline, render, validate } from "@unlayer/react-elements";
+import { outline, render, validate } from "@hyper-elements/react";
 
 const { html, text, diagnostics } = await render(<Receipt />); // warnings in diagnostics; errors throw an ElementsError
 const { valid } = validate(<Receipt />); // the same checks, without rendering
@@ -71,17 +71,17 @@ console.log(outline(<Receipt />)); // the laid-out template as text: each block,
 
 To write a template, read [GUIDE.md](./GUIDE.md): how a template is written, and every component on a line. [REFERENCE.md](./REFERENCE.md) has every prop and style in full. Both are written from the components' definitions.
 
-Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-elements-02).
+Upgrading from Unlayer Elements? See [Moving from Unlayer Elements](#moving-from-unlayer-elements).
 
 ## Using with an AI agent
 
 **With an AI agent:** in Claude Code, add this line to your project's `CLAUDE.md`, and every session starts out knowing these components:
 
 ```
-@node_modules/@unlayer/react-elements/GUIDE.md
+@node_modules/@hyper-elements/react/GUIDE.md
 ```
 
-For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
+For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing a Hyper Elements template, read node_modules/@hyper-elements/react/GUIDE.md."
 
 Or install the same guide as an agent skill: `npx skills add hyper-elements/hyper-elements`.
 
@@ -111,8 +111,8 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 |-----------|-------------|
 | `<Email>` | Email-safe HTML: tables, with Outlook's markup in conditional comments |
 | `<Page>` | A responsive web page |
-| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@unlayer/react-elements/pdf` |
-| `<Canvas>` | An image of a fixed size, with `@unlayer/react-elements/image` |
+| `<Document>` | Print-ready HTML on pages of its size, and a PDF with `@hyper-elements/react/pdf` |
+| `<Canvas>` | An image of a fixed size, with `@hyper-elements/react/image` |
 
 ### Layout
 
@@ -148,7 +148,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 A `Column` in a `Row` takes its `width`, or a share of what's left.
 
 ```tsx
-import { Column, Grid, Row } from "@unlayer/react-elements";
+import { Column, Grid, Row } from "@hyper-elements/react";
 
 // Equal shares.
 <Row style={{ gap: 16 }}>
@@ -202,7 +202,7 @@ The options are `pretty` (the HTML indented, for reading it), `mergeTag` (how a 
 Share the content, and give each output its root:
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Text, render } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, render } from "@hyper-elements/react";
 
 const Invoice = () => (
   <Column style={{ gap: 12 }}>
@@ -217,7 +217,7 @@ const page = await render(<Page><Invoice /></Page>);
 const printed = await render(<Document size="A4" margin={48}><Invoice /></Document>);
 ```
 
-`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
+`printed.html` is print-ready HTML. For PDF files, [`@hyper-elements/react/pdf`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@hyper-elements/react/image`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
 
 ## Phones and hover
 
@@ -301,7 +301,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 A function that returns components is a component of your own, as in [One template, every output](#one-template-every-output). For a named block with typed props and its own editors, use `component()`:
 
 ```tsx
-import { Button, Column, Heading, Image, component, prop } from "@unlayer/react-elements";
+import { Button, Column, Heading, Image, component, prop } from "@hyper-elements/react";
 
 const ProductCard = component({
   type: "acme.ProductCard",
@@ -326,17 +326,17 @@ For markup no component says, `<Html html="…" />` writes it as it is, in an em
 
 ## To the Unlayer builder and back
 
-`@unlayer/react-elements/builder`: `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
+`@hyper-elements/react/builder`: `toDesign()` writes a template as the builder's design JSON, for `loadDesign()`; `fromDesign()` reads a design (made by `toDesign()`, edited in the builder or made there) back as a template, as an element to render and as JSX source.
 
 ```tsx
-import { fromDesign, toDesign } from "@unlayer/react-elements/builder";
+import { fromDesign, toDesign } from "@hyper-elements/react/builder";
 
 const { design, report } = toDesign(<Receipt />); // report: what the builder can't hold as it is, one line each
 // …the design is edited in the builder, and saved…
 const { element, code, report: read } = fromDesign(saved, { displayMode: "email" }); // "web" a Page, "document" a Document
 ```
 
-The design holds no Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`. A line height goes in the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px is `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet: a `PageNumber` goes as its token, which the editor's PDF prints as it is, and `report` says so.
+The design holds no Hyper Elements data. A style or prop a builder tool has no field for is a hidden property of that tool, kept in the design under its own name and drawn by Hyper Elements, with no editor in the builder yet. What the builder can't arrange comes back with the same look, flatter: a Section around several Rows as a Section each, a box's padding on its blocks, a Grid as Rows of Columns. What no tool shows (a Layer, an Svg, a Table, a box nested in a column, your own `component()`) goes as an HTML block of the new engine's markup, and comes back as an `Html` block, as the builder's own HTML blocks do. A design's markup comes back as it is: where designs can hold untrusted content, pass your sanitizer, `fromDesign(saved, { toSafeHtml })`. A line height goes in the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px is `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet: a `PageNumber` goes as its token, which the editor's PDF prints as it is, and `report` says so.
 
 ## Task guides and runnable examples
 
@@ -346,18 +346,18 @@ The design holds no Elements data. A style or prop a builder tool has no field f
 - [React invoice PDF with Playwright](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
 - [React to Unlayer visual editing](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/visual-editing.md): `toDesign()`, editor loading, export, and what the builder can hold.
 
-See [when to choose Elements](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/content-workflows).
+See [when to choose Hyper Elements](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/content-workflows).
 
-## Moving from Elements 0.2
+## Moving from Unlayer Elements
 
-Elements 0.2's components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in 0.3.0: the package's components are these. The codemod moves templates written with them:
+Unlayer Elements (`@unlayer/react-elements`) is the old package. Its components (`Body`, `ColumnLayouts`, `renderToHtml()` and the rest) aren't in this one. The codemod moves templates written with them:
 
 ```bash
-npx @unlayer/migrate src/emails --from elements   # templates written for Elements 0.2
-npx @unlayer/migrate src/emails                   # React Email templates
+npx @hyper-elements/migrate src/emails --from unlayer-elements   # templates written with Unlayer Elements
+npx @hyper-elements/migrate src/emails                           # React Email templates
 ```
 
-It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). Then install `@hyper-elements/react`, and remove `@unlayer/react-elements` once nothing imports it. What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-unlayer-elements.md) and [`@hyper-elements/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
 
 ## Development
 

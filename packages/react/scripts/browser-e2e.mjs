@@ -2,7 +2,7 @@
 // Run with: node scripts/browser-e2e.mjs  (requires `pnpm build` first)
 // Regenerate the style baseline with: UPDATE_E2E_BASELINE=1 node scripts/browser-e2e.mjs
 //
-// Browser E2E gate for @unlayer/react-elements.
+// Browser E2E gate for @hyper-elements/react.
 //
 // Snapshot tests freeze the HTML strings we emit; this gate proves what a
 // real rendering engine does with them. It renders full documents with the

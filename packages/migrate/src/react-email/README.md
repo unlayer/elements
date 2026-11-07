@@ -1,20 +1,20 @@
-Internal React Email converter, published as `@unlayer/migrate/react-email`.
+Internal React Email converter, published as `@hyper-elements/migrate/react-email`.
 
-# @unlayer/migrate/react-email
+# @hyper-elements/migrate/react-email
 
-Convert React Email (`@react-email/components`) templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements)' components (`@unlayer/react-elements` 0.3.0, with their styles in `style={{ }}`). The [`@unlayer/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
+Convert React Email (`@react-email/components`) templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements)' components (`@hyper-elements/react` 0.3.0, with their styles in `style={{ }}`). The [`@hyper-elements/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
 
 ```bash
-npm install @unlayer/migrate @unlayer/react-elements
+npm install @hyper-elements/migrate @hyper-elements/react
 ```
 
 ## Convert what a template renders
 
-`convertReactEmail` renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor, or to get it as Elements code. To migrate a template's source (its props, loops and conditions stay), run the CLI: `npx @unlayer/migrate`.
+`convertReactEmail` renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor, or to get it as Hyper Elements code. To migrate a template's source (its props, loops and conditions stay), run the CLI: `npx @hyper-elements/migrate`.
 
 ```ts
-import { convertReactEmail } from "@unlayer/migrate/react-email";
-import { render } from "@unlayer/react-elements";
+import { convertReactEmail } from "@hyper-elements/migrate/react-email";
+import { render } from "@hyper-elements/react";
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);
@@ -35,17 +35,17 @@ Text props the template shows as given become merge tags (`{{user.name}}`), whic
 
 The editor loads and exports a web font only when it's registered when the editor is created: `unlayer.createEditor({ ..., fonts: { showDefaultFonts: true, customFonts: conversion.editorFonts() } })`. Google Fonts and `<Font>` files are matched to the families the design uses; another stylesheet can't be without fetching it, so it isn't listed.
 
-Where the template can't be written in Elements' components, `convertReactEmail` throws a `NewComponentsError`: its `reason` says why, and its `intermediate` is the template as the converter wrote it first, in Elements 0.2's components.
+Where the template can't be written in Hyper Elements' components, `convertReactEmail` throws a `NewComponentsError`: its `reason` says why, and its `intermediate` is the template as the converter wrote it first, in Unlayer Elements' components.
 
 ## The report
 
-`report.nativeRatio` is the share of content that became editable Elements blocks. `report.fallbacks` lists what was kept as an `Html` block (it renders the same, but isn't editable), and why. `report.notes` lists every visual difference. `report.info` lists what the conversion did that doesn't change the look (a component inlined, a className split).
+`report.nativeRatio` is the share of content that became editable Hyper Elements blocks. `report.fallbacks` lists what was kept as an `Html` block (it renders the same, but isn't editable), and why. `report.notes` lists every visual difference. `report.info` lists what the conversion did that doesn't change the look (a component inlined, a className split).
 
 ## Mapping
 
-The converter writes a template in Elements 0.2's components first (the names below), and moves it to the new ones at once (`report.info` lists what that changes, `report.notes` what it leaves out: a background image, say, which the new components don't have).
+The converter writes a template in Unlayer Elements' components first (the names below), and moves it to the new ones at once (`report.info` lists what that changes, `report.notes` what it leaves out: a background image, say, which the new components don't have).
 
-| React Email | Elements |
+| React Email | Hyper Elements |
 |---|---|
 | `Html`, `Head`, `Body` | `Email`: Body background → `backgroundColor`, font → `fontFamily`, color → `textColor`; Html `dir` → `textDirection`, `lang` → `lang` |
 | `Preview` | `Email` `previewText` |
@@ -65,13 +65,13 @@ The converter writes a template in Elements 0.2's components first (the names be
 | `Markdown` | `Paragraph` with the rendered HTML |
 | `Tailwind` | Classes resolved with React Email's own Tailwind and the template's config, then mapped like `style` |
 | `CodeBlock`, unknown elements | `Html` block, reported |
-| Elements with `display: none` (including Tailwind `hidden`) | Original hidden HTML, reported. A hidden column keeps its whole row as HTML so its table structure survives. |
+| Hyper Elements with `display: none` (including Tailwind `hidden`) | Original hidden HTML, reported. A hidden column keeps its whole row as HTML so its table structure survives. |
 
 Components defined in the same file (or, with `loadModule`, in other files) are inlined where they're used when their body returns JSX. A `className` chosen by a condition becomes one element per class list. JSX kept in local constants goes where it's used.
 
 Inlining relies on React's rule that rendering is pure: calls in a component's arguments, constants and body may run in a different order, but never more often, later, or only on some paths. A component stays as HTML when inlining it would repeat a call or move one into a branch or callback, or when it writes state or calls a hook. A template that breaks the rule anyway (one that counts calls in module state, say) fails the check against the original. A component with a defaulted prop stays as HTML when a supplied argument could evaluate to `undefined`, preserving its JavaScript defaults and evaluation. A literal `undefined` uses the default; `null` remains `null`.
 
-## Not expressible in Elements
+## Not expressible in Hyper Elements
 
 The report lists unsupported classes and dropped styles. Remaining model differences include:
 

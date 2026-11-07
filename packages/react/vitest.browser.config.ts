@@ -8,7 +8,7 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   resolve: {
     // src/pdf and src/image import this package by name, as its users do: its main entry, here its source.
-    alias: [{ find: /^@unlayer\/react-elements$/, replacement: fileURLToPath(new URL('./src/primitives/index.ts', import.meta.url)) }],
+    alias: [{ find: /^@hyper-elements\/react$/, replacement: fileURLToPath(new URL('./src/primitives/index.ts', import.meta.url)) }],
   },
   test: {
     globals: true,

@@ -1,6 +1,6 @@
 # One React invoice template to email, web, and PDF
 
-Use `@unlayer/react-elements` when a receipt or invoice needs an email, a browser view, and a downloadable PDF with the same content. Write the content once with the components from `@unlayer/react-elements`, and select `Email`, `Page`, or `Document` as its root. `await render(element)` writes the HTML that root asks for. Playwright prints the document HTML to a PDF, or [`@unlayer/react-elements/pdf`](./react-to-pdf.md#without-a-browser) writes one without a browser.
+Use `@hyper-elements/react` when a receipt or invoice needs an email, a browser view, and a downloadable PDF with the same content. Write the content once with the components from `@hyper-elements/react`, and select `Email`, `Page`, or `Document` as its root. `await render(element)` writes the HTML that root asks for. Playwright prints the document HTML to a PDF, or [`@hyper-elements/react/pdf`](./react-to-pdf.md#without-a-browser) writes one without a browser.
 
 ## Install and run
 
@@ -16,7 +16,7 @@ pnpm --filter @unlayer/content-workflows-example render:all
 To adapt the files in a separate Node.js 20+ project, install the public package and a TypeScript runner:
 
 ```bash
-npm install @unlayer/react-elements react react-dom playwright
+npm install @hyper-elements/react react react-dom playwright
 npm install --save-dev tsx typescript @types/node @types/react @types/react-dom
 npm pkg set type=module
 npx playwright install chromium
@@ -29,7 +29,7 @@ Use `"jsx": "react-jsx"` in your TypeScript configuration. Copy the [example sou
 [src/invoice.tsx](../../../examples/content-workflows/src/invoice.tsx):
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Text, Span } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, Span } from "@hyper-elements/react";
 
 export interface InvoiceData {
   number: string;
@@ -81,7 +81,7 @@ The root decides the output, so `render()` needs no mode of its own: email HTML 
 
 ```ts
 import { mkdir, writeFile } from "node:fs/promises";
-import { render } from "@unlayer/react-elements";
+import { render } from "@hyper-elements/react";
 import { invoiceTemplate, sampleInvoice } from "./invoice";
 import { htmlToPdf } from "./pdf";
 import "./render-email";

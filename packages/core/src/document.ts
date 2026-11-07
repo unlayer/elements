@@ -1,6 +1,6 @@
 /**
  * Printed documents: a Document's children on pages of its size, as print HTML (a page writer's
- * output with each page a box of the page's size, and CSS's @page) and as PDF (@unlayer/react-elements/pdf, without a
+ * output with each page a box of the page's size, and CSS's @page) and as PDF (@hyper-elements/react/pdf, without a
  * browser). Pages are given (Document.Page) or made by PageBreaks; a PageHeader and a PageFooter go on every page, and a
  * PageNumber says which page it's on. Nothing flows from one page to the next: a page holds what it's given.
  */
@@ -68,7 +68,7 @@ export const Document = defineComponent({
   type: "Document",
   label: "Document",
   description:
-    "A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/react-elements/pdf.",
+    "A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @hyper-elements/react/pdf.",
   categories: ["root"],
   props: {
     size: prop(enumOf(["A3", "A4", "A5", "Letter", "Legal", "Tabloid"]), { support: WRITTEN, label: "Page size", default: "A4" }),

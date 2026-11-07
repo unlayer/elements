@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.4",
-    "@unlayer/react-elements": "workspace:*",
+    "@hyper-elements/react": "workspace:*",
     "astro": "^7.4.7",
     "esbuild": "^0.25.0"
   }

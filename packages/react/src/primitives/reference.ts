@@ -18,7 +18,7 @@ const OUTPUTS: Record<string, string> = { email: "email", web: "page", print: "p
 const GROUPS: Array<{ title: string; about: string; has: (c: ComponentDescription) => boolean }> = [
   {
     title: "Roots",
-    about: "A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@unlayer/react-elements/pdf`) writes a Document's PDF, and `renderImage()` (`@unlayer/react-elements/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
+    about: "A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@hyper-elements/react/pdf`) writes a Document's PDF, and `renderImage()` (`@hyper-elements/react/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
     has: (c) => c.categories.includes("root"),
   },
   { title: "Sections and layout", about: "Bands and boxes that arrange blocks. None is required: a root stacks its children.", has: (c) => c.categories.includes("section") || c.categories.includes("layout") },
@@ -38,7 +38,7 @@ function glossary(all: ComponentDescription[]): Map<string, string> {
 const code = (value: unknown) => `\`${JSON.stringify(value)}\``;
 
 /** The note at the top of each file this writes, naming this file as `from` the file's own folder. */
-const generated = (from: string) => `<!-- Written from the component definitions by ${from}: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->`;
+const generated = (from: string) => `<!-- Written from the component definitions by ${from}: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @hyper-elements/react test reference -->`;
 const GENERATED = generated("src/primitives/reference.ts");
 
 function property(p: PropertyDescription, named: Map<string, string>): string {
@@ -81,7 +81,7 @@ export function primitivesReference(): string {
   const missing = all.filter((c) => !placed.has(c.type)).map((c) => c.type);
   if (missing.length) throw new Error(`[Elements] The reference has no section for ${missing.join(", ")}`);
   return [
-    "# Components reference (`@unlayer/react-elements`)",
+    "# Components reference (`@hyper-elements/react`)",
     "",
     GENERATED,
     "",
@@ -162,7 +162,7 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
 /** GUIDE.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
 export function primitivesGuide(example: string): string {
   return [
-    "# Writing templates with the new components (`@unlayer/react-elements`)",
+    "# Writing templates with the new components (`@hyper-elements/react`)",
     "",
     GENERATED,
     "",
@@ -174,11 +174,11 @@ export function primitivesGuide(example: string): string {
 
 /** What the skill's frontmatter says, which is how an agent decides to load it. */
 const SKILL_DESCRIPTION =
-  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
+  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@hyper-elements/react), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
 
 /**
  * skills/hyper-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
- * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
+ * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Unlayer Elements'
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string): string {
@@ -192,15 +192,16 @@ export function primitivesSkill(example: string): string {
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",
-    "Write emails, web pages, printed documents, PDFs and images in code with Elements (`npm install @unlayer/react-elements`). This is the package's own guide to its components at `@unlayer/react-elements` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@unlayer/react-elements/REFERENCE.md`.",
+    "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @hyper-elements/react`). This is the package's own guide to its components at `@hyper-elements/react` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@hyper-elements/react/REFERENCE.md`.",
     "",
-    "## Templates from Elements 0.2",
+    "## Templates from Unlayer Elements",
     "",
-    "A project may have templates written for Elements 0.2: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor=\"#fff\"`. Those components aren't in 0.3.0: the package's components are these.",
+    "A project may have templates written with Unlayer Elements: they import `Body`, `ColumnLayouts` or `renderToHtml()` from `@unlayer/react-elements`, and use `values`, `layout`, `html` and style props such as `backgroundColor=\"#fff\"`. Those components aren't in Hyper Elements, a new package: these are its components.",
     "",
-    "- Move them with the codemod: `npx @unlayer/migrate src/emails --from elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @unlayer/migrate --help`.",
+    "- Move them with the codemod: `npx @hyper-elements/migrate src/emails --from unlayer-elements` lists what it would change, `--write` replaces the files (only those git can restore) and `--report notes.md` writes what it noted. It rewrites the imports and the JSX, and keeps props, loops and conditions. The new components render with `await render(element)`, which is async, in place of `renderToHtml()`. More: `npx @hyper-elements/migrate --help`.",
     "- What the codemod can't move is listed, and the file is left as it was: rewrite that part by hand with these components.",
-    "- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in these components and checks each against its original.",
+    "- Then `npm install @hyper-elements/react`, and remove `@unlayer/react-elements` once nothing imports it.",
+    "- Templates in React Email: `npx @hyper-elements/migrate src/emails` writes them in these components and checks each against its original.",
     "",
     guide(example),
   ].join("\n");
@@ -208,8 +209,8 @@ export function primitivesSkill(example: string): string {
 
 /** A Canvas written as a PNG, in the guide. */
 const CANVAS_EXAMPLE = `import { readFile } from "node:fs/promises";
-import { Canvas, Heading, Image } from "@unlayer/react-elements";
-import { renderImage } from "@unlayer/react-elements/image";
+import { Canvas, Heading, Image } from "@hyper-elements/react";
+import { renderImage } from "@hyper-elements/react/image";
 
 const { image, diagnostics } = await renderImage(
   <Canvas width={1200} height={630} style={{ padding: 64, gap: 24, fontFamily: "Inter", textAlign: "center", justifyContent: "center" }}>
@@ -235,7 +236,7 @@ function guide(example: string): string {
   return [
     "## How a template is written",
     "",
-    "- Import from `@unlayer/react-elements`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
+    "- Import from `@hyper-elements/react`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
     "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
     "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
     "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
@@ -253,8 +254,8 @@ function guide(example: string): string {
     "- `<Email style={{ width: 600, padding: 24 }}>` → `<Email width={600}>`, with the padding on a `Column` (a card) or a `Section` (a band) inside it. A root's width is a prop, and a root has no padding.",
     "- `items={[{ text: \"Home\", link: \"/\" }]}` → `items={[{ text: \"Home\", href: \"/\" }]}`. A `Menu`'s items are `{ text, href }`, a `Social`'s icons `{ name, href }`.",
     "- `style={{ marginBottom: 16 }}` → `gap: 16` on the parent. There are no margins.",
-    "- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Elements 0.2's props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.",
-    "- `<Image src=\"https://example.com/logo.png\">` → `src={{ src: \"https://example.com/logo.png\", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Elements warns.",
+    "- `ColumnLayouts`, `layout`, `headingType`, `altText`, `html` are Unlayer Elements' props, not these: a `Row` of `Column`s, `level`, `alt`, and text as children.",
+    "- `<Image src=\"https://example.com/logo.png\">` → `src={{ src: \"https://example.com/logo.png\", width: 240, height: 80 }}`, the file's size. Without it Outlook shows the image at its file's size, and Hyper Elements warns.",
     "",
     "## A whole template",
     "",
@@ -264,7 +265,7 @@ function guide(example: string): string {
     "",
     "## A Canvas as an image",
     "",
-    "`renderImage(element, options)` (`@unlayer/react-elements/image`) writes a `Canvas` as a PNG (`format: \"svg\"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.",
+    "`renderImage(element, options)` (`@hyper-elements/react/image`) writes a `Canvas` as a PNG (`format: \"svg\"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.",
     "",
     "```tsx",
     CANVAS_EXAMPLE,

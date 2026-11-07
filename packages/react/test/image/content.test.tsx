@@ -5,8 +5,8 @@
  *
  *   CONTENT_SEEDS=2000 pnpm vitest run test/image/content.test.tsx
  */
-import * as primitives from "@unlayer/react-elements";
-import { prepare } from "@unlayer/react-elements";
+import * as primitives from "@hyper-elements/react";
+import { prepare } from "@hyper-elements/react";
 import { createElement, type ReactElement } from "react";
 import { generate, misplaced, toElement, words } from "../../src/primitives/testing/templates";
 import { writeCanvas } from "@unlayer-internal/elements-core/image";

@@ -11,7 +11,7 @@ const meta: Meta<Args> = {
     docs: {
       description: {
         component:
-          "Text, from `@unlayer/react-elements`: a `Text` holds it; inside it `Span` styles a run, `Link` links one, `LineBreak` breaks the line and `MergeTag` is filled in by the sender. Each story is drawn as an Email and as a Page, from one template; \"Show code\" has it.",
+          "Text, from `@hyper-elements/react`: a `Text` holds it; inside it `Span` styles a run, `Link` links one, `LineBreak` breaks the line and `MergeTag` is filled in by the sender. Each story is drawn as an Email and as a Page, from one template; \"Show code\" has it.",
       },
     },
   },

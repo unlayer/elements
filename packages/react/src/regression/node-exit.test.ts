@@ -38,8 +38,8 @@ const script = (format: "module" | "commonjs", noChannel = false, react19 = fals
   const load =
     before +
     (format === "module"
-      ? `import * as E from "@unlayer/react-elements"; import * as B from "@unlayer/react-elements/builder"; import React from "react"; import { renderToString } from "react-dom/server";`
-      : `const E = require("@unlayer/react-elements"); const B = require("@unlayer/react-elements/builder"); const React = require("react"); const { renderToString } = require("react-dom/server");`);
+      ? `import * as E from "@hyper-elements/react"; import * as B from "@hyper-elements/react/builder"; import React from "react"; import { renderToString } from "react-dom/server";`
+      : `const E = require("@hyper-elements/react"); const B = require("@hyper-elements/react/builder"); const React = require("react"); const { renderToString } = require("react-dom/server");`);
   return `${load}
 ${RENDER}
 // In react-dom/server's renderToString, Elements loads another module of react-dom's: Node still exits.
@@ -52,7 +52,7 @@ function project(react: string, reactDom: string, type: "module" | "commonjs", d
   const modules = path.join(dir, "node_modules");
   fs.cpSync(fs.realpathSync(react), path.join(modules, "react"), { recursive: true });
   fs.cpSync(fs.realpathSync(reactDom), path.join(modules, "react-dom"), { recursive: true });
-  const elements = path.join(modules, "@unlayer/react-elements");
+  const elements = path.join(modules, "@hyper-elements/react");
   fs.mkdirSync(elements, { recursive: true });
   fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
   fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
@@ -75,8 +75,8 @@ describe("importing the built package", () => {
 const server = require("react-dom/server");
 let calls = 0;
 for (const name of ["renderToStaticMarkup", "renderToString"]) { const real = server[name]; server[name] = (...args) => (calls++, real(...args)); }
-const E = require("@unlayer/react-elements");
-const B = require("@unlayer/react-elements/builder");
+const E = require("@hyper-elements/react");
+const B = require("@hyper-elements/react/builder");
 const atImport = calls;
 const reactDom = [...new Set(Object.keys(require.cache).filter((file) => /react-dom[\\/]/.test(file)).map((file) => file.split(/react-dom[\\/]/).pop()).filter((file) => file.startsWith("server")))];
 const h = React.createElement;
@@ -103,8 +103,8 @@ describe("an app that's a module, started from another folder than its own", () 
   const [react19, reactDom19] = reacts["React 19"];
   const page = `import React from "react";
 import { renderToString } from "react-dom/server";
-import * as E from "@unlayer/react-elements";
-import * as B from "@unlayer/react-elements/builder";
+import * as E from "@hyper-elements/react";
+import * as B from "@hyper-elements/react/builder";
 ${RENDER}
 const { html } = await E.render(email);
 console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page)) + ", " + html.includes("Hi there") }));
@@ -176,8 +176,8 @@ describe("a bundle with React in it, which renders with react-dom/server", () =>
         try {
           fs.writeFileSync(
             path.join(dir, "app.js"),
-            `import * as E from "@unlayer/react-elements";
-import * as B from "@unlayer/react-elements/builder";
+            `import * as E from "@hyper-elements/react";
+import * as B from "@hyper-elements/react/builder";
 import React from "react";
 import { renderToString } from "react-dom/server";
 const h = React.createElement;

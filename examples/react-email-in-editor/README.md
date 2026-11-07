@@ -1,6 +1,6 @@
 # Open React Email templates in the Unlayer editor
 
-Any React Email template can become an Unlayer design: `@unlayer/migrate` converts it, checks the result against the original, and writes design JSON that the editor opens with `loadDesign()`. This example does it for the two templates in [`emails/`](./emails) and opens them in Unlayer's hosted editor.
+Any React Email template can become an Unlayer design: `@hyper-elements/migrate` converts it, checks the result against the original, and writes design JSON that the editor opens with `loadDesign()`. This example does it for the two templates in [`emails/`](./emails) and opens them in Unlayer's hosted editor.
 
 ## Run it
 
@@ -13,7 +13,7 @@ pnpm --filter @unlayer/react-email-in-editor-example migrate
 pnpm --filter @unlayer/react-email-in-editor-example preview
 ```
 
-`pnpm build` comes before `migrate`: a fresh clone has no built `@unlayer/migrate` until then.
+`pnpm build` comes before `migrate`: a fresh clone has no built `@hyper-elements/migrate` until then.
 
 Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is editable, the phone preview follows the template's phone styles, and **Download edited design and HTML** exports your changes. The editor needs internet access.
 
@@ -22,7 +22,7 @@ Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is edi
 | File | What it is |
 |------|------------|
 | `welcome.design.json`, `order-receipt.design.json` | Unlayer designs, ready for `loadDesign()` |
-| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components: the new ones from `@unlayer/react-elements`, except where a template doesn't pass the check in them. It stays in today's components, and the run and `report.json` say why (here `welcome.tsx`, whose `Row` works out its columns at run time) |
+| `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components, from `@hyper-elements/react`. The run and `report.json` list what looks different |
 | `report.json` | Each template's check result, differences and web fonts; `editor.html` lists the templates and registers their fonts from it |
 
 ## Your own templates
@@ -32,7 +32,7 @@ Copy React Email templates into `emails/` (with the files they import) and run `
 In your own project, the same command is:
 
 ```bash
-npx @unlayer/migrate ./emails --out ./unlayer --design --report ./unlayer/report.json
+npx @hyper-elements/migrate ./emails --out ./unlayer --design --report ./unlayer/report.json
 ```
 
 Then load a design in the editor, registering the templates' web fonts when you create it (the editor only loads and exports fonts it was created with):
@@ -48,7 +48,7 @@ editor.addEventListener("editor:ready", async () => {
 
 With React, pass them to `react-email-editor` the same way: `<EmailEditor options={{ fonts: { showDefaultFonts: true, customFonts } }} onReady={(unlayer) => unlayer.loadDesign(design)} />`.
 
-To convert on a server instead, use the library: `(await convertReactEmail(Welcome)).design()` from `@unlayer/migrate/react-email` returns the same design JSON, and `.editorFonts()` its fonts.
+To convert on a server instead, use the library: `(await convertReactEmail(Welcome)).design()` from `@hyper-elements/migrate/react-email` returns the same design JSON, and `.editorFonts()` its fonts.
 
 ## What to expect
 

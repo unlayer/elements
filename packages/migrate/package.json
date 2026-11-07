@@ -1,5 +1,5 @@
 {
-  "name": "@unlayer/migrate",
+  "name": "@hyper-elements/migrate",
   "version": "0.2.0",
   "description": "Migrate React Email templates to Hyper Elements: TSX that keeps your props and logic, checked against the originals, editable in the Unlayer visual editor.",
   "license": "MIT",
@@ -10,7 +10,7 @@
     "directory": "packages/migrate"
   },
   "bin": {
-    "unlayer-migrate": "./dist/bin.js"
+    "hyper-elements-migrate": "./dist/bin.js"
   },
   "files": [
     "dist",
@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
-    "@unlayer/react-elements": "workspace:^0.3.0",
+    "@hyper-elements/react": "workspace:^0.3.0",
     "prettier": "^3.3.3",
     "tsx": "^4.20.5",
     "typescript": "^5.6.3"
@@ -83,7 +83,7 @@
   },
   "peerDependencies": {
     "@react-email/components": ">=0.0.30",
-    "@unlayer/react-elements": "^0.3.0",
+    "@hyper-elements/react": "^0.3.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   }

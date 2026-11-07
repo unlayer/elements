@@ -2,15 +2,15 @@
 import { createRequire } from "node:module";
 import ts from "typescript";
 
-const elements = createRequire(createRequire(import.meta.url).resolve("@unlayer/react-elements/package.json"));
+const elements = createRequire(createRequire(import.meta.url).resolve("@hyper-elements/react/package.json"));
 const React = elements("react");
-const primitives = elements("@unlayer/react-elements");
+const primitives = elements("@hyper-elements/react");
 
 /** The errors validate() finds in a migrated module's component `T` (or what it throws, as one). */
 export function errors(code: string, props: Record<string, unknown> = {}): string[] {
   const js = ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports: { T?: unknown } = {};
-  const modules: Record<string, unknown> = { react: React, "@unlayer/react-elements": primitives };
+  const modules: Record<string, unknown> = { react: React, "@hyper-elements/react": primitives };
   try {
     new Function("require", "exports", "React", js)((name: string) => modules[name], exports, React);
     const { diagnostics } = primitives.validate(React.createElement(exports.T, props));

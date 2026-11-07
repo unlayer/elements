@@ -140,7 +140,7 @@ export function printTemplate(root: Node, name = "Template", report: string[] = 
     for (const child of node.children ?? []) if (typeof child !== "string") visit(child);
   };
   visit(root);
-  const imports = [`import { ${[...used].sort().join(", ")} } from "@unlayer/react-elements";`];
+  const imports = [`import { ${[...used].sort().join(", ")} } from "@hyper-elements/react";`];
   if (own.size) imports.push(`// The template's own components: ${[...own].sort().join(", ")} (import them from where they're defined).`);
   return `${imports.join("\n")}\n\nexport default function ${name}() {\n  return (\n    ${element(root, "    ", false, "root", report)}\n  );\n}\n`;
 }
