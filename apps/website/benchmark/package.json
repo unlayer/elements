@@ -6,8 +6,7 @@
   "scripts": {
     "setup": "node lib/setup.mjs",
     "bench": "node lib/bench.mjs",
-    "report": "node lib/report.mjs",
-    "outlook": "node lib/outlook.mjs"
+    "report": "node lib/report.mjs"
   },
   "dependencies": {
     "@react-email/components": "1.0.12",

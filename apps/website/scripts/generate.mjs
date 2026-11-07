@@ -1,14 +1,13 @@
-// Renders the site's examples with Hyper Elements itself, and copies the package's own component
-// reference, into src/generated/. The site shows only what the engine really writes.
+// Renders the site's examples with Hyper Elements itself, and splits the package's own component
+// reference into pages, into src/generated/. The site shows only what the engine really writes.
 //
 //   pnpm --filter @hyper-elements/website generate
 //
 // Writes:
-//   src/generated/examples.json      every template and component example: source, HTML, plain text,
-//                                    outline and diagnostics
-//   src/generated/reference.md       REFERENCE.md: every component, prop and style
-//   src/generated/guide.md           GUIDE.md: how a template is written
-//   public/generated/                each Document as a real PDF and each Canvas as a real PNG
+//   src/generated/examples.json      every example (templates, components, showcase): source, HTML,
+//                                    plain text, outline and diagnostics
+//   src/generated/reference/*.md     the package's REFERENCE.md, one page per component
+//   public/generated/templates/      each Document template as a real PDF, each Canvas template as a PNG
 //
 // The PDFs and PNGs need the templates' fonts as TTF files (react-pdf and Satori don't read WOFF2):
 // they're fetched from Google Fonts by family and weight, once, into node_modules/.cache.
@@ -55,8 +54,7 @@ const rename = (s) =>
 
 async function renderAll(kind) {
   const dir = join(root, "examples", kind);
-  // Files starting with "_" are shared parts, not examples.
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".tsx") && !f.startsWith("_")).sort();
+  const files = (await readdir(dir)).filter((f) => f.endsWith(".tsx")).sort();
   const out = {};
   for (const file of files) {
     const slug = file.replace(/\.tsx$/, "");
@@ -109,20 +107,16 @@ async function renderAll(kind) {
       outline: result.outline.trimEnd(),
       diagnostics: result.diagnostics.map(({ severity, code, message, path }) => ({ severity, code, message: rename(message), path })),
     };
-    // Every Document or Canvas template as a file; a showcase example only where its meta names one.
-    const binary = (meta.root === "Document" || meta.root === "Canvas") && (kind === "templates" || (kind === "showcase" && meta.file));
-    if (binary) {
+    // Every Document or Canvas template as a real file too, named after it.
+    if (kind === "templates" && (meta.root === "Document" || meta.root === "Canvas")) {
       try {
-        // A showcase file keeps the name its meta gives; a template's is named after it.
-        const name = kind === "showcase" ? meta.file : `templates/${slug}.${meta.root === "Canvas" ? "png" : "pdf"}`;
+        const name = `templates/${slug}.${meta.root === "Canvas" ? "png" : "pdf"}`;
         const { file, diagnostics } = await writeBinary(element(), meta.root, name, rootElement());
         out[slug].file = file;
-        if (kind === "templates") {
-          // What the PDF or PNG adds (a font it couldn't draw, say) is part of the template's diagnostics.
-          const seen = new Set(out[slug].diagnostics.map((d) => `${d.code} ${d.path}`));
-          for (const { severity, code, message, path } of diagnostics) {
-            if (!seen.has(`${code} ${path}`)) out[slug].diagnostics.push({ severity, code, message: rename(message), path });
-          }
+        // What the PDF or PNG adds (a font it couldn't draw, say) is part of the template's diagnostics.
+        const seen = new Set(out[slug].diagnostics.map((d) => `${d.code} ${d.path}`));
+        for (const { severity, code, message, path } of diagnostics) {
+          if (!seen.has(`${code} ${path}`)) out[slug].diagnostics.push({ severity, code, message: rename(message), path });
         }
       } catch (error) {
         const detail = error.diagnostics?.map((d) => `${d.code} at ${d.path}: ${d.message}`).join("\n") ?? String(error.message).slice(0, 600);
@@ -253,13 +247,4 @@ await writeFile(
   join(refDir, "overview.md"),
   `---\ntitle: "Components"\ngroup: "Overview"\norder: -1\nsummary: "Every component, what it holds, and every prop and style it takes."\n---\n\n${intro.replace("[GUIDE.md](./GUIDE.md)", "[Templates and roots](/docs/templates)")}\n`,
 );
-
-for (const [from, to] of [
-  ["REFERENCE.md", "reference.md"],
-  ["GUIDE.md", "guide.md"],
-]) {
-  const text = await readFile(join(packageDir, from), "utf8").catch(() => null);
-  if (text === null) throw new Error(`${from} isn't in ${packageDir}: render with a build of the new engine (HYPER_ELEMENTS_PACKAGE)`);
-  await writeFile(join(outDir, to), rename(text));
-}
 console.log(`wrote src/generated/`);

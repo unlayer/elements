@@ -1,21 +1,12 @@
 ---
 import Logo from "./Logo.astro";
 import { mainNav, site } from "../lib/site";
+import { stars as starCount } from "../lib/stars";
 const path = Astro.url.pathname.replace(/\/$/, "") || "/";
 const current = (href: string) => path === href || path.startsWith(href + "/");
 
-// The repo's star count, read when the site is built. Until the repository is public there's none,
-// and the link shows without a number.
-let stars: string | null = null;
-try {
-  const res = await fetch(`https://api.github.com/repos/${site.repo}`, { signal: AbortSignal.timeout(3000), headers: { accept: "application/vnd.github+json" } });
-  if (res.ok) {
-    const n = (await res.json()).stargazers_count as number;
-    stars = n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
-  }
-} catch {
-  /* offline or not public yet */
-}
+// The repo's star count, fetched once per build (src/lib/stars.ts).
+const stars = await starCount;
 ---
 <header class="site-header">
   <div class="wrap">

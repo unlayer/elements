@@ -17,7 +17,6 @@ Claude Code 2.1.238 with Claude Sonnet 5 (`claude-sonnet-5`), 16 runs per approa
 | Median turns | 8 | 9 | 17.5 |
 | Median tokens in all, context included | 402k | 375k | 723k |
 | Median cost | $0.35 | $0.34 | $0.50 |
-| Still right in classic Outlook | 16 of 16 | 15 of 16 | 16 of 16 |
 
 - **2× faster.** Hyper Elements was the fastest on every brief: 1.9× faster than hand-written HTML and 2.2× faster than React Email at the median. Within a brief it was faster in 48 of 52 pairings with HTML and 47 of 52 with React Email (one-sided Mann–Whitney, p < 0.001 for each).
 - **2.4× fewer tokens written.** The agent writes a short template; the engine writes the tables.
@@ -46,8 +45,6 @@ Every approach was held to the same checks, run in headless Chromium at 800px an
 - a table layout with no flex or grid, content 600px wide, and no sideways scroll on a phone;
 - columns side by side on desktop and stacked on a phone, and line items on one line.
 
-After the runs, each finished email was also laid out as classic Outlook for Windows does it, with the email renderer's model of Outlook. The agents never saw this check. The one email that failed it, hand-written HTML, built its columns from divs, which Outlook stacks.
-
 ## How it ran
 
 Each run started in a fresh directory with the brief, a `CLAUDE.md` of conventions and the checker, and the same prompt: "Build the email described in BRIEF.md, following CLAUDE.md. It's done when `node tools/check.mjs` passes." The agent could edit files and run `node`, `tsc`, `ls` and `cat`, with no web access. The Hyper Elements project's `CLAUDE.md` also imported the package's guide, [as we tell you to set it up](/docs/guides/ai-agents), so its tokens count against Hyper Elements.
@@ -56,7 +53,6 @@ Each run started in a fresh directory with the brief, a `CLAUDE.md` of conventio
 
 - One agent and one model. Other agents and models may differ.
 - Short, fully specified emails. A vague brief or a long email may change the picture.
-- The Outlook check is a model of Outlook, not Outlook itself.
 - Hyper Elements 0.3 before its release, and React Email components 1.0.12.
 
 The harness, the briefs, the checks and every run's numbers are in the repository, in [`apps/website/benchmark`](https://github.com/hyper-elements/hyper-elements/tree/main/apps/website/benchmark). Run it yourself with your own agent.

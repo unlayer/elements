@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="228 326 798 600" role="img" aria-label="Hyper Elements">
-  <defs>
-    <path id="chevron" d="M595 388 L623 424 L436 627 L665 913 L522 913 Q492 913 470 891 L262 678 Q240 654 240 627 Q240 600 262 576 L428 410 Q452 388 482 388 Z"/>
-  </defs>
-  <use href="#chevron" fill="#E3E8ED"/>
-  <use href="#chevron" fill="#EF4638" transform="rotate(180 627 626)"/>
-</svg>
