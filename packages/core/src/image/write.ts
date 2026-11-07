@@ -24,6 +24,12 @@ type Sides = { top: number; right: number; bottom: number; left: number };
 
 const FLEX: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch", "space-between": "space-between" };
 const flex = (value: unknown) => (typeof value === "string" ? FLEX[value] : undefined);
+/**
+ * A block of text with its lines placed by its textAlign. Its words are a flex item as wide as they are, so a line
+ * shorter than the block would sit at its start whatever its textAlign: the block places them, as a browser places a
+ * line. (textAlign still places each line of words that wrap.)
+ */
+const textBlock = (style: Style): Style => ({ ...style, justifyContent: ({ center: "center", right: "flex-end" } as Record<string, string>)[String(style.textAlign)] });
 
 export function writeCanvas(root: ResolvedNode, context: WriteContext): DrawnCanvas {
   const write = new Writer(context);
@@ -141,10 +147,10 @@ class Writer {
         return this.table(node, placed);
       case "Html":
         // An image can't draw markup: its plain text (validate() says so).
-        return { kind: "text", style: { display: "flex", ...this.text(node), ...placed }, runs: [htmlText(node)] };
+        return { kind: "text", style: textBlock({ display: "flex", ...this.text(node), ...placed }), runs: [htmlText(node)] };
       case "Video":
         // An image can't play a video: its title, as an email or a PDF without its thumbnail shows it.
-        return { kind: "text", style: { display: "flex", ...this.text(node), ...this.box(node), ...placed }, runs: [String(node.props.title ?? "Video")] };
+        return { kind: "text", style: textBlock({ display: "flex", ...this.text(node), ...this.box(node), ...placed }), runs: [String(node.props.title ?? "Video")] };
       case "Section":
       case "Column":
         return {
@@ -228,7 +234,7 @@ class Writer {
   /** A block of text: its runs, a line break starting a new line. */
   paragraph(node: ResolvedNode, style: Style): Block {
     const breaks = node.children.some((child) => typeof child !== "string" && child.type === "LineBreak");
-    return { kind: "text", style: { display: "flex", flexWrap: "wrap", ...this.text(node), ...style, whiteSpace: breaks ? "pre-wrap" : undefined }, runs: this.runs(node) };
+    return { kind: "text", style: textBlock({ display: "flex", flexWrap: "wrap", ...this.text(node), ...style, whiteSpace: breaks ? "pre-wrap" : undefined }), runs: this.runs(node) };
   }
 
   runs(node: ResolvedNode): Run[] {
