@@ -1,4 +1,4 @@
-# CLAUDE.md — Unlayer Elements
+# CLAUDE.md — Hyper Elements
 
 ## What is this project?
 

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://unlayer.com/logo_square.png" alt="Unlayer Elements" width="50" />
+  <img src="./apps/website/public/favicon.svg" alt="Hyper Elements" width="50" />
 </p>
 
-<h1 align="center">Unlayer Elements</h1>
+<h1 align="center">Hyper Elements</h1>
 
 <p align="center">
   Write once in React. Render emails, web pages, and PDFs from the same component tree.
@@ -19,17 +19,17 @@
 ---
 
 <p align="center">
-  <img src="./assets/elements-demo.gif" alt="Unlayer Elements: the same JSX rendered as email, web, and document output" width="800" />
+  <img src="./assets/elements-demo.gif" alt="Hyper Elements: the same JSX rendered as email, web, and document output" width="800" />
 </p>
 
-Unlayer Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
+Hyper Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
 
 - **Email** → Outlook, Gmail, Yahoo, Apple Mail
 - **Web** → Responsive pages and embedded experiences
 - **Document** → Print-ready HTML for PDF generation
 
 <p align="center">
-  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Unlayer Elements: Architecture" width="1200" />
+  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Hyper Elements: Architecture" width="1200" />
 </p>
 
 Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.

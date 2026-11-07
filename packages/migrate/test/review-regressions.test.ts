@@ -194,7 +194,7 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
       expect(result.stdout).toBe("");
     }
     const supported = await run(process.execPath, [...reporting("20.6.0"), bin, "--help"], dir);
-    expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
+    expect(supported.stdout).toContain("Migrate React Email templates to Hyper Elements.");
   }, 90_000);
 
   it("says which version it is on any Node.js", async () => {
@@ -1150,7 +1150,15 @@ export default function Welcome() { return <Html><Body><Text>Hello there</Text><
     expect(await main(["emails", "--report", "report.md"], io(dir), lib)).toBe(0);
     expect(await main(["emails", "--report", "report.md"], io(dir), lib)).toBe(0);
     expect(await main(["emails", "--report", "notes.md", "--overwrite"], io(dir), lib)).toBe(0);
-    expect(fs.readFileSync(path.join(dir, "notes.md"), "utf8")).toMatch(/^# React Email → Unlayer Elements migration/);
+    expect(fs.readFileSync(path.join(dir, "notes.md"), "utf8")).toMatch(/^# React Email → Hyper Elements migration/);
+  });
+
+  it("are replaced by --report when an earlier version wrote them, under the old name", async () => {
+    const old = "# React Email → Unlayer Elements migration\n\nAn older report.\n";
+    const dir = project({ "emails/welcome.tsx": template, "report.md": old });
+    const out = io(dir);
+    expect(await main(["emails", "--report", "report.md"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toMatch(/^# React Email → Hyper Elements migration/);
   });
 
   it("aren't replaced by --out with --overwrite when a run didn't write them and git can't restore them", async () => {

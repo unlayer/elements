@@ -1,6 +1,6 @@
 # @unlayer/migrate
 
-Migrate React Email templates to [Unlayer Elements](https://github.com/hyper-elements/hyper-elements). Your templates keep their props, loops and conditions; they become Elements' new components, with their styles in `style={{ }}`, that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
+Migrate React Email templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements). Your templates keep their props, loops and conditions; they become Elements' new components, with their styles in `style={{ }}`, that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
 
 ```bash
 npx @unlayer/migrate emails           # converts and checks your templates, and writes nothing

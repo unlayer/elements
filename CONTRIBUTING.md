@@ -1,4 +1,4 @@
-# Contributing to Unlayer Elements
+# Contributing to Hyper Elements
 
 Thanks for your interest in contributing! This guide will help you get set up and understand how the project works.
 

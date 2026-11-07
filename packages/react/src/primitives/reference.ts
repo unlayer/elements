@@ -5,7 +5,7 @@
  * - GUIDE.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
  *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
  * - REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
- * - skills/unlayer-elements/SKILL.md, at the repository's root: the guide as an agent skill.
+ * - skills/hyper-elements/SKILL.md, at the repository's root: the guide as an agent skill.
  */
 import { describeComponents, type ComponentDescription, type PropertyDescription } from "@unlayer-internal/elements-core";
 
@@ -174,21 +174,21 @@ export function primitivesGuide(example: string): string {
 
 /** What the skill's frontmatter says, which is how an agent decides to load it. */
 const SKILL_DESCRIPTION =
-  "Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
+  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
 
 /**
- * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
+ * skills/hyper-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
  * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string): string {
   return [
     "---",
-    "name: unlayer-elements",
+    "name: hyper-elements",
     `description: ${SKILL_DESCRIPTION}`,
     "---",
     "",
-    "# Unlayer Elements",
+    "# Hyper Elements",
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",

@@ -5,7 +5,7 @@ export default function Home() {
     <main style={{ maxWidth: 640, margin: "0 auto", padding: "64px 24px" }}>
       <h1 style={{ fontSize: 28, margin: "0 0 12px" }}>Elements + Next.js App Router</h1>
       <p style={{ color: "#52525b", lineHeight: 1.7, margin: "0 0 28px" }}>
-        A Server Component builds an Unlayer Elements tree and awaits{" "}
+        A Server Component builds a Hyper Elements tree and awaits{" "}
         <code>render()</code> on the server, so the email is produced during
         the render and shipped as a plain HTML string. Email
         construction and rendering are server-only; the interactive preview

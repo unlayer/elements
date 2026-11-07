@@ -2,7 +2,7 @@ Internal React Email converter, published as `@unlayer/migrate/react-email`.
 
 # @unlayer/migrate/react-email
 
-Convert React Email (`@react-email/components`) templates to [Unlayer Elements](https://github.com/hyper-elements/hyper-elements)' components (`@unlayer/react-elements` 0.3.0, with their styles in `style={{ }}`). The [`@unlayer/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
+Convert React Email (`@react-email/components`) templates to [Hyper Elements](https://github.com/hyper-elements/hyper-elements)' components (`@unlayer/react-elements` 0.3.0, with their styles in `style={{ }}`). The [`@unlayer/migrate`](../../README.md) CLI is built on it; use the library directly from an agent, a build step or a server.
 
 ```bash
 npm install @unlayer/migrate @unlayer/react-elements

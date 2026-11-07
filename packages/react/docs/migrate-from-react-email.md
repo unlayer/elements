@@ -1,6 +1,6 @@
 # Migrate from React Email
 
-Move React Email templates to Unlayer Elements to render the same templates as email, web pages and print documents, and to open them in the Unlayer visual editor. One command converts them and checks each one against the original.
+Move React Email templates to Hyper Elements to render the same templates as email, web pages and print documents, and to open them in the Unlayer visual editor. One command converts them and checks each one against the original.
 
 ```bash
 npx @unlayer/migrate emails --write --report migration.md

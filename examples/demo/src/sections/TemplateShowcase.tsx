@@ -58,7 +58,7 @@ export default function TemplateShowcase() {
         <SectionHeader
           badge="Templates"
           title="Production-ready templates"
-          description="Real-world templates built with Unlayer Elements. Switch render modes to see how the same code adapts."
+          description="Real-world templates built with Hyper Elements. Switch render modes to see how the same code adapts."
         />
 
         <div className="max-w-[1400px] mx-auto">

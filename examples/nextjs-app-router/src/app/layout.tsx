@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export const metadata = {
   title: "Elements + Next.js App Router",
-  description: "Rendering Unlayer Elements to email HTML from a Server Component",
+  description: "Rendering Hyper Elements to email HTML from a Server Component",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
