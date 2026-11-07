@@ -1,14 +1,14 @@
 {
-  "name": "unlayer-elements",
+  "name": "hyper-elements",
   "private": true,
   "version": "0.0.0",
   "description": "Framework-native components for building emails, pages, and documents in code.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unlayer/elements.git"
+    "url": "git+https://github.com/hyper-elements/hyper-elements.git"
   },
-  "homepage": "https://github.com/unlayer/elements",
+  "homepage": "https://github.com/hyper-elements/hyper-elements",
   "packageManager": "pnpm@9.7.0",
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" run build",

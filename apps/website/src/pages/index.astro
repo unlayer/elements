@@ -1,0 +1,347 @@
+---
+import Base from "../layouts/Base.astro";
+import Cmd from "../components/Cmd.astro";
+import Prism from "../components/Prism.astro";
+import Thumb from "../components/Thumb.astro";
+import WriteThis from "../components/WriteThis.astro";
+import AgentLoop from "../components/AgentLoop.astro";
+import BuildWithAI from "../components/BuildWithAI.astro";
+import { site } from "../lib/site";
+import { showcase, templates, thumbWidth } from "../lib/examples";
+
+// For search engines: the site, and the software it's about.
+const jsonLd = [
+  { "@context": "https://schema.org", "@type": "WebSite", name: site.name, url: site.url, description: site.description },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    name: site.name,
+    description: site.description,
+    url: site.url,
+    codeRepository: site.github,
+    programmingLanguage: ["TypeScript", "React"],
+    runtimePlatform: "Node.js",
+    license: "https://opensource.org/licenses/MIT",
+    version: site.version,
+  },
+];
+
+// Real output for the feature tiles.
+const plain = showcase.email.text.split("\n").filter(Boolean).slice(0, 3).join("\n") + "\n…";
+const note = showcase.email.diagnostics.find((d) => d.code === "email/outlook-degraded");
+// The strip mixes outputs: emails, a web page, a printed document.
+const kinds: Record<string, string> = { Email: "Email", Page: "Web page", Document: "PDF", Canvas: "Image" };
+const items = [
+  { ...showcase.page, title: "Product launch", href: "/docs/outputs/page" },
+  ...templates.slice(0, 3).map((t) => ({ ...t, href: `/templates/${t.slug}` })),
+  { ...showcase.document, title: "Release notes", href: "/docs/outputs/pdf" },
+  ...templates.slice(3).map((t) => ({ ...t, href: `/templates/${t.slug}` })),
+];
+const strip = [...items, ...items];
+---
+<Base jsonLd={jsonLd}>
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <a class="pill" href={site.releases}><span class="badge">v{site.version}</span>Open source, MIT licensed <span aria-hidden="true">→</span></a>
+      <h1 class="h-display"><span class="grad">The content engine</span><br /><span class="grad-accent">for agents.</span></h1>
+      <p class="lede">Your agent writes React. Hyper Elements turns it into emails, pages, PDFs and images, checks it in every client, and tells the agent how to fix what's wrong.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="/components">Explore components <span class="arrow">→</span></a>
+        <Cmd text={site.install} />
+      </div>
+    </div>
+    <div class="wrap">
+      <Prism />
+    </div>
+  </section>
+
+  <section class="facts">
+    <div class="wrap facts-row">
+      <a class="fact" href="/docs/benchmark">
+        <span class="fact-k">Agent benchmark</span>
+        <span class="fact-v">2× faster</span>
+        <span class="fact-s">than HTML or React Email</span>
+      </a>
+      <a class="fact" href="/docs/benchmark">
+        <span class="fact-k">Tokens written</span>
+        <span class="fact-v">2.4× fewer</span>
+        <span class="fact-s">the engine writes the tables</span>
+      </a>
+      <div class="fact">
+        <span class="fact-k">Renders</span>
+        <span class="fact-v">One template</span>
+        <span class="fact-s">Email, web page, PDF or image</span>
+      </div>
+      <div class="fact">
+        <span class="fact-k">Built for</span>
+        <span class="fact-v">Any agent</span>
+        <span class="fact-s">Claude Code, Codex, Cursor, Copilot</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">The agent loop</h2>
+        <p class="sec-sub">Create, check, validate, fix. Around again until the content is right.</p>
+      </div>
+      <div class="reveal"><AgentLoop /></div>
+    </div>
+  </section>
+
+  <section class="section ai-section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">Build with any AI</h2>
+        <p class="sec-sub">Point your agent at the guide, then ask for what you want.</p>
+      </div>
+      <div class="reveal"><BuildWithAI /></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">How it works</h2>
+        <p class="sec-sub">A short template and its real HTML. Resize it: rows stack and phone styles apply.</p>
+      </div>
+      <div class="reveal"><WriteThis /></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">Features</h2>
+      </div>
+      <div class="bento">
+        <article class="tile t-wide reveal">
+          <h3>Type safety</h3>
+          <div class="mock-code">
+            <div>&lt;<span class="tag">Button</span> <span class="attr">style</span>={'{{'} <span class="attr">font</span><span class="caret"></span> {'}}'}&gt;</div>
+            <ul class="ac">
+              <li class="on"><span>fontSize</span><em>length</em></li>
+              <li><span>fontWeight</span><em>100 to 900</em></li>
+              <li><span>fontFamily</span><em>font stack</em></li>
+            </ul>
+          </div>
+        </article>
+        <article class="tile reveal">
+          <h3>Personalization</h3>
+          <pre class="mini">Hi &lt;<span class="tg">MergeTag</span> name="first_name" /&gt;
+<span class="d">  →  in the HTML and the text:</span>
+Hi {"{{first_name}}"}
+
+<span class="d">Your provider's syntax with
+the mergeTag option.</span></pre>
+        </article>
+        <article class="tile reveal">
+          <h3>Plain text</h3>
+          <pre class="mini">{plain}</pre>
+        </article>
+        <article class="tile reveal">
+          <h3>Client compatibility</h3>
+          <pre class="mini"><span class="w">info</span> {note?.code}
+<span class="d">{note?.message}</span></pre>
+        </article>
+        <article class="tile reveal">
+          <h3>Deterministic output</h3>
+          <pre class="mini">render(&lt;Launch /&gt;)
+<span class="d">  ===</span>
+render(&lt;Launch /&gt;)  <span class="ok">✓</span>
+
+<span class="d">No clock, no randomness.
+Safe to cache and prerender.</span></pre>
+        </article>
+        <article class="tile reveal">
+          <h3>Security</h3>
+          <pre class="mini">&lt;<span class="tg">Text</span>&gt;Hi {"{name}"}&lt;/<span class="tg">Text</span>&gt;
+<span class="d">  → Hi &amp;lt;img onerror=…&amp;gt;</span>
+
+&lt;<span class="tg">Button</span> href="javascript:…"&gt;
+<span class="e">error</span> prop/invalid
+<span class="d">isn't a link Elements will write</span></pre>
+          <p class="tile-note">Every value escaped. No eval: runs under a strict CSP.</p>
+        </article>
+        <article class="tile t-wide reveal">
+          <h3>Custom components</h3>
+          <div class="comp">
+            <pre class="mini nowrap"><span class="d">const</span> ProductCard = component({"{"}
+  type: "acme.ProductCard",
+  props: {"{"} name: prop.text({"{"} required: true {"}"}),
+           photo: prop.image({"{"} required: true {"}"}) {"}"},
+  render: ({"{"} name, photo {"}"}) =&gt; …,
+{"}"});</pre>
+            <pre class="mini">&lt;<span class="tg">ProductCard</span> name="Linen shirt" /&gt;
+
+<span class="e">error</span> prop/required
+<span class="d">A acme.ProductCard needs "photo"</span></pre>
+          </div>
+          <p class="tile-note">Named, typed blocks your team and your agents reuse, checked like the built-ins.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section templates-band">
+    <div class="wrap band-head reveal">
+      <h2 class="h-section">Templates</h2>
+      <a class="btn btn-ghost" href="/templates">All templates <span class="arrow">→</span></a>
+    </div>
+    <div class="marquee" aria-label="Templates">
+      <div class="marquee-track">
+        {strip.map((t, i) => (
+          <a class="m-card" href={t.href} aria-hidden={i >= items.length ? "true" : undefined} tabindex={i >= items.length ? -1 : undefined}>
+            <Thumb example={t} width={thumbWidth(t, { page: 900, document: 860, email: 620 })} height={300} />
+            <span class="m-label">{t.title}<em>{kinds[t.root ?? "Email"]}</em></span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="runs">
+    {[
+      { label: "Runs in", items: [["Next.js", "/docs/guides/nextjs"], ["Node.js", "/docs/rendering"], ["Server Components", "/docs/guides/nextjs"], ["React 18 & 19", "/docs/quickstart"]] },
+      { label: "Sends with", items: [["Resend", "/docs/guides/sending"], ["AWS SES", "/docs/guides/sending"], ["Postmark", "/docs/guides/sending"], ["SendGrid", "/docs/guides/sending"], ["Nodemailer", "/docs/guides/sending"]] },
+    ].map((g) => (
+      <div class="runs-line">
+        <div class="wrap runs-row">
+          <span class="runs-label">{g.label}</span>
+          <div class="runs-items">
+            {g.items.map(([name, href]) => <a href={href}>{name}</a>)}
+          </div>
+        </div>
+      </div>
+    ))}
+  </section>
+
+  <section class="section final">
+    <div class="wrap final-inner reveal">
+      <h2 class="h-section">Get started</h2>
+      <Cmd text={site.install} />
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="/docs/quickstart">Read the quickstart <span class="arrow">→</span></a>
+        <a class="btn btn-ghost" href={site.github}>View on GitHub</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { position: relative; padding: clamp(28px, 5vh, 80px) 0 16px; overflow-x: clip; }
+  .hero-inner { display: grid; justify-items: center; text-align: center; gap: clamp(12px, 1.8vh, 20px); }
+  .hero-inner :global(.h-display) { font-size: clamp(40px, min(6.6vw, 7.3vh), 84px); }
+  .hero-inner .lede { max-width: 60ch; font-size: clamp(16px, 2.1vh, 19px); }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; }
+
+  .facts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 112px; }
+  .facts-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fact { display: grid; gap: 6px; align-content: start; padding: 22px 24px; border-left: 1px solid var(--line); min-width: 0; }
+  .fact:first-child { border-left: 0; padding-left: 0; }
+  .fact:last-child { padding-right: 0; }
+  .fact-k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .fact-v { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.03em; line-height: 1.15; margin-top: 4px; }
+  .fact-s { font-size: 13.5px; color: var(--text-3); line-height: 1.45; }
+  a.fact { color: inherit; text-decoration: none; transition: background 0.15s; }
+  a.fact .fact-k::after { content: " →"; opacity: 0; transition: opacity 0.15s; }
+  a.fact:hover .fact-k::after, a.fact:focus-visible .fact-k::after { opacity: 1; }
+  a.fact:hover .fact-v { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+
+  .sec-head { text-align: center; margin: 0 auto 64px; max-width: 640px; }
+  .sec-head .h-section { margin: 0; }
+  .sec-sub { margin: 12px 0 0; color: var(--text-2); font-size: 17px; }
+  .runs { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .runs-line + .runs-line { border-top: 1px solid var(--line); }
+  .runs-row { display: grid; grid-template-columns: 168px minmax(0, 1fr); }
+  .runs-label { align-self: center; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  /* Five equal columns, so both rows' cells line up. */
+  .runs-items { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0; }
+  .runs-items a {
+    flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 20px 22px; border-left: 1px solid var(--line); color: var(--text); text-decoration: none;
+    font-size: 15px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; transition: background 0.15s;
+  }
+  .runs-items a::after { content: "→"; color: var(--text-3); opacity: 0; transform: translateX(-4px); transition: opacity 0.15s, transform 0.15s; }
+  .runs-items a:hover { background: var(--hover); }
+  .runs-items a:hover::after, .runs-items a:focus-visible::after { opacity: 1; transform: none; }
+  .section { padding: 160px 0; }
+  .ai-section { padding-top: 0; }
+  .bento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .tile { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; padding: 28px; background: var(--bg-1); min-height: 230px; display: flex; flex-direction: column; gap: 16px; transition: border-color 0.2s; }
+  .tile:hover { border-color: var(--line-3); }
+  .tile h3 { margin: 0; font-size: 20px; letter-spacing: -0.025em; font-weight: 650; line-height: 1.2; }
+  .t-wide { grid-column: span 2; }
+  .tile-note { margin: auto 0 0; font-size: 13.5px; color: var(--text-2); }
+  .comp { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; }
+  .comp .mini + .mini { border-left: 1px solid var(--line); padding-left: 28px; }
+  .mini { margin: 0; font: 400 12.5px/1.65 var(--mono); color: var(--text); white-space: pre-wrap; overflow: hidden; }
+  .mini.nowrap { white-space: pre; }
+  .mini .e { color: var(--err); text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+  .mini .w { color: var(--warn); text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+  .mini .d { color: var(--text-3); }
+  .mini .ok { color: var(--ok); }
+  .mini .tg { color: var(--text); font-weight: 600; }
+  .mock-code { font: 400 14px/1.7 var(--mono); color: var(--text-2); }
+  .mock-code .tag { color: var(--text); font-weight: 600; } .mock-code .attr { color: var(--text); }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--text); vertical-align: -3px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .ac { list-style: none; margin: 8px 0 0 150px; padding: 6px; width: 260px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); box-shadow: var(--shadow); font-size: 13px; }
+  .ac li { display: flex; justify-content: space-between; padding: 5px 8px; border-radius: 6px; color: var(--text-2); }
+  .ac li.on { background: var(--hover-2); color: var(--text); }
+  .ac em { font-style: normal; color: var(--text-3); font-size: 12px; }
+
+  .band-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 48px; }
+  .band-head .h-section { margin: 0; }
+  .marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .marquee-track { display: flex; gap: 16px; width: max-content; animation: marquee 70s linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+  @keyframes marquee { to { transform: translateX(calc(-50% - 8px)); } }
+  .m-card { width: 340px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--bg-1); text-decoration: none; transition: border-color 0.2s; }
+  .m-card:hover { border-color: var(--line-3); }
+  .m-label { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; font-size: 14px; font-weight: 500; }
+  .m-label em { font: 500 11px var(--mono); font-style: normal; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .final { text-align: center; }
+  .final-inner { display: grid; justify-items: center; gap: 20px; }
+  .final-inner .h-section { margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track, .caret { animation: none; }
+  }
+  @media (max-width: 1000px) {
+    .section { padding: 120px 0; }
+    .sec-head { margin-bottom: 48px; }
+    .facts { margin-top: 80px; }
+    .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .facts-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fact:nth-child(3) { border-left: 0; padding-left: 0; }
+    .fact:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .runs-row { grid-template-columns: 116px minmax(0, 1fr); }
+    .runs-items { display: flex; }
+    .runs-items a { padding: 18px 14px; font-size: 14px; }
+    .runs-items a::after { display: none; }
+  }
+  @media (max-width: 640px) {
+    .hero { padding-top: 56px; }
+    .section { padding: 88px 0; }
+    .sec-head { margin-bottom: 36px; }
+    .facts { margin-top: 64px; }
+    .facts-row { grid-template-columns: minmax(0, 1fr); }
+    .fact, .fact:nth-child(3) { border-left: 0; padding: 16px 0; }
+    .fact + .fact { border-top: 1px solid var(--line); }
+    .runs-row { grid-template-columns: minmax(0, 1fr); padding-top: 16px; padding-bottom: 18px; gap: 10px; }
+    .runs-items { flex-wrap: wrap; gap: 8px; }
+    .runs-items a { flex: 0 0 auto; padding: 6px 12px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 14px; }
+    .bento { grid-template-columns: minmax(0, 1fr); }
+    .t-wide { grid-column: auto; }
+    .comp { grid-template-columns: minmax(0, 1fr); }
+    .comp .mini + .mini { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 16px; }
+    .ac { margin-left: 40px; }
+    .band-head { flex-direction: column; align-items: start; }
+    .hero-cta { width: 100%; }
+    .hero-cta .btn { width: 100%; }
+    .m-card { width: 260px; }
+  }
+</style>

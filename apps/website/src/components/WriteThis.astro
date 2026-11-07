@@ -1,0 +1,230 @@
+---
+// How it works: a short template, and its real HTML in a viewport you can resize. Rows stack and phone styles
+// apply as the width crosses the email's breakpoint, measured live from the rendered page.
+import { Code } from "astro:components";
+import { hyperTheme } from "../lib/shiki-theme.mjs";
+import { previewHtml, showcase } from "../lib/examples";
+
+const ex = showcase.responsive;
+const html = previewHtml(ex.html);
+const lines = ex.source.split("\n");
+const marks = [
+  { test: /mobile=\{\{/, when: "phone", note: "on phones" },
+  { test: /<Row /, when: "phone", note: "stacks on phones" },
+  { test: /hover=\{\{/, when: "", note: "on hover" },
+].map((m) => ({ ...m, line: lines.findIndex((l) => m.test.test(l)) + 1 }));
+const transformers = [
+  {
+    line(node: any, line: number) {
+      const m = marks.find((x) => x.line === line);
+      if (!m) return;
+      this.addClassToHast(node, "mark");
+      node.properties["data-note"] = m.note;
+      if (m.when) node.properties["data-when"] = m.when;
+    },
+  },
+];
+const presets = [
+  { w: 375, label: "Phone" },
+  { w: 680, label: "Desktop" },
+];
+---
+<div class="rs" data-rs>
+  <div class="rs-code panel">
+    <div class="rs-bar"><span class="dots"><i></i><i></i><i></i></span>emails/plan-picker.tsx</div>
+    <div class="rs-src"><Code code={ex.source} lang="tsx" theme={hyperTheme as any} transformers={transformers as any} /></div>
+  </div>
+
+  <div class="rs-stage">
+    <div class="rs-tools">
+      <div class="rs-presets" role="group" aria-label="Viewport width">
+        {presets.map((p) => <button type="button" data-w={p.w}>{p.label}</button>)}
+      </div>
+      <span class="rs-width"><b data-width>680</b>px</span>
+    </div>
+    <div class="rs-view" data-view>
+      <div class="rs-frame" data-frame>
+        <div class="rs-scaler" data-scaler>
+          <iframe title="The plan picker email, rendered by Hyper Elements" tabindex="-1" srcdoc={html} data-iframe></iframe>
+        </div>
+        <button class="rs-handle" type="button" aria-label="Drag to resize the viewport" data-handle><span></span></button>
+      </div>
+    </div>
+    <div class="rs-readout" aria-live="polite">
+      <span class="chip"><em>Row</em> <b data-row>3 side by side</b></span>
+      <span class="chip"><em>Heading</em> <b data-h1>30px</b></span>
+      <span class="hint">Drag the edge, or pick a width</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-rs]").forEach((root) => {
+    const MIN = 360, MAX = 680;
+    const view = root.querySelector<HTMLElement>("[data-view]")!;
+    const frame = root.querySelector<HTMLElement>("[data-frame]")!;
+    const scaler = root.querySelector<HTMLElement>("[data-scaler]")!;
+    const iframe = root.querySelector<HTMLIFrameElement>("[data-iframe]")!;
+    const handle = root.querySelector<HTMLElement>("[data-handle]")!;
+    const readW = root.querySelector<HTMLElement>("[data-width]")!;
+    const readRow = root.querySelector<HTMLElement>("[data-row]")!;
+    const readH1 = root.querySelector<HTMLElement>("[data-h1]")!;
+    const presets = [...root.querySelectorAll<HTMLButtonElement>("[data-w]")];
+    const phoneLines = [...root.querySelectorAll<HTMLElement>('[data-when="phone"]')];
+    let w = MAX;
+    let interacted = false;
+
+    const scale = () => Math.min(1, (view.clientWidth - 8) / MAX);
+
+    // Read the layout from the rendered email itself.
+    function measure() {
+      const doc = iframe.contentDocument;
+      if (!doc?.body) return;
+      const s = scale();
+      iframe.style.height = "40px";
+      const h = doc.documentElement.scrollHeight;
+      iframe.style.height = `${h}px`;
+      frame.style.height = `${Math.ceil(h * s)}px`;
+      const names = [...doc.querySelectorAll("body *")].filter((e) => !e.children.length && /^(Starter|Pro|Team)$/.test(e.textContent!.trim()));
+      const tops = names.map((e) => Math.round(e.getBoundingClientRect().top));
+      const stacked = tops.length > 1 && new Set(tops).size > 1;
+      readRow.textContent = stacked ? "stacked" : "3 side by side";
+      const h1 = doc.querySelector("h1");
+      if (h1) readH1.textContent = getComputedStyle(h1).fontSize;
+      root.classList.toggle("is-phone", stacked);
+      phoneLines.forEach((l) => l.classList.toggle("on", stacked));
+    }
+
+    function setWidth(next: number) {
+      w = Math.round(Math.min(MAX, Math.max(MIN, next)));
+      const s = scale();
+      iframe.style.width = `${w}px`;
+      scaler.style.transform = `scale(${s})`;
+      frame.style.width = `${Math.round(w * s)}px`;
+      readW.textContent = String(w);
+      presets.forEach((p) => p.setAttribute("aria-pressed", String(Number(p.dataset.w) === w)));
+      measure();
+    }
+
+    // Tween between widths, for the presets and the demo.
+    let raf = 0;
+    function animateTo(target: number, ms = 900) {
+      cancelAnimationFrame(raf);
+      const from = w, t0 = performance.now();
+      const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+      return new Promise<void>((done) => {
+        const tick = (now: number) => {
+          const t = Math.min(1, (now - t0) / ms);
+          setWidth(from + (target - from) * ease(t));
+          if (t < 1) raf = requestAnimationFrame(tick);
+          else done();
+        };
+        raf = requestAnimationFrame(tick);
+      });
+    }
+
+    presets.forEach((p) => p.addEventListener("click", () => ((interacted = true), animateTo(Number(p.dataset.w)))));
+
+    handle.addEventListener("pointerdown", (e) => {
+      interacted = true;
+      cancelAnimationFrame(raf);
+      handle.setPointerCapture(e.pointerId);
+      root.classList.add("dragging");
+      const left = frame.getBoundingClientRect().left;
+      const move = (ev: PointerEvent) => setWidth((ev.clientX - left) / scale());
+      const up = () => {
+        root.classList.remove("dragging");
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+    handle.addEventListener("keydown", (e) => {
+      const d = e.key === "ArrowLeft" ? -20 : e.key === "ArrowRight" ? 20 : 0;
+      if (d) (e.preventDefault(), (interacted = true), setWidth(w + d));
+    });
+
+    iframe.addEventListener("load", () => setWidth(w));
+    window.addEventListener("resize", () => setWidth(w));
+
+    // Show it on its own when it scrolls in: desktop → phone → desktop, until someone takes over.
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    let playing = false;
+    async function demo() {
+      if (playing || interacted || reduce) return;
+      playing = true;
+      while (!interacted) {
+        await pause(900);
+        if (interacted) break;
+        await animateTo(375, 1600);
+        await pause(1800);
+        if (interacted) break;
+        await animateTo(MAX, 1600);
+        await pause(2200);
+      }
+      playing = false;
+    }
+    new IntersectionObserver(([e]) => e.isIntersecting && demo(), { threshold: 0.4 }).observe(root);
+    setWidth(MAX);
+  });
+</script>
+
+<style>
+  .rs { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 24px; align-items: stretch; }
+
+  /* Code */
+  .rs-code { overflow: hidden; background: #0e0e0e; display: flex; flex-direction: column; min-width: 0; max-height: 620px; }
+  .rs-bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); font: 500 12.5px var(--mono); color: var(--text-3); flex: none; }
+  .dots { display: inline-flex; gap: 6px; margin-right: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--bg-3); }
+  .rs-src { overflow: auto; flex: 1; }
+  .rs-src :global(pre) { padding: 16px 0 !important; font: 400 12px/1.75 var(--mono); background: transparent !important; overflow: visible; }
+  .rs-src :global(.line) { display: inline-block; min-width: 100%; padding: 0 16px; position: relative; transition: background 0.25s, box-shadow 0.25s; }
+  .rs-src :global(.line.mark::after) {
+    content: attr(data-note); position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    font: 500 10.5px var(--sans); color: #8a8a8a; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px; padding: 1px 8px; background: #0e0e0e;
+    transition: color 0.25s, border-color 0.25s, background 0.25s;
+  }
+  .rs-src :global(.line.mark) { background: rgba(255, 255, 255, 0.03); }
+  .rs-src :global(.line.mark.on) { background: rgba(255, 255, 255, 0.09); box-shadow: inset 2px 0 0 #ededed; }
+  .rs-src :global(.line.mark.on::after) { color: #0a0a0a; background: #ededed; border-color: #ededed; }
+
+  /* Stage */
+  .rs-stage { display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--bg-2); background-image: radial-gradient(var(--line-2) 1px, transparent 1px); background-size: 18px 18px; }
+  .rs-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .rs-presets { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); }
+  .rs-presets button { height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font: 500 13px var(--sans); cursor: pointer; }
+  .rs-presets button:hover { color: var(--text); }
+  .rs-presets button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  .rs-width { font: 500 12.5px var(--mono); color: var(--text-3); }
+  .rs-width b { color: var(--text); font-weight: 600; }
+  .rs-view { flex: 1; display: flex; justify-content: center; align-items: center; min-height: 380px; }
+  .rs-frame { position: relative; border-radius: 10px; background: #f1f2f6; box-shadow: 0 0 0 1px var(--line-2), var(--shadow); max-width: 100%; }
+  .rs-scaler { transform-origin: 0 0; width: max-content; overflow: hidden; border-radius: 10px; }
+  .rs-scaler iframe { display: block; border: 0; max-width: none; background: #f1f2f6; }
+  .rs-handle {
+    position: absolute; top: 50%; right: -14px; width: 20px; height: 56px; margin-top: -28px; padding: 0; cursor: ew-resize;
+    border-radius: 7px; border: 1px solid var(--line-3); background: var(--bg); display: grid; place-items: center; touch-action: none;
+  }
+  .rs-handle span { width: 2px; height: 22px; border-radius: 2px; background: var(--text-3); box-shadow: 4px 0 0 var(--text-3); margin-left: -4px; }
+  .rs-handle:hover, .dragging .rs-handle { border-color: var(--text); }
+  .dragging iframe { pointer-events: none; }
+  .rs-readout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .rs-readout .chip { background: var(--bg); }
+  .rs-readout .chip em { font-style: normal; color: var(--text-3); }
+  .rs-readout .chip b { color: var(--text); font-weight: 600; }
+  .is-phone .rs-readout .chip { border-color: var(--text); }
+  .rs-readout .hint { margin-left: auto; font-size: 12.5px; color: var(--text-3); }
+
+  @media (max-width: 1000px) {
+    .rs { grid-template-columns: minmax(0, 1fr); }
+    .rs-src { max-height: 420px; }
+  }
+  @media (max-width: 560px) {
+    .rs-stage { padding: 12px; }
+    .rs-readout .hint { display: none; }
+    .rs-src :global(.line.mark::after) { display: none; }
+  }
+</style>

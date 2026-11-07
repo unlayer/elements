@@ -1,8 +1,8 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
-  "url": "https://context7.com/unlayer/elements",
+  "url": "https://context7.com/hyper-elements/hyper-elements",
   "public_key": "pk_GRHFX0dq2BRyO29TL79nG",
-  "projectTitle": "Unlayer Elements",
+  "projectTitle": "Hyper Elements",
   "description": "React components for transactional emails, email templates, landing pages, invoices, reports and PDFs. Render email-safe HTML, responsive web HTML and print-ready PDF HTML from one component tree.",
   "excludeFolders": [
     ".github",

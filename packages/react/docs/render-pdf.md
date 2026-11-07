@@ -1,6 +1,6 @@
 # PDF output: `@unlayer/react-elements/pdf`
 
-PDF output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Document>` from `@unlayer/react-elements` written as a PDF on the server, with react-pdf, without a browser or the network. Its pages, header, footer and page numbers are the print HTML's, laid out at the same widths.
+PDF output for [Hyper Elements](https://github.com/hyper-elements/hyper-elements): a `<Document>` from `@unlayer/react-elements` written as a PDF on the server, with react-pdf, without a browser or the network. Its pages, header, footer and page numbers are the print HTML's, laid out at the same widths.
 
 ## Installation
 

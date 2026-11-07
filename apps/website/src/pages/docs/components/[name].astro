@@ -1,0 +1,62 @@
+---
+import { getCollection, render } from "astro:content";
+import Docs from "../../../layouts/Docs.astro";
+import Preview from "../../../components/Preview.astro";
+import CodeBlock from "../../../components/CodeBlock.astro";
+import { components } from "../../../lib/examples";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("reference");
+  return entries.filter((e) => e.id !== "overview").map((entry) => ({ params: { name: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const example = components[entry.id];
+// The search result's title and description: "Email component", not the Email output's "Email";
+// a summary too short or too long for a result is filled out or cut at a word.
+const isReference = entry.data.group === "Reference";
+const metaTitle = isReference ? entry.data.title : `${entry.data.title} component`;
+const summary = entry.data.summary as string;
+const metaDescription =
+  summary.length > 160
+    ? `${summary.slice(0, 157).replace(/[\s,;:(]+\S*$/, "")}…`
+    : summary.length < 70 && !isReference
+      ? `${summary} The ${entry.data.title} component's props, styles and an example, in Hyper Elements.`
+      : summary.length < 70
+        ? `${summary} The kinds of values Hyper Elements components take, in one reference.`
+        : summary;
+const import_ = `import { ${entry.data.title.split(".")[0]} } from "@hyper-elements/react";`;
+---
+<Docs
+  title={entry.data.title}
+  metaTitle={metaTitle}
+  description={metaDescription}
+  slug={`components/${entry.id}`}
+  headings={[...(example ? [{ depth: 2, slug: "example", text: "Example" }] : []), { depth: 2, slug: "reference", text: "Reference" }, ...headings]}
+  markdown={(example ? `## Example\n\n\`\`\`tsx\n${example.source}\n\`\`\`\n\n` : "") + `## Reference\n\n${entry.body}`}
+>
+  {entry.id !== "values" && <CodeBlock code={import_} />}
+  {example && (
+    <>
+      <h2 id="example">Example</h2>
+      <div class="ex panel">
+        <Preview example={example} height={360} width={560} views={["desktop", "phone", "text", "diagnostics", "html"]} />
+      </div>
+      <details class="ex-src">
+        <summary>Show the code</summary>
+        <CodeBlock code={example.source} file={`${entry.id}.tsx`} />
+      </details>
+    </>
+  )}
+  <h2 id="reference">Reference</h2>
+  <Content />
+</Docs>
+
+<style>
+  .ex { overflow: hidden; margin: 8px 0 14px; background: #0e0e0e; }
+  .ex-src { margin-bottom: 8px; }
+  .ex-src summary { cursor: pointer; color: var(--text-2); font-size: 14px; margin-bottom: 12px; }
+  .ex-src summary:hover { color: var(--text); }
+  :global(.prose) > :global(.code-block) { margin: 0 0 22px; }
+</style>

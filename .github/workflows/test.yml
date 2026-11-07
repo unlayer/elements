@@ -3,8 +3,11 @@ name: Test & Coverage
 on:
   push:
     branches: [ main, develop ]
+    # The website (apps/) has no package code: a change only there doesn't run the packages' tests.
+    paths-ignore: [ 'apps/**' ]
   pull_request:
     branches: [ main, develop ]
+    paths-ignore: [ 'apps/**' ]
 
 # A new push to a pull request cancels the run still going on its older head.
 concurrency:
@@ -199,7 +202,8 @@ jobs:
 
   storybook:
     name: Storybook smoke and visual drift
-    runs-on: ubuntu-latest
+    # Playwright 1.60 has no Chromium for ubuntu-latest's Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -258,7 +262,8 @@ jobs:
 
   browser:
     name: Browser gates and consumer apps
-    runs-on: ubuntu-latest
+    # Playwright 1.60 has no Chromium for ubuntu-latest's Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code

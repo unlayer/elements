@@ -1,9 +1,9 @@
 ---
-name: unlayer-elements
-description: Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
+name: hyper-elements
+description: Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
 ---
 
-# Unlayer Elements
+# Hyper Elements
 
 <!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
@@ -87,6 +87,27 @@ export default function Receipt() {
     </Email>
   );
 }
+```
+
+## A Canvas as an image
+
+`renderImage(element, options)` (`@unlayer/react-elements/image`) writes a `Canvas` as a PNG (`format: "svg"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.
+
+```tsx
+import { readFile } from "node:fs/promises";
+import { Canvas, Heading, Image } from "@unlayer/react-elements";
+import { renderImage } from "@unlayer/react-elements/image";
+
+const { image, diagnostics } = await renderImage(
+  <Canvas width={1200} height={630} style={{ padding: 64, gap: 24, fontFamily: "Inter", textAlign: "center", justifyContent: "center" }}>
+    <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
+    <Heading level={1} style={{ fontSize: 64 }}>Launch week</Heading>
+  </Canvas>,
+  {
+    fonts: [{ family: "Inter", src: await readFile("Inter-Bold.ttf"), weight: 700 }],
+    images: { "https://example.com/logo.png": await readFile("logo.png") },
+  }
+);
 ```
 
 ## Components

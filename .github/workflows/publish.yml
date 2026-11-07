@@ -18,7 +18,7 @@
 #
 # npm trusted publishing must also be configured on npmjs.com, per package:
 #   Package Settings → Publishing access → Add trusted publisher →
-#     Repository:  unlayer/elements
+#     Repository:  hyper-elements/hyper-elements
 #     Workflow:    publish.yml
 #     Environment: npm-publish
 # npm only offers this on a package that exists, so a new package's first
@@ -33,6 +33,8 @@ permissions:
 on:
   push:
     branches: [main]
+    # The website (apps/) isn't published: a merge that only changes it has nothing to release.
+    paths-ignore: [ 'apps/**' ]
   workflow_dispatch:
     inputs:
       package:

@@ -1,0 +1,47 @@
+---
+import Logo from "./Logo.astro";
+import { site } from "../lib/site";
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="/"><Logo size={28} /><span>Hyper Elements</span></a>
+        <p class="muted" style="max-width:34ch;font-size:14px;margin:14px 0 0">The content engine for agents. Email, web pages, PDFs and images. Open source, MIT.</p>
+        <p class="muted built-by">Built by the team at <a href="https://unlayer.com">Unlayer</a></p>
+      </div>
+      <div>
+        <h2>Learn</h2>
+        <ul>
+          <li><a href="/docs">Introduction</a></li>
+          <li><a href="/docs/quickstart">Quickstart</a></li>
+          <li><a href="/docs/components">Components</a></li>
+          <li><a href="/docs/rendering">Rendering</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Explore</h2>
+        <ul>
+          <li><a href="/components">Component gallery</a></li>
+          <li><a href="/templates">Templates</a></li>
+          <li><a href="/ai">For AI agents</a></li>
+          <li><a href="/migrate">Migrate from React Email</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Project</h2>
+        <ul>
+          <li><a href={site.github}>GitHub</a></li>
+          <li><a href={site.npm}>npm</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/llms-full.txt">llms-full.txt</a></li>
+          <li><a href={`${site.github}/blob/main/LICENSE`}>MIT License</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note">
+      <span>© {new Date().getFullYear()} Hyper Elements</span>
+      <span>Every preview on this site is real output, rendered by Hyper Elements when the site is built.</span>
+    </div>
+  </div>
+</footer>

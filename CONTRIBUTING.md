@@ -1,4 +1,4 @@
-# Contributing to Unlayer Elements
+# Contributing to Hyper Elements
 
 Thanks for your interest in contributing! This guide will help you get set up and understand how the project works.
 
@@ -11,7 +11,7 @@ Thanks for your interest in contributing! This guide will help you get set up an
 
 ```bash
 # Clone the repo
-git clone https://github.com/unlayer/elements.git
+git clone https://github.com/hyper-elements/hyper-elements.git
 cd elements
 
 # Install dependencies

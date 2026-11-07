@@ -228,7 +228,7 @@ export const phone = (() => {
           The same design keeps its desktop layout and adapts its padding, typography and image width for a phone.
         </Text>
         <Column style={{ alignItems: "center" }}>
-          <Button href="https://github.com/unlayer/elements" style={{ backgroundColor: "#355b48", color: "#ffffff", borderRadius: 6, padding: "14px 24px" }}>
+          <Button href="https://github.com/hyper-elements/hyper-elements" style={{ backgroundColor: "#355b48", color: "#ffffff", borderRadius: 6, padding: "14px 24px" }}>
             Explore Elements
           </Button>
         </Column>

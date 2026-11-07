@@ -1087,7 +1087,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     const out = io(dir);
     expect(await main(["emails", "--report", "report.txt"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toContain("Report: report.txt (written as Markdown: name it .json for JSON)\n");
-    expect(fs.readFileSync(path.join(dir, "report.txt"), "utf8")).toMatch(/^# React Email → Unlayer Elements migration/);
+    expect(fs.readFileSync(path.join(dir, "report.txt"), "utf8")).toMatch(/^# React Email → Hyper Elements migration/);
     for (const name of ["report.md", "report.json"]) {
       const named = io(dir);
       expect(await main(["emails", "--report", name], named, lib)).toBe(0);
@@ -1133,7 +1133,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     // Run with nothing at all, it says how it's used.
     const bare = io(dir);
     expect(await main([], bare, lib)).toBe(1);
-    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Unlayer Elements\.\n\nUsage:/);
+    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Hyper Elements\.\n\nUsage:/);
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);
     expect(help.out).toContain("npx @unlayer/migrate");

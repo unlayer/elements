@@ -1,0 +1,26 @@
+{
+  "id": "reset",
+  "title": "Password reset",
+  "brief": "A password reset email for Orbit.\n\n- Preview text: \"Your reset link expires in 30 minutes.\"\n- Orbit logo at the top: https://assets.orbit.dev/img/orbit-logo.png (252×128 file, show it 126px wide).\n- Heading: \"Reset your password\"\n- Paragraph: \"We received a request to reset the password for your Orbit account.\"\n- Button \"Reset password\" linking to https://orbit.dev/reset?token=abc123, background #6d5efc, white text, rounded corners.\n- Small text: \"This link expires in 30 minutes. If you didn't ask for this, you can ignore this email.\"\n- Footer: \"Orbit Labs, 500 Market St, San Francisco\"\n- Light grey page background (#f1f2f6), white 600px content card.",
+  "spec": {
+    "preview": "Your reset link expires in 30 minutes.",
+    "texts": [
+      "Reset your password",
+      "We received a request to reset the password for your Orbit account.",
+      "This link expires in 30 minutes.",
+      "Orbit Labs, 500 Market St, San Francisco"
+    ],
+    "buttons": [
+      {
+        "text": "Reset password",
+        "href": "https://orbit.dev/reset?token=abc123",
+        "background": "#6d5efc"
+      }
+    ],
+    "links": [],
+    "images": [
+      "orbit-logo.png"
+    ],
+    "columns": []
+  }
+}

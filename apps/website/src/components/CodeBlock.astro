@@ -1,0 +1,23 @@
+---
+import { Code } from "astro:components";
+import { hyperTheme } from "../lib/shiki-theme.mjs";
+
+interface Props {
+  code: string;
+  lang?: string;
+  file?: string;
+  class?: string;
+  style?: string;
+}
+const { code, lang = "tsx", file, class: className = "", style } = Astro.props;
+---
+<div class:list={["code-block", { floating: !file }, className]} style={style}>
+  {file && (
+    <div class="bar">
+      <span class="file"><span class="dots"><i></i><i></i><i></i></span>{file}</span>
+      <button class="copy-btn" type="button" data-copy-code>Copy</button>
+    </div>
+  )}
+  {!file && <button class="copy-btn" type="button" data-copy-code>Copy</button>}
+  <Code code={code} lang={lang as any} theme={hyperTheme as any} />
+</div>

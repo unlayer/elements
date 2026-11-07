@@ -1,0 +1,46 @@
+{
+  "id": "newsletter",
+  "title": "Newsletter",
+  "brief": "A monthly newsletter, The Orbit Dispatch.\n\n- Preview text: \"Two stories from the Orbit team this month.\"\n- Orbit logo at the top: https://assets.orbit.dev/img/orbit-logo.png (show it 126px wide).\n- Heading: \"The Orbit Dispatch: November\"\n- Two stories. Each story is two columns, the image on the left and the text on the right; on phones they stack, image first:\n  - Image https://assets.orbit.dev/img/newsletter-hero.png (1200×500 file). Title \"Designing for every inbox\". Text \"What we learned rendering a million emails.\" Link \"Read more\" to https://orbit.dev/blog/every-inbox.\n  - Image https://assets.orbit.dev/img/event-hero.png (1200×600 file). Title \"Orbit Summit recap\". Text \"Talks, demos and what's next for Orbit.\" Link \"Watch the talks\" to https://orbit.dev/summit/talks.\n- Footer: \"Orbit Labs, 500 Market St, San Francisco\" and an \"Unsubscribe\" link to https://orbit.dev/unsubscribe.\n- Light grey page background (#f1f2f6), white 600px content card.",
+  "spec": {
+    "preview": "Two stories from the Orbit team this month.",
+    "texts": [
+      "The Orbit Dispatch: November",
+      "Designing for every inbox",
+      "What we learned rendering a million emails.",
+      "Orbit Summit recap",
+      "Talks, demos and what's next for Orbit.",
+      "Orbit Labs, 500 Market St, San Francisco"
+    ],
+    "buttons": [],
+    "links": [
+      {
+        "text": "Read more",
+        "href": "https://orbit.dev/blog/every-inbox"
+      },
+      {
+        "text": "Watch the talks",
+        "href": "https://orbit.dev/summit/talks"
+      },
+      {
+        "text": "Unsubscribe",
+        "href": "https://orbit.dev/unsubscribe"
+      }
+    ],
+    "images": [
+      "orbit-logo.png",
+      "newsletter-hero.png",
+      "event-hero.png"
+    ],
+    "columns": [
+      [
+        "img:newsletter-hero.png",
+        "Designing for every inbox"
+      ],
+      [
+        "img:event-hero.png",
+        "Orbit Summit recap"
+      ]
+    ]
+  }
+}

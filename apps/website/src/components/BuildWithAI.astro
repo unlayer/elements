@@ -1,0 +1,87 @@
+---
+// "Build with any AI": each agent's one-line setup (the guide ships in the package), and a starter prompt.
+import CodeBlock from "./CodeBlock.astro";
+import { site } from "../lib/site";
+
+const guide = "node_modules/@hyper-elements/react/GUIDE.md";
+const rule = `Before writing a Hyper Elements template, read ${guide}.`;
+const agents = [
+  { id: "claude", name: "Claude Code", file: "CLAUDE.md", lang: "markdown", code: `@${guide}` },
+  { id: "codex", name: "Codex", file: "AGENTS.md", lang: "markdown", code: rule },
+  { id: "cursor", name: "Cursor", file: "AGENTS.md", lang: "markdown", code: rule },
+  { id: "copilot", name: "Copilot", file: ".github/copilot-instructions.md", lang: "markdown", code: rule },
+  { id: "any", name: "Any agent", file: "terminal", lang: "bash", code: `${site.skill}\n\n# or give it the docs: ${site.url}/llms.txt` },
+];
+const prompt =
+  "Using Hyper Elements, write a launch email for our new feature in emails/launch.tsx. Run validate() and fix every finding, then show me outline().";
+---
+<div class="ai" data-ai>
+  <div class="ai-tabs" role="tablist" aria-label="Your agent">
+    {agents.map((a, i) => (
+      <button type="button" role="tab" aria-selected={i === 0 ? "true" : "false"} data-agent={i}>{a.name}</button>
+    ))}
+  </div>
+  <div class="ai-body">
+    <div class="ai-step">
+      <p class="ai-label"><span>1</span>Give it the guide</p>
+      {agents.map((a, i) => (
+        <div class="ai-pane" data-agent-pane={i} hidden={i !== 0}>
+          <CodeBlock code={a.code} lang={a.lang} file={a.file} />
+        </div>
+      ))}
+      <p class="ai-note">The guide ships inside the package, written from the components' own definitions, so it matches the version you installed.</p>
+    </div>
+    <div class="ai-step">
+      <p class="ai-label"><span>2</span>Ask for what you want</p>
+      <div class="prompt">
+        <p>{prompt}</p>
+        <button class="btn btn-ghost btn-sm" type="button" data-copy={prompt}>Copy prompt</button>
+      </div>
+      <a class="ai-more" href="/ai">How agents use Hyper Elements →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-ai]").forEach((root) => {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-agent]")];
+    const panes = [...root.querySelectorAll<HTMLElement>("[data-agent-pane]")];
+    tabs.forEach((tab, i) =>
+      tab.addEventListener("click", () => {
+        tabs.forEach((t, k) => t.setAttribute("aria-selected", String(k === i)));
+        panes.forEach((p, k) => (p.hidden = k !== i));
+      }),
+    );
+  });
+</script>
+
+<style>
+  .ai { border: 1px solid var(--line); border-radius: 16px; background: var(--bg-1); overflow: hidden; }
+  .ai-tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .ai-tabs::-webkit-scrollbar { display: none; }
+  .ai-tabs button {
+    flex: none; height: 34px; padding: 0 14px; border-radius: 9px; border: 0; background: transparent; cursor: pointer;
+    color: var(--text-2); font: 500 14px var(--sans); transition: color 0.15s, background 0.15s;
+  }
+  .ai-tabs button:hover { color: var(--text); background: var(--hover); }
+  .ai-tabs button[aria-selected="true"] { color: var(--bg); background: var(--text); }
+  .ai-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ai-step { padding: 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; min-width: 0; }
+  .ai-step + .ai-step { border-left: 1px solid var(--line); }
+  .ai-label { margin: 0; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; letter-spacing: -0.01em; }
+  .ai-label span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line-2); font: 600 12px var(--mono); color: var(--text-2); }
+  .ai-pane[hidden] { display: none; }
+  .ai-note { margin: 0; font-size: 13.5px; color: var(--text-3); line-height: 1.5; }
+  .prompt { display: grid; gap: 14px; padding: 18px; border-radius: 12px; border: 1px dashed var(--line-3); background: var(--bg); }
+  .prompt p { margin: 0; font: 400 14px/1.6 var(--mono); color: var(--text); }
+  .prompt .btn { justify-self: start; }
+  .ai-more { justify-self: start; color: var(--text); text-decoration: none; font-weight: 500; font-size: 14px; }
+  .ai-more:hover { text-decoration: underline; }
+  @media (max-width: 860px) {
+    .ai-body { grid-template-columns: minmax(0, 1fr); }
+    .ai-step + .ai-step { border-left: 0; border-top: 1px solid var(--line); }
+  }
+  @media (max-width: 560px) {
+    .ai-step { padding: 20px; }
+  }
+</style>

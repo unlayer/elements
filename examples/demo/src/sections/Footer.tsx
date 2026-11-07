@@ -8,13 +8,13 @@ export default function Footer() {
           {/* Brand */}
           <div className="flex items-center gap-2.5">
             <UnlayerLogoMark height={22} color="#a1a1aa" />
-            <span className="font-semibold text-text-primary text-sm">Unlayer Elements</span>
+            <span className="font-semibold text-text-primary text-sm">Hyper Elements</span>
           </div>
 
           {/* Links */}
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/unlayer/elements"
+              href="https://github.com/hyper-elements/hyper-elements"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-text-tertiary hover:text-text-secondary transition-colors inline-flex items-center gap-1.5"
@@ -50,7 +50,7 @@ export default function Footer() {
 
           {/* Copyright */}
           <p className="text-xs text-text-tertiary">
-            Built with Unlayer Elements
+            Built with Hyper Elements
           </p>
         </div>
       </div>

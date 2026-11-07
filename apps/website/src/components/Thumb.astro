@@ -1,0 +1,13 @@
+---
+// A live, non-interactive thumbnail of an example's real output.
+import { previewHtml, type Example } from "../lib/examples";
+interface Props { example: Example; width?: number; height?: number }
+const { example, width = 640, height = 320 } = Astro.props;
+const bg = example.html.match(/<body[^>]*background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})/)?.[1] ?? "#ffffff";
+---
+<div class="thumb view-frame" data-fit={width} style={`height:${height}px;--frame-bg:${bg}`} aria-hidden="true">
+  <div class="scaler"><iframe title="" tabindex="-1" srcdoc={previewHtml(example.html)} width={width} height={height} loading="lazy"></iframe></div>
+</div>
+<style>
+  .thumb { pointer-events: none; border-bottom: 1px solid var(--line); }
+</style>

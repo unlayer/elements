@@ -36,7 +36,7 @@ try {
     dts: false,
     external: [],
     format: ["iife"],
-    globalName: "UnlayerElementsBrowserRuntimeProbe",
+    globalName: "HyperElementsBrowserRuntimeProbe",
     minify: false,
     noExternal: [/.*/],
     outDir,
@@ -89,7 +89,7 @@ try {
 
   const result = await page.evaluate(async () => ({
     processType: typeof globalThis.process,
-    probe: (await globalThis.__UNLAYER_ELEMENTS_BROWSER_RUNTIME_PROBE__) ?? null,
+    probe: (await globalThis.__HYPER_ELEMENTS_BROWSER_RUNTIME_PROBE__) ?? null,
   }));
 
   if (pageErrors.length > 0) {

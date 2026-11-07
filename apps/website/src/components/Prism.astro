@@ -1,0 +1,401 @@
+---
+// The hero's object: templates go into the engine and come out as four real outputs, one of the
+// gallery's templates for each. Everything in the cards was rendered by Hyper Elements when the site
+// was built: the email, the page and the print HTML as HTML, the image as a PNG, the document as a PDF.
+import Logo from "./Logo.astro";
+import { previewHtml, template, type Example } from "../lib/examples";
+
+// Small line icons for the "render as" control.
+const svg = (d: string) => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const icons: Record<string, string> = {
+  email: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
+  page: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/>'),
+  pdf: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+  image: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>'),
+};
+// One of the templates for each output (examples/templates/), as the gallery shows them.
+const email = template("tarn-shipped");
+const page = template("casa-albero-page");
+const doc = template("pell-ashby-invoice");
+const canvas = template("gridline-workshop-banner");
+/** A template's component, as its file names it. */
+const component = (t: Example) => t.source.match(/export default function (\w+)/)?.[1] ?? t.title;
+/** The value of a prop on the template's root, as written in its source. */
+const rootProp = (t: Example, prop: string) => t.source.match(new RegExp(`\\n\\s+${prop}=(?:"([^"]*)"|\\{(\\d+)\\})`))?.slice(1).find(Boolean) ?? "";
+/** The domain a template links to (its SITE constant), for the browser's address bar. */
+const domain = (t: Example) => t.source.match(/const SITE = "https?:\/\/([^"]+)"/)?.[1] ?? "example.com";
+const mail = { from: email.title.split(" ")[0], subject: rootProp(email, "title") };
+const fileName = (t: Example) => t.file?.split("/").pop() ?? "";
+const size = `${rootProp(canvas, "width")} × ${rootProp(canvas, "height")}`;
+const outputs = [
+  { id: "email", label: "Email", root: "Email", fn: "render", comp: component(email), out: `${email.slug}.html + .txt`, chrome: "inbox", width: 640, html: email.html },
+  { id: "page", label: "Web page", root: "Page", fn: "render", comp: component(page), out: "index.html · no client JS", chrome: "browser", width: 1200, html: page.html },
+  { id: "pdf", label: "PDF", root: "Document", fn: "renderPdf", comp: component(doc), out: `${fileName(doc)} · ${rootProp(doc, "size") || "A4"}`, chrome: "paper", width: 794, html: doc.html, file: doc.file },
+  { id: "image", label: "Image", root: "Canvas", fn: "renderImage", comp: component(canvas), out: fileName(canvas), chrome: "image", file: canvas.file },
+];
+---
+<div class="prism" data-prism>
+  <div class="stage" data-stage>
+    <!-- Input: the template, and which output to make of it -->
+    <div class="input">
+    <div class="code-card surface-dark">
+      <div class="cc-bar"><span class="dots"><i></i><i></i><i></i></span>render.tsx</div>
+      <pre class="cc-code"><code><span class="k">const</span> out = <span class="k">await</span> <span class="fn" data-token="fn">render</span>(
+  <span class="tg">&lt;<span data-token="root">Email</span>&gt;</span>
+    <span class="tg">&lt;<span data-token="comp">{outputs[0].comp}</span> /&gt;</span>
+  <span class="tg">&lt;/<span data-token="root">Email</span>&gt;</span>
+);
+<span class="cm">// → <span data-token="out">{outputs[0].out}</span></span></code></pre>
+      <div class="switch" role="tablist" aria-label="Render as">
+        {outputs.map((o, i) => (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={i === 0 ? "true" : "false"}
+            data-pick={i}
+            data-root={o.root}
+            data-fn={o.fn}
+            data-out={o.out}
+            data-comp={o.comp}
+          >
+            <span class="ico" set:html={icons[o.id]} />
+            <span class="lbl">{o.label === "Web page" ? "Page" : o.label}</span>
+            <span class="bar"><span></span></span>
+          </button>
+        ))}
+      </div>
+    </div>
+    </div>
+
+    <!-- The engine -->
+    <div class="core" aria-hidden="true">
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="orbit"><i></i><i></i><i></i></div>
+      <div class="mark"><Logo size={64} /></div>
+    </div>
+
+    <!-- Beams from the template, through the engine, to the outputs -->
+    <svg class="beams" data-beams aria-hidden="true">
+      <defs>
+        <linearGradient id="beam" x1="0" x2="1">
+          <stop offset="0" stop-color="currentColor" stop-opacity="0" />
+          <stop offset=".5" stop-color="currentColor" stop-opacity=".7" />
+          <stop offset="1" stop-color="currentColor" />
+        </linearGradient>
+      </defs>
+      <path class="beam in" data-beam-in />
+      {[0, 1, 2, 3].map((i) => <path class="beam out" data-beam={i} />)}
+    </svg>
+
+    <!-- Output: four real renders -->
+    <div class="deck" data-deck>
+      {outputs.map((o, i) => (
+        <figure class:list={["out-card", `chrome-${o.chrome}`]} data-card={i} data-pos={i} aria-label={`${o.label} output`}>
+          <div class="oc-bar">
+            {o.chrome === "browser" && <><span class="dots"><i></i><i></i><i></i></span><span class="url"><span class="lock">●</span>{domain(page)}</span><span class="tabs-fake"></span></>}
+            {o.chrome === "inbox" && (
+              <>
+                <span class="avatar">{mail.from[0]}</span>
+                <span class="mail-meta"><b>{mail.from}</b><span>{mail.subject}</span></span>
+                <span class="when">9:41 AM</span>
+              </>
+            )}
+            {o.chrome === "paper" && <><span class="pdf">PDF</span><span class="subj">{fileName(doc)}</span><a class="dl" href={o.file} download>Download ↓</a></>}
+            {o.chrome === "image" && <><span class="pdf img">PNG</span><span class="subj">{fileName(canvas)}</span><span class="dim">{size}</span></>}
+          </div>
+          <div class="oc-body">
+            {o.html ? (
+              <div class="sheet">
+                <div class="view-frame" data-fit={o.width} style="height:100%">
+                  <div class="scaler"><iframe title={`${o.label}, rendered by Hyper Elements`} tabindex="-1" srcdoc={previewHtml(o.html)} loading={i === 0 ? "eager" : "lazy"}></iframe></div>
+                </div>
+              </div>
+            ) : (
+              <img src={o.file} alt={`${canvas.title}: ${canvas.description}`} width={rootProp(canvas, "width")} height={rootProp(canvas, "height")} />
+            )}
+          </div>
+        </figure>
+      ))}
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const prism = document.querySelector<HTMLElement>("[data-prism]");
+  if (prism) {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const cards = [...prism.querySelectorAll<HTMLElement>("[data-card]")];
+    const picks = [...prism.querySelectorAll<HTMLButtonElement>("[data-pick]")];
+    const beams = [...prism.querySelectorAll<SVGPathElement>("[data-beam]")];
+    const stage = prism.querySelector<HTMLElement>("[data-stage]")!;
+    const DURATION = 4200;
+    let active = 0;
+    let timer: number | undefined;
+
+    // Swap a token's text with a short scramble, so the change reads as "the engine rewrote it".
+    const glyphs = "<>/{}=;:_abcdefghijklmnopqrstuvwxyz";
+    function scramble(el: HTMLElement, to: string) {
+      if (reduce || el.textContent === to) return void (el.textContent = to);
+      const from = el.textContent ?? "";
+      const len = Math.max(from.length, to.length);
+      let frame = 0;
+      const total = 12;
+      const tick = () => {
+        frame++;
+        let s = "";
+        for (let i = 0; i < len; i++) {
+          const done = frame / total > i / len;
+          s += done ? (to[i] ?? "") : glyphs[Math.floor(Math.random() * glyphs.length)];
+        }
+        el.textContent = s;
+        if (frame < total) requestAnimationFrame(tick);
+        else el.textContent = to;
+      };
+      tick();
+    }
+
+    function show(i: number) {
+      active = (i + cards.length) % cards.length;
+      cards.forEach((c, n) => {
+        const pos = (n - active + cards.length) % cards.length;
+        c.dataset.pos = String(pos);
+      });
+      picks.forEach((p, n) => {
+        p.setAttribute("aria-selected", String(n === active));
+        p.classList.remove("run");
+      });
+      beams.forEach((b, n) => b.classList.toggle("hot", n === active));
+      const pick = picks[active];
+      prism.querySelectorAll<HTMLElement>('[data-token="root"]').forEach((el) => scramble(el, pick.dataset.root!));
+      scramble(prism.querySelector<HTMLElement>('[data-token="fn"]')!, pick.dataset.fn!);
+      scramble(prism.querySelector<HTMLElement>('[data-token="comp"]')!, pick.dataset.comp!);
+      scramble(prism.querySelector<HTMLElement>('[data-token="out"]')!, pick.dataset.out!);
+      prism.classList.remove("pulse");
+      void prism.offsetWidth;
+      prism.classList.add("pulse");
+      if (!reduce) {
+        void pick.offsetWidth;
+        pick.classList.add("run");
+      }
+    }
+
+    function schedule() {
+      window.clearTimeout(timer);
+      if (!reduce) timer = window.setTimeout(() => (show(active + 1), schedule()), DURATION);
+    }
+
+    picks.forEach((p, n) =>
+      p.addEventListener("click", () => {
+        show(n);
+        schedule();
+      }),
+    );
+    cards.forEach((c, n) => c.addEventListener("click", () => n !== active && (show(n), schedule())));
+    prism.addEventListener("mouseenter", () => window.clearTimeout(timer));
+    prism.addEventListener("mouseleave", schedule);
+
+    // Tilt the scene toward the pointer.
+    if (!reduce && matchMedia("(pointer: fine)").matches) {
+      let raf = 0;
+      prism.addEventListener("pointermove", (e) => {
+        const r = prism.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => {
+          stage.style.setProperty("--rx", `${(-y * 6).toFixed(2)}deg`);
+          stage.style.setProperty("--ry", `${(x * 8).toFixed(2)}deg`);
+        });
+      });
+      prism.addEventListener("pointerleave", () => {
+        stage.style.setProperty("--rx", "0deg");
+        stage.style.setProperty("--ry", "0deg");
+      });
+    }
+
+    // Draw the beams between where things really are: the code card, the engine, the front card.
+    const svg = prism.querySelector<SVGSVGElement>("[data-beams]")!;
+    const code = prism.querySelector<HTMLElement>(".code-card")!;
+    const core = prism.querySelector<HTMLElement>(".mark")!;
+    const beamIn = prism.querySelector<SVGPathElement>("[data-beam-in]")!;
+    function layoutBeams() {
+      const s = stage.getBoundingClientRect();
+      if (!s.width || getComputedStyle(svg).display === "none") return;
+      svg.setAttribute("viewBox", `0 0 ${s.width} ${s.height}`);
+      const c = code.getBoundingClientRect();
+      const m = core.getBoundingClientRect();
+      const front = cards.find((card) => card.dataset.pos === "0")!.getBoundingClientRect();
+      const x0 = c.right - s.left, y0 = c.top + c.height / 2 - s.top;
+      const mx1 = m.left - s.left, mx2 = m.right - s.left, my = m.top + m.height / 2 - s.top;
+      beamIn.setAttribute("d", `M${x0} ${y0} C ${x0 + 40} ${y0}, ${mx1 - 40} ${my}, ${mx1} ${my}`);
+      const fx = front.left - s.left + 4;
+      beams.forEach((b, n) => {
+        const fy = front.top - s.top + front.height * (0.25 + n * 0.17);
+        b.setAttribute("d", `M${mx2} ${my} C ${mx2 + 50} ${my}, ${fx - 60} ${fy}, ${fx} ${fy}`);
+      });
+    }
+    window.addEventListener("resize", layoutBeams);
+    setTimeout(layoutBeams, 50);
+    setTimeout(layoutBeams, 900);
+
+    show(0);
+    // Start cycling once the hero is on screen.
+    new IntersectionObserver(([e]) => (e.isIntersecting ? schedule() : window.clearTimeout(timer))).observe(prism);
+  }
+</script>
+
+<style>
+  .prism {
+    position: relative; margin-top: clamp(8px, 2vh, 24px);
+    /* The stage fills what the window has left under the hero's text: 470px on tall screens, at least 300px. */
+    --stage-h: clamp(285px, calc(100svh - 446px), 470px);
+  }
+  .stage {
+    --rx: 0deg; --ry: 0deg;
+    position: relative; height: var(--stage-h);
+    display: grid; grid-template-columns: 330px 1fr; align-items: center;
+    perspective: 1800px; transform-style: preserve-3d;
+    /* Tilted, the code card's left side sits behind the stage's own plane: the stage mustn't take its
+       clicks, so only what's on it does (the tilt listens on the whole prism). */
+    pointer-events: none;
+  }
+  .stage > * { transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform 0.4s cubic-bezier(.2,.7,.2,1); }
+  /* The deck's cards sit at depths of their own too: each takes its clicks, the deck doesn't. Their previews
+     aren't interactive, so a click on one reaches its card. */
+  .stage > .input, .out-card { pointer-events: auto; }
+  .out-card iframe { pointer-events: none; }
+
+  /* Input */
+  .code-card {
+    position: relative; z-index: 3; width: 100%; border-radius: 14px; overflow: hidden;
+    background: #0e0e0e; border: 1px solid var(--line-2);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+  }
+  .cc-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line); font: 500 12px var(--mono); color: var(--text-3); }
+  .dots { display: inline-flex; gap: 5px; margin-right: 4px; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--bg-3); }
+  .cc-code { margin: 0; padding: 18px 18px 20px; font: 400 13.5px/1.75 var(--mono); color: #a1a1a1; white-space: pre; overflow: hidden; }
+  .cc-code .k { color: #a1a1a1; }
+  .cc-code .fn { color: #ededed; }
+  .cc-code .tg { color: #ededed; }
+  .cc-code .cm { color: #6e6e6e; }
+  .cc-code [data-token] { display: inline-block; }
+  .cc-code [data-token="root"] { color: #ffffff; font-weight: 600; }
+  .cc-code [data-token="out"] { color: #cfcfcf; }
+
+  /* Engine */
+  .core { position: absolute; left: 400px; top: 50%; width: 220px; height: 220px; margin-top: -110px; margin-left: -60px; display: grid; place-items: center; z-index: 2; pointer-events: none; }
+  .mark { --logo-ink: #e3e8ed; position: relative; z-index: 2; display: grid; place-items: center; width: 108px; height: 108px; border-radius: 28px; background: #111111; border: 1px solid var(--line-2); box-shadow: var(--shadow); }
+  .ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--line-2); }
+  .ring.r1 { inset: 30px; animation: breathe 3.2s ease-in-out infinite; }
+  .ring.r2 { border-color: var(--line-2); border-style: dashed; animation: spin 26s linear infinite; }
+  .orbit { position: absolute; inset: 6px; animation: spin 7s linear infinite; }
+  .orbit i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--text-2); }
+  .orbit i:nth-child(1) { top: 0; left: 50%; }
+  .orbit i:nth-child(2) { bottom: 18%; left: 6%; }
+  .orbit i:nth-child(3) { bottom: 18%; right: 6%; }
+  .prism.pulse .mark { animation: kick 0.6s cubic-bezier(.2,.7,.2,1); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes breathe { 50% { transform: scale(1.12); opacity: 0.4; } }
+  @keyframes kick { 30% { transform: scale(1.06); } }
+
+  /* Beams */
+  .beams { color: var(--text-2); position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; overflow: visible; pointer-events: none; }
+  .beam { fill: none; stroke: url(#beam); stroke-width: 1.5; stroke-dasharray: 4 10; opacity: 0.35; animation: flow 1.2s linear infinite; vector-effect: non-scaling-stroke; }
+  .beam.in { opacity: 0.8; stroke-width: 2; }
+  .beam.hot { opacity: 1; stroke-width: 2; stroke-dasharray: 10 6; }
+  @keyframes flow { to { stroke-dashoffset: -28; } }
+
+  /* Output deck */
+  .deck { position: relative; height: calc(var(--stage-h) - 30px); margin-left: 330px; transform-style: preserve-3d; z-index: 2; }
+  .out-card {
+    position: absolute; top: 20px; right: 0; width: min(560px, 100%); height: calc(var(--stage-h) - 70px); margin: 0;
+    border-radius: 14px; overflow: hidden; background: #fff; cursor: pointer;
+    border: 1px solid var(--line-2);
+    box-shadow: var(--shadow);
+    transition: transform 0.75s cubic-bezier(.2,.75,.15,1), opacity 0.6s, filter 0.6s;
+    transform-origin: 100% 50%;
+  }
+  .out-card[data-pos="0"] { transform: translate3d(0, 0, 0) rotateY(-10deg); z-index: 4; cursor: default; box-shadow: var(--shadow); }
+  .out-card[data-pos="1"] { transform: translate3d(70px, -26px, -140px) rotateY(-24deg); z-index: 3; opacity: 0.8; filter: brightness(0.6) saturate(0.8); }
+  .out-card[data-pos="2"] { transform: translate3d(130px, -48px, -270px) rotateY(-30deg); z-index: 2; opacity: 0.55; filter: brightness(0.45) saturate(0.7); }
+  .out-card[data-pos="3"] { transform: translate3d(180px, -66px, -380px) rotateY(-34deg); z-index: 1; opacity: 0.3; filter: brightness(0.35) saturate(0.6); }
+  .out-card:not([data-pos="0"]):hover { filter: brightness(0.85); }
+  .oc-bar { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; background: #f6f6f8; border-bottom: 1px solid #e5e7eb; font: 500 12px var(--sans); color: #475569; white-space: nowrap; overflow: hidden; }
+  .oc-bar .dots i { background: #d9dbe1; }
+  .oc-bar .url { flex: 1; height: 22px; display: flex; align-items: center; padding: 0 10px; border-radius: 6px; background: #fff; border: 1px solid #e5e7eb; font: 500 11.5px var(--mono); color: #64748b; max-width: 280px; }
+  .oc-bar .avatar { flex: none; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #6d5efc, #29c5f6); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .mail-meta { flex: 1; display: flex; flex-direction: column; line-height: 1.25; overflow: hidden; }
+  .mail-meta b { color: #0f172a; font-size: 12px; }
+  .mail-meta span { color: #475569; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+  .oc-bar .when { font-size: 11px; color: #94a3b8; }
+  .chrome-inbox .oc-bar { height: 48px; background: #fff; }
+  .chrome-inbox .oc-body { height: calc(100% - 48px); }
+  .oc-bar .lock { color: #16a34a; font-size: 8px; margin-right: 6px; }
+  .oc-bar .tabs-fake { width: 60px; }
+  .oc-bar .subj { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .oc-bar .subj b { color: #0f172a; }
+  .oc-bar .pdf { font: 700 10px var(--mono); color: #fff; background: #ef4638; border-radius: 4px; padding: 3px 6px; letter-spacing: 0.04em; }
+  .oc-bar .pdf.img { background: #6d5efc; }
+  .oc-bar .dl { font: 600 11.5px var(--sans); color: #ef4638; text-decoration: none; }
+  .oc-bar .dl:hover { text-decoration: underline; }
+  .oc-bar .dim { font: 500 11px var(--mono); color: #94a3b8; }
+  .oc-body { position: relative; height: calc(100% - 38px); overflow: hidden; }
+  .sheet { height: 100%; }
+  .chrome-paper .oc-body { background: #e5e7eb; }
+  .chrome-image .oc-body { background: #1b1b24; display: grid; place-items: center; padding: 16px; }
+  .chrome-image img { width: 100%; height: auto; border-radius: 4px; box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.7); }
+  .chrome-image .oc-bar { background: #24242f; border-bottom-color: #30303c; color: #c4c7d0; }
+  .chrome-image .oc-bar .dim { color: #8b8fa0; }
+  .out-card :global(.view-frame) { --frame-bg: #fff; }
+  .chrome-paper :global(.view-frame) { --frame-bg: #e5e7eb; }
+
+  /* Switch */
+  .input { position: relative; z-index: 3; width: 330px; }
+  .switch {
+    position: relative; z-index: 5; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+    padding: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02);
+  }
+  .switch button {
+    position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 32px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent;
+    color: #8a8a8a; font: 500 12.5px var(--sans); cursor: pointer; white-space: nowrap;
+    transition: color 0.2s, background 0.2s;
+  }
+  .switch button:hover { color: #ededed; background: rgba(255, 255, 255, 0.04); }
+  .switch button[aria-selected="true"] { color: #ffffff; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+  .switch .ico { display: inline-grid; place-items: center; }
+  .switch .ico :global(svg) { display: block; }
+  .switch .bar { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; border-radius: 2px; overflow: hidden; }
+  .switch .bar span { display: block; height: 100%; width: 0; background: rgba(255, 255, 255, 0.55); }
+  .switch button.run .bar span { animation: fill 4.2s linear forwards; }
+  .prism:hover .switch button.run .bar span { animation-play-state: paused; }
+  @keyframes fill { to { width: 100%; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring, .orbit, .beam { animation: none !important; }
+    .out-card, .stage > * { transition: none; }
+  }
+
+  /* Narrower screens: the deck takes the stage; the code sits above it. */
+  @media (max-width: 1000px) {
+    .stage { height: auto; grid-template-columns: minmax(0, 1fr); gap: 20px; perspective: none; }
+    .stage > * { transform: none; }
+    .input { width: 100%; max-width: 420px; justify-self: center; }
+    .core, .beams { display: none; }
+    .deck { margin-left: 0; height: 380px; }
+    .out-card { height: 340px; left: 50%; right: auto; width: min(560px, 92%); top: 10px; transform-origin: 50% 50%; transform: translateX(-50%); }
+    .out-card[data-pos="0"] { transform: translateX(-50%); }
+    .out-card[data-pos="1"] { transform: translate(-50%, -10px) scale(0.95); }
+    .out-card[data-pos="2"] { transform: translate(-50%, -20px) scale(0.9); }
+    .out-card[data-pos="3"] { transform: translate(-50%, -30px) scale(0.85); }
+  }
+  @media (max-width: 560px) {
+    .deck { height: 300px; }
+    .out-card { height: 280px; width: 100%; }
+    .cc-code { font-size: 12.5px; }
+  }
+</style>

@@ -1,6 +1,6 @@
 # Next.js App Router Example
 
-Renders an Unlayer Elements email to HTML inside a Next.js 15 App Router **Server Component**, then previews it in the browser.
+Renders a Hyper Elements email to HTML inside a Next.js 15 App Router **Server Component**, then previews it in the browser.
 
 ## Run it
 

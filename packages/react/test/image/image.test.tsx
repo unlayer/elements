@@ -299,6 +299,32 @@ describe("renderImage", () => {
     });
   });
 
+  it("aligns a line of text that doesn't wrap as one that does: centered, right or at the left, set on it or inherited", async () => {
+    /** Where a Canvas's text is drawn across it: the leftmost and rightmost points of its letters' paths. */
+    const across = async (template: ReactElement) => {
+      const svg = new TextDecoder().decode((await renderImage(template, { fonts, format: "svg" })).image);
+      const xs = [...svg.matchAll(/<path[^>]* d="([^"]+)"/g)].flatMap((path) => [...path[1].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((point) => Number(point[1])));
+      return [Math.min(...xs), Math.max(...xs)];
+    };
+    const canvas = (align: "left" | "center" | "right" | undefined, children: ReactNode) => (
+      <Canvas width={1080} height={400} style={{ textAlign: align, fontFamily: "Liberation Sans" }}>
+        {children}
+      </Canvas>
+    );
+    const centered = ([left, right]: number[]) => expect(Math.abs((left + right) / 2 - 540)).toBeLessThan(3);
+
+    // The Canvas's alignment, a Column's, the block's own.
+    centered(await across(canvas("center", <Paragraph>EPISODE 42</Paragraph>)));
+    centered(await across(canvas(undefined, <Column style={{ textAlign: "center" }}><Heading>EPISODE 42</Heading></Column>)));
+    centered(await across(canvas(undefined, <Paragraph style={{ textAlign: "center" }}>EPISODE <Span style={{ color: "#ff0000" }}>42</Span></Paragraph>)));
+    const [, right] = await across(canvas("right", <Paragraph>EPISODE 42</Paragraph>));
+    expect(right).toBeGreaterThan(1075);
+    const [left] = await across(canvas("left", <Paragraph>EPISODE 42</Paragraph>));
+    expect(left).toBeLessThan(5);
+    // Lines that wrap, centered as they were.
+    centered(await across(canvas("center", <Paragraph style={{ fontSize: 48 }}>{"Five days of new things, one a day, all week long. ".repeat(3)}</Paragraph>)));
+  });
+
   it("writes a Canvas only", async () => {
     await expect(
       renderImage(

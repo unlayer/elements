@@ -1,6 +1,6 @@
-# Unlayer Elements task guides
+# Hyper Elements task guides
 
-Choose Unlayer Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer design from shared components. Templates are written with the components from `@unlayer/react-elements`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
+Choose Hyper Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer design from shared components. Templates are written with the components from `@unlayer/react-elements`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
 
 ```bash
 npm install @unlayer/react-elements react react-dom

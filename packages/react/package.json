@@ -6,10 +6,10 @@
   "author": "Unlayer",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unlayer/elements.git",
+    "url": "git+https://github.com/hyper-elements/hyper-elements.git",
     "directory": "packages/react"
   },
-  "homepage": "https://github.com/unlayer/elements",
+  "homepage": "https://github.com/hyper-elements/hyper-elements",
   "keywords": [
     "email",
     "react-email",
