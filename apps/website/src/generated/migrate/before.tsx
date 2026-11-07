@@ -1,23 +1,58 @@
-import { Body, Button, Container, Head, Heading, Html, Preview, Tailwind, Text } from "@react-email/components";
+import { Body, Button, Container, Head, Heading, Html, Preview, Text } from "@react-email/components";
 
 export default function Welcome({ name = "Ada" }: { name?: string }) {
   return (
     <Html>
       <Head />
       <Preview>Welcome to Orbit</Preview>
-      <Tailwind>
-        <Body className="bg-gray-100 font-sans">
-          <Container className="mx-auto my-10 max-w-[520px] rounded-lg bg-white p-8">
-            <Heading className="m-0 text-2xl font-bold text-gray-900">Welcome, {name}</Heading>
-            <Text className="text-base text-gray-600">Your workspace is ready.</Text>
-            <Button href="https://example.com/start" className="rounded-md bg-indigo-600 px-5 py-3 text-white">
-              Open your workspace
-            </Button>
-          </Container>
-        </Body>
-      </Tailwind>
+      <Body style={main}>
+        <Container style={container}>
+          <Heading style={heading}>Welcome, {name}</Heading>
+          <Text style={paragraph}>Your workspace is ready.</Text>
+          <Button style={button} href="https://example.com/start">
+            Open your workspace
+          </Button>
+        </Container>
+      </Body>
     </Html>
   );
 }
 
 Welcome.PreviewProps = { name: "Ada" };
+
+const main = {
+  backgroundColor: "#f3f4f6",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+};
+
+const container = {
+  margin: "40px auto",
+  padding: "32px",
+  maxWidth: "520px",
+  backgroundColor: "#ffffff",
+  borderRadius: "8px",
+};
+
+const heading = {
+  margin: "0",
+  fontSize: "24px",
+  lineHeight: "32px",
+  fontWeight: "700",
+  color: "#101828",
+};
+
+const paragraph = {
+  margin: "16px 0 24px",
+  fontSize: "16px",
+  lineHeight: "24px",
+  color: "#4a5565",
+};
+
+const button = {
+  backgroundColor: "#4f39f6",
+  borderRadius: "6px",
+  color: "#ffffff",
+  fontSize: "16px",
+  padding: "12px 20px",
+  textDecoration: "none",
+};
