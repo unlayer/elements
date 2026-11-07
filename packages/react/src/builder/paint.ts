@@ -71,7 +71,7 @@ export function outOfMarkup(html: string): { values: Values; html: string } {
     const { values, rest } = painted(styleOf(open[1]));
     if (end && !html.slice(end.end).trim() && /^display\s*:\s*block$/i.test(rest.trim())) return { values, html: html.slice(open[0].length, end.start) };
   }
-  // A Paragraph's: each paragraph's the same, or they aren't read here.
+  // A Text's: each paragraph's the same, or they aren't read here.
   const read = [...html.matchAll(PARAGRAPH)].map((match) => painted(styleOf(match[1])).values);
   if (!read.length || !Object.keys(read[0]).length || read.some((one) => JSON.stringify(one) !== JSON.stringify(read[0]))) return { values: {}, html };
   const plain = html.replace(PARAGRAPH, (_, attrs: string) => {

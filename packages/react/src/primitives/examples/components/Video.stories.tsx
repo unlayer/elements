@@ -7,7 +7,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Email, Heading, Paragraph, Row, Section, Video } from "../../index";
+import { Button, Column, Email, Heading, Text, Row, Section, Video } from "../../index";
 import { drawing } from "./kit-d";
 
 const CHALK = "#F2F0EB";
@@ -68,10 +68,10 @@ const BENCH = `<rect width="512" height="288" fill="${STEEL}"/><rect x="330" y="
 const masthead = (right: string) => (
   <Row stackOnMobile={false} style={{ alignItems: "end" }}>
     <Column>
-      <Paragraph style={{ fontSize: 18, fontWeight: 800, letterSpacing: 3, lineHeight: 1.2 }}>LARCH</Paragraph>
+      <Text style={{ fontSize: 18, fontWeight: 800, letterSpacing: 3, lineHeight: 1.2 }}>LARCH</Text>
     </Column>
     <Column>
-      <Paragraph style={{ ...CAPTION, textAlign: "right" }}>{right}</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "right" }}>{right}</Text>
     </Column>
   </Row>
 );
@@ -86,7 +86,7 @@ export const YouTube = story((Root) => (
         <Heading level={2} style={{ ...TITLE, fontSize: 28 }} mobile={{ fontSize: 24 }}>
           Forty-one hours, one frame.
         </Heading>
-        <Paragraph style={{ color: QUIET }}>Anna brazes every Larch by hand. Here’s a whole one, in ninety seconds.</Paragraph>
+        <Text style={{ color: QUIET }}>Anna brazes every Larch by hand. Here’s a whole one, in ninety seconds.</Text>
       </Column>
     </Section>
   </Root>
@@ -102,7 +102,7 @@ export const Vimeo = story((Root) => (
         <Heading level={2} style={{ ...TITLE, fontSize: 28 }} mobile={{ fontSize: 24 }}>
           Over the Brenner, slowly.
         </Heading>
-        <Paragraph style={{ color: QUIET }}>Two friends, one pass, and a thermos that didn’t make it.</Paragraph>
+        <Text style={{ color: QUIET }}>Two friends, one pass, and a thermos that didn’t make it.</Text>
       </Column>
     </Section>
   </Root>
@@ -113,9 +113,9 @@ export const Widths = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [32, 24], gap: 12, alignItems: "center" }}>
       <Video src={FILM} thumbnail={thumbnail(Root, BENCH)} title="Cutting the tubes" style={{ width: 320 }} mobile={{ width: "100%" }} />
-      <Paragraph style={{ ...CAPTION, textAlign: "center" }}>width: 320, the whole width on phones</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "center" }}>width: 320, the whole width on phones</Text>
       <Video src={FILM} thumbnail={thumbnail(Root, PASS)} title="The first ride" style={{ width: "50%" }} />
-      <Paragraph style={{ ...CAPTION, textAlign: "center" }}>width: "50%", half the space</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "center" }}>width: "50%", half the space</Text>
     </Section>
   </Root>
 ));
@@ -124,15 +124,15 @@ export const Widths = story((Root) => (
 export const ProductLaunch = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ backgroundColor: GRAPHITE, color: CHALK, padding: [44, 32, 40], gap: 10 }} mobile={{ padding: [32, 24] }}>
-      <Paragraph style={{ ...CAPTION, color: ON_DARK }}>New for 2027 · Frame no. 2</Paragraph>
+      <Text style={{ ...CAPTION, color: ON_DARK }}>New for 2027 · Frame no. 2</Text>
       <Heading level={1} style={{ ...TITLE, fontSize: 56, letterSpacing: -1.6 }} mobile={{ fontSize: 42 }}>
         The Tern 2.
       </Heading>
-      <Paragraph style={{ fontSize: 17, color: ON_DARK }}>Four hundred grams lighter, and it still fits a mudguard.</Paragraph>
+      <Text style={{ fontSize: 17, color: ON_DARK }}>Four hundred grams lighter, and it still fits a mudguard.</Text>
     </Section>
     <Section style={{ padding: [32, 32, 44], gap: 18 }} mobile={{ padding: [24, 24, 36] }}>
       <Video src={FILM} thumbnail={thumbnail(Root, WORKSHOP)} title="See the Tern 2 in 90 seconds" />
-      <Paragraph style={{ fontSize: 16, color: QUIET }}>Ninety seconds on what changed in the tubes, and what it means on a long climb.</Paragraph>
+      <Text style={{ fontSize: 16, color: QUIET }}>Ninety seconds on what changed in the tubes, and what it means on a long climb.</Text>
       <Column style={{ alignItems: "center", padding: [8, 0, 0], border: { top: `1px solid ${RULE}` } }}>
         <Button href={`${SITE}/tern-2`} style={{ backgroundColor: RED, color: "#FFFFFF", fontSize: 15, fontWeight: 700, padding: [14, 28], borderRadius: 2 }} hover={{ backgroundColor: RED_DOWN }} mobile={{ width: "100%" }}>
           Book a test ride

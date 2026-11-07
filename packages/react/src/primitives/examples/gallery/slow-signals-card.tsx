@@ -5,7 +5,7 @@
  * Night at sea: a warm near-black, cream type, and the one amber of a lighthouse's beam, drawn
  * with Svg shapes beside the title. DM Serif Display for the title, DM Mono for the rest.
  */
-import { Canvas, Circle, Column, Heading, Line, Path, Polygon, Rect, Row, Svg, Paragraph } from "../../index";
+import { Canvas, Circle, Column, Heading, Line, Path, Polygon, Rect, Row, Svg, Text } from "../../index";
 
 const NIGHT = "#1B1712";
 const CREAM = "#F1E8D6";
@@ -51,16 +51,16 @@ export const slowSignalsCard = (
   >
     <Row style={{ gap: 48, alignItems: "stretch" }}>
       <Column style={{ gap: 28, justifyContent: "space-between", height: 502 }}>
-        <Paragraph style={label}>Slow Signals · Episode 48</Paragraph>
+        <Text style={label}>Slow Signals · Episode 48</Text>
         <Column style={{ gap: 22 }}>
           <Heading level={1} style={{ fontFamily: SERIF, fontSize: 84, fontWeight: 400, lineHeight: 0.98, letterSpacing: -1.5 }}>
             The quiet economics of lighthouses
           </Heading>
-          <Paragraph style={{ fontSize: 20, lineHeight: 1.5, color: CREAM }}>With Hannah Okoye, who kept the Fair Isle South light for twenty-three years.</Paragraph>
+          <Text style={{ fontSize: 20, lineHeight: 1.5, color: CREAM }}>With Hannah Okoye, who kept the Fair Isle South light for twenty-three years.</Text>
         </Column>
         <Row style={{ gap: 32, alignItems: "center" }}>
-          <Paragraph style={{ ...label, color: AMBER, flex: "none" }}>52 min</Paragraph>
-          <Paragraph style={label}>Wherever you listen</Paragraph>
+          <Text style={{ ...label, color: AMBER, flex: "none" }}>52 min</Text>
+          <Text style={label}>Wherever you listen</Text>
         </Row>
       </Column>
       <Svg width={360} height={502} viewBox="0 0 360 502" title="A lighthouse at night, its beam sweeping out to the left over a dark sea, under a few stars.">

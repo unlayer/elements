@@ -75,7 +75,7 @@ class Writer {
       : { alignSelf: alignSelf(node, parent), width: node.width !== null && (node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink") ? pt(node.width) : undefined };
     const families = this.context.families;
     switch (node.type) {
-      case "Paragraph":
+      case "Text":
       case "Heading":
         return { kind: "text", style: { ...textStyle(node, families), ...boxStyle(node), ...placed }, runs: this.runs(node) };
       case "Button":

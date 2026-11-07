@@ -657,8 +657,8 @@ export default function T() {
   if (!import.meta.url.includes(".unlayer-migrate-")) throw new Error("React is not defined");
   return <Html><Body><Text>Hello</Text></Body></Html>;
 }`;
-    const dir = project({ "emails/t.tsx": source, "migrated/t.tsx": `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
-export default function T() { return <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>; }` });
+    const dir = project({ "emails/t.tsx": source, "migrated/t.tsx": `import { Email, Row, Column, Text } from "@unlayer/react-elements";
+export default function T() { return <Email><Row><Column><Text>Hello</Text></Column></Row></Email>; }` });
     const out = io(dir);
     expect(await main(["emails"], out, lib)).toBe(2);
     expect(out.out).toMatch(/✗ emails\/t\.tsx: the original template doesn't render: React is not defined in emails\/t\.tsx, which was loaded without the project's JSX settings/);
@@ -800,8 +800,8 @@ export default function T({ user }: { user: { city: string } }) { return <Email>
 
   it("compare lists extra words in the sample and flipped props", async () => {
     const original = good.replace('function T()', 'function T({trial})') + '\nT.PreviewProps = {trial:false};';
-    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
-export default function T({trial}) { return <Email><Row><Column><Paragraph>Keep the original Unexpected{trial ? " Variant" : ""}</Paragraph></Column></Row></Email>; }`;
+    const migrated = `import { Email, Row, Column, Text } from "@unlayer/react-elements";
+export default function T({trial}) { return <Email><Row><Column><Text>Keep the original Unexpected{trial ? " Variant" : ""}</Text></Column></Row></Email>; }`;
     const dir = project({ "original.tsx": original, "converted.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "original.tsx", "converted.tsx"], out, lib), out.out + out.err).toBe(2);
@@ -1027,8 +1027,8 @@ describe("compare and the whole check", () => {
   it("lists a hand migration that moves text across the page, as a run would (and fails it with --strict)", async () => {
     const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
-    const migrated = `import { Email, Section, Paragraph } from "@unlayer/react-elements";
-export default function T() { return <Email width={600} style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ fontSize: 14 }}>Thanks for your order, here is the summary</Paragraph><Paragraph style={{ fontSize: 14, textAlign: "left" }}>Total due: 40 dollars</Paragraph></Section></Email>; }`;
+    const migrated = `import { Email, Section, Text } from "@unlayer/react-elements";
+export default function T() { return <Email width={600} style={{ backgroundColor: "#ffffff" }}><Section><Text style={{ fontSize: 14 }}>Thanks for your order, here is the summary</Text><Text style={{ fontSize: 14, textAlign: "left" }}>Total due: 40 dollars</Text></Section></Email>; }`;
     const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(0);
@@ -1040,8 +1040,8 @@ export default function T() { return <Email width={600} style={{ backgroundColor
   it("fails a hand migration that hides a linked image on phones, naming it", async () => {
     const original = `import { Html, Body, Section, Text, Link, Img } from "@react-email/components";
 export default function T() { return <Html><Body><Section><Text>Thanks for your order, here is the summary</Text><Link href="https://example.com/app"><Img src="https://example.com/badge.png" alt="" width="120" height="40" /></Link></Section></Body></Html>; }`;
-    const migrated = `import { Email, Section, Column, Paragraph, Image, Link } from "@unlayer/react-elements";
-export default function T() { return <Email><Section><Paragraph>Thanks for your order, here is the summary</Paragraph><Column hidden={{ mobile: true }}><Link href="https://example.com/app"><Image src="https://example.com/badge.png" alt="" style={{ width: 120 }} /></Link></Column></Section></Email>; }`;
+    const migrated = `import { Email, Section, Column, Text, Image, Link } from "@unlayer/react-elements";
+export default function T() { return <Email><Section><Text>Thanks for your order, here is the summary</Text><Column hidden={{ mobile: true }}><Link href="https://example.com/app"><Image src="https://example.com/badge.png" alt="" style={{ width: 120 }} /></Link></Column></Section></Email>; }`;
     const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
@@ -1384,11 +1384,11 @@ export default function html() { return render(<Wrapped />); }`;
   const welcome = `import { Html, Body, Text } from "@react-email/components";
 export default function Welcome({ name }: { name: string }) { return <Html><Body><Text>Hello {name}, glad you are here.</Text></Body></Html>; }
 Welcome.PreviewProps = { name: "Ada" };`;
-  const migrated = (uses: string) => `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+  const migrated = (uses: string) => `import { Email, Row, Column, Text } from "@unlayer/react-elements";
 import type { ComponentProps } from "react";
 import Welcome from "./welcome";
 ${uses}
-export default function Reminder({ name }: Props) { return <Email><Row><Column><Paragraph>{name}, here's your code.</Paragraph></Column></Row></Email>; }`;
+export default function Reminder({ name }: Props) { return <Email><Row><Column><Text>{name}, here's your code.</Text></Column></Row></Email>; }`;
 
   it("checks a template another file names only in a type (`ComponentProps<typeof Welcome>`)", async () => {
     const dir = project({ "emails/welcome.tsx": welcome, "emails/reminder.tsx": migrated(`type Props = Pick<ComponentProps<typeof Welcome>, "name">;`) });
@@ -1471,10 +1471,10 @@ T.PreviewProps = { label: "Go" };`;
 });
 
 describe("content the check reads beyond desktop text (compare)", () => {
-  const elements = (body: string) => `import { Email, Html, Image, Paragraph, Section } from "@unlayer/react-elements";
+  const elements = (body: string) => `import { Email, Html, Image, Text, Section } from "@unlayer/react-elements";
 export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section>${body}</Section></Email>; }
 `;
-  const p = (text: string) => `<Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>${text}</Paragraph>`;
+  const p = (text: string) => `<Text style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>${text}</Text>`;
   const original = (head: string, body: string) => `import { Html, Head, Body, Text, Img } from "@react-email/components";
 export default function T() { return <Html><Head>${head ? `<style dangerouslySetInnerHTML={{ __html: ${JSON.stringify(head)} }} />` : ""}</Head><Body>${body}</Body></Html>; }
 `;
@@ -2015,8 +2015,8 @@ export default function T() {
     // Only the template that lost words is a converter bug.
     expect(out.out).toContain("\n2 templates: 0 migrated and checked, 2 failed the check (1 with content that differs: a converter bug, please report it).");
     // Head content in the email's body carries no words: what couldn't be verified is said on none.
-    const migrated = `import { Email, Html, Paragraph, Section } from "@unlayer/react-elements";
-export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Html html={'<meta name="color-scheme" content="light only">'} /><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Hello there</Paragraph></Section></Email>; }
+    const migrated = `import { Email, Html, Text, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Html html={'<meta name="color-scheme" content="light only">'} /><Section><Text style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Hello there</Text></Section></Email>; }
 `;
     const plain = `import { Body, Html, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>Hello there</Text></Body></Html>; }`;
@@ -2150,8 +2150,8 @@ describe("words in what the run says", () => {
     const original = `import { Html, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>Order A-10293 for (sarah@example.com) shipped.</Text></Body></Html>; }
 `;
-    const migrated = `import { Email, Paragraph, Section } from "@unlayer/react-elements";
-export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Order shipped, ref “B‑7”, from the U.S.</Paragraph></Section></Email>; }
+    const migrated = `import { Email, Text, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Text style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Order shipped, ref “B‑7”, from the U.S.</Text></Section></Email>; }
 `;
     const dir = project({ "emails/order.tsx": original, "migrated/order.tsx": migrated });
     const out = io(dir);
@@ -2166,8 +2166,8 @@ export default function T() { return <Email style={{ backgroundColor: "#ffffff" 
     const original = `import { Html, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>{"Run \u200d\u200bclient.\u2060connect() on \ufeffstart\u00adup."}</Text></Body></Html>; }
 `;
-    const migrated = `import { Email, Paragraph, Section } from "@unlayer/react-elements";
-export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Paragraph style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Run it</Paragraph></Section></Email>; }
+    const migrated = `import { Email, Text, Section } from "@unlayer/react-elements";
+export default function T() { return <Email style={{ backgroundColor: "#ffffff" }}><Section><Text style={{ color: "#000000", fontSize: 14, lineHeight: "24px", padding: "0px 0px 16px 0px" }}>Run it</Text></Section></Email>; }
 `;
     const dir = project({ "emails/code.tsx": original, "migrated/code.tsx": migrated });
     const out = io(dir);

@@ -8,7 +8,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, Link, Paragraph, Row, Section, Social, Span } from "../../index";
+import { Column, Heading, Link, Text, Row, Section, Social, Span } from "../../index";
 
 const PAGE = "#FAF6EE";
 const INK = "#1E1B18";
@@ -62,7 +62,7 @@ const ICONS = [
 const spec = (caption: string, icons: ReactNode) => (
   <Row stackOnMobile={false} style={{ alignItems: "center", padding: [14, 0], border: { top: LINE } }}>
     <Column>
-      <Paragraph style={CAPTION}>{caption}</Paragraph>
+      <Text style={CAPTION}>{caption}</Text>
     </Column>
     <Column style={{ width: 190 }}>{icons}</Column>
   </Row>
@@ -76,7 +76,7 @@ export const IconTypes = story((Root) => (
         <Heading level={2} style={{ ...VOICE, fontSize: 30 }}>
           The shop, away from the shop
         </Heading>
-        <Paragraph style={{ color: QUIET }}>This week’s finds on Instagram, the Tuesday reading on YouTube, and an argument about the best first line everywhere else.</Paragraph>
+        <Text style={{ color: QUIET }}>This week’s finds on Instagram, the Tuesday reading on YouTube, and an argument about the best first line everywhere else.</Text>
       </Column>
       <Column>
         {spec("circle, the default", <Social icons={ICONS} style={{ justifyContent: "end" }} />)}
@@ -92,19 +92,19 @@ export const Sizes = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [36, 24], gap: 28, textAlign: "center" }}>
       <Column style={{ gap: 12 }}>
-        <Paragraph style={{ ...VOICE, fontSize: 26 }}>Come and find us.</Paragraph>
+        <Text style={{ ...VOICE, fontSize: 26 }}>Come and find us.</Text>
         <Social icons={ICONS} size={48} style={{ gap: 20 }} mobile={{ gap: 8 }} />
-        <Paragraph style={CAPTION}>size: 48 · gap: 20 · on phones, gap: 8</Paragraph>
+        <Text style={CAPTION}>size: 48 · gap: 20 · on phones, gap: 8</Text>
       </Column>
       <Column style={{ gap: 10, padding: [24, 0, 0], border: { top: LINE } }}>
-        <Paragraph style={{ ...VOICE, fontSize: 18 }}>Yours, among the shelves,</Paragraph>
+        <Text style={{ ...VOICE, fontSize: 18 }}>Yours, among the shelves,</Text>
         <Social icons={ICONS} size={32} style={{ gap: 12 }} />
-        <Paragraph style={CAPTION}>size: 32 · gap: 12</Paragraph>
+        <Text style={CAPTION}>size: 32 · gap: 12</Text>
       </Column>
       <Column style={{ gap: 8, padding: [24, 0, 0], border: { top: LINE } }}>
-        <Paragraph style={{ fontSize: 13, color: QUIET }}>Dog-ear Books, 12 Cooper’s Yard, Norwich</Paragraph>
+        <Text style={{ fontSize: 13, color: QUIET }}>Dog-ear Books, 12 Cooper’s Yard, Norwich</Text>
         <Social icons={ICONS} size={24} style={{ gap: 6 }} />
-        <Paragraph style={CAPTION}>size: 24 · gap: 6</Paragraph>
+        <Text style={CAPTION}>size: 24 · gap: 6</Text>
       </Column>
     </Section>
   </Root>
@@ -114,19 +114,19 @@ export const Sizes = story((Root) => (
 export const Alignment = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [32, 24, 12], gap: 10 }}>
-      <Paragraph style={{ ...VOICE, fontSize: 20 }}>Yours, Ruth, at the till.</Paragraph>
+      <Text style={{ ...VOICE, fontSize: 20 }}>Yours, Ruth, at the till.</Text>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "start" }} />
-      <Paragraph style={CAPTION}>justifyContent: "start"</Paragraph>
+      <Text style={CAPTION}>justifyContent: "start"</Text>
     </Section>
     <Section style={{ padding: [20, 24], gap: 10, textAlign: "center" }}>
-      <Paragraph style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>Come and say hello.</Paragraph>
+      <Text style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>Come and say hello.</Text>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "center" }} />
-      <Paragraph style={CAPTION}>justifyContent: "center"</Paragraph>
+      <Text style={CAPTION}>justifyContent: "center"</Text>
     </Section>
     <Section style={{ padding: [12, 24, 32], gap: 10, textAlign: "right" }}>
-      <Paragraph style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>12 Cooper’s Yard, Norwich.</Paragraph>
+      <Text style={{ ...VOICE, fontSize: 20, padding: [20, 0, 0], border: { top: LINE } }}>12 Cooper’s Yard, Norwich.</Text>
       <Social icons={ICONS.slice(0, 3)} style={{ justifyContent: "end" }} />
-      <Paragraph style={CAPTION}>justifyContent: "end"</Paragraph>
+      <Text style={CAPTION}>justifyContent: "end"</Text>
     </Section>
   </Root>
 ));
@@ -138,7 +138,7 @@ export const Footer = story((Root) => (
       <Heading level={2} style={{ ...VOICE, fontSize: 28 }} mobile={{ fontSize: 24 }}>
         Read anything good lately?
       </Heading>
-      <Paragraph style={{ color: QUIET }}>Tell us. We’ll put it in the window.</Paragraph>
+      <Text style={{ color: QUIET }}>Tell us. We’ll put it in the window.</Text>
     </Section>
     <Section style={{ backgroundColor: OXBLOOD, color: ON_OXBLOOD, padding: [28, 24], gap: 14, textAlign: "center" }}>
       <Social
@@ -151,13 +151,13 @@ export const Footer = story((Root) => (
         size={28}
         style={{ gap: 10 }}
       />
-      <Paragraph style={{ fontSize: 13, lineHeight: 1.6 }}>
+      <Text style={{ fontSize: 13, lineHeight: 1.6 }}>
         <Span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15 }}>Dog-ear Books</Span>
         {", 12 Cooper’s Yard, Norwich NR3 1AB. "}
         <Link href="https://dogear.example/unsubscribe" style={{ color: ON_OXBLOOD }}>
           Unsubscribe
         </Link>
-      </Paragraph>
+      </Text>
     </Section>
   </Root>
 ));

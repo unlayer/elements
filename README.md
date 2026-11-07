@@ -49,14 +49,14 @@ npm install @unlayer/react-elements
 ```
 
 ```tsx
-import { Button, Column, Email, Heading, Paragraph, render } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Text, render } from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (
     <Email width={600} style={{ backgroundColor: "#f0f0f0", fontFamily: "Arial, Helvetica, sans-serif" }}>
       <Column style={{ backgroundColor: "#ffffff", padding: 20, gap: 12 }}>
         <Heading level={1} style={{ fontSize: 24 }}>Welcome!</Heading>
-        <Paragraph style={{ fontSize: 14 }}>Thanks for signing up.</Paragraph>
+        <Text style={{ fontSize: 14 }}>Thanks for signing up.</Text>
         <Button href="https://example.com" style={{ backgroundColor: "#0879A1", color: "#ffffff" }}>Get started</Button>
       </Column>
     </Email>
@@ -183,7 +183,7 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Grid>` | Its children in columns of equal width, row after row |
 | `<Layer>` | Its children over each other: an image with words on it |
 | `<Heading>` | A heading, `level` 1 to 6 |
-| `<Paragraph>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
+| `<Text>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
 | `<Button>` | A link drawn as a button, with its colors on hover |
 | `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
 | `<Divider>` | A horizontal line |

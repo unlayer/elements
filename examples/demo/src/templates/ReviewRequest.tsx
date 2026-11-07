@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Section,
 } from "@unlayer/react-elements";
 
@@ -46,9 +46,9 @@ export default function ReviewRequest(): ReactElement {
 
       {/* Trip details strip */}
       <Section style={{ backgroundColor: "#ffffff" }}>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.5 }}>
           Feb 24 – 28 · Malibu, California · 4 nights
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: "#ffffff", padding: [8, 0, 0, 0] }}>
@@ -62,10 +62,10 @@ export default function ReviewRequest(): ReactElement {
         >
           How was your stay?
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 16, color: "#484848", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 16, color: "#484848", textAlign: "left", lineHeight: 1.65 }}>
           Your review matters! Share your honest experience to help future travelers and support
           your host.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Host card */}
@@ -83,17 +83,17 @@ export default function ReviewRequest(): ReactElement {
         >
           Hosted by Maria
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "left", lineHeight: 1.4 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "left", lineHeight: 1.4 }}>
           Superhost · 4.96 ★ · 214 reviews
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Star rating prompt */}
       <Section style={{ backgroundColor: "#ffffff" }}>
         <Divider style={{ borderTop: "1px solid #ebebeb", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.4 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#717171", textAlign: "center", lineHeight: 1.4 }}>
           Overall experience
-        </Paragraph>
+        </Text>
         <Heading
           level={2}
           style={{ padding: 10, fontSize: 32, fontWeight: 400, color: "#FF385C", textAlign: "center", lineHeight: 1.2 }}
@@ -124,10 +124,10 @@ export default function ReviewRequest(): ReactElement {
 
       {/* Deadline notice */}
       <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 36, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#717171", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#717171", textAlign: "left", lineHeight: 1.65 }}>
           Reviews must be submitted within 14 days of checkout. Your review will be visible on
           Maria's listing once she also completes her review of you.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer divider */}
@@ -137,12 +137,12 @@ export default function ReviewRequest(): ReactElement {
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 32, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
           Sent by StayBnB, Inc. · 888 Brannan St, San Francisco, CA 94103
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 12, color: "#999999", textAlign: "left", lineHeight: 1.5 }}>
           This is a notification about your recent trip.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

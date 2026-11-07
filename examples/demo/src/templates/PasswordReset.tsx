@@ -5,7 +5,7 @@ import {
   Divider,
   Email,
   Heading,
-  Paragraph,
+  Text,
   Section,
   Span,
 } from "@unlayer/react-elements";
@@ -44,11 +44,11 @@ export default function PasswordReset(): ReactElement {
         >
           Reset your password
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.7 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.7 }}>
           {"We received a request to reset the password for the account associated with "}
           <Span style={{ fontWeight: 700 }}>user@example.com</Span>. Click the button below to
           choose a new password.
-        </Paragraph>
+        </Text>
         <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
             href="#"
@@ -64,25 +64,25 @@ export default function PasswordReset(): ReactElement {
             Reset Password
           </Button>
         </Column>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           This link expires in 60 minutes.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Safety note */}
       <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 40, 0] }}>
         <Divider style={{ borderTop: "1px solid #e4e4e7", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
           If you didn't request this, you can safely ignore this email. Your password won't change
           unless you click the button above.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           Vault Inc · San Francisco, CA
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

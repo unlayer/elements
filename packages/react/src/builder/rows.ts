@@ -53,9 +53,9 @@ function fold(blocks: Node[], space: Sides): Node[] {
   return blocks.map((block, i) => {
     const s = { top: i === 0 ? space.top : 0, right: space.right, bottom: i === blocks.length - 1 ? space.bottom : 0, left: space.left };
     if (!some(s)) return block;
-    // A block that holds its place's padding (a Paragraph, a Divider, a Column around a block) takes it; one with a box
+    // A block that holds its place's padding (a Text, a Divider, a Column around a block) takes it; one with a box
     // of its own, or another, is in a Column of it.
-    const holds = ["Paragraph", "Heading", "Divider", "Column"].includes(block.type) && !BOX.some((key) => block.style?.[key] !== undefined);
+    const holds = ["Text", "Heading", "Divider", "Column"].includes(block.type) && !BOX.some((key) => block.style?.[key] !== undefined);
     if (holds) return { ...block, style: { ...block.style, padding: add((block.style?.padding as Sides | undefined) ?? ZERO, s) } };
     const { hidden, ...shown } = block;
     return { type: "Column", style: { padding: s }, ...(hidden ? { hidden } : {}), children: [shown] };

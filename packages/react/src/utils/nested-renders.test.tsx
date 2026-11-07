@@ -9,12 +9,12 @@ import React, { useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
-import { Email, Page, Paragraph, outline, render, validate, type RenderResult } from "../primitives/index";
+import { Email, Page, Text, outline, render, validate, type RenderResult } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 const Template = () => (
   <Email>
-    <Paragraph>Hello from the template</Paragraph>
+    <Text>Hello from the template</Text>
   </Email>
 );
 
@@ -59,16 +59,16 @@ describe("a template's component", () => {
     function RowCount() {
       const { design } = useMemo(() => toDesign(<Template />), []);
       const [label] = useState("rows");
-      return <Paragraph>{`${design.body.rows.length} ${label}`}</Paragraph>;
+      return <Text>{`${design.body.rows.length} ${label}`}</Text>;
     }
-    expect((await render(<Email><Paragraph>Before</Paragraph><RowCount /></Email>)).text).toBe("Before\n\n1 rows");
+    expect((await render(<Email><Text>Before</Text><RowCount /></Email>)).text).toBe("Before\n\n1 rows");
   });
 
   it("can work out another template's layout where no hook follows", async () => {
     function Deepest() {
-      return <Paragraph>{outline(<Template />).includes("Hello from the template") ? "nested shown" : "nested missing"}</Paragraph>;
+      return <Text>{outline(<Template />).includes("Hello from the template") ? "nested shown" : "nested missing"}</Text>;
     }
-    expect((await render(<Email><Paragraph>Outer</Paragraph><Deepest /></Email>)).text).toBe("Outer\n\nnested shown");
+    expect((await render(<Email><Text>Outer</Text><Deepest /></Email>)).text).toBe("Outer\n\nnested shown");
   });
 });
 
@@ -94,7 +94,7 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
   it("fails every render", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await fails(<Email><Paragraph>Hi</Paragraph><Missing /></Email>, /Element type is invalid/);
+      await fails(<Email><Text>Hi</Text><Missing /></Email>, /Element type is invalid/);
     } finally {
       error.mockRestore();
     }
@@ -103,12 +103,12 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
   it("fails them inside a layout or a Provider too, as an object or a Date as a child does", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const Layout = ({ children }: { children?: React.ReactNode }) => <>{children}<Paragraph>Footer</Paragraph></>;
+      const Layout = ({ children }: { children?: React.ReactNode }) => <>{children}<Text>Footer</Text></>;
       const Theme = React.createContext("light");
-      const blocks = <><Paragraph>Order shipped</Paragraph><Missing /></>;
+      const blocks = <><Text>Order shipped</Text><Missing /></>;
       await fails(<Email><Layout>{blocks}</Layout></Email>, /Element type is invalid/);
       await fails(<Email><Theme.Provider value="dark">{blocks}</Theme.Provider></Email>, /Element type is invalid/);
-      await fails(<Email><Layout><Paragraph>{["Shipped ", new Date(0) as unknown as string]}</Paragraph></Layout></Email>, /Objects are not valid as a React child/);
+      await fails(<Email><Layout><Text>{["Shipped ", new Date(0) as unknown as string]}</Text></Layout></Email>, /Objects are not valid as a React child/);
     } finally {
       error.mockRestore();
     }
@@ -127,7 +127,7 @@ describe("a component of the user's own that calls a hook, in React's developmen
         React.useContext(Theme);
         return <>{children}<Missing /></>;
       };
-      const email = <Email><HookedLayout><Paragraph>Order shipped</Paragraph></HookedLayout></Email>;
+      const email = <Email><HookedLayout><Text>Order shipped</Text></HookedLayout></Email>;
       await expect(render(email)).rejects.toThrow(/Element type is invalid/);
       expect(() => toDesign(email)).toThrow(/Element type is invalid/);
     } finally {
@@ -141,7 +141,7 @@ describe("a component of the user's own that calls a hook, in React's developmen
       const [n, setN] = useState(0);
       if (n < 1) setN(n + 1);
       // The root it picks from that state too: an email, with its preview text.
-      return n < 1 ? <Page><Paragraph>{`n=${n}`}</Paragraph></Page> : <Email previewText="Ready"><Paragraph>{`n=${n}`}</Paragraph></Email>;
+      return n < 1 ? <Page><Text>{`n=${n}`}</Text></Page> : <Email previewText="Ready"><Text>{`n=${n}`}</Text></Email>;
     }
     const { html, text } = await render(<Counted />);
     expect(text).toBe("n=1");
@@ -159,10 +159,10 @@ describe("a component of the user's own that calls a hook, in React's developmen
         const [title] = useState("Your order");
         return (
           <Email>
-            <Paragraph>{title}</Paragraph>
+            <Text>{title}</Text>
             {items.map((item) => (
               // eslint-disable-next-line react/jsx-key
-              <Paragraph>{item}</Paragraph>
+              <Text>{item}</Text>
             ))}
           </Email>
         );

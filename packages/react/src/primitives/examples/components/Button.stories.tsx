@@ -5,7 +5,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, Image, LineBreak, MergeTag, Paragraph, Row, Section, type ButtonProps, type EmailProps, type SectionProps } from "../../index";
+import { Button, Column, Heading, Image, LineBreak, MergeTag, Text, Row, Section, type ButtonProps, type EmailProps, type SectionProps } from "../../index";
 
 const PAPER = "#F3F1EC";
 const INK = "#1A1917";
@@ -53,10 +53,10 @@ const band = (children: ReactNode, style: SectionProps["style"] = {}) => (
 const masthead = (page: string) => (
   <Row stackOnMobile={false} style={{ padding: [0, 0, 12], border: { bottom: `1px solid ${INK}` } }}>
     <Column style={{ width: 100 }}>
-      <Paragraph style={{ fontSize: 16, fontWeight: 700, letterSpacing: 4.5, lineHeight: "18px" }}>OYEN</Paragraph>
+      <Text style={{ fontSize: 16, fontWeight: 700, letterSpacing: 4.5, lineHeight: "18px" }}>OYEN</Text>
     </Column>
     <Column>
-      <Paragraph style={{ ...label, lineHeight: "18px", textAlign: "right" }}>{page}</Paragraph>
+      <Text style={{ ...label, lineHeight: "18px", textAlign: "right" }}>{page}</Text>
     </Column>
   </Row>
 );
@@ -66,7 +66,7 @@ const line = (noted: string, button: ReactNode) => (
   <Row style={{ alignItems: "center", gap: 20, padding: [14, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 10 }}>
     <Column style={{ width: 236, alignItems: "start" }}>{button}</Column>
     <Column>
-      <Paragraph style={note}>{noted}</Paragraph>
+      <Text style={note}>{noted}</Text>
     </Column>
   </Row>
 );
@@ -74,7 +74,7 @@ const line = (noted: string, button: ReactNode) => (
 /** A note over a button, under a rule. */
 const measure = (noted: string, button: ReactNode) => (
   <Column style={{ gap: 10, padding: [14, 0, 18], border: { top: `1px solid ${RULE}` }, alignItems: "start" }}>
-    <Paragraph style={note}>{noted}</Paragraph>
+    <Text style={note}>{noted}</Text>
     {button}
   </Column>
 );
@@ -108,7 +108,7 @@ export const Styles = story((Root) => (
             <LineBreak />
             you’re in.
           </Heading>
-          <Paragraph style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 420 }}>A pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.</Paragraph>
+          <Text style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 420 }}>A pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.</Text>
         </Column>
         <Row style={{ gap: 12 }}>
           <Button href={`${SITE}/fr-2`} style={{ ...signal, width: 176, padding: [15, 0] }} hover={{ backgroundColor: SIGNAL_DOWN }} mobile={fullOnPhones}>
@@ -127,7 +127,7 @@ export const Styles = story((Root) => (
       <Button href={`${SITE}/dealers`} style={{ ...dark, width: 320 }} hover={{ backgroundColor: "#3A3833" }} mobile={fullOnPhones}>
         Find a dealer near you
       </Button>
-      <Paragraph style={{ ...note, color: INK }}>width: 320, the whole width on phones</Paragraph>
+      <Text style={{ ...note, color: INK }}>width: 320, the whole width on phones</Text>
     </Section>
   </Root>
 ));
@@ -142,15 +142,15 @@ export const Hover = story((Root) => (
           <Heading level={2} {...big}>
             Still on the bench.
           </Heading>
-          <Paragraph style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 420 }}>We’ll hold your FR-2 until Friday. After that, what’s left of the first run goes to whoever asks first.</Paragraph>
+          <Text style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 420 }}>We’ll hold your FR-2 until Friday. After that, what’s left of the first run goes to whoever asks first.</Text>
         </Column>
         <Row stackOnMobile={false} style={{ alignItems: "center", padding: [16, 0], border: { top: `1px solid ${INK}`, bottom: `1px solid ${RULE}` } }}>
           <Column>
-            <Paragraph style={{ fontSize: 16, fontWeight: 600 }}>FR-2 field recorder</Paragraph>
-            <Paragraph style={note}>Ships 2 December</Paragraph>
+            <Text style={{ fontSize: 16, fontWeight: 600 }}>FR-2 field recorder</Text>
+            <Text style={note}>Ships 2 December</Text>
           </Column>
           <Column style={{ width: 80 }}>
-            <Paragraph style={{ fontFamily: MONO, fontSize: 16, textAlign: "right" }}>€349</Paragraph>
+            <Text style={{ fontFamily: MONO, fontSize: 16, textAlign: "right" }}>€349</Text>
           </Column>
         </Row>
         <Column style={{ gap: 10 }}>
@@ -164,7 +164,7 @@ export const Hover = story((Root) => (
             Add a spare battery, €19
           </Button>
         </Column>
-        <Paragraph style={note}>Point at each: a darker background, an outline that fills in, a darker text.</Paragraph>
+        <Text style={note}>Point at each: a darker background, an outline that fills in, a darker text.</Text>
       </>
     )}
   </Root>
@@ -251,7 +251,7 @@ export const Alignment = story((Root) => (
             <LineBreak />
             on a fence post.
           </Heading>
-          <Paragraph style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 400 }}>Maren left her FR-2 running through a night in the Hardanger. This is what it kept.</Paragraph>
+          <Text style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 400 }}>Maren left her FR-2 running through a night in the Hardanger. This is what it kept.</Text>
         </Column>
       </>
     )}
@@ -259,21 +259,21 @@ export const Alignment = story((Root) => (
       <Button href={`${SITE}/dispatch/07`} style={signal} hover={{ backgroundColor: SIGNAL_DOWN }}>
         Read dispatch 07
       </Button>
-      <Paragraph style={{ ...note, padding: [0, 0, 16] }}>In the center, as the stack says</Paragraph>
+      <Text style={{ ...note, padding: [0, 0, 16] }}>In the center, as the stack says</Text>
       <Button href={`${SITE}/dispatch/07.pdf`} style={{ ...dark, width: 320, textAlign: "left" }} mobile={fullOnPhones}>
         As a PDF, 2.4 MB
       </Button>
       <Button href={`${SITE}/dispatch/07.mp3`} style={{ ...dark, width: 320, textAlign: "right" }} mobile={fullOnPhones}>
         As audio, 41 minutes
       </Button>
-      <Paragraph style={{ ...note, padding: [0, 0, 16] }}>textAlign: "left", and "right"</Paragraph>
+      <Text style={{ ...note, padding: [0, 0, 16] }}>textAlign: "left", and "right"</Text>
       <Button href={`${SITE}/dispatch/06`} style={{ ...outline, alignSelf: "start" }}>
         ← Dispatch 06
       </Button>
       <Button href={`${SITE}/dispatch/08`} style={{ ...outline, alignSelf: "end" }}>
         Dispatch 08 →
       </Button>
-      <Paragraph style={note}>alignSelf: "start", and "end"</Paragraph>
+      <Text style={note}>alignSelf: "start", and "end"</Text>
     </Section>
   </Root>
 ));
@@ -288,7 +288,7 @@ export const Links = story((Root) => (
           <Heading level={2} {...small}>
             Your FR-2 is on the bench with Ingrid.
           </Heading>
-          <Paragraph style={{ fontSize: 16, lineHeight: 1.5, color: QUIET }}>She’s fitting a new hold switch, and it should be back with you by Friday.</Paragraph>
+          <Text style={{ fontSize: 16, lineHeight: 1.5, color: QUIET }}>She’s fitting a new hold switch, and it should be back with you by Friday.</Text>
         </Column>
         <Column>
           {line("A web page, and a title", <Button href={`${SITE}/repairs`} title="How repairs work, on our site" style={{ ...dark, width: "100%" }}>How repairs work</Button>)}

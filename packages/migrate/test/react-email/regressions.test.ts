@@ -229,16 +229,16 @@ describe("Preview inside Body", () => {
 describe("verifyNewComponents", () => {
   it("lists what the visual editor wouldn't get (toDesign refuses the template), with a prop flipped too", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Canvas, Email, Paragraph } = await import("@unlayer/react-elements");
+    const { Canvas, Email, Text: ElementsText } = await import("@unlayer/react-elements");
     const { createElement: h } = await import("react");
     const Original = Object.assign(({ big }: { big: boolean }) => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), { PreviewProps: { big: false } });
     // Renders, but the builder edits an Email, a Page or a Document, not a Canvas.
-    const canvas = () => h(Canvas, { width: 600, height: 200 }, h(Paragraph, null, "Welcome"));
+    const canvas = () => h(Canvas, { width: 600, height: 200 }, h(ElementsText, null, "Welcome"));
     const InCanvas = () => canvas();
     const check = await verifyNewComponents(Original, InCanvas as never);
     expect(check.design).toBeUndefined();
     expect(check.designWarnings).toEqual([expect.stringMatching(/can't go to the builder:.*not a Canvas/)]);
-    const Flips = ({ big }: { big: boolean }) => (big ? canvas() : h(Email, null, h(Paragraph, null, "Welcome")));
+    const Flips = ({ big }: { big: boolean }) => (big ? canvas() : h(Email, null, h(ElementsText, null, "Welcome")));
     const flipped = await verifyNewComponents(Original, Flips as never);
     expect(flipped.designWarnings).toEqual([]);
     expect(flipped.variants).toEqual([expect.objectContaining({ change: "big: true", error: expect.stringMatching(/^the editor wouldn't get it: .*not a Canvas/) })]);
@@ -246,10 +246,10 @@ describe("verifyNewComponents", () => {
 
   it("includes added words when only a flipped prop exposes them", async () => {
     const { Body, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
     const { createElement: h } = await import("react");
     const Original = Object.assign(() => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), {PreviewProps:{trial:false}});
-    const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
+    const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(ElementsText, null, `Welcome${trial ? " Unexpected" : ""}`))));
     const check = await verifyNewComponents(Original, Broken);
     expect(check.added).toEqual([]);
     // On phones too: the variant lists every part of the check that fails.
@@ -258,7 +258,7 @@ describe("verifyNewComponents", () => {
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
     const { Body, Container, Html, Text } = await import("@react-email/components");
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
     const React = await import("react");
     const h = React.createElement;
     const Original = Object.assign(
@@ -266,7 +266,7 @@ describe("verifyNewComponents", () => {
       { PreviewProps: { trial: false } }
     );
     // A migration that forgot the trial branch: the preview props alone can't tell.
-    const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Welcome"))));
+    const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(ElementsText, null, "Welcome"))));
     const check = await verifyNewComponents(Original, Broken);
     expect(check.missing).toEqual([]);
     expect(check.variants).toEqual([{ change: "trial: true", missing: ["Your", "trial", "ends", "soon"], added: [], missingAttributes: [], phone: { missing: ["Your", "trial", "ends", "soon"], added: [] } }]);
@@ -535,11 +535,11 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
   });
 
   it("reads a migrated template's code through memo() for its design JSON", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text } = await import("@unlayer/react-elements");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name, company }: { name: string; company: string }) =>
-      h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}, welcome to ${company || "Acme"}.`))));
+      h(Email, null, h(Row, null, h(Column, null, h(Text, null, `Hi ${name}, welcome to ${company || "Acme"}.`))));
     const props = { name: "Alex", company: "Globex" };
     const design = designOf(Migrated(props)) as unknown as Record<string, unknown>;
     const tagged = await mergeTagDesign(React.memo(Migrated) as never, props, design);
@@ -550,11 +550,11 @@ describe("merge tags for a template in memo() or forwardRef()", () => {
 
 describe("merge tags in a migrated template's design JSON", () => {
   it("tags the preview text (preheaderText) as well as the body", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text } = await import("@unlayer/react-elements");
     const React = (await import("react")).default;
     const h = React.createElement;
     const Migrated = ({ name }: { name: string }) =>
-      h(Email, { previewText: `Welcome, ${name}` }, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}`))));
+      h(Email, { previewText: `Welcome, ${name}` }, h(Row, null, h(Column, null, h(Text, null, `Hi ${name}`))));
     const props = { name: "Alex" };
     const { design } = await mergeTagDesign(Migrated, props, designOf(Migrated(props)) as unknown as Record<string, unknown>);
     const text = JSON.stringify(design);

@@ -3,7 +3,7 @@ import {
   Divider,
   Email,
   Heading,
-  Paragraph,
+  Text,
   Section,
   Span,
 } from "@unlayer/react-elements";
@@ -36,9 +36,9 @@ export default function VerificationCode(): ReactElement {
         >
           Verification code
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#8b949e", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#8b949e", textAlign: "center", lineHeight: 1.6 }}>
           Enter this code to verify your identity and complete the sign-in process.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Code Display */}
@@ -61,30 +61,30 @@ export default function VerificationCode(): ReactElement {
 
       {/* Expiry Notice */}
       <Section style={{ backgroundColor: "#161b22", padding: [0, 0, 32, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#8b949e", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#8b949e", textAlign: "center", lineHeight: 1.5 }}>
           This code expires in 10 minutes.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Security Info */}
       <Section style={{ backgroundColor: "#161b22", padding: [0, 0, 40, 0] }}>
         <Divider style={{ borderTop: "1px solid #30363d", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#e6edf3", textAlign: "left", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#e6edf3", textAlign: "left", lineHeight: 1.5 }}>
           <Span style={{ fontWeight: 700 }}>Didn't request this?</Span>
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#8b949e", textAlign: "left", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 13, color: "#8b949e", textAlign: "left", lineHeight: 1.6 }}>
           Someone may be trying to access your account. We recommend changing your password
           immediately and enabling two-factor authentication.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Details */}
       <Section style={{ backgroundColor: "#161b22", padding: [0, 0, 32, 0] }}>
         <Divider style={{ borderTop: "1px solid #30363d", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 10, color: "#484f58", textAlign: "left", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 10, color: "#484f58", textAlign: "left", lineHeight: 1.5 }}>
           REQUEST DETAILS
-        </Paragraph>
-        <Paragraph
+        </Text>
+        <Text
           style={{
             padding: 10,
             fontFamily: monoFont,
@@ -96,8 +96,8 @@ export default function VerificationCode(): ReactElement {
         >
           <Span style={{ fontWeight: 700 }}>IP Address:</Span>
           {" 192.168.1.42"}
-        </Paragraph>
-        <Paragraph
+        </Text>
+        <Text
           style={{
             padding: 10,
             fontFamily: monoFont,
@@ -109,8 +109,8 @@ export default function VerificationCode(): ReactElement {
         >
           <Span style={{ fontWeight: 700 }}>Location:</Span>
           {" San Francisco, CA"}
-        </Paragraph>
-        <Paragraph
+        </Text>
+        <Text
           style={{
             padding: 10,
             fontFamily: monoFont,
@@ -122,14 +122,14 @@ export default function VerificationCode(): ReactElement {
         >
           <Span style={{ fontWeight: 700 }}>Device:</Span>
           {" Chrome on macOS"}
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [24, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#484f58", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#484f58", textAlign: "center", lineHeight: 1.5 }}>
           Nexus Security · This is an automated message
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

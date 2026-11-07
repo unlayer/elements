@@ -1,5 +1,5 @@
 /**
- * A Paragraph: a `<p>` with the text styles that differ from its parent's. A
+ * A Text: a `<p>` with the text styles that differ from its parent's. A
  * Heading is the same with its own tag.
  */
 import type { ResolvedText } from "../../resolve";
@@ -23,4 +23,4 @@ export const textBlock = ({ node, style, parent, placement, classes, children }:
   </Tag>
 );
 
-export const Paragraph: Component = (props) => textBlock(props, "p");
+export const Text: Component = (props) => textBlock(props, "p");

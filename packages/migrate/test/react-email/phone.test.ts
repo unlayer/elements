@@ -210,7 +210,7 @@ describe("phone styles", () => {
     const { codes, designs } = await convertBoth(source);
     for (const code of codes) {
       expect(code).toMatch(/<Section hidden=\{\{ mobile: true \}\}>\s*<Column mobile=\{\{ padding: "0px 16px 0px 16px" \}\}>/);
-      expect(code).toMatch(/padding: "32px 32px 32px 32px" \}\}\s*mobile=\{\{ padding: "8px 8px 8px 8px" \}\}\s*>\s*<Paragraph[^>]*>\s*Nested section/);
+      expect(code).toMatch(/padding: "32px 32px 32px 32px" \}\}\s*mobile=\{\{ padding: "8px 8px 8px 8px" \}\}\s*>\s*<Text[^>]*>\s*Nested section/);
     }
     // The visual editor hides the row on phones too.
     for (const design of designs) {

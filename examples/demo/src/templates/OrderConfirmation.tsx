@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Row,
   Section,
   Table,
@@ -58,10 +58,10 @@ export default function OrderConfirmation(): ReactElement {
         >
           Your order is confirmed.
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 15, color: "#6e6e73", textAlign: "left", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 15, color: "#6e6e73", textAlign: "left", lineHeight: 1.65 }}>
           Hi Alex, thanks for your purchase. We'll send you a shipping confirmation once your order
           is on its way.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Delivery estimate — highlight box */}
@@ -128,9 +128,9 @@ export default function OrderConfirmation(): ReactElement {
         >
           $346.00
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "right", lineHeight: 1.4 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "right", lineHeight: 1.4 }}>
           Includes $27.68 tax · Free shipping
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Divider */}
@@ -155,15 +155,15 @@ export default function OrderConfirmation(): ReactElement {
             >
               SHIPPING TO
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
               Alex Johnson
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
               123 Main Street
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
               San Francisco, CA 94103
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
             <Heading
@@ -179,15 +179,15 @@ export default function OrderConfirmation(): ReactElement {
             >
               ORDER DETAILS
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#1d1d1f", textAlign: "left", lineHeight: 1.5 }}>
               Order #A1029384
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
               Placed on March 3, 2026
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#6e6e73", textAlign: "left", lineHeight: 1.5 }}>
               Visa ending in 4242
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -214,12 +214,12 @@ export default function OrderConfirmation(): ReactElement {
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 32, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
           Questions? Contact us at support@store.com
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 12, color: "#86868b", textAlign: "center", lineHeight: 1.6 }}>
           Store Inc · 1 Infinite Loop, Cupertino, CA
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

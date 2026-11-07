@@ -6,7 +6,7 @@
 import type { Meta } from "@storybook/react-vite";
 import type { ReactNode } from "react";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Heading, LineBreak, Link, MergeTag, Paragraph, Row, Section, Table, TableCell, TableRow, type EmailProps, type SectionProps } from "../../index";
+import { Column, Heading, LineBreak, Link, MergeTag, Text, Row, Section, Table, TableCell, TableRow, type EmailProps, type SectionProps } from "../../index";
 
 const FOG = "#F0EFE8";
 const INK = "#18211E";
@@ -50,10 +50,10 @@ const band = (children: ReactNode, style: SectionProps["style"] = {}) => (
 const masthead = (issue = "No. 14 · Winter") => (
   <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 8], border: { bottom: `1px solid ${INK}` } }}>
     <Column style={{ width: 150 }}>
-      <Paragraph style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.6, lineHeight: "28px" }}>Strandline</Paragraph>
+      <Text style={{ fontSize: 24, fontWeight: 600, letterSpacing: -0.6, lineHeight: "28px" }}>Strandline</Text>
     </Column>
     <Column>
-      <Paragraph style={{ ...label, color: INK, textAlign: "right" }}>{issue}</Paragraph>
+      <Text style={{ ...label, color: INK, textAlign: "right" }}>{issue}</Text>
     </Column>
   </Row>
 );
@@ -78,11 +78,11 @@ const story = asEmailAndPage;
 const specimen = (level: 1 | 2 | 3 | 4 | 5 | 6, size: number, heading: ReactNode) => (
   <Row style={{ gap: 12, padding: [14, 0, 16], ...(level > 1 && { border: { top: `1px solid ${RULE}` } }) }} mobile={{ gap: 6 }}>
     <Column style={{ width: 72 }}>
-      <Paragraph style={{ ...note, lineHeight: "18px" }}>
+      <Text style={{ ...note, lineHeight: "18px" }}>
         level {level}
         <LineBreak />
         {size} px
-      </Paragraph>
+      </Text>
     </Column>
     <Column>{heading}</Column>
   </Row>
@@ -137,7 +137,7 @@ export const Styles = story((Root) => (
             Read it all online
           </Heading>
         </Column>
-        <Paragraph style={note}>Capitals, large and tight, a lighter weight, a color, another font, a line under: all in style</Paragraph>
+        <Text style={note}>Capitals, large and tight, a lighter weight, a color, another font, a line under: all in style</Text>
       </>
     )}
   </Root>
@@ -164,7 +164,7 @@ export const Alignment = story((Root) => (
           <Heading level={3} style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.2, maxWidth: 260 }}>
             Every tide on the south-west coast
           </Heading>
-          <Paragraph style={note}>textAlign: "left", "center", "right"; maxWidth: 260</Paragraph>
+          <Text style={note}>textAlign: "left", "center", "right"; maxWidth: 260</Text>
         </Column>
       </>
     )}
@@ -181,14 +181,14 @@ export const LinksAndMergeTags = story((Root) => (
           <Heading level={2} style={{ fontSize: 38, fontWeight: 400, lineHeight: 1.1, letterSpacing: -0.8 }} mobile={{ fontSize: 32 }}>
             Good morning, <MergeTag name="first_name" />
           </Heading>
-          <Paragraph style={reading}>Your copy left the printer on Tuesday, and it should be on your mat by Saturday. While you wait, it’s all online:</Paragraph>
+          <Text style={reading}>Your copy left the printer on Tuesday, and it should be on your mat by Saturday. While you wait, it’s all online:</Text>
         </Column>
         <Heading level={2} style={{ fontSize: 26, fontWeight: 500, lineHeight: 1.2, padding: [18, 0, 0], border: { top: `1px solid ${RULE}` } }}>
           <Link href={`${SITE}/14/the-kelp-is-leaving`} style={{ color: GLASS, textDecoration: "none" }} hover={{ textDecoration: "underline" }}>
             The kelp is leaving, and other stories from Winter
           </Link>
         </Heading>
-        <Paragraph style={note}>A MergeTag in one, a Link in the other, underlined under the pointer</Paragraph>
+        <Text style={note}>A MergeTag in one, a Link in the other, underlined under the pointer</Text>
       </>
     )}
   </Root>
@@ -222,12 +222,12 @@ export const Boxes = story((Root) => (
           <Heading level={3} style={{ fontSize: 24, fontWeight: 500, padding: [0, 0, 8], border: { bottom: `2px solid ${GLASS}` } }}>
             Birds to look for
           </Heading>
-          <Paragraph style={reading}>Turnstones on the slip at low water, and a purple sandpiper on the outer rocks, if you’re lucky and it’s cold.</Paragraph>
+          <Text style={reading}>Turnstones on the slip at low water, and a purple sandpiper on the outer rocks, if you’re lucky and it’s cold.</Text>
         </Column>
         <Heading level={3} style={{ fontSize: 22, fontWeight: 500, lineHeight: 1.25, padding: [18, 16], backgroundColor: GLASS, color: WHITE, textAlign: "center" }} mobile={{ fontSize: 19 }}>
           No. 15 ships on the spring tide
         </Heading>
-        <Paragraph style={note}>A background and corners; a line under it; a band, its text in the center</Paragraph>
+        <Text style={note}>A background and corners; a line under it; a band, its text in the center</Text>
       </>
     )}
   </Root>
@@ -242,12 +242,12 @@ export const OnPhones = story((Root) => (
         <Heading level={1} style={{ fontSize: 54, fontWeight: 500, lineHeight: 1.02, letterSpacing: -1.8, padding: [24, 0, 4] }} mobile={{ fontSize: 34, textAlign: "center", padding: [12, 0, 0] }}>
           The last bench on the harbour wall
         </Heading>
-        <Paragraph style={reading} mobile={{ textAlign: "center" }}>
+        <Text style={reading} mobile={{ textAlign: "center" }}>
           Forty years of watching the same water, from the same plank, with the same flask.
-        </Paragraph>
-        <Paragraph style={note} mobile={{ textAlign: "center" }}>
+        </Text>
+        <Text style={note} mobile={{ textAlign: "center" }}>
           fontSize: 54; on phones 34, centered, with less padding
-        </Paragraph>
+        </Text>
       </>
     )}
   </Root>

@@ -92,6 +92,6 @@ For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading 
 - Exit code `2` means a template failed to convert or lost content: report that to the user with the file and the reason from the report. Don't pass `--force` to hide it.
 - Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with the new components ([GUIDE.md](../GUIDE.md)), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
 - After converting any template by hand, run the same `compare` before reporting it done.
-- React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Section`/`Row`/`Column`; `Container` width → `Email` `width`; `Img` → `Image`, with its file's size in `src={{ src, width, height }}`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; margins → the parent's `gap`; Tailwind classes and inline styles → `style={{ }}`.
+- React Email → Elements, when writing by hand: `Text`, `Section`, `Row` and `Column` keep their names; `Container` width → `Email` `width`; `Img` → `Image`, with its file's size in `src={{ src, width, height }}`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; margins → the parent's `gap`; Tailwind classes and inline styles → `style={{ }}`.
 
 For programmatic conversion (from an agent, a build step or a server), see [`@unlayer/migrate/react-email`](../../migrate#programmatic-use).

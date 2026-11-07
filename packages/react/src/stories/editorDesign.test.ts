@@ -2,14 +2,14 @@
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { toDesign } from "../builder";
-import { Email, Image, Section, Paragraph } from "../primitives";
+import { Email, Image, Section, Text } from "../primitives";
 import { forTheEditor } from "./editorDesign";
 
 const FACE = { family: "Geist", src: "https://fonts.example/geist.woff2", format: "woff2", weight: "100 900" };
 const template = createElement(
   Email,
   { fonts: [FACE], style: { fontFamily: "Geist, Arial, sans-serif" } },
-  createElement(Section, null, createElement(Paragraph, null, "Words"), createElement(Image, { src: { src: "gallery/a.png", width: 100, height: 100 }, alt: "A" }), createElement(Image, { src: { src: "https://cdn.example/b.png", width: 100, height: 100 }, alt: "B" })),
+  createElement(Section, null, createElement(Text, null, "Words"), createElement(Image, { src: { src: "gallery/a.png", width: 100, height: 100 }, alt: "A" }), createElement(Image, { src: { src: "https://cdn.example/b.png", width: 100, height: 100 }, alt: "B" })),
 );
 const urls = (design: unknown) => JSON.stringify(design).match(/"url":"[^"]*"/g) ?? [];
 

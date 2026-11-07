@@ -15,7 +15,7 @@ pnpm add @unlayer/react-elements
 Import from `@unlayer/react-elements`. A template has one root, its styles go in `style={{ }}`, and the space between blocks is their parent's `gap`.
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (
@@ -25,9 +25,9 @@ export default function Receipt() {
         <Heading level={1} style={{ fontSize: 24 }} mobile={{ fontSize: 20 }}>
           Thanks for your order, <MergeTag name="first_name" />
         </Heading>
-        <Paragraph>
+        <Text>
           Order <Span style={{ fontWeight: 700 }}>#10482</Span> ships tomorrow. <Link href="https://example.com/orders/10482">Track it</Link>.
-        </Paragraph>
+        </Text>
         <Table style={{ cellPadding: [8, 0], rowBorder: "1px solid #e4e4e7" }}>
           <TableRow header>
             <TableCell>Item</TableCell>
@@ -40,11 +40,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
-            <Paragraph>Ada Lovelace, London</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
+            <Text>Ada Lovelace, London</Text>
           </Column>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Next steps</Text>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -55,7 +55,7 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
+      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
     </Email>
   );
 }
@@ -93,7 +93,7 @@ Or install the same guide as an agent skill: `npx skills add hyper-elements/hype
     <Row>          ← its children side by side, stacked on phones
       <Column>     ← its children stacked
         <Heading />
-        <Paragraph />
+        <Text />
         <Button />
       </Column>
     </Row>
@@ -129,7 +129,7 @@ A root, a `Section` and a `Column` stack what they hold, so a block doesn't need
 | Component | Description |
 |-----------|-------------|
 | `<Heading>` | A heading, `level` 1 to 6 |
-| `<Paragraph>`, `<Paragraph>` | A block of text |
+| `<Text>` | A block of text |
 | `<Span>`, `<Link>`, `<LineBreak>`, `<MergeTag>` | Inside text: a styled run, a link, a new line, a value the sending service fills in |
 | `<Button>` | A link drawn as a button, with its colors on hover |
 | `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
@@ -202,12 +202,12 @@ The options are `pretty` (the HTML indented, for reading it), `mergeTag` (how a 
 Share the content, and give each output its root:
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Paragraph, render } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, render } from "@unlayer/react-elements";
 
 const Invoice = () => (
   <Column style={{ gap: 12 }}>
     <Heading level={1} style={{ fontSize: 24 }}>Invoice 2705</Heading>
-    <Paragraph>Thank you for your order.</Paragraph>
+    <Text>Thank you for your order.</Text>
     <Button href="https://example.com/invoices/2705" style={{ backgroundColor: "#111827" }}>View it online</Button>
   </Column>
 );
@@ -225,8 +225,8 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 
 ```tsx
 <Heading style={{ fontSize: 32 }} mobile={{ fontSize: 24, textAlign: "center" }}>Welcome</Heading>
-<Paragraph hidden={{ mobile: true }}>Desktop detail</Paragraph>
-<Paragraph hidden={{ desktop: true }}>Phone detail</Paragraph>
+<Text hidden={{ mobile: true }}>Desktop detail</Text>
+<Text hidden={{ desktop: true }}>Phone detail</Text>
 <Button href="https://example.com" style={{ backgroundColor: "#111827" }} hover={{ backgroundColor: "#374151" }}>Buy</Button>
 ```
 
@@ -252,11 +252,11 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 <Grid columns={2} style={{ backgroundColor: "#ffffff", padding: [24, 40], gap: 24 }}>
   <Column style={{ gap: 4 }}>
     <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Feature 1</Heading>
-    <Paragraph style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Paragraph>
+    <Text style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Text>
   </Column>
   <Column style={{ gap: 4 }}>
     <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Feature 2</Heading>
-    <Paragraph style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Paragraph>
+    <Text style={{ fontSize: 13, color: "#71717a" }}>Description of the feature.</Text>
   </Column>
 </Grid>
 ```
@@ -267,7 +267,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 <Row style={{ gap: 16 }}>
   <Column style={{ backgroundColor: "#ffffff", padding: 16, borderRadius: 8, textAlign: "center" }}>
     <Heading level={2} style={{ fontSize: 28, fontWeight: 700, color: "#0f172a" }}>1.2M</Heading>
-    <Paragraph style={{ fontSize: 12, color: "#94a3b8" }}>API calls</Paragraph>
+    <Text style={{ fontSize: 12, color: "#94a3b8" }}>API calls</Text>
   </Column>
   {/* One Column for each metric */}
 </Row>
@@ -282,8 +282,8 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
   </Column>
   <Column style={{ gap: 4 }}>
     <Heading level={3} style={{ fontSize: 16, fontWeight: 600 }}>Product name</Heading>
-    <Paragraph style={{ fontSize: 13, color: "#a1a1aa" }}>Matte white, medium</Paragraph>
-    <Paragraph style={{ fontSize: 16, fontWeight: 700 }}>$89.00</Paragraph>
+    <Text style={{ fontSize: 13, color: "#a1a1aa" }}>Matte white, medium</Text>
+    <Text style={{ fontSize: 16, fontWeight: 700 }}>$89.00</Text>
   </Column>
 </Row>
 ```
@@ -292,7 +292,7 @@ const printed = await render(<Document size="A4" margin={48}><Invoice /></Docume
 
 ```tsx
 <Section style={{ padding: [20, 40, 40, 40] }}>
-  <Paragraph style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center" }}>Company name, City, State</Paragraph>
+  <Text style={{ fontSize: 12, color: "#a1a1aa", textAlign: "center" }}>Company name, City, State</Text>
 </Section>
 ```
 

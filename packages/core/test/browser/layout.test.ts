@@ -96,7 +96,7 @@ describe("an Svg in Chromium", () => {
   const CASES: Array<[string, Record<string, unknown>]> = [
     ["with padding and a border", { type: "Column", children: [svg({ padding: 20, border: "2px solid #000" })] }],
     ["in a stack that stretches its children", { type: "Column", style: { alignItems: "stretch" }, children: [svg({ padding: 10 })] }],
-    ["in a Row, beside a Text", { type: "Row", style: { gap: 10 }, children: [svg({ padding: 10 }), { type: "Paragraph", id: "beside", children: ["words"] }] }],
+    ["in a Row, beside a Text", { type: "Row", style: { gap: 10 }, children: [svg({ padding: 10 }), { type: "Text", id: "beside", children: ["words"] }] }],
     ["wider than its room", { type: "Column", style: { width: 80 }, children: [svg()] }],
   ];
   for (const [name, child] of CASES) {

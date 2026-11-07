@@ -1,5 +1,5 @@
 /**
- * A text block's HTML (a heading's, a text's, a button's `text`) as the runs of a Paragraph, a Heading or a Button:
+ * A text block's HTML (a heading's, a text's, a button's `text`) as the runs of a Text, a Heading or a Button:
  * words, Span, Link and LineBreak, drawn as the browser draws the HTML. Paragraphs (`<p>` with no margins, as legacy's
  * own are written, and `<div>`) are lines one under another; a paragraph holding only a line break is an empty line, an
  * empty one nothing. It fails closed: anything it doesn't read exactly as the browser does (markup no run holds, a

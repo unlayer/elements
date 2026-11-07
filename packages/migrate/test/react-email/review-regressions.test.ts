@@ -531,7 +531,7 @@ describe("text props with markup", () => {
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     fs.writeFileSync(path.join(dir, "original.tsx"), original);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Text } from "@unlayer/react-elements";
 export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
   return <Email><Row><Column>${body}</Column></Row></Email>;
 }`);
@@ -545,7 +545,7 @@ export default function T({ user, items }: { user: { city: string }; items: Arra
     expect([raw.missing, raw.added]).toEqual([[], []]);
     expect(raw.variants).toEqual([expect.objectContaining({ change: "text props with markup" })]);
     // Shown as text, they pass.
-    const text = await pair("<Paragraph>From {user.city}</Paragraph>{items.map((item) => <Paragraph key={item.name}>{item.name}</Paragraph>)}");
+    const text = await pair("<Text>From {user.city}</Text>{items.map((item) => <Text key={item.name}>{item.name}</Text>)}");
     expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
   });
 });
@@ -645,7 +645,7 @@ T.PreviewProps = { a: true, b: true };`);
       export default function T({ banner }: { banner: React.ReactElement }) { return <Html><Body>{banner}<Text>After</Text></Body></Html>; }
       T.PreviewProps = { banner: <Section style={{ backgroundColor: "#fef3c7", padding: "16px" }}><Text>Sale ends soon</Text></Section> };`);
     expect(clean(banner)).toEqual([]);
-    expect(banner.code).not.toMatch(/<Paragraph[^>]*>\s*\{banner\}/);
+    expect(banner.code).not.toMatch(/<Text[^>]*>\s*\{banner\}/);
     const columns = await check(`import * as React from "react";
       import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
       function Cols({ children }: { children: React.ReactNode }) { return <Row>{React.Children.map(children, (child) => <Column style={{ width: "50%" }}>{child}</Column>)}</Row>; }
@@ -902,15 +902,15 @@ T.PreviewProps = { seats: 5 };`);
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text, Link } from "@react-email/components";
       function escapeHtml(text: string) { return text; }
       function htmlText(text: string) { return text; }
-      export default function T({ name, url, Paragraph = "unused" }: { name: string; url?: string; Paragraph?: string }) {
+      export default function T({ name, url, Paragraph = "unused", Section = "unused" }: { name: string; url?: string; Paragraph?: string; Section?: string }) {
         const Button = escapeHtml(htmlText(name));
         return <Html><Body><Text>Hi {Button}, <Link href={url}>open</Link> {name}</Text></Body></Html>;
       }
       T.PreviewProps = { name: "Ana", url: "https://example.com" };`);
     expect(conversion.intermediate).toMatch(/function _escapeHtml\(/);
     expect(conversion.intermediate).toMatch(/Paragraph as UnlayerParagraph/);
-    // In the new components too: the template's Paragraph stays its own.
-    expect(conversion.code).toMatch(/Paragraph as ElementsParagraph/);
+    // In the new components too: the template's Section stays its own.
+    expect(conversion.code).toMatch(/Section as ElementsSection/);
     const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added, check.styles, check.variants]).toEqual([[], [], [], []]);
   });
@@ -991,7 +991,9 @@ export default function T() { return <Html><Body><Container>
   <Text style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)" }}>Screen reader note</Text>
   <Text style={{ position: "absolute", left: "-9999px" }}>Offscreen filler</Text>
 </Container></Body></Html>; }`);
-    expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*(Screen reader note|Offscreen filler)/);
+    // Kept as React Email writes it (its Text), in an Html block: not a block of the new components'.
+    expect(conversion.code).not.toMatch(/<ElementsText[^>]*>\s*(Screen reader note|Offscreen filler)/);
+    expect(conversion.code).toMatch(/<Html>\s*<div[^>]*>\s*<Text[^>]*>\s*Screen reader note/);
     const check = await verifyNewComponents(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
     expect(htmlWords(check.convertedHtml)).toEqual(["Visible", "line"]);
@@ -1168,10 +1170,10 @@ export default function T({ compact = false }: { compact?: boolean }) {
   </Row></Section></Body></Html>;
 }
 T.PreviewProps = { compact: false };`);
-    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Text } from "@unlayer/react-elements";
 export default function T({ compact = false }: { compact?: boolean }) {
-  if (compact) return <Email><Row><Column><Paragraph>Short column words</Paragraph></Column></Row><Row><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
-  return <Email><Row><Column style={{ width: "50%" }}><Paragraph>Left column words</Paragraph></Column><Column style={{ width: "50%" }}><Paragraph>Right column words</Paragraph></Column></Row></Email>;
+  if (compact) return <Email><Row><Column><Text>Short column words</Text></Column></Row><Row><Column><Text>Right column words</Text></Column></Row></Email>;
+  return <Email><Row><Column style={{ width: "50%" }}><Text>Left column words</Text></Column><Column style={{ width: "50%" }}><Text>Right column words</Text></Column></Row></Email>;
 }`);
     const { default: Original } = await import(path.join(dir, "original.tsx"));
     const { default: Migrated } = await import(path.join(dir, "migrated.tsx"));
@@ -1213,7 +1215,7 @@ export default function Receipt({ name, channel }: { name: string; channel: "tra
 Receipt.PreviewProps = { name: "Alex", channel: "transactional" } as const;`);
     expect(await htmlOf(Migrated({ name: "Bo", channel: "marketing" }))).toContain('href="https://acme.com/unsubscribe"');
     expect(await htmlOf(Migrated({ name: "Bo", channel: "transactional" }))).not.toContain("unsubscribe");
-    expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*\{channel === "marketing" && legalFooter\}/);
+    expect(conversion.code).not.toMatch(/<Text[^>]*>\s*\{channel === "marketing" && legalFooter\}/);
   });
 
   it("fails the check for a class list held in a value or returned by a helper that reads props", async () => {

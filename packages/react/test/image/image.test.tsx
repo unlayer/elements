@@ -23,7 +23,7 @@ import {
   List,
   ListItem,
   Menu,
-  Paragraph,
+  Text,
   prepare,
   Rect,
   Row,
@@ -70,7 +70,7 @@ const card = (
     <Heading level={1} style={{ fontSize: 40 }}>
       Launch week
     </Heading>
-    <Paragraph style={{ fontSize: 18, color: "#cbd5e1" }}>Five days of new things, one a day.</Paragraph>
+    <Text style={{ fontSize: 18, color: "#cbd5e1" }}>Five days of new things, one a day.</Text>
     <Svg width={120} height={60} title="Logo">
       <Rect width={120} height={60} rx={8} style={{ fill: "#6366f1" }} />
       <Circle cx={30} cy={30} r={20} style={{ fill: "transparent", stroke: "#ffffff", strokeWidth: 4 }} />
@@ -106,7 +106,7 @@ describe("renderImage", () => {
   it("takes the Canvas's own fonts given as data: URIs", async () => {
     const own = (
       <Canvas width={200} height={100} fonts={[{ family: "Liberation Sans", src: `data:font/ttf;base64,${FONT.toString("base64")}` }]} style={{ fontFamily: "Liberation Sans" }}>
-        <Paragraph>Hi</Paragraph>
+        <Text>Hi</Text>
       </Canvas>
     );
     expect((await renderImage(own)).diagnostics).toEqual([]);
@@ -116,7 +116,7 @@ describe("renderImage", () => {
     const woff2 = Uint8Array.from([0x77, 0x4f, 0x46, 0x32, 0, 1, 0, 0]);
     const own = (
       <Canvas width={200} height={100} fonts={[{ family: "Packed", src: `data:font/woff2;base64,${Buffer.from(woff2).toString("base64")}` }]} style={{ fontFamily: "Liberation Sans" }}>
-        <Paragraph>Hi</Paragraph>
+        <Text>Hi</Text>
       </Canvas>
     );
     const { diagnostics } = await renderImage(own, { fonts: [...fonts, { family: "Other", src: woff2 }] });
@@ -135,7 +135,7 @@ describe("renderImage", () => {
         <Video src="https://vimeo.com/76979871" title="Our launch" />
         <Html html="<b>Sale</b>" />
         {Array.from({ length: 12 }, (_, i) => (
-          <Paragraph key={i}>Line {i + 1} of more than a 120px Canvas can hold</Paragraph>
+          <Text key={i}>Line {i + 1} of more than a 120px Canvas can hold</Text>
         ))}
       </Canvas>
     );
@@ -165,7 +165,7 @@ describe("renderImage", () => {
   it("reads the tree prepare() lays out at the layout version it's built for, and refuses another (Elements newer or older)", async () => {
     const template = (
       <Canvas width={200} height={100} style={{ fontFamily: "Liberation Sans" }}>
-        <Paragraph>Hi</Paragraph>
+        <Text>Hi</Text>
       </Canvas>
     );
     expect(prepare(template).layout).toBe(LAYOUT_VERSION);
@@ -198,12 +198,12 @@ describe("renderImage", () => {
   describe("every block a Canvas takes", () => {
     /** A sample of each, with the words it draws. */
     const SAMPLES: Record<string, [ReactElement, string]> = {
-      Section: [<Section key="s"><Paragraph>In a section</Paragraph></Section>, "In a section"],
-      Row: [<Row key="r"><Column><Paragraph>In a row</Paragraph></Column></Row>, "In a row"],
-      Column: [<Column key="c"><Paragraph>In a column</Paragraph></Column>, "In a column"],
-      Grid: [<Grid key="g" columns={2}><Paragraph>Left</Paragraph><Paragraph>Right</Paragraph></Grid>, "LeftRight"],
-      Layer: [<Layer key="l"><Paragraph>Under</Paragraph><Paragraph>Over</Paragraph></Layer>, "UnderOver"],
-      Paragraph: [<Paragraph key="p">A paragraph</Paragraph>, "A paragraph"],
+      Section: [<Section key="s"><Text>In a section</Text></Section>, "In a section"],
+      Row: [<Row key="r"><Column><Text>In a row</Text></Column></Row>, "In a row"],
+      Column: [<Column key="c"><Text>In a column</Text></Column>, "In a column"],
+      Grid: [<Grid key="g" columns={2}><Text>Left</Text><Text>Right</Text></Grid>, "LeftRight"],
+      Layer: [<Layer key="l"><Text>Under</Text><Text>Over</Text></Layer>, "UnderOver"],
+      Text: [<Text key="p">A paragraph</Text>, "A paragraph"],
       Heading: [<Heading key="h">A heading</Heading>, "A heading"],
       Link: [<Link key="a" href="https://acme.test">A link</Link>, "A link"],
       Button: [<Button key="b" href="https://acme.test">A button</Button>, "A button"],
@@ -286,15 +286,15 @@ describe("renderImage", () => {
     const centered = ([left, right]: number[]) => expect(Math.abs((left + right) / 2 - 540)).toBeLessThan(3);
 
     // The Canvas's alignment, a Column's, the block's own.
-    centered(await across(canvas("center", <Paragraph>EPISODE 42</Paragraph>)));
+    centered(await across(canvas("center", <Text>EPISODE 42</Text>)));
     centered(await across(canvas(undefined, <Column style={{ textAlign: "center" }}><Heading>EPISODE 42</Heading></Column>)));
-    centered(await across(canvas(undefined, <Paragraph style={{ textAlign: "center" }}>EPISODE <Span style={{ color: "#ff0000" }}>42</Span></Paragraph>)));
-    const [, right] = await across(canvas("right", <Paragraph>EPISODE 42</Paragraph>));
+    centered(await across(canvas(undefined, <Text style={{ textAlign: "center" }}>EPISODE <Span style={{ color: "#ff0000" }}>42</Span></Text>)));
+    const [, right] = await across(canvas("right", <Text>EPISODE 42</Text>));
     expect(right).toBeGreaterThan(1075);
-    const [left] = await across(canvas("left", <Paragraph>EPISODE 42</Paragraph>));
+    const [left] = await across(canvas("left", <Text>EPISODE 42</Text>));
     expect(left).toBeLessThan(5);
     // Lines that wrap, centered as they were.
-    centered(await across(canvas("center", <Paragraph style={{ fontSize: 48 }}>{"Five days of new things, one a day, all week long. ".repeat(3)}</Paragraph>)));
+    centered(await across(canvas("center", <Text style={{ fontSize: 48 }}>{"Five days of new things, one a day, all week long. ".repeat(3)}</Text>)));
   });
 
   it("writes a Canvas only", async () => {
@@ -302,7 +302,7 @@ describe("renderImage", () => {
       renderImage(
         <Email>
           <Column>
-            <Paragraph>Hi</Paragraph>
+            <Text>Hi</Text>
           </Column>
         </Email>,
         { fonts }

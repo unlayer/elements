@@ -15,11 +15,11 @@ This complete `src/export-design.tsx` can be run in a TypeScript project with `n
 ```tsx
 import { mkdir, writeFile } from "node:fs/promises";
 import { toDesign } from "@unlayer/react-elements/builder";
-import { Email, Paragraph } from "@unlayer/react-elements";
+import { Email, Text } from "@unlayer/react-elements";
 
 const { design, report } = toDesign(
   <Email width={600}>
-    <Paragraph>Welcome to your new workspace.</Paragraph>
+    <Text>Welcome to your new workspace.</Text>
   </Email>
 );
 for (const line of report) console.warn(line);

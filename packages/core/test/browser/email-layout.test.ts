@@ -92,7 +92,7 @@ describe("a Layer whose Image is hidden on phones, in Chromium", () => {
       root: {
         type: "Email",
         props: { width: 600 },
-        children: [{ type: "Layer", id: "hero", children: [{ type: "Image", props: { src: photo, alt: "Sea" }, style: { width: "100%" }, hidden: { mobile: true } }, { type: "Paragraph", id: "over", children: ["Summer sale"] }] }],
+        children: [{ type: "Layer", id: "hero", children: [{ type: "Image", props: { src: photo, alt: "Sea" }, style: { width: "100%" }, hidden: { mobile: true } }, { type: "Text", id: "over", children: ["Summer sale"] }] }],
       },
     });
     const measure = async (width: number) => {
@@ -112,7 +112,7 @@ describe("a Layer whose Image is hidden on phones, in Chromium", () => {
   it("keeps a box over the image to its own width, as a page does", async () => {
     const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 1200, height: 600 };
     const template = (root: "Email" | "Page", style: Record<string, number>) =>
-      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Layer", children: [{ type: "Image", props: { src: photo, alt: "" }, style: { width: "100%" } }, { type: "Column", id: "over", style, children: [{ type: "Paragraph", children: ["Words"] }] }] }] } }).html;
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Layer", children: [{ type: "Image", props: { src: photo, alt: "" }, style: { width: "100%" } }, { type: "Column", id: "over", style, children: [{ type: "Text", children: ["Words"] }] }] }] } }).html;
     const width = async (html: string) => {
       await page.setViewportSize({ width: 1000, height: 800 });
       await page.setContent(html);
@@ -127,7 +127,7 @@ describe("a Layer whose Image is hidden on phones, in Chromium", () => {
 
 describe("a Section's phone padding, in Chromium", () => {
   it("moves the content in from the sides phones set, with or without desktop side padding", async () => {
-    const band = (id: string, style: Record<string, unknown>, mobile: Record<string, unknown>) => ({ type: "Section", style, mobile, children: [{ type: "Paragraph", id, children: ["Words in a band"] }] });
+    const band = (id: string, style: Record<string, unknown>, mobile: Record<string, unknown>) => ({ type: "Section", style, mobile, children: [{ type: "Text", id, children: ["Words in a band"] }] });
     const { html } = renderTemplate({
       root: {
         type: "Email",

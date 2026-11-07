@@ -29,7 +29,7 @@ Use `"jsx": "react-jsx"` in your TypeScript configuration. Copy the [example sou
 [src/invoice.tsx](../../../examples/content-workflows/src/invoice.tsx):
 
 ```tsx
-import { Button, Column, Document, Email, Heading, Page, Paragraph, Span } from "@unlayer/react-elements";
+import { Button, Column, Document, Email, Heading, Page, Text, Span } from "@unlayer/react-elements";
 
 export interface InvoiceData {
   number: string;
@@ -54,9 +54,9 @@ export function invoiceTemplate(data: InvoiceData, mode: "email" | "web" | "docu
   const content = (
     <Column style={{ backgroundColor: "#ffffff", padding: 24, gap: 16 }}>
       <Heading level={1} style={{ fontSize: 28 }}>Payment receipt</Heading>
-      <Paragraph>Invoice <Span style={{ fontWeight: 700 }}>{data.number}</Span></Paragraph>
-      <Paragraph>Thank you, {data.customer}.</Paragraph>
-      <Paragraph>Paid: <Span style={{ fontWeight: 700 }}>{data.total}</Span></Paragraph>
+      <Text>Invoice <Span style={{ fontWeight: 700 }}>{data.number}</Span></Text>
+      <Text>Thank you, {data.customer}.</Text>
+      <Text>Paid: <Span style={{ fontWeight: 700 }}>{data.total}</Span></Text>
       <Button href={receiptUrl.href} style={{ backgroundColor: "#0879A1", color: "#ffffff" }}>
         View invoice
       </Button>

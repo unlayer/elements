@@ -7,7 +7,7 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -51,9 +51,9 @@ export default function UsageReport(): ReactElement {
             </Column>
           </Column>
           <Column style={{ width: "50%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "right", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "right", lineHeight: 1.5 }}>
               February 2026
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -65,11 +65,11 @@ export default function UsageReport(): ReactElement {
         >
           Monthly Usage Report
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#64748b", textAlign: "left", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#64748b", textAlign: "left", lineHeight: 1.6 }}>
           {"Here’s your summary for "}
           <Span style={{ fontWeight: 700 }}>Acme Corp</Span>
           {" — Pro Plan."}
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Key Metrics */}
@@ -89,12 +89,12 @@ export default function UsageReport(): ReactElement {
             >
               1.2M
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
               API Calls
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
               ↑ 18% vs Jan
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "33.33%" }}>
             <Heading
@@ -110,12 +110,12 @@ export default function UsageReport(): ReactElement {
             >
               99.97%
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
               Uptime
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
               SLA: 99.9%
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "33.33%" }}>
             <Heading
@@ -131,12 +131,12 @@ export default function UsageReport(): ReactElement {
             >
               48ms
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
               Avg Latency
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 11, color: "#22c55e", textAlign: "center", lineHeight: 1.5 }}>
               ↓ 12ms vs Jan
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -202,26 +202,26 @@ export default function UsageReport(): ReactElement {
       <Section style={{ backgroundColor: "#ffffff" }}>
         <Row>
           <Column style={{ width: "50%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
               Pro Plan (base)
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
               API overage (200K calls)
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "left", lineHeight: 2 }}>
               <Span style={{ fontWeight: 700 }}>Total due Mar 1</Span>
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
               $299.00
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
               $40.00
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 14, color: "#0f172a", textAlign: "right", lineHeight: 2 }}>
               <Span style={{ fontWeight: 700 }}>$339.00</Span>
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -244,17 +244,17 @@ export default function UsageReport(): ReactElement {
             View Full Dashboard
           </Button>
         </Column>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 1.5 }}>
           {"Need to upgrade? "}
           <Link href="#">Compare plans</Link>
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
           Pulse API · This report is generated automatically on the 1st of each month.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

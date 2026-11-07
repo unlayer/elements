@@ -7,7 +7,7 @@
  * technical drawing's numbered callouts are the list under it.
  */
 import type { ReactNode } from "react";
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Table, TableCell, TableRow } from "../../index";
+import { Button, Column, Email, Heading, Image, Link, Text, Row, Section, Table, TableCell, TableRow } from "../../index";
 
 const PAPER = "#F3F1EC";
 const INK = "#1A1917";
@@ -32,7 +32,7 @@ const RAIL = 136;
 const railed = (name: string, content: ReactNode) => (
   <Row style={{ gap: 24, padding: [14, 0, 0], border: { top: `1px solid ${INK}` } }} mobile={{ gap: 20 }}>
     <Column style={{ width: RAIL }}>
-      <Paragraph style={{ ...label, color: INK }}>{name}</Paragraph>
+      <Text style={{ ...label, color: INK }}>{name}</Text>
     </Column>
     <Column>{content}</Column>
   </Row>
@@ -42,13 +42,13 @@ const railed = (name: string, content: ReactNode) => (
 const callout = (n: number, title: string, body: string) => (
   <Row stackOnMobile={false} style={{ gap: 16, padding: n === 1 ? [0, 0, 20] : [20, 0], border: n === 1 ? undefined : { top: `1px solid ${RULE}` } }}>
     <Column style={{ width: 24 }}>
-      <Paragraph style={{ width: 24, backgroundColor: SIGNAL, borderRadius: 12, fontFamily: MONO, fontSize: 12, fontWeight: 500, lineHeight: "24px", textAlign: "center", color: INK }}>{String(n)}</Paragraph>
+      <Text style={{ width: 24, backgroundColor: SIGNAL, borderRadius: 12, fontFamily: MONO, fontSize: 12, fontWeight: 500, lineHeight: "24px", textAlign: "center", color: INK }}>{String(n)}</Text>
     </Column>
     <Column style={{ gap: 4 }}>
       <Heading level={3} style={{ fontSize: 17, fontWeight: 600, lineHeight: "24px", letterSpacing: -0.2 }}>
         {title}
       </Heading>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.55, color: QUIET }}>{body}</Paragraph>
+      <Text style={{ fontSize: 15, lineHeight: 1.55, color: QUIET }}>{body}</Text>
     </Column>
   </Row>
 );
@@ -79,28 +79,28 @@ export const oyenLaunch = (
       {/* Masthead */}
       <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 14], border: { bottom: `1px solid ${INK}` } }}>
         <Column style={{ width: 120 }}>
-          <Paragraph style={{ fontSize: 19, fontWeight: 700, letterSpacing: 5, lineHeight: "20px" }}>
+          <Text style={{ fontSize: 19, fontWeight: 700, letterSpacing: 5, lineHeight: "20px" }}>
             <Link href={SITE} style={{ color: INK, textDecoration: "none" }}>
               OYEN
             </Link>
-          </Paragraph>
+          </Text>
         </Column>
         <Column>
-          <Paragraph style={{ ...label, lineHeight: "18px", textAlign: "right" }}>Dispatch 07 · Nov 2026</Paragraph>
+          <Text style={{ ...label, lineHeight: "18px", textAlign: "right" }}>Dispatch 07 · Nov 2026</Text>
         </Column>
       </Row>
 
       {/* The announcement */}
       <Column style={{ gap: 28 }} mobile={{ gap: 24 }}>
         <Column style={{ gap: 20 }}>
-          <Paragraph style={label}>New instrument — FR-2</Paragraph>
+          <Text style={label}>New instrument — FR-2</Text>
           <Heading level={1} style={{ fontSize: 62, lineHeight: 1, letterSpacing: -2.6, fontWeight: 500 }} mobile={{ fontSize: 44, letterSpacing: -1.8 }}>
             Record the room you’re in.
           </Heading>
         </Column>
-        <Paragraph style={{ fontSize: 19, lineHeight: 1.5, maxWidth: 400 }} mobile={{ fontSize: 17 }}>
+        <Text style={{ fontSize: 19, lineHeight: 1.5, maxWidth: 400 }} mobile={{ fontSize: 17 }}>
           FR-2 is a pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.
-        </Paragraph>
+        </Text>
         <Row style={{ alignItems: "center", gap: 20 }} mobile={{ gap: 14 }}>
           <Button
             href={`${SITE}/fr-2`}
@@ -110,14 +110,14 @@ export const oyenLaunch = (
           >
             Pre-order FR-2
           </Button>
-          <Paragraph style={label}>€349 · Ships 2 December</Paragraph>
+          <Text style={label}>€349 · Ships 2 December</Text>
         </Row>
       </Column>
 
       {/* The drawing: the whole plate on a desktop, the two views larger on a phone */}
       <Column style={{ gap: 12 }} mobile={{ gap: 10 }}>
         <Image src={{ src: "gallery/oyen/fr2-drawing.png", width: 1020, height: 900 }} alt={DRAWING} style={{ width: "100%" }} />
-        <Paragraph style={label}>Fig. 1 — FR-2, front and side</Paragraph>
+        <Text style={label}>Fig. 1 — FR-2, front and side</Text>
       </Column>
 
       {railed(
@@ -145,10 +145,10 @@ export const oyenLaunch = (
       {railed(
         "From the field",
         <Column style={{ gap: 16 }}>
-          <Paragraph style={{ fontSize: 24, lineHeight: 1.32, letterSpacing: -0.6 }} mobile={{ fontSize: 22 }}>
+          <Text style={{ fontSize: 24, lineHeight: 1.32, letterSpacing: -0.6 }} mobile={{ fontSize: 22 }}>
             “I left it on a fence post through nine hours of rain. It kept recording, and so did the birds.”
-          </Paragraph>
-          <Paragraph style={label}>Maren Achterberg, sound recordist</Paragraph>
+          </Text>
+          <Text style={label}>Maren Achterberg, sound recordist</Text>
         </Column>
       )}
     </Section>
@@ -157,11 +157,11 @@ export const oyenLaunch = (
     <Section style={{ backgroundColor: SIGNAL, padding: [44, 48, 48] }} mobile={{ padding: [36, 24] }}>
       <Row style={{ alignItems: "end", gap: 24 }} mobile={{ gap: 28 }}>
         <Column style={{ gap: 14 }}>
-          <Paragraph style={{ ...label, color: INK }}>First run · 2,000 instruments</Paragraph>
+          <Text style={{ ...label, color: INK }}>First run · 2,000 instruments</Text>
           <Heading level={2} style={{ fontSize: 96, lineHeight: 0.9, letterSpacing: -4.5, fontWeight: 500 }} mobile={{ fontSize: 80, letterSpacing: -3.6 }}>
             €349
           </Heading>
-          <Paragraph style={{ fontSize: 15, lineHeight: 1.5 }}>Ships 2 December. Charged when it ships.</Paragraph>
+          <Text style={{ fontSize: 15, lineHeight: 1.5 }}>Ships 2 December. Charged when it ships.</Text>
         </Column>
         <Column style={{ width: 168 }} mobile={{ width: "100%" }}>
           <Button
@@ -179,13 +179,13 @@ export const oyenLaunch = (
     <Section style={{ padding: [32, 48, 56] }} mobile={{ padding: [28, 24, 44] }}>
       <Row style={{ gap: 24 }} mobile={{ gap: 12 }}>
         <Column style={{ width: RAIL }}>
-          <Paragraph style={{ fontSize: 13, fontWeight: 700, letterSpacing: 4 }}>OYEN</Paragraph>
+          <Text style={{ fontSize: 13, fontWeight: 700, letterSpacing: 4 }}>OYEN</Text>
         </Column>
         <Column style={{ gap: 8 }}>
-          <Paragraph style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
+          <Text style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
             Oyen Instruments AS, Møllergata 9, 0179 Oslo. You’re getting dispatches because you asked for them when you bought an Oyen instrument.
-          </Paragraph>
-          <Paragraph style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
+          </Text>
+          <Text style={{ fontSize: 13, lineHeight: 1.6, color: QUIET }}>
             <Link href={`${SITE}/dispatch/07`} style={{ color: INK }}>
               View online
             </Link>
@@ -193,7 +193,7 @@ export const oyenLaunch = (
             <Link href={`${SITE}/unsubscribe`} style={{ color: INK }}>
               Unsubscribe
             </Link>
-          </Paragraph>
+          </Text>
         </Column>
       </Row>
     </Section>

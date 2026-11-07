@@ -7,7 +7,7 @@
  * numbered steps, then what the free tier holds.
  */
 import type { ReactNode } from "react";
-import { Button, Column, Email, Grid, Heading, LineBreak, Link, Paragraph, Row, Section, Span } from "../../index";
+import { Button, Column, Email, Grid, Heading, LineBreak, Link, Text, Row, Section, Span } from "../../index";
 
 const NIGHT = "#0E0F10";
 const PANEL = "#17191B";
@@ -37,13 +37,13 @@ const typed = (command: string) => (
 const step = (n: string, title: string, body: ReactNode) => (
   <Row stackOnMobile={false} style={{ gap: 20, padding: [20, 0], border: { top: `1px solid ${RULE}` } }} mobile={{ gap: 14 }}>
     <Column style={{ width: 32 }}>
-      <Paragraph style={{ ...mono, fontSize: 14, color: LIME, lineHeight: "24px" }}>{n}</Paragraph>
+      <Text style={{ ...mono, fontSize: 14, color: LIME, lineHeight: "24px" }}>{n}</Text>
     </Column>
     <Column style={{ gap: 4 }}>
       <Heading level={3} style={{ fontSize: 17, fontWeight: 600, lineHeight: "24px" }}>
         {title}
       </Heading>
-      <Paragraph style={{ fontSize: 15, lineHeight: 1.6, color: QUIET }}>{body}</Paragraph>
+      <Text style={{ fontSize: 15, lineHeight: 1.6, color: QUIET }}>{body}</Text>
     </Column>
   </Row>
 );
@@ -54,11 +54,11 @@ const code = (text: string) => <Span style={{ fontFamily: MONO, fontSize: 14, co
 /** A figure of the free tier. */
 const figure = (value: string, unit: string, what: string) => (
   <Column style={{ gap: 4 }}>
-    <Paragraph style={{ fontFamily: MONO, fontSize: 28, fontWeight: 500, lineHeight: 1.1, letterSpacing: -0.5 }} mobile={{ fontSize: 22 }}>
+    <Text style={{ fontFamily: MONO, fontSize: 28, fontWeight: 500, lineHeight: 1.1, letterSpacing: -0.5 }} mobile={{ fontSize: 22 }}>
       {value}
       <Span style={{ fontSize: 15, color: QUIET }}> {unit}</Span>
-    </Paragraph>
-    <Paragraph style={{ fontSize: 13, lineHeight: 1.45, color: QUIET }}>{what}</Paragraph>
+    </Text>
+    <Text style={{ fontSize: 13, lineHeight: 1.45, color: QUIET }}>{what}</Text>
   </Column>
 );
 
@@ -78,38 +78,38 @@ export const quarryWelcome = (
     <Section style={{ padding: [40, 48, 56], gap: 48 }} mobile={{ padding: [28, 24, 40], gap: 36 }}>
       <Row stackOnMobile={false} style={{ alignItems: "center" }}>
         <Column style={{ width: 120 }}>
-          <Paragraph style={{ fontFamily: MONO, fontSize: 18, fontWeight: 500, letterSpacing: -0.3 }}>
+          <Text style={{ fontFamily: MONO, fontSize: 18, fontWeight: 500, letterSpacing: -0.3 }}>
             <Link href={SITE} style={{ color: TEXT, textDecoration: "none" }}>
               quarry<Span style={{ color: LIME }}>_</Span>
             </Link>
-          </Paragraph>
+          </Text>
         </Column>
         <Column>
-          <Paragraph style={{ ...mono, fontSize: 12, color: QUIET, textAlign: "right" }}>north-ledger · eu-central</Paragraph>
+          <Text style={{ ...mono, fontSize: 12, color: QUIET, textAlign: "right" }}>north-ledger · eu-central</Text>
         </Column>
       </Row>
 
       <Column style={{ gap: 20 }}>
-        <Paragraph style={{ ...mono, color: QUIET }}>Welcome, Priya.</Paragraph>
+        <Text style={{ ...mono, color: QUIET }}>Welcome, Priya.</Text>
         <Heading level={1} style={{ fontSize: 44, fontWeight: 500, lineHeight: 1.08, letterSpacing: -1.4 }} mobile={{ fontSize: 31, letterSpacing: -0.9 }}>
           Your first database
           <LineBreak />
           is running.
         </Heading>
-        <Paragraph style={{ fontSize: 18, lineHeight: 1.55, color: QUIET, maxWidth: 470 }} mobile={{ fontSize: 16 }}>
+        <Text style={{ fontSize: 18, lineHeight: 1.55, color: QUIET, maxWidth: 470 }} mobile={{ fontSize: 16 }}>
           It’s called <Span style={{ color: TEXT }}>north-ledger</Span>, it lives in Frankfurt, and it’s yours to break. Four commands take you from an empty schema to a shell.
-        </Paragraph>
+        </Text>
       </Column>
 
       <Column style={{ backgroundColor: PANEL, border: `1px solid ${RULE}`, borderRadius: 6, padding: [20, 24] }} mobile={{ padding: [16, 16] }}>
-        <Paragraph style={{ ...mono, color: TEXT }} mobile={{ fontSize: 12 }}>
+        <Text style={{ ...mono, color: TEXT }} mobile={{ fontSize: 12 }}>
           {typed("curl -fsSL quarry.example/i | sh")}
           {typed("quarry login")}
           {typed("quarry link north-ledger")}
           {typed("quarry shell")}
           <Span style={{ color: QUIET }}>north-ledger=&gt; </Span>
           select 'hello' as world;
-        </Paragraph>
+        </Text>
       </Column>
 
       <Column>
@@ -127,15 +127,15 @@ export const quarryWelcome = (
         >
           Open the console
         </Button>
-        <Paragraph style={{ fontSize: 15 }}>
+        <Text style={{ fontSize: 15 }}>
           <Link href={`${SITE}/docs/quickstart`} style={{ color: TEXT }}>
             Or read the quickstart
           </Link>
-        </Paragraph>
+        </Text>
       </Row>
 
       <Column style={{ gap: 20, padding: [28, 0, 0], border: { top: `1px solid ${RULE}` } }}>
-        <Paragraph style={{ ...mono, fontSize: 12, color: QUIET, letterSpacing: 0.5 }}>WHAT THE FREE TIER HOLDS</Paragraph>
+        <Text style={{ ...mono, fontSize: 12, color: QUIET, letterSpacing: 0.5 }}>WHAT THE FREE TIER HOLDS</Text>
         <Grid columns={3} stackOnMobile={false} style={{ gap: 24 }} mobile={{ gap: 12 }}>
           {figure("10", "GB", "of storage")}
           {figure("1", "bn", "row reads a month")}
@@ -144,13 +144,13 @@ export const quarryWelcome = (
       </Column>
 
       <Column style={{ gap: 6 }}>
-        <Paragraph style={{ fontSize: 16, lineHeight: 1.6 }}>
+        <Text style={{ fontSize: 16, lineHeight: 1.6 }}>
           If anything gets in your way, reply to this email. It comes to the four of us who answer support, and one of us will write back today.
-        </Paragraph>
-        <Paragraph style={{ fontSize: 16, color: QUIET }}>Tomás, for the Quarry team</Paragraph>
+        </Text>
+        <Text style={{ fontSize: 16, color: QUIET }}>Tomás, for the Quarry team</Text>
       </Column>
 
-      <Paragraph style={{ ...mono, fontSize: 12, lineHeight: 1.7, color: QUIET, padding: [24, 0, 0], border: { top: `1px solid ${RULE}` } }}>
+      <Text style={{ ...mono, fontSize: 12, lineHeight: 1.7, color: QUIET, padding: [24, 0, 0], border: { top: `1px solid ${RULE}` } }}>
         Quarry Data GmbH, Rosenthaler Straße 40, 10178 Berlin
         <LineBreak />
         <Link href={`${SITE}/settings/email`} style={{ color: QUIET }}>
@@ -160,7 +160,7 @@ export const quarryWelcome = (
         <Link href={`${SITE}/unsubscribe`} style={{ color: QUIET }}>
           Unsubscribe
         </Link>
-      </Paragraph>
+      </Text>
     </Section>
   </Email>
 );

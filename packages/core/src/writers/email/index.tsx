@@ -48,7 +48,7 @@ import { Link } from "./Link";
 import { List } from "./List";
 import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
-import { Paragraph } from "./Paragraph";
+import { Text } from "./Text";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Section } from "./Section";
@@ -67,7 +67,7 @@ const BLOCKS: Record<string, Component> = {
   Row,
   Layer,
   Column,
-  Paragraph,
+  Text,
   Heading,
   Button,
   Link,

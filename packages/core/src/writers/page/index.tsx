@@ -27,7 +27,7 @@ import { List } from "./List";
 import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Page } from "./Page";
-import { Paragraph } from "./Paragraph";
+import { Text } from "./Text";
 import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Document, documentCss } from "./Document";
@@ -71,7 +71,7 @@ const COMPONENTS: Record<string, Component> = {
   DocumentPage: Column,
   PageNumber,
   Svg,
-  Paragraph,
+  Text,
   Heading,
   Span,
   Link,

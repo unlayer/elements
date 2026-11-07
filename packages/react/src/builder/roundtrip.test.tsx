@@ -104,7 +104,7 @@ describe("to the builder and back", () => {
   }
 
   it("brings the template back in the root of the builder's display mode, and a design made in the builder as an Email unless it has a document's parts", () => {
-    const content = [<primitives.Heading key="h">Title</primitives.Heading>, <primitives.Paragraph key="p">Words</primitives.Paragraph>];
+    const content = [<primitives.Heading key="h">Title</primitives.Heading>, <primitives.Text key="p">Words</primitives.Text>];
     for (const [root, Root] of [["Email", primitives.Email], ["Page", primitives.Page], ["Document", primitives.Document]] as const) {
       const template = React.createElement(Root as React.FC<{ children: React.ReactNode }>, null, content);
       expectRoundTrip(template);
@@ -154,7 +154,7 @@ describe("to the builder and back", () => {
       <primitives.Page width={600}>
         <primitives.Column style={{ color: "#b91c1c", fontSize: 30 }}>
           <primitives.Layer style={{ height: 100 }}>
-            <primitives.Paragraph>Locked label</primitives.Paragraph>
+            <primitives.Text>Locked label</primitives.Text>
           </primitives.Layer>
         </primitives.Column>
       </primitives.Page>
@@ -188,7 +188,7 @@ describe("to the builder and back", () => {
   });
 
   it("writes a page on its own without that width", async () => {
-    const { body } = await primitives.render(<primitives.Page width={600}><primitives.Paragraph>Words</primitives.Paragraph></primitives.Page>);
+    const { body } = await primitives.render(<primitives.Page width={600}><primitives.Text>Words</primitives.Text></primitives.Page>);
     expect(body).toMatch(/^<main style="max-width:600px;margin:0 auto;/);
   });
 

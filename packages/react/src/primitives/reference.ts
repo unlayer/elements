@@ -239,7 +239,7 @@ function guide(example: string): string {
     "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
     "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
     "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
-    "- Text is components, not HTML: `Heading level={1}` and `Paragraph` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
+    "- Text is components, not HTML: `Heading level={1}` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
     "- `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.",
     "- Lists: `<List type=\"number\">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.",
     "- Phones: `mobile={{ fontSize: 20 }}` (the styles listed under \"Phones\"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: \"#374151\" }}` (those under \"Hover\").",

@@ -30,7 +30,7 @@ import {
   PageFooter,
   PageHeader,
   PageNumber,
-  Paragraph,
+  Text,
   prepare,
   Rect,
   Row,
@@ -120,31 +120,31 @@ async function read(pdf: Uint8Array): Promise<Read> {
 const invoice = (
   <Document size="A4" margin={48} title="Invoice 2705">
     <PageHeader>
-      <Paragraph style={{ fontSize: 10, color: "#666666" }}>Acme · Invoice</Paragraph>
+      <Text style={{ fontSize: 10, color: "#666666" }}>Acme · Invoice</Text>
     </PageHeader>
     <Heading level={1} style={{ fontSize: 24 }}>
       Invoice 2705
     </Heading>
-    <Paragraph>
+    <Text>
       Thank you for your <Span style={{ fontWeight: 700 }}>order</Span>. Questions? <Link href="https://acme.test/help">Contact us</Link>.
-    </Paragraph>
+    </Text>
     <Row style={{ gap: 16 }}>
       <Column>
-        <Paragraph>Pro plan</Paragraph>
+        <Text>Pro plan</Text>
       </Column>
       <Column>
-        <Paragraph style={{ textAlign: "right" }}>$25.00</Paragraph>
+        <Text style={{ textAlign: "right" }}>$25.00</Text>
       </Column>
     </Row>
     <Image src={{ src: PNG_URI, width: 40, height: 40 }} alt="Logo" />
     <PageBreak />
     <Document.Page>
-      <Paragraph>Terms and conditions</Paragraph>
+      <Text>Terms and conditions</Text>
     </Document.Page>
     <PageFooter>
-      <Paragraph style={{ fontSize: 10, textAlign: "right" }}>
+      <Text style={{ fontSize: 10, textAlign: "right" }}>
         Page <PageNumber /> of <PageNumber total />
-      </Paragraph>
+      </Text>
     </PageFooter>
   </Document>
 );
@@ -180,7 +180,7 @@ describe("renderPdf", () => {
       for (const props of [{ size: "A4" }, { size: "A4", orientation: "landscape" }, { size: "Letter", margin: 50.3 }, { size: "A3", margin: 0 }] as const) {
         await renderPdf(
           <Document {...props}>
-            <Paragraph>One line</Paragraph>
+            <Text>One line</Text>
           </Document>
         );
       }
@@ -215,7 +215,7 @@ describe("renderPdf", () => {
       <Document>
         <Image src={{ src: "https://cdn.acme.test/logo.svg", width: 80, height: 40 }} alt="Acme logo" />
         <Image src={{ src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, width: 40, height: 40 }} alt="" />
-        <Paragraph>Below</Paragraph>
+        <Text>Below</Text>
       </Document>
     );
     const { pdf, diagnostics } = await renderPdf(template, { images: { "https://cdn.acme.test/logo.svg": new TextEncoder().encode(svg) } });
@@ -259,7 +259,7 @@ describe("renderPdf", () => {
   it("notes a web font it isn't given, and draws its text in a standard PDF font", async () => {
     const { diagnostics, pdf } = await renderPdf(
       <Document fonts={[{ family: "Inter", src: "https://fonts.acme.test/inter.woff2" }]} style={{ fontFamily: "Inter, sans-serif" }}>
-        <Paragraph>Hello</Paragraph>
+        <Text>Hello</Text>
       </Document>
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([["pdf/font", "warning"]]);
@@ -270,7 +270,7 @@ describe("renderPdf", () => {
     const ttf = liberation("LiberationSans-Regular.ttf");
     const template = (
       <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff" }]} style={{ fontFamily: "Brand, sans-serif" }}>
-        <Paragraph>Hello</Paragraph>
+        <Text>Hello</Text>
       </Document>
     );
     for (const src of [ttf, toWoff(ttf)]) {
@@ -287,8 +287,8 @@ describe("renderPdf", () => {
     const regular = liberation("LiberationSans-Regular.ttf");
     const template = (
       <Document fonts={[{ family: "Brand", src: "https://fonts.acme.test/brand.woff2" }]} style={{ fontFamily: "Brand, sans-serif" }}>
-        <Paragraph>Hello</Paragraph>
-        <Paragraph style={{ fontWeight: 700 }}>Bold</Paragraph>
+        <Text>Hello</Text>
+        <Text style={{ fontWeight: 700 }}>Bold</Text>
       </Document>
     );
     // A WOFF2 as Google Fonts' are (glyf and loca transformed: test/woff.ts), alone or beside the family's TTF.
@@ -309,8 +309,8 @@ describe("renderPdf", () => {
     const regular = { family: "Brand", src: liberation("LiberationSans-Regular.ttf") };
     const template = (
       <Document style={{ fontFamily: "Brand, sans-serif" }}>
-        <Paragraph>Upright</Paragraph>
-        <Paragraph style={{ fontStyle: "italic" }}>Slanted</Paragraph>
+        <Text>Upright</Text>
+        <Text style={{ fontStyle: "italic" }}>Slanted</Text>
         <Heading>Bold</Heading>
         <Table>
           <TableRow header>
@@ -338,10 +338,10 @@ describe("renderPdf", () => {
   it("says text a standard PDF font can't draw (it draws Western European characters only) where no font file is given for it", async () => {
     const template = (
       <Document>
-        <Paragraph>Hello, café — “Ÿ” €5</Paragraph>
-        <Paragraph>Привет, мир</Paragraph>
-        <Paragraph style={{ fontFamily: "Georgia, serif" }}>Ελληνικά</Paragraph>
-        <Paragraph>Łódź</Paragraph>
+        <Text>Hello, café — “Ÿ” €5</Text>
+        <Text>Привет, мир</Text>
+        <Text style={{ fontFamily: "Georgia, serif" }}>Ελληνικά</Text>
+        <Text>Łódź</Text>
       </Document>
     );
     const { pdf, diagnostics } = await renderPdf(template);
@@ -399,7 +399,7 @@ describe("renderPdf", () => {
     const long = (
       <Document>
         {Array.from({ length: 120 }, (_, i) => (
-          <Paragraph key={i}>Paragraph {i + 1} of a page that goes on for longer than an A4 page can hold.</Paragraph>
+          <Text key={i}>Text {i + 1} of a page that goes on for longer than an A4 page can hold.</Text>
         ))}
       </Document>
     );
@@ -409,13 +409,13 @@ describe("renderPdf", () => {
     expect(overflow?.message).toMatch(/^Page 1's content \(split it with a PageBreak, or into pages\) looks about \d+% as tall as its room \(an estimate: text isn't measured yet\)\. What doesn't fit is cut off$/);
     expect(validate(long).diagnostics.map((d) => d.code)).toContain("document/overflow");
     // A page that fits says nothing, nor does each page of the same content split into pages.
-    expect((await renderPdf(<Document><Paragraph>One paragraph.</Paragraph></Document>)).diagnostics).toEqual([]);
+    expect((await renderPdf(<Document><Text>One paragraph.</Text></Document>)).diagnostics).toEqual([]);
     const split = (
       <Document>
         {Array.from({ length: 4 }, (_, page) => (
           <Document.Page key={page}>
             {Array.from({ length: 30 }, (_, i) => (
-              <Paragraph key={i}>Paragraph {i + 1} of a page that holds a quarter of it.</Paragraph>
+              <Text key={i}>Text {i + 1} of a page that holds a quarter of it.</Text>
             ))}
           </Document.Page>
         ))}
@@ -428,7 +428,7 @@ describe("renderPdf", () => {
     // Two different files given, in turn, as one family.
     const brand = (
       <Document style={{ fontFamily: "Brand" }}>
-        <Paragraph>Hello</Paragraph>
+        <Text>Hello</Text>
       </Document>
     );
     const regular = await renderPdf(brand, { fonts: [{ family: "Brand", src: liberation("LiberationSans-Regular.ttf") }] });
@@ -447,7 +447,7 @@ describe("renderPdf", () => {
           <Rect width={120} height={60} rx={8} style={{ fill: "#6366f1" }} />
           <Circle cx={30} cy={30} r={20} style={{ fill: "transparent", stroke: "#ffffff", strokeWidth: 4 }} />
         </Svg>
-        <Paragraph>Below the drawing</Paragraph>
+        <Text>Below the drawing</Text>
       </Document>
     );
     // The rectangle's fill, #6366f1, among the page's drawing operators.
@@ -464,9 +464,9 @@ describe("renderPdf", () => {
     const { pdf } = await renderPdf(
       <Document>
         <Button href={{ href: "https://a.test/go", target: "_blank" }}>Go</Button>
-        <Paragraph>
+        <Text>
           See <Link href={{ href: "https://b.test/more" }}>more</Link> or <Link href="https://c.test/x">this</Link>
-        </Paragraph>
+        </Text>
       </Document>
     );
     const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
@@ -498,9 +498,9 @@ describe("renderPdf", () => {
     const { pdf } = await renderPdf(
       <Document size="A4" margin={48}>
         {lines.map((line) => (
-          <Paragraph key={line} style={{ fontSize: 12, lineHeight: 1.5 }}>
+          <Text key={line} style={{ fontSize: 12, lineHeight: 1.5 }}>
             {line}
-          </Paragraph>
+          </Text>
         ))}
       </Document>
     );
@@ -523,13 +523,13 @@ describe("renderPdf", () => {
     expect(
       await fills(
         <Document>
-          <Paragraph style={{ color: "#111827" }}>Plain paper</Paragraph>
+          <Text style={{ color: "#111827" }}>Plain paper</Text>
         </Document>
       )
     ).toMatch(/#ffffff|255,255,255/i);
     const tinted = await fills(
       <Document style={{ backgroundColor: "#fef3c7" }}>
-        <Paragraph style={{ color: "#111827" }}>Tinted paper</Paragraph>
+        <Text style={{ color: "#111827" }}>Tinted paper</Text>
       </Document>
     );
     expect(tinted).toMatch(/fef3c7|254,243,199/i);
@@ -539,7 +539,7 @@ describe("renderPdf", () => {
   it("reads the tree prepare() lays out at the layout version it's built for, and refuses another (Elements newer or older)", async () => {
     const template = (
       <Document>
-        <Paragraph>Hi</Paragraph>
+        <Text>Hi</Text>
       </Document>
     );
     expect(prepare(template).layout).toBe(LAYOUT_VERSION);
@@ -573,12 +573,12 @@ describe("renderPdf", () => {
   describe("every block a Document takes", () => {
     /** A sample of each, with the words it draws. */
     const SAMPLES: Record<string, [ReactElement, string]> = {
-      Section: [<Section key="s"><Paragraph>In a section</Paragraph></Section>, "In a section"],
-      Row: [<Row key="r"><Column><Paragraph>In a row</Paragraph></Column></Row>, "In a row"],
-      Column: [<Column key="c"><Paragraph>In a column</Paragraph></Column>, "In a column"],
-      Grid: [<Grid key="g" columns={2}><Paragraph>Left</Paragraph><Paragraph>Right</Paragraph></Grid>, "LeftRight"],
-      Layer: [<Layer key="l"><Paragraph>Under</Paragraph><Paragraph>Over</Paragraph></Layer>, "UnderOver"],
-      Paragraph: [<Paragraph key="p">A paragraph</Paragraph>, "A paragraph"],
+      Section: [<Section key="s"><Text>In a section</Text></Section>, "In a section"],
+      Row: [<Row key="r"><Column><Text>In a row</Text></Column></Row>, "In a row"],
+      Column: [<Column key="c"><Text>In a column</Text></Column>, "In a column"],
+      Grid: [<Grid key="g" columns={2}><Text>Left</Text><Text>Right</Text></Grid>, "LeftRight"],
+      Layer: [<Layer key="l"><Text>Under</Text><Text>Over</Text></Layer>, "UnderOver"],
+      Text: [<Text key="p">A paragraph</Text>, "A paragraph"],
       Heading: [<Heading key="h">A heading</Heading>, "A heading"],
       Link: [<Link key="a" href="https://acme.test">A link</Link>, "A link"],
       Button: [<Button key="b" href="https://acme.test">A button</Button>, "A button"],
@@ -652,7 +652,7 @@ describe("renderPdf", () => {
     await expect(
       renderPdf(
         <Email>
-          <Paragraph>Hi</Paragraph>
+          <Text>Hi</Text>
         </Email>
       )
     ).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "pdf/root" })] });

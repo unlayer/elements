@@ -7,7 +7,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Heading, LineBreak, Paragraph, Row, Section } from "../../index";
+import { Button, Column, Heading, LineBreak, Text, Row, Section } from "../../index";
 
 const FLOUR = "#F8F2E7";
 const OVEN = "#EFE5D3";
@@ -38,10 +38,10 @@ const SITE = "https://brindle.example";
 const loaf = (name: string, price: string) => (
   <Row stackOnMobile={false} style={{ padding: [10, 0], border: { top: `1px solid ${RULE}` } }}>
     <Column>
-      <Paragraph style={{ fontSize: 16 }}>{name}</Paragraph>
+      <Text style={{ fontSize: 16 }}>{name}</Text>
     </Column>
     <Column style={{ width: 72 }}>
-      <Paragraph style={{ fontFamily: MONO, fontSize: 13, lineHeight: "26px", textAlign: "right", color: QUIET }}>{price}</Paragraph>
+      <Text style={{ fontFamily: MONO, fontSize: 13, lineHeight: "26px", textAlign: "right", color: QUIET }}>{price}</Text>
     </Column>
   </Row>
 );
@@ -66,17 +66,17 @@ const story = asEmailAndPage;
 export const Bands = story((Root) => (
   <Root width={400} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ backgroundColor: JAM, color: FLOUR, padding: [32, 24, 28], gap: 6 }}>
-      <Paragraph style={{ ...CAPTION, color: FLOUR }}>Tuesday 10 November</Paragraph>
+      <Text style={{ ...CAPTION, color: FLOUR }}>Tuesday 10 November</Text>
       <Heading level={1} style={{ ...DISPLAY_TYPE, fontSize: 38 }}>
         Today’s bake
       </Heading>
     </Section>
     <Section style={{ padding: [28, 24, 32], gap: 18 }}>
-      <Paragraph style={{ fontSize: 18, lineHeight: 1.45 }}>
+      <Text style={{ fontSize: 18, lineHeight: 1.45 }}>
         Out of the oven at seven.
         <LineBreak />
         They rarely see noon.
-      </Paragraph>
+      </Text>
       <Column>
         {loaf("Dark rye", "£4.80")}
         {loaf("Seeded spelt", "£5.20")}
@@ -84,8 +84,8 @@ export const Bands = story((Root) => (
       </Column>
     </Section>
     <Section style={{ backgroundColor: OVEN, padding: [18, 24], gap: 6 }}>
-      <Paragraph style={{ fontSize: 14, color: QUIET }}>Closed on Mondays, so the ovens can rest. 14 Mill Row, Bristol.</Paragraph>
-      <Paragraph style={CAPTION}>width: 400 · each band’s color reaches the window’s edges</Paragraph>
+      <Text style={{ fontSize: 14, color: QUIET }}>Closed on Mondays, so the ovens can rest. 14 Mill Row, Bristol.</Text>
+      <Text style={CAPTION}>width: 400 · each band’s color reaches the window’s edges</Text>
     </Section>
   </Root>
 ));
@@ -94,15 +94,15 @@ export const Bands = story((Root) => (
 export const Spacing = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ backgroundColor: OVEN, padding: [40, 24], gap: 24 }}>
-      <Paragraph style={CAPTION}>padding: [40, 24] · gap: 24</Paragraph>
+      <Text style={CAPTION}>padding: [40, 24] · gap: 24</Text>
       <Heading level={2} style={{ ...DISPLAY_TYPE, fontSize: 48 }} mobile={{ fontSize: 38 }}>
         Fig and fennel
       </Heading>
-      <Paragraph style={{ fontSize: 17, maxWidth: 440 }}>This week’s loaf: two days’ slow rise, a dark crust, and enough fruit that it doesn’t need butter. It gets it anyway.</Paragraph>
+      <Text style={{ fontSize: 17, maxWidth: 440 }}>This week’s loaf: two days’ slow rise, a dark crust, and enough fruit that it doesn’t need butter. It gets it anyway.</Text>
     </Section>
     <Section style={{ padding: [8, 24], gap: 4 }}>
-      <Paragraph style={CAPTION}>padding: [8, 24] · gap: 4</Paragraph>
-      <Paragraph style={{ fontSize: 14, color: QUIET }}>Contains wheat, rye and sesame. Baked where nuts have been.</Paragraph>
+      <Text style={CAPTION}>padding: [8, 24] · gap: 4</Text>
+      <Text style={{ fontSize: 14, color: QUIET }}>Contains wheat, rye and sesame. Baked where nuts have been.</Text>
     </Section>
   </Root>
 ));
@@ -111,19 +111,19 @@ export const Spacing = story((Root) => (
 export const Alignment = story((Root) => (
   <Root width={560} lang="en-GB" fonts={FONTS} style={PAPER}>
     <Section style={{ padding: [24, 24], gap: 10, alignItems: "start" }}>
-      <Paragraph style={CAPTION}>alignItems: "start"</Paragraph>
+      <Text style={CAPTION}>alignItems: "start"</Text>
       <Button href={`${SITE}/order`} style={BUTTON} hover={{ backgroundColor: JAM_DOWN }}>
         Order for Saturday
       </Button>
     </Section>
     <Section style={{ padding: [24, 24], gap: 10, alignItems: "center", backgroundColor: OVEN }}>
-      <Paragraph style={{ ...CAPTION, textAlign: "center" }}>alignItems: "center"</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "center" }}>alignItems: "center"</Text>
       <Button href={`${SITE}/classes`} style={BUTTON} hover={{ backgroundColor: JAM_DOWN }}>
         Book a bread class
       </Button>
     </Section>
     <Section style={{ padding: [24, 24], gap: 10, alignItems: "end" }}>
-      <Paragraph style={{ ...CAPTION, textAlign: "right" }}>alignItems: "end"</Paragraph>
+      <Text style={{ ...CAPTION, textAlign: "right" }}>alignItems: "end"</Text>
       <Button href={`${SITE}/gift`} style={BUTTON} hover={{ backgroundColor: JAM_DOWN }}>
         Send someone a loaf
       </Button>
@@ -138,12 +138,12 @@ export const Borders = story((Root) => (
       <Heading level={2} style={{ ...DISPLAY_TYPE, fontSize: 30 }}>
         Christmas hours
       </Heading>
-      <Paragraph style={{ fontSize: 17 }}>We bake until noon on Christmas Eve, then sleep until the 28th.</Paragraph>
-      <Paragraph style={CAPTION}>border: {"{"} top: "4px solid" {"}"}, an accent</Paragraph>
+      <Text style={{ fontSize: 17 }}>We bake until noon on Christmas Eve, then sleep until the 28th.</Text>
+      <Text style={CAPTION}>border: {"{"} top: "4px solid" {"}"}, an accent</Text>
     </Section>
     <Section style={{ backgroundColor: OVEN, padding: [24, 24], gap: 8, border: { bottom: `1px solid ${RYE}` } }}>
-      <Paragraph style={{ fontSize: 15 }}>Stollen orders close on Friday 18 December. We’ve only got the one oven.</Paragraph>
-      <Paragraph style={CAPTION}>border: {"{"} bottom: "1px solid" {"}"}, a hairline</Paragraph>
+      <Text style={{ fontSize: 15 }}>Stollen orders close on Friday 18 December. We’ve only got the one oven.</Text>
+      <Text style={CAPTION}>border: {"{"} bottom: "1px solid" {"}"}, a hairline</Text>
     </Section>
   </Root>
 ));
@@ -157,7 +157,7 @@ export const InheritedText = story((Root) => (
         <LineBreak />
         toast for me.”
       </Heading>
-      <Paragraph style={{ fontSize: 16 }}>Hanne, every Saturday since 2019</Paragraph>
+      <Text style={{ fontSize: 16 }}>Hanne, every Saturday since 2019</Text>
     </Section>
   </Root>
 ));
@@ -169,8 +169,8 @@ export const OnPhones = story((Root) => (
       <Heading level={2} style={{ ...DISPLAY_TYPE, fontSize: 36 }} mobile={{ fontSize: 28 }}>
         Saturday bread class
       </Heading>
-      <Paragraph>Eight till noon, six to a table. You’ll shape four loaves, and take home a starter that already has a name.</Paragraph>
-      <Paragraph style={CAPTION}>on phones: padding [20, 16], gap 8, centered</Paragraph>
+      <Text>Eight till noon, six to a table. You’ll shape four loaves, and take home a starter that already has a name.</Text>
+      <Text style={CAPTION}>on phones: padding [20, 16], gap 8, centered</Text>
     </Section>
   </Root>
 ));

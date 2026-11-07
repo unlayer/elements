@@ -6,7 +6,7 @@
  */
 import { chromium } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Paragraph, render, Row, Section } from "@unlayer/react-elements";
+import { Button, Column, Document, Heading, PageFooter, PageHeader, PageNumber, Text, render, Row, Section } from "@unlayer/react-elements";
 import { renderPdf } from "../../../src/pdf";
 
 /** Each line by its first word (each a different one). */
@@ -15,45 +15,45 @@ const LINES = ["Quarterly", "Results", "Region", "Revenue", "North", "$1.2M", "S
 const report = (
   <Document size="Letter" margin={[48, 64]} style={{ fontFamily: "Arial, Helvetica, sans-serif", fontSize: 12, lineHeight: 1.4 }}>
     <PageHeader style={{ padding: [0, 0, 16, 0] }}>
-      <Paragraph style={{ fontSize: 10, color: "#555555", textAlign: "center" }}>Quarterly report</Paragraph>
+      <Text style={{ fontSize: 10, color: "#555555", textAlign: "center" }}>Quarterly report</Text>
     </PageHeader>
     <Heading level={2}>Results</Heading>
     <Section style={{ padding: [16, 24], backgroundColor: "#f3f4f6", gap: 8 }}>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Paragraph style={{ fontWeight: 700 }}>Region</Paragraph>
+          <Text style={{ fontWeight: 700 }}>Region</Text>
         </Column>
         <Column>
-          <Paragraph style={{ fontWeight: 700, textAlign: "right" }}>Revenue</Paragraph>
+          <Text style={{ fontWeight: 700, textAlign: "right" }}>Revenue</Text>
         </Column>
       </Row>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Paragraph>North</Paragraph>
+          <Text>North</Text>
         </Column>
         <Column>
-          <Paragraph style={{ textAlign: "right" }}>$1.2M</Paragraph>
+          <Text style={{ textAlign: "right" }}>$1.2M</Text>
         </Column>
       </Row>
       <Row style={{ gap: 24 }}>
         <Column style={{ width: "40%" }}>
-          <Paragraph>South</Paragraph>
+          <Text>South</Text>
         </Column>
         <Column>
-          <Paragraph style={{ textAlign: "right" }}>$0.9M</Paragraph>
+          <Text style={{ textAlign: "right" }}>$0.9M</Text>
         </Column>
       </Row>
     </Section>
-    <Paragraph style={{ padding: [0, 48] }}>Growth was strong in every region this quarter.</Paragraph>
+    <Text style={{ padding: [0, 48] }}>Growth was strong in every region this quarter.</Text>
     <Column style={{ alignItems: "center" }}>
       <Button href="https://acme.test/report" style={{ backgroundColor: "#111827", color: "#ffffff", padding: [8, 16] }}>
         Read the full report
       </Button>
     </Column>
     <PageFooter>
-      <Paragraph style={{ fontSize: 10, textAlign: "right" }}>
+      <Text style={{ fontSize: 10, textAlign: "right" }}>
         Page <PageNumber /> of <PageNumber total />
-      </Paragraph>
+      </Text>
     </PageFooter>
   </Document>
 );

@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -48,17 +48,17 @@ export default function ShippingUpdate(): ReactElement {
 
       {/* Tracking Info */}
       <Section style={{ backgroundColor: "#ffffff", padding: [32, 0, 0, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#6b7280", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#6b7280", textAlign: "center", lineHeight: 1.5 }}>
           Estimated delivery
-        </Paragraph>
+        </Text>
         <Heading
           style={{ padding: 10, fontSize: 24, fontWeight: 700, color: "#111827", textAlign: "center", lineHeight: 1.2 }}
         >
           Thursday, March 6
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
           by end of day
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Progress Bar Visual */}
@@ -76,19 +76,19 @@ export default function ShippingUpdate(): ReactElement {
       <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 28, 0] }}>
         <Row>
           <Column style={{ width: "33.33%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "left", lineHeight: 1.5 }}>
               ✓ Confirmed
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "33.33%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "center", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 11, color: "#059669", textAlign: "center", lineHeight: 1.5 }}>
               ✓ Shipped
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "33.33%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 11, color: "#9ca3af", textAlign: "right", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 11, color: "#9ca3af", textAlign: "right", lineHeight: 1.5 }}>
               Delivered
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -121,26 +121,26 @@ export default function ShippingUpdate(): ReactElement {
       <Section style={{ backgroundColor: "#ffffff", padding: [24, 0, 0, 0] }}>
         <Row>
           <Column style={{ width: "50%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
               SHIPPING TO
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
               <Span style={{ fontWeight: 700 }}>Alex Johnson</Span>
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
               742 Evergreen Terrace San Francisco, CA 94102
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
               TRACKING NUMBER
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 13, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
               <Span style={{ fontWeight: 700 }}>1Z999AA10123456784</Span>
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
               UPS Ground
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -148,9 +148,9 @@ export default function ShippingUpdate(): ReactElement {
       {/* Order Item */}
       <Section style={{ backgroundColor: "#ffffff", padding: [28, 0, 0, 0] }}>
         <Divider style={{ borderTop: "1px solid #e5e7eb", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 10, color: "#9ca3af", textAlign: "left", lineHeight: 1.5 }}>
           ORDER #PRC-8847
-        </Paragraph>
+        </Text>
       </Section>
 
       <Section style={{ backgroundColor: "#ffffff", padding: [0, 0, 32, 0] }}>
@@ -169,24 +169,24 @@ export default function ShippingUpdate(): ReactElement {
             </Column>
           </Column>
           <Column style={{ width: "66.67%" }}>
-            <Paragraph style={{ padding: 10, fontSize: 14, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 14, color: "#111827", textAlign: "left", lineHeight: 1.5 }}>
               <Span style={{ fontWeight: 700 }}>Wireless Headphones Pro</Span>
-            </Paragraph>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
+            </Text>
+            <Text style={{ padding: 10, fontSize: 13, color: "#6b7280", textAlign: "left", lineHeight: 1.5 }}>
               Midnight Black · Qty: 1
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [24, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.6 }}>
           Questions about your order? Reply to this email or contact support.
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 12, color: "#9ca3af", textAlign: "center", lineHeight: 1.5 }}>
           Parcel Co · Austin, TX
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );
