@@ -202,7 +202,8 @@ jobs:
 
   storybook:
     name: Storybook smoke and visual drift
-    runs-on: ubuntu-latest
+    # Playwright 1.60 has no Chromium for ubuntu-latest's Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -261,7 +262,8 @@ jobs:
 
   browser:
     name: Browser gates and consumer apps
-    runs-on: ubuntu-latest
+    # Playwright 1.60 has no Chromium for ubuntu-latest's Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
