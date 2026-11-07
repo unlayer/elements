@@ -9,6 +9,13 @@ on:
     branches: [ main ]
     paths-ignore: [ 'apps/**' ]
 
+# The repository's token is read-only by default: this workflow pushes to gh-pages,
+# reads the Pages site's URL and adds the preview link to a PR's description.
+permissions:
+  contents: write
+  pages: read
+  pull-requests: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
