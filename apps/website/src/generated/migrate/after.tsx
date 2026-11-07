@@ -1,4 +1,3 @@
-// Migrated from React Email by @hyper-elements/migrate (codemod mode).
 import { Button, Column, Email, Heading, Section, Text } from "@hyper-elements/react";
 
 export default function Welcome({ name = "Ada" }: { name?: string }) {
