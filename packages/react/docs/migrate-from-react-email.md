@@ -11,7 +11,7 @@ Run it from your project folder (it uses your project's React, React Email and `
 
 JavaScript templates keep JavaScript helpers. The document's `dir` becomes `Email`'s `dir` prop. Its `lang` isn't carried over yet: the report notes it, and you set `lang` on `Email` yourself.
 
-A template that doesn't pass the check in the new components stays in today's components (`--to components` asks for that for every template), and the run and the report say why. For example, it holds a block the converter keeps as HTML (content with `display: none`, markup it can't map), or its `Row` works out its columns at run time. See [what to do about one](#a-template-that-stays-in-todays-components).
+Anything the components can't express (content with `display: none`, markup the converter can't map) is kept as an `Html` block marked `TODO(convert)`, and the template is still written. A template that can't be written in the components at all fails: nothing is written for it, the report says why, and the run exits with code `2`. See [what to do about one](#a-template-that-fails).
 
 ## What the check guarantees
 
@@ -52,13 +52,9 @@ const { design } = toDesign(element); // open in the visual editor with loadDesi
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 
-## A template that stays in today's components
+## A template that fails
 
-Such a template imports from `@unlayer/react-elements`, not `/primitives`, so `render()` can't read it: it throws, naming the markup it found. It keeps working with that import's own functions, as it did before. To move it:
-
-1. Replace each block marked `TODO(convert)` with the new components, and give a computed `Row` its columns as numbers, as the report says.
-2. Run `npx @unlayer/migrate <template> --from elements --write`. The [guide to the new components](./migrating-from-0.2.md) lists what it changes.
-3. Check it against the React Email original (from git, if `--write` replaced it) with `npx @unlayer/migrate compare <original> <migrated>`.
+Rewrite the part the report names by hand with the components ([GUIDE.md](../GUIDE.md)), then check it against the React Email original (from git, if `--write` replaced it) with `npx @unlayer/migrate compare <original> <migrated>`.
 
 ## Open React Email templates in the Unlayer editor
 
