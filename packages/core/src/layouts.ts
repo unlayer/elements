@@ -94,7 +94,7 @@ export const Grid = defineComponent({
 export const Layer = defineComponent({
   type: "Layer",
   label: "Layer",
-  description: "Its children over each other, in one box as tall as the tallest: an image with words on it. In an email, an Image with one child over it.",
+  description: "Its children over each other, in one box as tall as the tallest: words on an image (a background image, its first child). In an email, an Image with one child over it.",
   categories: ["layout", "block"],
   props: {},
   style: {

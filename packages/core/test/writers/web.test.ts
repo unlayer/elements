@@ -380,6 +380,25 @@ describe("web HTML", () => {
     expect(body).toContain(">Launch week<");
   });
 
+  it("places a Paragraph or Heading by its alignSelf at its text's width, and draws a Canvas's border inside its size", () => {
+    const { body } = web({
+      root: {
+        type: "Canvas",
+        props: { width: 600, height: 315 },
+        style: { padding: 40, alignItems: "stretch", border: { left: "12px solid #f97316" } },
+        children: [
+          { type: "Paragraph", style: { alignSelf: "center" }, children: ["Pill"] },
+          { type: "Heading", style: { alignSelf: "end" }, children: ["Badge"] },
+          { type: "Paragraph", style: { maxWidth: 300, alignSelf: "end" }, children: ["Placed, up to 300px"] },
+        ],
+      },
+    });
+    expect(body).toMatch(/^<main style="width:600px;height:315px;overflow:hidden;box-sizing:border-box;[^"]*border-left:12px solid #f97316/);
+    expect(body).toContain('<p style="align-self:center;margin:0">Pill</p>');
+    expect(body).toMatch(/<h1 style="align-self:flex-end;margin:0;[^"]*">Badge<\/h1>/);
+    expect(body).toMatch(/<p style="align-self:flex-end;margin:0;max-width:300px">Placed/);
+  });
+
   describe("a Document, as print HTML", () => {
     const text = (...children: unknown[]) => ({ type: "Paragraph", children });
     const doc = (children: unknown[], props: Record<string, unknown> = {}) => ({ root: { type: "Document", props, children } });

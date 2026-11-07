@@ -111,6 +111,7 @@ describe("checkDocument", () => {
         style: { width: 600, padding: 24 },
         children: [
           { type: "Heading", props: { levle: 2 }, style: { colour: "red", fontsize: 20, zzz: 1 }, children: ["Hi"] },
+          { type: "Column", style: { backgroundImage: "url(https://example.com/a.png)" } },
           { type: "Row", children: [{ type: "ListItem" }] },
         ],
       })
@@ -123,6 +124,7 @@ describe("checkDocument", () => {
       '"colour" isn\'t a style a Heading takes: did you mean "color"? See Heading in @unlayer/react-elements/GUIDE.md',
       '"fontsize" isn\'t a style a Heading takes: did you mean "fontSize"? See Heading in @unlayer/react-elements/GUIDE.md',
       '"zzz" isn\'t a style a Heading takes. See Heading in @unlayer/react-elements/GUIDE.md',
+      '"backgroundImage" isn\'t a style a Column takes: put a Layer around it, its first child an Image (the Layer\'s height crops it to cover), the rest over it. See Column in @unlayer/react-elements/GUIDE.md',
       "A Row takes layout components, block components; a ListItem can't go in it. See Row in @unlayer/react-elements/GUIDE.md",
     ]);
   });

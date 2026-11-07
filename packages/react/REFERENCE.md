@@ -154,6 +154,7 @@ Props:
 - `gap`: a length (a number of px). Space between children.
 - `alignItems`: one of "start", "center", "end", "stretch". Where children sit across the layout's direction (vertically in a Row, horizontally in a Column), as CSS align-items. Across a Column it places what has its own size (a Button, an Image, an Svg, a box with a width); a block of text fills the width, so its words move with its textAlign.
 - `padding`: *insets*
+- `border`: *border*. Lines inside its edges, as CSS border: "8px solid #f97316", or one side only ({ left: "12px solid #f97316" }: a quote card's bar).
 - `justifyContent`: one of "start", "center", "end", "space-between". Where children sit along the layout's direction, as CSS justify-content.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `gap`, `padding`.
@@ -293,7 +294,7 @@ Props:
 
 ### Layer
 
-Its children over each other, in one box as tall as the tallest: an image with words on it. In an email, an Image with one child over it.
+Its children over each other, in one box as tall as the tallest: words on an image (a background image, its first child). In an email, an Image with one child over it.
 
 Holds: Row, Column, Grid, Layer, Svg, Paragraph, Heading, Link, Button, Image, Divider, List, Table, Video, Social, Menu, Html. Drawn in: email, page.
 
@@ -371,6 +372,7 @@ Props:
 - `backgroundColor`: *color*
 - `border`: *border*
 - `borderRadius`: *radius*
+- `alignSelf`: one of "start", "center", "end". Where it sits in its stack, whatever the stack's alignItems: set, it's as wide as its text (a pill, a badge), not its stack's width.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`.
@@ -402,6 +404,7 @@ Props:
 - `backgroundColor`: *color*
 - `border`: *border*
 - `borderRadius`: *radius*
+- `alignSelf`: one of "start", "center", "end". Where it sits in its stack, whatever the stack's alignItems: set, it's as wide as its text (a pill, a badge), not its stack's width.
 - `flex`: *flex*. In a Row: its share of the width left after children with a width (default 1); "none" takes its own size.
 
 `mobile` (on phones): `fontSize`, `lineHeight`, `letterSpacing`, `textAlign`, `width`, `maxWidth`, `padding`, `border`.

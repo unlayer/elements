@@ -236,6 +236,8 @@ const UNSUPPORTED_CSS: Record<string, string> = {
   marginRight: "use padding",
   display: "the component sets it",
   position: "use a Layer for content placed over other content",
+  backgroundImage: "put a Layer around it, its first child an Image (the Layer's height crops it to cover), the rest over it",
+  background: "backgroundColor for a color; for an image, a Layer: its first child an Image, the rest over it",
   float: "use a Row to put things side by side",
   // Names Elements used before it took CSS's.
   align: "it's alignItems now",

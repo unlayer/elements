@@ -3,7 +3,7 @@
  * other output), text in the font a stack names that's given (else the first given), images from their bytes, an
  * Svg's shapes as a drawing. No engine is named here: an engine's adapter draws what this writes (satori.ts).
  */
-import { assetParts, fontStack, htmlText, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "../index";
+import { assetParts, fontStack, htmlText, sizingOf, type Asset, type Border, type BorderSide, type Radius, type ResolvedNode } from "../index";
 import type { Block, DrawnCanvas, Font, Picture, Run, Shape, Style } from "./model";
 
 export interface WriteContext {
@@ -93,8 +93,8 @@ class Writer {
   /** Where a child of its own size sits across a stack, as in the other outputs. */
   alignSelf(child: ResolvedNode, stack: ResolvedNode): string | undefined {
     const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
-    if (child.type === "Divider" || (child.definition.sizing !== "shrink" && !sized)) return undefined;
-    const align = stack.style.alignItems as string | undefined;
+    if (child.type === "Divider" || (sizingOf(child) !== "shrink" && !sized)) return undefined;
+    const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
     if (align === "stretch") return undefined;
     if (align) return flex(align);
     return { left: "flex-start", justify: "flex-start", center: "center", right: "flex-end" }[stack.text.textAlign];
@@ -104,7 +104,7 @@ class Writer {
     const width = node.width !== null ? px(node.width) : undefined;
     const placed: Style = row
       ? { width, flexShrink: 0, flexGrow: 0, alignSelf: node.definition.sizing === "shrink" ? flex(parent.style.alignItems ?? "start") : undefined }
-      : { alignSelf: this.alignSelf(node, parent), width: node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink" ? width : undefined };
+      : { alignSelf: this.alignSelf(node, parent), width: node.style.width !== undefined || node.style.maxWidth !== undefined || sizingOf(node) === "shrink" ? width : undefined };
     switch (node.type) {
       case "Paragraph":
       case "Heading":

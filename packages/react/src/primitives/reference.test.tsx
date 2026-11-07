@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as entry from "./index";
 import Receipt from "./readme-example";
+import LaunchCard from "./social-card-example";
 import { primitivesGuide, primitivesReference, primitivesSkill } from "./reference";
 
 const root = join(__dirname, "../..");
@@ -16,13 +17,14 @@ const read = (file: string) => readFileSync(join(root, file), "utf8");
 const SKILL = "../../skills/unlayer-elements/SKILL.md";
 
 const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');
+const card = () => read("src/primitives/social-card-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');
 const components = Object.entries(entry).filter(([name, value]) => typeof value === "function" && (value as { displayName?: string }).displayName === name);
 
 describe("GUIDE.md, REFERENCE.md and the skill", () => {
   it.each([
-    ["GUIDE.md", () => primitivesGuide(example())],
+    ["GUIDE.md", () => primitivesGuide(example(), card())],
     ["REFERENCE.md", () => primitivesReference()],
-    [SKILL, () => primitivesSkill(example())],
+    [SKILL, () => primitivesSkill(example(), card())],
   ])("%s is what the component definitions write", (file, write) => {
     const written = write();
     if (process.env.UPDATE_REFERENCE) writeFileSync(join(root, file), written);
@@ -62,8 +64,8 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
   });
 
   it("keeps the guide short enough to read whole before writing a template", () => {
-    expect(read("GUIDE.md").length).toBeLessThan(20_000);
-    expect(read(SKILL).length).toBeLessThan(22_000);
+    expect(read("GUIDE.md").length).toBeLessThan(21_000);
+    expect(read(SKILL).length).toBeLessThan(23_000);
   });
 });
 
@@ -79,5 +81,19 @@ describe("the README's template", () => {
     expect(diagnostics.filter((d) => d.severity !== "info")).toEqual([]);
     expect(html).toContain("View your order");
     expect(text).toContain("Order #10482 ships tomorrow.");
+  });
+});
+
+describe("the guide's social card", () => {
+  it("is social-card-example.tsx, as an author imports it", () => {
+    expect(read("GUIDE.md")).toMatch(/## Social cards\n[\s\S]*## Components/);
+    expect(read("GUIDE.md")).toContain(card().trim());
+    expect(read(SKILL)).toContain(card().trim());
+  });
+
+  it("is a Canvas with no errors or warnings", () => {
+    const { root, diagnostics } = entry.prepare(<LaunchCard />);
+    expect(root?.type).toBe("Canvas");
+    expect(diagnostics).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@
  * Page layout: flexbox. Where a child sits in a stack or a Row, a box's
  * styles, and a stack's own.
  */
-import type { ResolvedNode } from "../../resolve";
+import { sizingOf, type ResolvedNode } from "../../resolve";
 import type { Style } from "../jsx";
 import { length, type Declarations } from "../shared/css";
 
@@ -21,11 +21,11 @@ export const JUSTIFY: Record<string, string> = { start: "flex-start", center: "c
 export function alignSelf(child: ResolvedNode, stack: ResolvedNode, rtl = false): Declarations {
   if (child.type === "Divider") return [];
   const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
-  if (child.definition.sizing !== "shrink" && !sized) return [];
+  if (sizingOf(child) !== "shrink" && !sized) return [];
   const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align === "stretch") return [];
   // A box that fills the width up to a maximum still fills it: placed, not shrunk to its content.
-  const fill: Declarations = child.definition.sizing === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
+  const fill: Declarations = sizingOf(child) === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
   const place = align ? FLEX_ALIGN[align] : (rtl ? TEXT_ALIGN_RTL : TEXT_ALIGN)[stack.text.textAlign];
   // With its padding on top of its width, it may be wider than its place: it runs past the end, as a line of text does.
   const safe: Declarations = child.style.boxSizing === "content-box" && place !== "flex-start" ? [["align-self", `safe ${place}`]] : [];
@@ -38,7 +38,7 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode, rtl = false)
  */
 export function layerPlacement(child: ResolvedNode): Declarations {
   const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
-  const fills = child.definition.sizing === "stretch" && !sized;
+  const fills = sizingOf(child) === "stretch" && !sized;
   return [["grid-area", "1 / 1"], ["min-width", "0"], ...(fills ? ([["justify-self", "stretch"]] as Declarations) : [])];
 }
 

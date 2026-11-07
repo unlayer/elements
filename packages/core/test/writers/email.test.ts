@@ -55,6 +55,24 @@ describe("email HTML", () => {
     expect(diagnostics.map((d) => d.code)).toEqual(["email/outlook-degraded"]);
   });
 
+  it("places a Paragraph or Heading by its alignSelf in a table as wide as its text, in a stack that stretches too", () => {
+    const { body } = render(
+      email([
+        {
+          type: "Column",
+          style: { alignItems: "stretch" },
+          children: [
+            { type: "Paragraph", style: { alignSelf: "center", backgroundColor: "#fde68a", padding: [4, 12] }, children: ["Pill"] },
+            { type: "Heading", style: { alignSelf: "end" }, children: ["Badge"] },
+          ],
+        },
+      ])
+    );
+    // No width: the table is as wide as what's in it.
+    expect(body).toContain('<td align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#fde68a"');
+    expect(body).toContain('<td align="right"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td><h1 ');
+  });
+
   it("lays out a Row as fluid hybrid: Outlook's table in conditional comments, inline-blocks of the resolver's widths for the rest", () => {
     const { body, head } = render(
       email([

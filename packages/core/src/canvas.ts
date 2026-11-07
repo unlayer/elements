@@ -23,7 +23,12 @@ export const Canvas = defineComponent({
     height: prop(length(["px"], { min: 16 }), { support: WRITTEN, label: "Height", description: "The image's height, in px: what's past it is cut.", default: 630 }),
     ...ROOT_PROPS,
   },
-  style: { ...ROOT_STYLE, padding: boxStyle.padding, justifyContent: layoutStyle.justifyContent },
+  style: {
+    ...ROOT_STYLE,
+    padding: boxStyle.padding,
+    border: { kind: boxStyle.border.kind, label: boxStyle.border.label, support: boxStyle.border.support, description: 'Lines inside its edges, as CSS border: "8px solid #f97316", or one side only ({ left: "12px solid #f97316" }: a quote card\'s bar).' },
+    justifyContent: layoutStyle.justifyContent,
+  },
   defaultStyle: ROOT_DEFAULT_STYLE,
   children: { categories: ["section", "layout", "block"] },
   sizing: "none",

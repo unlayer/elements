@@ -89,6 +89,33 @@ export default function Receipt() {
 }
 ```
 
+## Social cards
+
+`renderImage(element, { fonts, images })` (`@unlayer/react-elements/image`) writes a `Canvas` as PNG or SVG from the font files and image bytes it's given.
+
+- An image under the content: a `Layer` (there's no `backgroundImage`), an `Image` first, the rest over it. Its `height` crops the image to cover it; `alignItems: "end"` puts the rest at the bottom.
+- A pill or badge as wide as its text: `alignSelf` on a `Paragraph` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.
+- A bar down one edge: `border: { left: "16px solid #f97316" }` on the `Canvas`, or on a `Column` (a card).
+
+```tsx
+import { Canvas, Column, Heading, Image, Layer, Paragraph } from "@unlayer/react-elements";
+
+export default function LaunchCard() {
+  return (
+    <Canvas width={1200} height={630} style={{ border: { left: "16px solid #f97316" }, color: "#ffffff", fontFamily: "Inter" }}>
+      <Layer style={{ height: 630, alignItems: "end" }}>
+        <Image src={{ src: "https://example.com/hero.jpg", width: 1600, height: 900 }} alt="" />
+        <Column style={{ padding: 64, gap: 16 }}>
+          <Paragraph style={{ alignSelf: "start", backgroundColor: "#f97316", padding: [6, 16], borderRadius: 999, fontSize: 20 }}>New</Paragraph>
+          <Heading style={{ fontSize: 64 }}>Launch week</Heading>
+          <Paragraph style={{ fontSize: 28, color: "#e2e8f0" }}>Five days of new things, one a day.</Paragraph>
+        </Column>
+      </Layer>
+    </Canvas>
+  );
+}
+```
+
 ## Components
 
 \* required. *text* styles: color, fontFamily, fontSize, fontWeight, fontStyle, lineHeight, letterSpacing, textAlign, textTransform. *box* styles: width, maxWidth, padding, backgroundColor, border, borderRadius.
@@ -98,7 +125,7 @@ export default function Receipt() {
 - **Email**: An email. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), previewText (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
 - **Page**: A web page. Its children are stacked down the content width, centered in the window. Holds sections, layout, blocks. Props: width (a length (a number of px)), description (text), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
 - **Document**: A printed document: its children on pages of its size (Document.Page, or split by PageBreaks), a PageHeader and a PageFooter on each. Renders to print HTML, and to PDF with @unlayer/react-elements/pdf. Holds sections, layout, blocks, Document.Page, PageBreak, PageHeader, PageFooter. Props: size (A3|A4|A5|Letter|Legal|Tabloid), orientation (portrait|landscape), margin (insets), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap.
-- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/react-elements/image. Holds sections, layout, blocks. Props: width (a length (a number of px)), height (a length (a number of px)), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
+- **Canvas**: An image of a fixed size (a social card, a banner): its children laid out in it as on a page. Written as PNG or SVG with @unlayer/react-elements/image. Holds sections, layout, blocks. Props: width (a length (a number of px)), height (a length (a number of px)), title (text), lang (text), dir (ltr|rtl|auto), fonts (fontFaces). Style: text, backgroundColor, gap, alignItems (start|center|end|stretch), padding, border, justifyContent (start|center|end|space-between). Phones: fontSize, lineHeight, letterSpacing, textAlign, gap, padding.
 
 ### Sections and layout
 
@@ -106,13 +133,13 @@ export default function Receipt() {
 - **Row**: Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default). Holds layout, blocks. Props: stackOnMobile (true or false), dir (ltr|rtl|auto). Style: text, box, minWidth, height, overflow (visible|hidden), gap, alignItems (start|center|end|stretch), justifyContent (start|center|end|space-between), flexWrap (nowrap|wrap|words), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
 - **Column**: Stacks its children vertically, with its own spacing and box. Holds layout, blocks. Style: text, box, minWidth, height, overflow (visible|hidden), gap, alignItems (start|center|end|stretch), justifyContent (start|center|end|space-between), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap.
 - **Grid**: Its children in columns of equal width, row after row; on phones, one under another. Holds layout, blocks. Props: columns (an integer from 1 to 12), stackOnMobile (true or false). Style: text, box, minWidth, height, overflow (visible|hidden), gap, rowGap, alignItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, gap, rowGap.
-- **Layer**: Its children over each other, in one box as tall as the tallest: an image with words on it. In an email, an Image with one child over it. Holds layout, blocks. Style: text, width, minWidth, maxWidth, backgroundColor, border, borderRadius, height, alignItems (start|center|end|stretch), justifyItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, border.
+- **Layer**: Its children over each other, in one box as tall as the tallest: words on an image (a background image, its first child). In an email, an Image with one child over it. Holds layout, blocks. Style: text, width, minWidth, maxWidth, backgroundColor, border, borderRadius, height, alignItems (start|center|end|stretch), justifyItems (start|center|end|stretch), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, border.
 
 ### Blocks
 
 - **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
-- **Paragraph**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
-- **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
+- **Paragraph**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), alignSelf (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
+- **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), alignSelf (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text), attrs (attributes). Style: text, box, textDecoration (none|underline|line-through), boxSizing (border-box|content-box), alignSelf (start|center|end), flex. Hover: color, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, alignSelf.
 - **Image**: An image in the content. Without a width it takes its own size, no wider than its parent. Props: src* (asset), alt (text), title (text). Style: width, maxWidth, height, border, borderRadius, flex, alignSelf (start|center|end), verticalAlign (top|middle). Phones: width, maxWidth, border, alignSelf.
 - **Divider**: A horizontal line. Style: borderTop, width, padding. Phones: width, padding.
