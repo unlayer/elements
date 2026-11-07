@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+<title id="title">Hyper Elements agent benchmark</title>
+<desc id="description">Five email briefs, 16 runs per approach. Median time to a passing email: Hyper Elements 35 seconds, hand-written HTML 65 seconds, React Email 76 seconds. Median output tokens: 2,346, 5,676, and 5,745 respectively. First-check passes: 11 of 16, 4 of 16, and 5 of 16. All 48 runs eventually passed. Measured with Claude Code and Claude Sonnet 5 on November 6, 2026.</desc>
+<rect width="1600" height="900" rx="24" fill="#0d1117"/>
+<g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
+<text x="56" y="65" font-size="20" fill="#ff776a" font-weight="600" letter-spacing="3">AGENT BENCHMARK</text>
+<text x="56" y="127" font-size="50" fill="#f0f3f6" font-weight="700" letter-spacing="-1">Faster to a passing email.</text>
+<text x="56" y="167" font-size="25" fill="#a6b0bf" >Same five briefs. Same checks. 16 runs per approach.</text>
+<rect x="56" y="202" width="480" height="550" rx="20" fill="#141b24" stroke="#303945"/>
+<text x="84" y="246" font-size="26" fill="#f0f3f6" font-weight="600">Time to a passing email</text>
+<text x="84" y="279" font-size="21" fill="#a6b0bf" >Median · lower is better</text>
+<text x="84" y="342" font-size="48" fill="#ff776a" font-weight="700" letter-spacing="-1.5">2.2× faster</text>
+<text x="84" y="374" font-size="21" fill="#a6b0bf" >than React Email</text>
+<text x="84" y="427" font-size="23" fill="#ffffff" font-weight="600">Hyper Elements</text>
+<text x="508" y="427" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">35 s</text>
+<rect x="84" y="446" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="84" y="446" width="185.50" height="18" rx="5" fill="#ef4638"/>
+<text x="84" y="527" font-size="23" fill="#bec6d1" font-weight="400">Hand-written HTML</text>
+<text x="508" y="527" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">65 s</text>
+<rect x="84" y="546" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="84" y="546" width="344.50" height="18" rx="5" fill="#758091"/>
+<text x="84" y="627" font-size="23" fill="#bec6d1" font-weight="400">React Email</text>
+<text x="508" y="627" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">76 s</text>
+<rect x="84" y="646" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="84" y="646" width="402.80" height="18" rx="5" fill="#758091"/>
+<path d="M84 692H508" stroke="#3d4755"/>
+<text x="84" y="720" font-size="18" fill="#8d99aa" >0</text>
+<text x="508" y="720" font-size="18" fill="#8d99aa" text-anchor="end">80 s</text>
+<rect x="560" y="202" width="480" height="550" rx="20" fill="#141b24" stroke="#303945"/>
+<text x="588" y="246" font-size="26" fill="#f0f3f6" font-weight="600">Output tokens</text>
+<text x="588" y="279" font-size="21" fill="#a6b0bf" >Median · lower is better</text>
+<text x="588" y="342" font-size="48" fill="#ff776a" font-weight="700" letter-spacing="-1.5">2.4× fewer</text>
+<text x="588" y="374" font-size="21" fill="#a6b0bf" >than React Email</text>
+<text x="588" y="427" font-size="23" fill="#ffffff" font-weight="600">Hyper Elements</text>
+<text x="1012" y="427" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">2,346</text>
+<rect x="588" y="446" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="588" y="446" width="165.78" height="18" rx="5" fill="#ef4638"/>
+<text x="588" y="527" font-size="23" fill="#bec6d1" font-weight="400">Hand-written HTML</text>
+<text x="1012" y="527" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">5,676</text>
+<rect x="588" y="546" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="588" y="546" width="401.10" height="18" rx="5" fill="#758091"/>
+<text x="588" y="627" font-size="23" fill="#bec6d1" font-weight="400">React Email</text>
+<text x="1012" y="627" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">5,745</text>
+<rect x="588" y="646" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="588" y="646" width="405.98" height="18" rx="5" fill="#758091"/>
+<path d="M588 692H1012" stroke="#3d4755"/>
+<text x="588" y="720" font-size="18" fill="#8d99aa" >0</text>
+<text x="1012" y="720" font-size="18" fill="#8d99aa" text-anchor="end">6,000</text>
+<rect x="1064" y="202" width="480" height="550" rx="20" fill="#141b24" stroke="#303945"/>
+<text x="1092" y="246" font-size="26" fill="#f0f3f6" font-weight="600">First-check passes</text>
+<text x="1092" y="279" font-size="21" fill="#a6b0bf" >Out of 16 runs · higher is better</text>
+<text x="1092" y="342" font-size="48" fill="#ff776a" font-weight="700" letter-spacing="-1.5">11 of 16</text>
+<text x="1092" y="374" font-size="21" fill="#a6b0bf" >Hyper Elements runs passed first time</text>
+<text x="1092" y="427" font-size="23" fill="#ffffff" font-weight="600">Hyper Elements</text>
+<text x="1516" y="427" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">11 / 16</text>
+<rect x="1092" y="446" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="1092" y="446" width="291.50" height="18" rx="5" fill="#ef4638"/>
+<text x="1092" y="527" font-size="23" fill="#bec6d1" font-weight="400">Hand-written HTML</text>
+<text x="1516" y="527" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">4 / 16</text>
+<rect x="1092" y="546" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="1092" y="546" width="106.00" height="18" rx="5" fill="#758091"/>
+<text x="1092" y="627" font-size="23" fill="#bec6d1" font-weight="400">React Email</text>
+<text x="1516" y="627" font-size="23" fill="#f0f3f6" text-anchor="end" font-weight="600">5 / 16</text>
+<rect x="1092" y="646" width="424" height="18" rx="5" fill="#222a35"/>
+<rect x="1092" y="646" width="132.50" height="18" rx="5" fill="#758091"/>
+<path d="M1092 692H1516" stroke="#3d4755"/>
+<text x="1092" y="720" font-size="18" fill="#8d99aa" >0</text>
+<text x="1516" y="720" font-size="18" fill="#8d99aa" text-anchor="end">16</text>
+<path d="M56 789H1544" stroke="#303945"/>
+<text x="56" y="827" font-size="21" fill="#a6b0bf" >Claude Code · Claude Sonnet 5 · Hyper Elements 0.3 (pre-release) · November 6, 2026</text>
+<text x="56" y="862" font-size="20" fill="#8d99aa" >Desktop and mobile checks in Chromium. All 48 runs eventually passed. Output tokens exclude input and cached context.</text>
+</g>
+</svg>
