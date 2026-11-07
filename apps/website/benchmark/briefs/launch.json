@@ -1,0 +1,40 @@
+{
+  "id": "launch",
+  "title": "Product launch",
+  "brief": "A product launch email for Orbit 2.0.\n\n- Preview text: \"Live previews, typed templates and one-click deploys.\"\n- Orbit logo at the top: https://assets.orbit.dev/img/orbit-logo.png (show it 126px wide).\n- Hero image, full content width: https://assets.orbit.dev/img/orbit-app.png (1200×700 file).\n- Heading: \"Orbit 2.0 is here\"\n- Paragraph: \"Everything you need to ship every surface from one codebase.\"\n- Three feature columns, side by side on desktop and stacked on phones:\n  - \"Live previews\": \"See every change as you type.\"\n  - \"Typed templates\": \"Catch mistakes before you send.\"\n  - \"One-click deploys\": \"Ship to production in seconds.\"\n- Button \"Try Orbit 2.0\" linking to https://orbit.dev/2, background #6d5efc, white text.\n- Footer with the text \"You're receiving this because you signed up for Orbit.\" and an \"Unsubscribe\" link to https://orbit.dev/unsubscribe.\n- Light grey page background (#f1f2f6), white 600px content card.",
+  "spec": {
+    "preview": "Live previews, typed templates and one-click deploys.",
+    "texts": [
+      "Orbit 2.0 is here",
+      "Everything you need to ship every surface from one codebase.",
+      "See every change as you type.",
+      "Catch mistakes before you send.",
+      "Ship to production in seconds.",
+      "You're receiving this because you signed up for Orbit."
+    ],
+    "buttons": [
+      {
+        "text": "Try Orbit 2.0",
+        "href": "https://orbit.dev/2",
+        "background": "#6d5efc"
+      }
+    ],
+    "links": [
+      {
+        "text": "Unsubscribe",
+        "href": "https://orbit.dev/unsubscribe"
+      }
+    ],
+    "images": [
+      "orbit-logo.png",
+      "orbit-app.png"
+    ],
+    "columns": [
+      [
+        "Live previews",
+        "Typed templates",
+        "One-click deploys"
+      ]
+    ]
+  }
+}

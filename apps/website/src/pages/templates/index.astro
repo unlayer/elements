@@ -1,0 +1,35 @@
+---
+import Base from "../../layouts/Base.astro";
+import Thumb from "../../components/Thumb.astro";
+import { templates, thumbWidth } from "../../lib/examples";
+---
+<Base title="Templates" description="Templates written with Hyper Elements: emails, a landing page, an invoice and social images, each shown as the engine renders it, with its code.">
+  <section class="page-hero">
+    <div class="wrap">
+      <p class="eyebrow">Templates</p>
+      <h1 class="h-page"><span class="grad">Copy, paste, send.</span></h1>
+      <p class="lede">Complete templates you can drop into your app. Every one is rendered by the engine with its plain text, its phone layout and its diagnostics, so you see exactly what you'll ship.</p>
+    </div>
+  </section>
+  <div class="wrap">
+    <div class="grid grid-2">
+      {templates.map((t) => (
+        <a class="card tcard reveal" href={`/templates/${t.slug}`}>
+          <Thumb example={t} width={thumbWidth(t, { page: 1000, document: 860, email: 640 })} height={340} />
+          <div class="tcard-body">
+            <div class="tcard-top"><h2>{t.title}</h2><span class="chip">{`<${t.root}>`}</span></div>
+            <p>{t.description}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+</Base>
+
+<style>
+  .page-hero { padding: 80px 0 48px; position: relative; }
+  .tcard { padding: 0; overflow: hidden; }
+  .tcard-body { padding: 18px 20px 22px; }
+  .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .tcard-top h2 { margin: 0; }
+</style>

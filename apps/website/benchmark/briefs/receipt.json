@@ -1,0 +1,56 @@
+{
+  "id": "receipt",
+  "title": "Order receipt",
+  "brief": "An order receipt from the Orbit Shop.\n\n- Preview text: \"Order #10482 is confirmed.\"\n- Heading: \"Thanks for your order\"\n- Text: \"Order #10482\"\n- A table of line items, item on the left and price on the right:\n  - \"Linen shirt × 1\" — \"$68.00\"\n  - \"Canvas tote × 2\" — \"$48.00\"\n  - \"Wool socks × 3\" — \"$36.00\"\n- Then \"Subtotal\" \"$152.00\", \"Shipping\" \"$8.00\", and a bold \"Total\" \"$160.00\".\n- Two address columns, side by side on desktop and stacked on phones:\n  - \"Ship to\": \"Sam Rivera, 18 Valencia St, San Francisco, CA 94103\"\n  - \"Billing\": \"Sam Rivera, PO Box 221, Oakland, CA 94604\"\n- Button \"Track your order\" linking to https://shop.orbit.dev/orders/10482, background #111111, white text.\n- Footer: \"Questions? Reply to this email.\"\n- White background, 600px content.",
+  "spec": {
+    "preview": "Order #10482 is confirmed.",
+    "texts": [
+      "Thanks for your order",
+      "Order #10482",
+      "Linen shirt × 1",
+      "$68.00",
+      "Canvas tote × 2",
+      "$48.00",
+      "Wool socks × 3",
+      "$36.00",
+      "Subtotal",
+      "$152.00",
+      "Shipping",
+      "$8.00",
+      "Total",
+      "$160.00",
+      "Sam Rivera, 18 Valencia St, San Francisco, CA 94103",
+      "Sam Rivera, PO Box 221, Oakland, CA 94604",
+      "Questions? Reply to this email."
+    ],
+    "rows": [
+      [
+        "Linen shirt × 1",
+        "$68.00"
+      ],
+      [
+        "Canvas tote × 2",
+        "$48.00"
+      ],
+      [
+        "Wool socks × 3",
+        "$36.00"
+      ]
+    ],
+    "buttons": [
+      {
+        "text": "Track your order",
+        "href": "https://shop.orbit.dev/orders/10482",
+        "background": "#111111"
+      }
+    ],
+    "links": [],
+    "images": [],
+    "columns": [
+      [
+        "Ship to",
+        "Billing"
+      ]
+    ]
+  }
+}

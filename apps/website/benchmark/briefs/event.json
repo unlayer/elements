@@ -1,0 +1,35 @@
+{
+  "id": "event",
+  "title": "Event invite",
+  "brief": "An invitation to Orbit Summit.\n\n- Preview text: \"Join us December 4 in San Francisco.\"\n- Hero image, full content width: https://assets.orbit.dev/img/event-hero.png (1200×600 file).\n- Heading: \"Orbit Summit 2026\"\n- Paragraph: \"A day of talks and workshops on building for every surface.\"\n- Three detail columns, side by side on desktop and stacked on phones, each a small label over a value:\n  - \"Date\": \"December 4, 2026\"\n  - \"Time\": \"9:00 AM PT\"\n  - \"Place\": \"Fort Mason, San Francisco\"\n- Button \"Save your seat\" linking to https://orbit.dev/summit, background #6d5efc, white text; on hover its background turns #4c3df0.\n- Footer: \"Orbit Labs, 500 Market St, San Francisco\"\n- Light grey page background (#f1f2f6), white 600px content card.",
+  "spec": {
+    "preview": "Join us December 4 in San Francisco.",
+    "texts": [
+      "Orbit Summit 2026",
+      "A day of talks and workshops on building for every surface.",
+      "December 4, 2026",
+      "9:00 AM PT",
+      "Fort Mason, San Francisco",
+      "Orbit Labs, 500 Market St, San Francisco"
+    ],
+    "buttons": [
+      {
+        "text": "Save your seat",
+        "href": "https://orbit.dev/summit",
+        "background": "#6d5efc",
+        "hover": "#4c3df0"
+      }
+    ],
+    "links": [],
+    "images": [
+      "event-hero.png"
+    ],
+    "columns": [
+      [
+        "December 4, 2026",
+        "9:00 AM PT",
+        "Fort Mason, San Francisco"
+      ]
+    ]
+  }
+}

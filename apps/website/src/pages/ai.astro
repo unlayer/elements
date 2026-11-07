@@ -1,0 +1,119 @@
+---
+import Base from "../layouts/Base.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import Cmd from "../components/Cmd.astro";
+import { site } from "../lib/site";
+import { template } from "../lib/examples";
+
+const loop = [
+  { n: "01", t: "Write", d: "One way to write each thing: styles in style={{}}, space as gap." },
+  { n: "02", t: "Validate", d: "validate() lists every problem with its code, its path and the fix." },
+  { n: "03", t: "Outline", d: "outline() prints the laid-out template as text, to check without looking." },
+  { n: "04", t: "Render", d: "render(), renderPdf() or renderImage(). The same input gives the same output." },
+];
+// One template per root, from the gallery: outline() reads the same for each.
+const outlines = [
+  { id: "email", label: "Email", t: template("tarn-shipped") },
+  { id: "page", label: "Page", t: template("casa-albero-page") },
+  { id: "pdf", label: "PDF", t: template("pell-ashby-invoice") },
+  { id: "image", label: "Image", t: template("gridline-workshop-banner") },
+];
+const name = (src: string) => src.match(/export default function (\w+)/)?.[1] ?? "Template";
+const prompt = `Read ${site.url}/llms.txt. Then write a Hyper Elements template for [an email, a page, a PDF or an image]. Run validate() and fix every error, then show me outline().`;
+---
+<Base title="For AI agents" description="Hyper Elements for coding agents: one way to write each thing, validate() with the fix for each problem, outline() to check a layout, and the docs as llms.txt.">
+  <section class="a-hero">
+    <div class="wrap">
+      <p class="eyebrow">For AI agents</p>
+      <h1 class="h-page"><span class="grad">Built for coding agents</span></h1>
+      <p class="lede">Your agent writes the template, checks it with validate() and outline(), and renders an email, a page, a PDF or an image.</p>
+      <div class="a-cta">
+        <Cmd text={site.skill} />
+        <a class="btn btn-ghost" href="/llms.txt">llms.txt</a>
+        <a class="btn btn-ghost" href="/llms-full.txt">llms-full.txt</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="loop">
+      {loop.map((s) => (
+        <article class="card reveal">
+          <span class="n">{s.n}</span>
+          <h2>{s.t}</h2>
+          <p>{s.d}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap split">
+      <div class="reveal">
+        <p class="eyebrow">Give it the guide</p>
+        <h2 class="h-section">The docs ship in the package.</h2>
+        <p class="lede">GUIDE.md is written from the components' own definitions, so it matches the version you installed.</p>
+      </div>
+      <div class="stack reveal">
+        <CodeBlock lang="markdown" file="CLAUDE.md" code={`@node_modules/@hyper-elements/react/GUIDE.md`} />
+        <CodeBlock lang="markdown" file="AGENTS.md (Codex, Cursor and others)" code={`Before writing a Hyper Elements template, read
+node_modules/@hyper-elements/react/GUIDE.md.`} />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap split">
+      <div class="preview outlines panel reveal" data-preview data-active="email">
+        <div class="tabs" role="tablist" aria-label="Outline of">
+          {outlines.map((o, i) => (
+            <button role="tab" type="button" aria-selected={i === 0 ? "true" : "false"} data-view={o.id}>{o.label}</button>
+          ))}
+        </div>
+        <div class="views">
+          {outlines.map((o, i) => (
+            <pre class="view view-text" data-view={o.id} hidden={i !== 0} aria-label={`outline(<${name(o.t.source)} />)`}>{o.t.outline}</pre>
+          ))}
+        </div>
+      </div>
+      <div class="reveal">
+        <p class="eyebrow">Layout as text</p>
+        <h2 class="h-section">outline() shows what the engine laid out.</h2>
+        <p class="lede">Every block, its width and its words, for any output. The agent checks the layout without reading HTML or opening a PDF.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="prompt-card panel panel-glow reveal">
+        <p class="eyebrow">Try it</p>
+        <p class="prompt-text">{prompt}</p>
+        <button class="btn btn-primary" type="button" data-copy={prompt}>Copy prompt</button>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .a-hero { padding: 80px 0 56px; position: relative; }
+  .a-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .loop .n { font: 500 12px var(--mono); color: var(--text-3); display: block; margin-bottom: 18px; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: center; }
+  .stack { display: grid; gap: 14px; min-width: 0; }
+  .outlines { overflow: hidden; background: #0e0e0e; min-width: 0; }
+  .outlines .views { flex: none; height: 420px; }
+  .outlines .view-text { color: #d4d4d4; font-size: 12.5px; }
+  .prompt-card { padding: 40px; text-align: center; display: grid; justify-items: center; gap: 8px; background: #0e0e0e; }
+  .prompt-text { font: 400 17px/1.6 var(--mono); color: var(--text); max-width: 70ch; margin: 0 0 16px; }
+  @media (max-width: 1000px) {
+    .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  }
+  @media (max-width: 560px) {
+    .loop { grid-template-columns: minmax(0, 1fr); }
+    .prompt-card { padding: 24px; }
+    .prompt-text { font-size: 14.5px; }
+  }
+</style>

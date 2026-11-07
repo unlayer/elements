@@ -3,8 +3,11 @@ name: Deploy Storybook to GitHub Pages
 on:
   push:
     branches: [ main ]
+    # Storybook is the react package's: a change only to the website (apps/) doesn't rebuild it.
+    paths-ignore: [ 'apps/**' ]
   pull_request:
     branches: [ main ]
+    paths-ignore: [ 'apps/**' ]
 
 jobs:
   build-and-deploy:

@@ -1,0 +1,3 @@
+# Coverage is for the published packages. The website (apps/) has no tests and isn't measured.
+ignore:
+  - "apps/**"

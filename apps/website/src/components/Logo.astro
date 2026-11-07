@@ -1,0 +1,9 @@
+---
+interface Props { size?: number; class?: string }
+const { size = 28, class: className } = Astro.props;
+const h = Math.round(size * 0.75);
+---
+<svg class={className} width={size} height={h} viewBox="228 326 798 600" aria-hidden="true">
+  <path style="fill: var(--logo-ink, #E3E8ED)" d="M595 388 L623 424 L436 627 L665 913 L522 913 Q492 913 470 891 L262 678 Q240 654 240 627 Q240 600 262 576 L428 410 Q452 388 482 388 Z"/>
+  <path fill="#EF4638" transform="rotate(180 627 626)" d="M595 388 L623 424 L436 627 L665 913 L522 913 Q492 913 470 891 L262 678 Q240 654 240 627 Q240 600 262 576 L428 410 Q452 388 482 388 Z"/>
+</svg>

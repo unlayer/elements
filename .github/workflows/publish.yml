@@ -33,6 +33,8 @@ permissions:
 on:
   push:
     branches: [main]
+    # The website (apps/) isn't published: a merge that only changes it has nothing to release.
+    paths-ignore: [ 'apps/**' ]
   workflow_dispatch:
     inputs:
       package:

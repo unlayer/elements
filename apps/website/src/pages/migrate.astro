@@ -1,0 +1,88 @@
+---
+import Base from "../layouts/Base.astro";
+import CodeBlock from "../components/CodeBlock.astro";
+import Cmd from "../components/Cmd.astro";
+import { site } from "../lib/site";
+// Real input and output of `npx @hyper-elements/migrate` (run on the new engine's build, names renamed).
+import before from "../generated/migrate/before.tsx?raw";
+import after from "../generated/migrate/after.tsx?raw";
+
+const checks = [
+  { t: "Every word", d: "In the same order, numbers, currency and percentages included. Nothing lost, nothing added." },
+  { t: "Every link and image", d: "Each href, each image and its alt text, on both sides." },
+  { t: "On phones and wide screens", d: "Again at 375px, and at each wider width where a rule like Tailwind's md: applies." },
+  { t: "In dark mode", d: "Where either side has a prefers-color-scheme rule: a logo or text swapped for dark mode." },
+  { t: "Props flipped", d: "Rendered with your PreviewProps, then with each boolean prop flipped, so conditional content is checked too." },
+  { t: "How it looks", d: "Each word's size, weight, color and place on the page. Differences are listed for you, not hidden." },
+];
+---
+<Base title="Migrate from React Email" description="Move React Email templates to Hyper Elements in one command. Each template is converted, then checked against the original.">
+  <section class="m-hero">
+    <div class="wrap">
+      <p class="eyebrow">Migrate</p>
+      <h1 class="h-page"><span class="grad">Bring your React Email templates.</span><br /><span class="muted">Leave the tables behind.</span></h1>
+      <p class="lede">One command converts every template, keeps its props, loops and conditions, then renders the original and the migration side by side and proves the content survived. Nothing is written until you say so.</p>
+      <div class="m-cta">
+        <Cmd text={`${site.migrate} src/emails`} />
+        <a class="btn btn-ghost" href="/docs/migrate/react-email">Read the guide <span class="arrow">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="ba">
+      <div class="reveal">
+        <p class="ba-label"><span class="dot old"></span>Before: React Email + Tailwind</p>
+        <CodeBlock code={before.trim()} file="emails/welcome.tsx" />
+      </div>
+      <div class="reveal">
+        <p class="ba-label"><span class="dot new"></span>After: Hyper Elements, written by the migration</p>
+        <CodeBlock code={after.trim()} file="emails/welcome.tsx" />
+      </div>
+    </div>
+    <p class="note">Real output: Tailwind classes became typed styles, margins became padding, the container became the email's width. <code>✓ 100% editable</code></p>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="eyebrow">Checked, not hoped</p>
+        <h2 class="h-section">A migration you can trust is one you can verify.</h2>
+        <p class="lede">After converting, the tool renders both versions and compares what a reader gets. Content that differs fails the run with exit code 2. How things look is listed for you to review.</p>
+      </div>
+      <div class="grid grid-3">
+        {checks.map((c) => (
+          <article class="card reveal"><h3>{c.t}</h3><p>{c.d}</p></article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap grid grid-2">
+      <div class="card big reveal">
+        <p class="stat"><strong>106 of 106</strong></p>
+        <p>real React Email templates convert with no content lost. 96 are fully editable in the visual editor, and 98.4% of their content is on average.</p>
+      </div>
+      <div class="card big reveal">
+        <p class="stat"><strong>git-safe</strong></p>
+        <p><code>--write</code> refuses files git can't restore unless you pass <code>--allow-dirty</code>, so every migration can be undone. <code>--strict</code> fails on any difference at all.</p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .m-hero { padding: 80px 0 48px; position: relative; }
+  .m-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .ba { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .ba :global(pre) { max-height: 620px; }
+  .ba-label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 500 13px var(--mono); color: var(--text-2); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.old { background: var(--text-3); } .dot.new { background: var(--text); }
+  .note { color: var(--text-3); font-size: 14px; margin: 16px 0 0; }
+  .card.big { padding: 30px; min-width: 0; }
+  .stat { margin: 0 0 8px !important; }
+  .stat strong { font-size: 36px; letter-spacing: -0.04em; color: var(--text); }
+  @media (max-width: 1000px) { .ba { grid-template-columns: minmax(0, 1fr); } }
+</style>
