@@ -192,6 +192,8 @@ async function writeBinary(el, rootName, name, rootEl) {
 
 await mkdir(cacheDir, { recursive: true });
 await mkdir(outDir, { recursive: true });
+// The templates' PDFs and PNGs are written fresh each run, so a renamed or removed template leaves none behind.
+await rm(join(root, "public", "generated", "templates"), { recursive: true, force: true });
 const examples = {
   showcase: await renderAll("showcase"),
   templates: await renderAll("templates"),
