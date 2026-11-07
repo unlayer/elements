@@ -4,7 +4,7 @@
  * link or a drawing, at the width the resolver gave it, so the PDF is laid out as the print HTML is. No engine is
  * named here: an engine's adapter draws what this writes (react-pdf.tsx).
  */
-import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
+import { assetParts, documentPages, htmlText, linkParts, pageBox, sizingOf, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
 import type { Block, DrawnDocument, Font, Page, Picture, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
@@ -72,7 +72,7 @@ class Writer {
   block(node: ResolvedNode, parent: ResolvedNode, row = false): Block | undefined {
     const placed: Style = row
       ? { width: node.width !== null ? pt(node.width) : undefined, flexShrink: 0, flexGrow: 0, alignSelf: node.definition.sizing === "shrink" ? flex(parent.style.alignItems ?? "start") : undefined }
-      : { alignSelf: alignSelf(node, parent), width: node.width !== null && (node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink") ? pt(node.width) : undefined };
+      : { alignSelf: alignSelf(node, parent), width: node.width !== null && (node.style.width !== undefined || node.style.maxWidth !== undefined || sizingOf(node) === "shrink") ? pt(node.width) : undefined };
     const families = this.context.families;
     switch (node.type) {
       case "Text":

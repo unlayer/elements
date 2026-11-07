@@ -5,7 +5,7 @@
  * a Row's gaps and its children's shares on phones; what a Layer draws.
  */
 import { assetParts, type Asset } from "../../kinds";
-import { toPx, type ResolvedNode } from "../../resolve";
+import { sizingOf, toPx, type ResolvedNode } from "../../resolve";
 import type { Json } from "../../model";
 import { h, NotOutlook, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
@@ -31,7 +31,7 @@ const ownSize = (node: ResolvedNode) => node.style.flex === "none" || node.style
  * width), or neither (as wide as its content: a Row's child of its own size, a Menu's link).
  */
 export function boxWidth(node: ResolvedNode, fill: boolean): { width?: string; maxWidth?: number } {
-  if (fill || (!sized(node) && node.definition.sizing === "stretch" && !ownSize(node))) return { width: "100%" };
+  if (fill || (!sized(node) && sizingOf(node) === "stretch" && !ownSize(node))) return { width: "100%" };
   if (typeof node.style.width === "string" && node.style.width.endsWith("%") && node.style.maxWidth === undefined) return { width: node.style.width };
   if (node.width !== null) return { width: "100%", maxWidth: node.width };
   // As wide as its content, up to its maximum.
@@ -81,7 +81,7 @@ export function cellAlign(child: ResolvedNode, stack: ResolvedNode, rtl = false)
     if (stack.style.alignItems && stack.style.alignItems !== "stretch") return ALIGN[stack.style.alignItems as string];
     return written;
   }
-  if (child.definition.sizing !== "shrink" && !sized(child)) return undefined;
+  if (sizingOf(child) !== "shrink" && !sized(child)) return undefined;
   const align = (child.style.alignSelf ?? stack.style.alignItems) as string | undefined;
   if (align) return ALIGN[align];
   return written;

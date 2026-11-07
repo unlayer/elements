@@ -49,6 +49,20 @@ describe("widths", () => {
     expect(child(root, 0).children.map((c) => (c as ResolvedNode).width)).toEqual([150, 450]);
   });
 
+  it("leaves a Text or Heading placed by its alignSelf as wide as its text, in a stack that stretches too", () => {
+    const { root } = resolve({
+      type: "Email",
+      style: { alignItems: "stretch" },
+      children: [
+        { type: "Text", style: { alignSelf: "center" }, children: ["Pill"] },
+        { type: "Heading", style: { alignSelf: "end" }, children: ["Badge"] },
+        { type: "Button", props: { href: "#" }, style: { alignSelf: "start" }, children: ["Go"] },
+        { type: "Text", children: ["The whole width"] },
+      ],
+    });
+    expect(root.children.map((c) => (c as ResolvedNode).width)).toEqual([null, null, null, 600]);
+  });
+
   it("subtracts padding and border from the content width", () => {
     const { root } = resolve({ type: "Email", children: [{ type: "Column", style: { padding: 20, border: "2px solid #000" } }] });
     expect([child(root, 0).width, child(root, 0).contentWidth]).toEqual([600, 556]);

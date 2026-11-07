@@ -159,8 +159,11 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
   return `- **${name(c.type)}**: ${parts.join(" ")}`;
 }
 
-/** GUIDE.md: how a template is written, the README's template (`example`, as an author imports it), and each component on a line. */
-export function primitivesGuide(example: string): string {
+/**
+ * GUIDE.md: how a template is written, the README's template (`example`, as an author imports it), a social card
+ * (`card`, social-card-example.tsx, the same way), and each component on a line.
+ */
+export function primitivesGuide(example: string, card: string): string {
   return [
     "# Writing templates with the new components (`@unlayer/react-elements`)",
     "",
@@ -168,7 +171,7 @@ export function primitivesGuide(example: string): string {
     "",
     "Everything needed to write a template, in short. Every prop's and style's details: [REFERENCE.md](./REFERENCE.md).",
     "",
-    guide(example),
+    guide(example, card),
   ].join("\n");
 }
 
@@ -181,7 +184,7 @@ const SKILL_DESCRIPTION =
  * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
-export function primitivesSkill(example: string): string {
+export function primitivesSkill(example: string, card: string): string {
   return [
     "---",
     "name: hyper-elements",
@@ -202,7 +205,7 @@ export function primitivesSkill(example: string): string {
     "- What the codemod can't move is listed, and the file is left as it was: rewrite that part by hand with these components.",
     "- Templates in React Email: `npx @unlayer/migrate src/emails` writes them in these components and checks each against its original.",
     "",
-    guide(example),
+    guide(example, card),
   ].join("\n");
 }
 
@@ -223,7 +226,7 @@ const { image, diagnostics } = await renderImage(
 );`;
 
 /** The guide itself, from "How a template is written" on: the same in GUIDE.md and the skill. */
-function guide(example: string): string {
+function guide(example: string, card: string): string {
   const all = describeComponents();
   const named = glossary(all);
   const placed = new Set<string>();
@@ -268,6 +271,16 @@ function guide(example: string): string {
     "",
     "```tsx",
     CANVAS_EXAMPLE,
+    "```",
+    "",
+    "## Social cards",
+    "",
+    "- An image under the content: a `Layer` (there's no `backgroundImage`), an `Image` first, the rest over it. Its `height` crops the image to cover it; `alignItems: \"end\"` puts the rest at the bottom.",
+    "- A pill or badge as wide as its text: `alignSelf` on a `Text` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.",
+    "- A bar down one edge: `border: { left: \"16px solid #f97316\" }` on the `Canvas`, or on a `Column` (a card).",
+    "",
+    "```tsx",
+    card.trim(),
     "```",
     "",
     "## Components",

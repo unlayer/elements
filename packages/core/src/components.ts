@@ -157,9 +157,18 @@ export const Column = defineComponent({
   },
 });
 
+/** Where a block of text sits by its alignSelf: each output places it as a Button. */
+const PLACED: SupportByTarget = { email: { level: "full", source: "writer" }, web: css };
+
 const TEXT_BLOCK_STYLE = {
   ...textStyle,
   ...pick(boxStyle, "width", "maxWidth", "padding", "backgroundColor", "border", "borderRadius"),
+  alignSelf: {
+    kind: enumOf(["start", "center", "end"]),
+    label: "Place",
+    description: "Where it sits in its stack, whatever the stack's alignItems: set, it's as wide as its text (a pill, a badge), not its stack's width.",
+    support: PLACED,
+  },
   ...placementStyle,
 };
 const TEXT_CHILDREN = { text: true, categories: ["inline"] } as const;
