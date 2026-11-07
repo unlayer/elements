@@ -26,7 +26,7 @@ export const template = (slug: string) => (data.templates as Record<string, Exam
 // Outputs mixed, so no one kind leads: an email, an image, a document, a page, then around again.
 const order = [
   "oyen-launch", "fernway-spring-sale", "pell-ashby-invoice", "casa-albero-page",
-  "tarn-shipped", "crumb-club-thumbnail", "quarry-welcome", "slow-signals-card",
+  "tarn-shipped", "crumb-club-thumbnail", "quarry-welcome", "slow-signals-card", "shipwright-ticket",
   "pith-weekly", "gridline-workshop-banner", "saltworks-invitation", "morning-pages-quote", "keel-sign-in-code",
 ];
 templates.sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
@@ -38,4 +38,4 @@ export const thumbWidth = (t: Example, widths: { page: number; document: number;
 export const linesOf = (s: string) => s.split("\n").length;
 
 /** One template (examples/showcase/_launch.tsx) with each root: the hero's four outputs. `file` is the real PNG or PDF. */
-export const showcase = (data as any).showcase as Record<"email" | "page" | "document" | "responsive" | "receipt", Example & { file?: string }>;
+export const showcase = (data as any).showcase as Record<"email" | "page" | "document" | "responsive", Example & { file?: string }>;
