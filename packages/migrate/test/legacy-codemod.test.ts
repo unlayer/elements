@@ -844,6 +844,15 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
     }
   });
 
+  it("leaves an import of ParagraphProps, which the new components keep as an alias of TextProps", async () => {
+    const { code, report } = await migrate(`import type { ParagraphProps } from "@unlayer/react-elements";
+export const T = (_: ParagraphProps) => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;`);
+    expect(code).toContain('import type { ParagraphProps } from "@unlayer/react-elements";');
+    expect(squash(code)).toContain(">Hi</Text>");
+    expect(report).toEqual([]);
+    expect(errors(code)).toEqual([]);
+  });
+
   it("takes a module importing Paragraph for one in 0.2's components, whatever is installed: the new ones have none", async () => {
     const source = `import { Email, Paragraph } from "@unlayer/react-elements";\nexport const T = () => <Email><Paragraph>Hello</Paragraph></Email>;\n`;
     for (const installed of [undefined, "0.2.1", "0.3.0"]) {

@@ -3,6 +3,14 @@
  * types come from the component definitions that validate them.
  */
 import { Button, Column, Email, Heading, Image, Link, Text, Row, Section, Span } from "./index";
+import type { ParagraphProps, TextProps } from "./index";
+
+// A block of text's props, by its name, and by 0.2's that a migrated module may still import.
+export const textProps: TextProps = { style: { fontSize: 14 }, mobile: { fontSize: 12 }, children: "Hi" };
+export const paragraphProps: ParagraphProps = textProps;
+export const fromProps = <Text {...textProps} />;
+// @ts-expect-error A style that isn't one: the type is the component's, not a loose object.
+export const notAStyle: TextProps = { style: { notAStyle: 1 } };
 
 export const ok = (
   <Email

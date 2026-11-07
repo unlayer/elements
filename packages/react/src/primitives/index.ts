@@ -49,6 +49,7 @@ export type {
   SectionProps,
   RowProps,
   ColumnProps,
+  TextProps,
   ParagraphProps,
   HeadingProps,
   SpanProps,

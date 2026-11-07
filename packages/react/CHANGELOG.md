@@ -21,7 +21,7 @@ conditions; what it can't move is listed, and that file is left as it was to rew
 | `<Row layout="TwoEqual">`, `ColumnLayouts` | A `Row` of `Column`s |
 | Styles as props (`backgroundColor="#000"`, `containerPadding`) | `style={{ backgroundColor: "#000" }}`, on the component they belong to |
 | `headingType`, `altText` | `level`, `alt` |
-| `<Paragraph>` | `<Text>` |
+| `<Paragraph>`, `ParagraphProps` | `<Text>`, `TextProps` (`ParagraphProps` stays as a deprecated alias) |
 
 Also gone: `Body`, `UnlayerProvider`, `renderToHtmlParts` and the `values` prop. Designs saved in the builder aren't
 affected: `fromDesign()` reads them, the older text tool's blocks included.
