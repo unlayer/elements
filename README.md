@@ -18,15 +18,12 @@
 
 ---
 
-<p align="center">
-  <img src="./assets/elements-demo.gif" alt="Hyper Elements: the same JSX rendered as email, web, and document output" width="800" />
-</p>
-
-Hyper Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
+Hyper Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, PDFs and images. Build content once and render it across three output modes:
 
 - **Email** → Outlook, Gmail, Yahoo, Apple Mail
 - **Web** → Responsive pages and embedded experiences
 - **Document** → Print-ready HTML for PDF generation
+- **Image** → PNG or SVG images
 
 <p align="center">
   <img width="1672" height="941" alt="hyperelementsflow" src="https://github.com/user-attachments/assets/e3730f39-d183-401e-9bd8-72e197c1bd54" />
