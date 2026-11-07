@@ -1107,10 +1107,10 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project(
       {
         "emails/ui.ts": `export { Email, Button } from "@unlayer/react-elements";\n`,
-        "emails/plain.tsx": TEMPLATE.replaceAll("Paragraph", "Heading"),
+        "emails/plain.tsx": TEMPLATE.replace(/Paragraph/g, "Heading"),
         "emails/current.tsx": `import { Email, Button } from "./ui";\nexport default function T() { return <Email><Button href={{ href: "https://example.com" }}>Go</Button></Email>; }\n`,
         "emails/todays.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px">'),
-        "emails/both.tsx": TEMPLATE.replaceAll("Paragraph", "Heading").replace("<Heading>", '<Heading containerPadding="4px" hidden={{ mobile: true }}>'),
+        "emails/both.tsx": TEMPLATE.replace(/Paragraph/g, "Heading").replace("<Heading>", '<Heading containerPadding="4px" hidden={{ mobile: true }}>'),
       },
       "0.3.0"
     );
