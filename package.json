@@ -6,9 +6,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unlayer/elements.git"
+    "url": "git+https://github.com/hyper-elements/hyper-elements.git"
   },
-  "homepage": "https://github.com/unlayer/elements",
+  "homepage": "https://github.com/hyper-elements/hyper-elements",
   "packageManager": "pnpm@9.7.0",
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" run build",

@@ -6,7 +6,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unlayer/elements.git",
+    "url": "git+https://github.com/hyper-elements/hyper-elements.git",
     "directory": "packages/migrate"
   },
   "bin": {

@@ -177,7 +177,7 @@ const SKILL_DESCRIPTION =
   "Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
 
 /**
- * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add unlayer/elements` installs: the
+ * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
  * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */

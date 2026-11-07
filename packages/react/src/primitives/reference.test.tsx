@@ -12,7 +12,7 @@ import { primitivesGuide, primitivesReference, primitivesSkill } from "./referen
 
 const root = join(__dirname, "../..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
-/** The skill `npx skills add unlayer/elements` installs, at the repository's root. */
+/** The skill `npx skills add hyper-elements/hyper-elements` installs, at the repository's root. */
 const SKILL = "../../skills/unlayer-elements/SKILL.md";
 
 const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');

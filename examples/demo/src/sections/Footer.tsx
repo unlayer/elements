@@ -14,7 +14,7 @@ export default function Footer() {
           {/* Links */}
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/unlayer/elements"
+              href="https://github.com/hyper-elements/hyper-elements"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-text-tertiary hover:text-text-secondary transition-colors inline-flex items-center gap-1.5"

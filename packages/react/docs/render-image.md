@@ -1,6 +1,6 @@
 # Image output: `@unlayer/react-elements/image`
 
-Image output for [Unlayer Elements](https://github.com/unlayer/elements): a `<Canvas>` from `@unlayer/react-elements` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
+Image output for [Unlayer Elements](https://github.com/hyper-elements/hyper-elements): a `<Canvas>` from `@unlayer/react-elements` written as PNG or SVG on the server, with Satori and resvg, without a browser or the network. A social card, a banner, an Open Graph image: laid out as the Canvas's HTML is, at the same widths.
 
 ## Installation
 
