@@ -1,0 +1,1 @@
+var e=(e,t,n)=>({src:`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${e}" height="${t}" viewBox="0 0 ${e} ${t}">${n}</svg>`)}`,width:e,height:t});export{e as t};
