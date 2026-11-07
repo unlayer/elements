@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { renderToString } from "react-dom/server";
-import { Column, Email, Paragraph, Row, outline, render } from "../primitives/index";
+import { Column, Email, Text, Row, outline, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 const Ctx = createContext("default");
@@ -26,24 +26,24 @@ const designWords = (design: unknown): string[] => {
 };
 
 const CASES: Record<string, { template: () => React.ReactElement; words: string[] }> = {
-  "an Email in a Fragment": { template: () => <><Email><Paragraph>In a fragment</Paragraph></Email></>, words: ["In", "a", "fragment"] },
-  "numbers and strings among a text's children": { template: () => <Email><Paragraph>{42}{" loose "}{"end"}</Paragraph></Email>, words: ["42", "loose", "end"] },
-  "a Set of blocks": { template: () => <Email>{new Set([<Paragraph key="1">First item</Paragraph>, <Paragraph key="2">Second item</Paragraph>]) as never}</Email>, words: ["First", "item", "Second", "item"] },
+  "an Email in a Fragment": { template: () => <><Email><Text>In a fragment</Text></Email></>, words: ["In", "a", "fragment"] },
+  "numbers and strings among a text's children": { template: () => <Email><Text>{42}{" loose "}{"end"}</Text></Email>, words: ["42", "loose", "end"] },
+  "a Set of blocks": { template: () => <Email>{new Set([<Text key="1">First item</Text>, <Text key="2">Second item</Text>]) as never}</Email>, words: ["First", "item", "Second", "item"] },
   "nested arrays of Rows": {
-    template: () => <Email>{[[<Row key="1"><Column><Paragraph>Deep one</Paragraph></Column></Row>], [<Row key="2"><Column><Paragraph>Deep two</Paragraph></Column></Row>]]}</Email>,
+    template: () => <Email>{[[<Row key="1"><Column><Text>Deep one</Text></Column></Row>], [<Row key="2"><Column><Text>Deep two</Text></Column></Row>]]}</Email>,
     words: ["Deep", "one", "Deep", "two"],
   },
   "a component returning a string in a text": {
     template: () => {
       const S = () => "plain string" as never;
-      return <Email><Paragraph>Kept <S /></Paragraph></Email>;
+      return <Email><Text>Kept <S /></Text></Email>;
     },
     words: ["Kept", "plain", "string"],
   },
   "a component returning undefined": {
     template: () => {
       const U = () => undefined as never;
-      return <Email><Paragraph>Kept text</Paragraph><U /></Email>;
+      return <Email><Text>Kept text</Text><U /></Email>;
     },
     words: ["Kept", "text"],
   },
@@ -51,7 +51,7 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
     template: () => {
       const C = () => {
         useLayoutEffect(() => {});
-        return <Paragraph>Layout effect</Paragraph>;
+        return <Text>Layout effect</Text>;
       };
       return <Email><C /></Email>;
     },
@@ -59,7 +59,7 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
   },
   useSyncExternalStore: {
     template: () => {
-      const C = () => <Paragraph>{useSyncExternalStore(() => () => {}, () => "store", () => "server store")}</Paragraph>;
+      const C = () => <Text>{useSyncExternalStore(() => () => {}, () => "store", () => "server store")}</Text>;
       return <Email><C /></Email>;
     },
     // A server render reads the server's snapshot.
@@ -69,7 +69,7 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
     template: () => {
       const C = () => {
         const [pending] = useTransition();
-        return <Paragraph>{`${pending} ${useDeferredValue("deferred")}`}</Paragraph>;
+        return <Text>{`${pending} ${useDeferredValue("deferred")}`}</Text>;
       };
       return <Email><C /></Email>;
     },
@@ -79,7 +79,7 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
     template: () => {
       class R extends Component {
         render() {
-          return <Row><Column><Paragraph>From a class</Paragraph></Column></Row>;
+          return <Row><Column><Text>From a class</Text></Column></Row>;
         }
       }
       return <Email><R /></Email>;
@@ -88,14 +88,14 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
   },
   "memo of a component": {
     template: () => {
-      const P = memo(Paragraph);
+      const P = memo(Text);
       return <Email><P>Memo block</P></Email>;
     },
     words: ["Memo", "block"],
   },
   "a forwardRef wrapper of a component": {
     template: () => {
-      const P = forwardRef((props: { children: string }, _ref) => <Paragraph>{props.children}</Paragraph>);
+      const P = forwardRef((props: { children: string }, _ref) => <Text>{props.children}</Text>);
       return <Email><P>Ref block</P></Email>;
     },
     words: ["Ref", "block"],
@@ -103,13 +103,13 @@ const CASES: Record<string, { template: () => React.ReactElement; words: string[
   "a higher-order component around a Row": {
     template: () => {
       const R = (props: { children: React.ReactNode }) => <Row {...props} />;
-      return <Email><R><Column><Paragraph>Wrapped row</Paragraph></Column></R></Email>;
+      return <Email><R><Column><Text>Wrapped row</Text></Column></R></Email>;
     },
     words: ["Wrapped", "row"],
   },
   "context read under a Provider inside the root": {
     template: () => {
-      const C = () => <Paragraph>{useContext(Ctx)}</Paragraph>;
+      const C = () => <Text>{useContext(Ctx)}</Text>;
       return <Email><Ctx.Provider value="provided"><C /></Ctx.Provider></Email>;
     },
     words: ["provided"],

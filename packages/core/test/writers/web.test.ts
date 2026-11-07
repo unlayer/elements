@@ -7,7 +7,7 @@ const web = (input: unknown, options: Record<string, unknown> = {}) => renderTem
 
 describe("web HTML", () => {
   it("writes a whole document: shell, title, language, the window's background", () => {
-    const { html, head, body, bodyStyle } = web(page([{ type: "Paragraph", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", description: 'Say "hi"' }, style: { backgroundColor: "#eee" } }));
+    const { html, head, body, bodyStyle } = web(page([{ type: "Text", children: ["Hi"] }], { props: { width: 600, title: "A & B", lang: "ar", dir: "rtl", description: 'Say "hi"' }, style: { backgroundColor: "#eee" } }));
     expect(html.startsWith('<!DOCTYPE html><html lang="ar" dir="rtl"><head>')).toBe(true);
     expect(head).toContain("<title>A &amp; B</title>");
     expect(head).toContain('<meta name="description" content="Say &quot;hi&quot;">');
@@ -20,7 +20,7 @@ describe("web HTML", () => {
     const { body } = web(
       page([
         { type: "Heading", props: { level: 2 }, children: ["Welcome"] },
-        { type: "Paragraph", style: { fontSize: 14, padding: [0, 8] }, children: ["Hello"] },
+        { type: "Text", style: { fontSize: 14, padding: [0, 8] }, children: ["Hello"] },
         { type: "Button", props: { href: "https://example.com" }, children: ["Go"] },
       ])
     );
@@ -60,7 +60,7 @@ describe("web HTML", () => {
   });
 
   it("keeps a Section's content at the content width, however wide the window", () => {
-    const { body } = web(page([{ type: "Section", style: { backgroundColor: "#111", padding: [24, 16] }, children: [{ type: "Paragraph", children: ["a"] }] }, { type: "Paragraph", children: ["b"] }]));
+    const { body } = web(page([{ type: "Section", style: { backgroundColor: "#111", padding: [24, 16] }, children: [{ type: "Text", children: ["a"] }] }, { type: "Text", children: ["b"] }]));
     expect(body).toContain(
       '<section style="display:flex;flex-direction:column;padding:24px max(16px, calc((100% - 600px) / 2 + 16px)) 24px max(16px, calc((100% - 600px) / 2 + 16px));background-color:#111">'
     );
@@ -82,12 +82,12 @@ describe("web HTML", () => {
   it("writes phone styles, hiding and hover in the stylesheet, under short classes named after their rules", () => {
     const { head, body } = web(
       page([
-        { type: "Paragraph", mobile: { fontSize: 14, padding: 4 }, children: ["a"] },
-        { type: "Paragraph", hidden: { mobile: true }, children: ["desktop only"] },
-        { type: "Paragraph", hidden: { desktop: true }, children: ["phone only"] },
+        { type: "Text", mobile: { fontSize: 14, padding: 4 }, children: ["a"] },
+        { type: "Text", hidden: { mobile: true }, children: ["desktop only"] },
+        { type: "Text", hidden: { desktop: true }, children: ["phone only"] },
         { type: "Button", props: { href: "#" }, hover: { backgroundColor: "#000", color: "#fff" }, children: ["Go"] },
-        { type: "Paragraph", children: ["plain"] },
-        { type: "Paragraph", hidden: { mobile: true }, children: ["also desktop only"] },
+        { type: "Text", children: ["plain"] },
+        { type: "Text", hidden: { mobile: true }, children: ["also desktop only"] },
       ])
     );
     const classes = [...body.matchAll(/class="([^"]+)"/g)].map((m) => m[1]);
@@ -103,7 +103,7 @@ describe("web HTML", () => {
     expect(body).toContain('<p style="margin:0">plain</p>');
     expect(body).not.toMatch(/ id="/);
     // A prefix of the embedder's own.
-    expect(web(page([{ type: "Paragraph", hidden: { mobile: true }, children: ["x"] }]), { classPrefix: "acme-" }).body).toMatch(/class="acme-[0-9a-z]{5}"/);
+    expect(web(page([{ type: "Text", hidden: { mobile: true }, children: ["x"] }]), { classPrefix: "acme-" }).body).toMatch(/class="acme-[0-9a-z]{5}"/);
     expect(() => web(page([]), { classPrefix: "1x" })).toThrow(/class prefix/);
   });
 
@@ -111,7 +111,7 @@ describe("web HTML", () => {
     const { body } = web(
       page([
         {
-          type: "Paragraph",
+          type: "Text",
           children: [
             "Hi ",
             { type: "MergeTag", props: { name: "first_name" } },
@@ -127,20 +127,20 @@ describe("web HTML", () => {
     expect(body).toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer" style="color:#00e;text-decoration:underline">docs</a>');
     expect(body).toContain('<img src="https://example.com/a.png" alt="A" width="120" style="display:block;max-width:100%;height:auto">');
     expect(body).toContain('<div style="box-sizing:border-box;padding:8px 0"><hr style="margin:0;border:0;border-top:1px solid #bbb;width:50%"></div>');
-    expect(web(page([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: "name" } }] }]), { mergeTag: (name: string) => `*|${name.toUpperCase()}|*` }).body).toContain(
+    expect(web(page([{ type: "Text", children: [{ type: "MergeTag", props: { name: "name" } }] }]), { mergeTag: (name: string) => `*|${name.toUpperCase()}|*` }).body).toContain(
       "*|NAME|*"
     );
     // The options' syntax as it is, the name in it escaped; the default as text.
-    const tags = page([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
+    const tags = page([{ type: "Text", children: [{ type: "MergeTag", props: { name: "first_name" } }, " ", { type: "MergeTag", props: { name: "a<b" } }] }]);
     expect(web(tags, { mergeTag: (name: string) => `<%= ${name} %>` }).body).toContain("<%= first_name %> <%= a&lt;b %>");
     expect(web(tags).body).toContain("{{first_name}} {{a&lt;b}}");
-    const quoted = page([{ type: "Paragraph", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
+    const quoted = page([{ type: "Text", children: [{ type: "MergeTag", props: { name: 'a" onmouseover="x' } }] }]);
     expect(web(quoted, { mergeTag: (name: string) => `<span data-name="${name}">tag</span>` }).body).toContain('<span data-name="a&quot; onmouseover=&quot;x">tag</span>');
   });
 
   it("writes the root's web fonts as @font-face rules, a face each, its format from its file where not given", () => {
     const { head, body } = web(
-      page([{ type: "Paragraph", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
+      page([{ type: "Text", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
         props: {
           width: 600,
           fonts: [
@@ -162,7 +162,7 @@ describe("web HTML", () => {
   });
 
   it("takes a web font in the root's fonts, not in fontFamily", () => {
-    expect(() => web(page([{ type: "Paragraph", style: { fontFamily: { name: "Brand", src: "https://fonts.example.com/b.woff2" } }, children: ["x"] }]))).toThrow(/declared once, in the root's fonts/);
+    expect(() => web(page([{ type: "Text", style: { fontFamily: { name: "Brand", src: "https://fonts.example.com/b.woff2" } }, children: ["x"] }]))).toThrow(/declared once, in the root's fonts/);
     expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A, B", src: "https://x.test/a.woff2" }] } }))).toThrow(/family is one font's name/);
     expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A", src: "javascript:alert(1)" }] } }))).toThrow(/src is the font file's/);
     expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A", src: "https://x.test/a.woff2", weight: 950.5 }] } }))).toThrow(/weight is 1 to 1000/);
@@ -173,11 +173,11 @@ describe("web HTML", () => {
     const { html } = web(
       page(
         [
-          { type: "Paragraph", children: [evil] },
+          { type: "Text", children: [evil] },
           { type: "Link", props: { href: `https://example.com/?q=${evil}` }, children: [evil] },
           { type: "Image", props: { src: `https://example.com/${evil}.png`, alt: evil } },
-          { type: "Paragraph", children: [{ type: "MergeTag", props: { name: evil } }] },
-          { type: "Paragraph", style: { fontFamily: "X, Arial" }, children: ["x"] },
+          { type: "Text", children: [{ type: "MergeTag", props: { name: evil } }] },
+          { type: "Text", style: { fontFamily: "X, Arial" }, children: ["x"] },
         ],
         { props: { width: 600, title: evil, description: evil, lang: "en", fonts: [{ family: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` }] } }
       )
@@ -201,7 +201,7 @@ describe("web HTML", () => {
   });
 
   it("throws on errors", () => {
-    expect(() => web(page([{ type: "Paragraph", style: { margin: 1 } }]))).toThrow(ElementsError);
+    expect(() => web(page([{ type: "Text", style: { margin: 1 } }]))).toThrow(ElementsError);
   });
 
   it("writes lists as ul and ol, their markers in their indent, the gap above each item but the first", () => {
@@ -229,8 +229,8 @@ describe("web HTML", () => {
   });
 
   it("hides a run of the root's content where all of it hides, so its gap beside a Section goes too, and gives the root its phone gap", () => {
-    const section = { type: "Section", children: [{ type: "Paragraph", children: ["band"] }] };
-    const { head, body } = web(page([{ type: "Paragraph", children: ["A"] }, section, { type: "Paragraph", hidden: { desktop: true }, children: ["phones only"] }, section], { style: { gap: 16 }, mobile: { gap: 4 } }));
+    const section = { type: "Section", children: [{ type: "Text", children: ["band"] }] };
+    const { head, body } = web(page([{ type: "Text", children: ["A"] }, section, { type: "Text", hidden: { desktop: true }, children: ["phones only"] }, section], { style: { gap: 16 }, mobile: { gap: 4 } }));
     const run = /<div class="(e[0-9a-z]{5}) (e[0-9a-z]{5})" style="width:100%;[^"]*"><p class="e[0-9a-z]{5}"[^>]*>phones only/.exec(body)!;
     // Desktop doesn't show the run: it's hidden there, and the flex gap beside it with it.
     expect(head).toMatch(new RegExp(`@media \\(min-width: 481px\\)\\{[^}]*\\.${run[1]}\\{display:none!important\\}`));
@@ -308,7 +308,7 @@ describe("web HTML", () => {
   it("raises and lowers text, writes titles, labels and a block's own direction", () => {
     const { body } = web(
       page([
-        { type: "Paragraph", props: { dir: "rtl" }, children: ["E=mc", { type: "Span", style: { verticalAlign: "super" }, children: ["2"] }] },
+        { type: "Text", props: { dir: "rtl" }, children: ["E=mc", { type: "Span", style: { verticalAlign: "super" }, children: ["2"] }] },
         { type: "Button", props: { href: "https://example.com", title: "Go", "aria-label": "Go to the shop" }, children: ["Go"] },
       ])
     );
@@ -321,12 +321,12 @@ describe("web HTML", () => {
       page([
         { type: "Heading", children: ["Welcome"] },
         { type: "Heading", props: { level: 3 }, children: ["Smaller"] },
-        { type: "Paragraph", children: ["Hi  ", { type: "MergeTag", props: { name: "name" } }, ",", { type: "LineBreak" }, "read ", { type: "Link", props: { href: "https://example.com/docs" }, children: ["the docs"] }, "."] },
-        { type: "Row", children: [{ type: "Column", children: [{ type: "Image", props: { src: "https://example.com/a.png", alt: "Photo" } }] }, { type: "Column", children: [{ type: "Paragraph", children: ["Beside"] }] }] },
+        { type: "Text", children: ["Hi  ", { type: "MergeTag", props: { name: "name" } }, ",", { type: "LineBreak" }, "read ", { type: "Link", props: { href: "https://example.com/docs" }, children: ["the docs"] }, "."] },
+        { type: "Row", children: [{ type: "Column", children: [{ type: "Image", props: { src: "https://example.com/a.png", alt: "Photo" } }] }, { type: "Column", children: [{ type: "Text", children: ["Beside"] }] }] },
         { type: "Divider" },
         { type: "Button", props: { href: "https://example.com" }, children: ["Get started"] },
         { type: "Link", props: { href: "https://example.com" }, children: ["https://example.com"] },
-        { type: "Paragraph", hidden: { mobile: true, desktop: true }, children: ["never shown"] },
+        { type: "Text", hidden: { mobile: true, desktop: true }, children: ["never shown"] },
       ])
     );
     expect(text).toBe("WELCOME\n\nSmaller\n\nHi {{name}},\nread the docs (https://example.com/docs).\n\n[Photo]\n\nBeside\n\n---\n\nGet started (https://example.com)\n\nhttps://example.com");
@@ -340,7 +340,7 @@ describe("web HTML", () => {
   it("writes a Layer as a grid of one cell, its children over each other, its Image covering it where it has a height", () => {
     const children = [
       { type: "Image", props: { src: { src: "https://example.com/hero.jpg", width: 1200, height: 600 }, alt: "Sea" } },
-      { type: "Column", children: [{ type: "Paragraph", children: ["Summer sale"] }] },
+      { type: "Column", children: [{ type: "Text", children: ["Summer sale"] }] },
       { type: "Button", props: { href: "https://example.com" }, children: ["Shop"] },
     ];
     const { body } = web(page([{ type: "Layer", style: { height: 300, alignItems: "end", justifyItems: "center", borderRadius: 8 }, children }]));
@@ -375,21 +375,21 @@ describe("web HTML", () => {
   });
 
   it("writes a Canvas as a box of its size, its content laid out in it, what's past it cut", () => {
-    const { body } = web({ root: { type: "Canvas", props: { width: 600, height: 315 }, style: { padding: 40, backgroundColor: "#0f172a" }, children: [{ type: "Paragraph", children: ["Launch week"] }] } });
+    const { body } = web({ root: { type: "Canvas", props: { width: 600, height: 315 }, style: { padding: 40, backgroundColor: "#0f172a" }, children: [{ type: "Text", children: ["Launch week"] }] } });
     expect(body).toMatch(/^<main style="width:600px;height:315px;overflow:hidden;[^"]*padding:40px;background-color:#0f172a/);
     expect(body).toContain(">Launch week<");
   });
 
-  it("places a Paragraph or Heading by its alignSelf at its text's width, and draws a Canvas's border inside its size", () => {
+  it("places a Text or Heading by its alignSelf at its text's width, and draws a Canvas's border inside its size", () => {
     const { body } = web({
       root: {
         type: "Canvas",
         props: { width: 600, height: 315 },
         style: { padding: 40, alignItems: "stretch", border: { left: "12px solid #f97316" } },
         children: [
-          { type: "Paragraph", style: { alignSelf: "center" }, children: ["Pill"] },
+          { type: "Text", style: { alignSelf: "center" }, children: ["Pill"] },
           { type: "Heading", style: { alignSelf: "end" }, children: ["Badge"] },
-          { type: "Paragraph", style: { maxWidth: 300, alignSelf: "end" }, children: ["Placed, up to 300px"] },
+          { type: "Text", style: { maxWidth: 300, alignSelf: "end" }, children: ["Placed, up to 300px"] },
         ],
       },
     });
@@ -400,7 +400,7 @@ describe("web HTML", () => {
   });
 
   describe("a Document, as print HTML", () => {
-    const text = (...children: unknown[]) => ({ type: "Paragraph", children });
+    const text = (...children: unknown[]) => ({ type: "Text", children });
     const doc = (children: unknown[], props: Record<string, unknown> = {}) => ({ root: { type: "Document", props, children } });
 
     it("writes each page as a box of the paper's size, its margins as padding, with CSS's @page", () => {
@@ -488,15 +488,15 @@ describe("web HTML", () => {
 
   it("writes a Row's direction and a line height of the font's own", () => {
     const { body } = web(page([
-      { type: "Row", props: { dir: "ltr" }, children: [{ type: "Paragraph", children: ["A"] }] },
-      { type: "Paragraph", style: { lineHeight: "normal" }, children: ["B"] },
+      { type: "Row", props: { dir: "ltr" }, children: [{ type: "Text", children: ["A"] }] },
+      { type: "Text", style: { lineHeight: "normal" }, children: ["B"] },
     ]));
     expect(body).toMatch(/<div class="\w+" dir="ltr" style="display:flex/);
     expect(body).toContain("line-height:normal");
   });
 
   it("leaves out a text's color where it's the same as what's around it", () => {
-    const words = (color: string) => web(page([{ type: "Paragraph", style: { color }, children: ["A"] }], { style: { color: "#000000" } } as never)).body;
+    const words = (color: string) => web(page([{ type: "Text", style: { color }, children: ["A"] }], { style: { color: "#000000" } } as never)).body;
     expect(words("#000000")).toContain('<p style="margin:0">A</p>');
     expect(words("#ff0000")).toContain('<p style="margin:0;color:#f00">A</p>');
   });

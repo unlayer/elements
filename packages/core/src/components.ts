@@ -173,9 +173,9 @@ const TEXT_BLOCK_STYLE = {
 };
 const TEXT_CHILDREN = { text: true, categories: ["inline"] } as const;
 
-export const Paragraph = defineComponent({
-  type: "Paragraph",
-  label: "Paragraph",
+export const Text = defineComponent({
+  type: "Text",
+  label: "Text",
   description: "A paragraph of text.",
   categories: ["block"],
   props: TEXT_DIR,
@@ -516,7 +516,7 @@ export const Html = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu, Html].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

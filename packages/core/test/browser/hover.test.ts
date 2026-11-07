@@ -21,7 +21,7 @@ const template = (root: "Page" | "Email") =>
         props: { width: 600 },
         children: [
           { type: "Button", props: { href: "https://example.com/button" }, style: { color: "#ffffff", backgroundColor: "#0879a1" }, hover: { color: "#ff0000", backgroundColor: "#000000" }, children: ["Go"] },
-          { type: "Paragraph", children: [{ type: "Link", props: { href: "https://example.com/link" }, style: { color: "#0000ee" }, hover: { color: "#00aa00" }, children: ["read"] }] },
+          { type: "Text", children: [{ type: "Link", props: { href: "https://example.com/link" }, style: { color: "#0000ee" }, hover: { color: "#00aa00" }, children: ["read"] }] },
         ],
       },
     })

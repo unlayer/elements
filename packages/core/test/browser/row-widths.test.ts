@@ -8,7 +8,7 @@ import { chromium, type Browser } from "playwright";
 import { parseDocument, resolveDocument, type ResolvedNode } from "../../src";
 import { renderEmail, renderPage, renderTemplate } from "../../src/writers";
 
-const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style, children: [{ type: "Paragraph", children: ["x"] }] });
+const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style, children: [{ type: "Text", children: ["x"] }] });
 
 const CASES: Array<[string, unknown[], Record<string, unknown>?, Record<string, unknown>?]> = [
   ["a maximum", [column({ maxWidth: 100 }), column()]],
@@ -106,7 +106,7 @@ describe("gaps beside hidden children in Chromium", () => {
 
 describe("a Row kept side by side, on phones", () => {
   it("keeps each child's share of the width, as the page does, whatever their words", async () => {
-    const text = (words: string) => ({ type: "Paragraph", children: [words] });
+    const text = (words: string) => ({ type: "Text", children: [words] });
     const children = [
       { type: "Column", id: "s0", children: [text("Write anything: docs, notes and wikis that feel effortless to create.")] },
       { type: "Column", id: "s1", style: { flex: 2 }, children: [text("Plan.")] },
@@ -133,7 +133,7 @@ describe("a Row kept side by side, on phones", () => {
     return found;
   };
   const photo = { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 280, height: 140 };
-  const text = { type: "Paragraph", children: ["x"] };
+  const text = { type: "Text", children: ["x"] };
   const CHILD = (id: string, style: Record<string, unknown>, mobile?: Record<string, unknown>) => ({ type: "Column", id, style, ...(mobile ? { mobile } : {}), children: [text] });
 
   // At 375 wide. Where the child's phone width goes, and what its neighbours do with the room that leaves.
@@ -147,7 +147,7 @@ describe("a Row kept side by side, on phones", () => {
     ["children that each have one, with room left", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], {}, {}, [[0, 100], [100, 120]]],
     ["children that each have one, at the Row's end", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], { justifyContent: "end" }, {}, [[155, 100], [255, 120]]],
     ["children that each have one, in the Row's center", [CHILD("a", { width: 300 }, { width: 100 }), CHILD("b", { width: 300 }, { width: 120 })], { justifyContent: "center" }, {}, [[78, 100], [178, 120]]],
-    ["a Text", [{ type: "Paragraph", id: "a", style: { width: 280 }, mobile: { width: 100 }, children: ["x"] }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
+    ["a Text", [{ type: "Text", id: "a", style: { width: 280 }, mobile: { width: 100 }, children: ["x"] }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
     ["an Image", [{ type: "Image", id: "a", props: { src: photo, alt: "" }, style: { width: 280 }, mobile: { width: 100 } }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
     ["a Button", [{ type: "Button", id: "a", props: { href: "#" }, style: { width: 280 }, mobile: { width: 100 }, children: ["Go"] }, CHILD("b", {})], {}, {}, [[0, 100], [100, 275]]],
     ["a Row", [{ type: "Row", id: "a", props: { stackOnMobile: false }, style: { width: 280 }, mobile: { width: "40%" }, children: [CHILD("c", {})] }, CHILD("b", {})], {}, {}, [[0, 150], [150, 225]]],
@@ -220,7 +220,7 @@ describe("a Row kept side by side, on phones", () => {
 });
 
 describe("a wrapping Row's gap between its lines, in an email", () => {
-  const boxes = (count: number, width: number) => Array.from({ length: count }, (_, index) => ({ type: "Column", id: `w${index}`, style: { width }, children: [{ type: "Paragraph", children: ["x"] }] }));
+  const boxes = (count: number, width: number) => Array.from({ length: count }, (_, index) => ({ type: "Column", id: `w${index}`, style: { width }, children: [{ type: "Text", children: ["x"] }] }));
   const template = (children: unknown[], style: Record<string, unknown>, mobile?: Record<string, unknown>) =>
     renderTemplate({ root: { type: "Email", props: { width: 600 }, children: [{ type: "Row", props: { stackOnMobile: false }, style: { flexWrap: "wrap", ...style }, ...(mobile ? { mobile } : {}), children }] } });
   /** How many lines the children are on in Chromium, and the space between the first two where there are more than one. */
@@ -286,7 +286,7 @@ describe("a phone width wider than a phone, in a Row kept side by side", () => {
               type: "Row",
               props: { stackOnMobile: false },
               children: [
-                { type: "Column", id: "sized", style: { width: 100 }, mobile, children: [{ type: "Paragraph", children: ["Content"] }] },
+                { type: "Column", id: "sized", style: { width: 100 }, mobile, children: [{ type: "Text", children: ["Content"] }] },
                 { type: "Link", props: { href: "#" }, style: { flex: "none" }, children: ["Read"] },
               ],
             },
@@ -311,7 +311,7 @@ describe("a phone width wider than a phone, in a Row kept side by side", () => {
 
 describe("a Grid kept side by side, on phones", () => {
   it("keeps the last row's cells as wide as the others, in the email and on the page", async () => {
-    const children = ["a", "b", "c"].map((words, index) => ({ type: "Paragraph", id: `g${index}`, children: [words] }));
+    const children = ["a", "b", "c"].map((words, index) => ({ type: "Text", id: `g${index}`, children: [words] }));
     const template = (root: "Page" | "Email") =>
       resolveDocument(parseDocument({ root: { type: root, props: { width: 600 }, children: [{ type: "Grid", props: { stackOnMobile: false }, children }] } }));
     for (const html of [renderEmail(template("Email")).html, renderPage(template("Page")).html]) {
@@ -326,7 +326,7 @@ describe("a Grid kept side by side, on phones", () => {
 
 describe("a Grid stacked on phones", () => {
   it("puts its gap between every two of its children, with a rowGap of its own between its rows on desktop", async () => {
-    const children = ["a", "b", "c", "d", "e"].map((words, index) => ({ type: "Paragraph", id: `s${index}`, children: [words] }));
+    const children = ["a", "b", "c", "d", "e"].map((words, index) => ({ type: "Text", id: `s${index}`, children: [words] }));
     for (const [style, mobile, expected] of [
       [{ gap: 10, rowGap: 30 }, undefined, 10],
       [{ rowGap: 30 }, undefined, 0],
@@ -406,7 +406,7 @@ describe("children of their own size in Chromium", () => {
 describe("an Html block in a stack with a gap, in Chromium", () => {
   it("keeps the gap around the block, not between what's in it, as the email does", async () => {
     const html = (root: "Page" | "Email") =>
-      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Column", style: { gap: 24 }, children: [{ type: "Html", props: { html: '<div id="a">a</div><div id="b">b</div>' } }, { type: "Paragraph", id: "c", children: ["c"] }] }] } }).html;
+      renderTemplate({ root: { type: root, props: { width: 600 }, children: [{ type: "Column", style: { gap: 24 }, children: [{ type: "Html", props: { html: '<div id="a">a</div><div id="b">b</div>' } }, { type: "Text", id: "c", children: ["c"] }] }] } }).html;
     const tops = async (markup: string) => {
       const page = await browser.newPage({ viewport: { width: 1000, height: 600 } });
       await page.setContent(markup);

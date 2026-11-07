@@ -41,7 +41,7 @@ describe("migrateElements", () => {
   it("writes a Document as the new root, with its page's size and orientation", async () => {
     const { code, report } = await migrateElements(`import { Document, Row, Column, Paragraph, PageBreak } from "@unlayer/react-elements";
 export const T = () => <Document documentSize="Letter" documentOrientation="landscape" contentWidth="700px"><Row><Column><Paragraph>One</Paragraph><PageBreak /><Paragraph>Two</Paragraph></Column></Row></Document>;`);
-    expect(code).toContain('import { Document, PageBreak, Paragraph, Section } from "@unlayer/react-elements";');
+    expect(code).toContain('import { Document, PageBreak, Section, Text } from "@unlayer/react-elements";');
     expect(squash(code)).toContain('<Documentsize="Letter"orientation="landscape"');
     expect(code).toContain("<PageBreak />");
     expect(report.join("\n")).toContain("contentWidth is left out");
@@ -243,7 +243,7 @@ export const T = ({ name }: { name: string }) => <Email><Row><Column>
     expect(code).toContain("<Html html={`<ul><li>${htmlText(name)}</li></ul>`}");
     expect(code).toContain('color: "#123456"');
     expect(code).toContain("logo.png");
-    expect(code).not.toContain("<Paragraph");
+    expect(code).not.toContain("<Text");
     expect(report).toEqual([]);
   });
 
@@ -265,7 +265,7 @@ export const T = ({ name }: { name: string }) => <Email><Row><Column>
   it("imports the new components it uses from the package, and keeps today's other exports where they were, for you to replace", async () => {
     const { code, report } = await migrateElements(`import { Email, Row, Column, Paragraph, renderToHtml } from "@unlayer/react-elements";
 export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);`);
-    expect(code).toContain('import { Email, Paragraph, Section } from "@unlayer/react-elements";');
+    expect(code).toContain('import { Email, Section, Text } from "@unlayer/react-elements";');
     expect(code).toContain('import { renderToHtml } from "@unlayer/react-elements";');
     expect(report.join("\n")).toMatch(/renderToHtml is Elements 0\.2's API, which 0\.3\.0 doesn't have: it stays imported from @unlayer\/react-elements for you to replace/);
   });
@@ -276,7 +276,7 @@ export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragr
     // The email's width, color and font; a Heading's 22px at 140%, not bold; a Paragraph's 14px at 140%; 10px around each.
     expect(flat).toContain('<Emailwidth={500}style={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}>');
     expect(flat).toContain('<Headingstyle={{padding:10,fontSize:22,fontWeight:400,lineHeight:"140%"}}>');
-    expect(flat).toContain('<Paragraphstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>');
+    expect(flat).toContain('<Textstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>');
   });
 
   it("reads a heading's level, an em letter spacing in px, and keeps the template's constants by name", async () => {
@@ -310,7 +310,7 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     const flat = squash(code);
     expect(code).toContain('{"Second & last, "}');
     expect(flat).toContain('Firstline.<LineBreak/><LineBreak/>{"Second&last,"}<Linkhref={{href:"https://example.com",target:"_blank"}}>link</Link>');
-    expect(flat).toContain('Logohere<Spanstyle={{verticalAlign:"super"}}>1</Span>,red</Paragraph>');
+    expect(flat).toContain('Logohere<Spanstyle={{verticalAlign:"super"}}>1</Span>,red</Text>');
     expect(flat).toContain("One<LineBreak/>Two");
     expect(report).toEqual([
       "line 3: its html's paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out",
@@ -331,10 +331,10 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
       "Email, Row, Column, Heading, Paragraph, Button"
     );
     const flat = squash(code);
-    expect(flat).toContain(">Fromchildren</Paragraph>");
+    expect(flat).toContain(">Fromchildren</Text>");
     // Today's draw a Paragraph's text as it is: its markup shows, and so does its entity.
     expect(code).toContain('{"Tom &amp; <b>Jerry</b>"}');
-    expect(flat).toContain(">{note}</Paragraph>");
+    expect(flat).toContain(">{note}</Text>");
     expect(flat).toContain('<Spanstyle={{fontWeight:700}}>Bold</Span>{"title"}</Heading>');
     expect(flat).toContain(">Go&see</Button>");
     expect(code).not.toContain("Not drawn");
@@ -351,7 +351,7 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
 
   it("makes a Row a band across the email: its top and bottom padding the Section's, its sides (outside the content) dropped", async () => {
     const { code } = await migrate(`export const T = () => <Email><Row backgroundColor="#eeeeee" padding="20px 40px 8px"><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;`);
-    expect(squash(code)).toContain('<Sectionstyle={{backgroundColor:"#eeeeee",padding:[20,0,8,0]}}><Paragraph');
+    expect(squash(code)).toContain('<Sectionstyle={{backgroundColor:"#eeeeee",padding:[20,0,8,0]}}><Text');
   });
 
   it("gives each Column its share of a layout, and draws a line every Column has along the Row (each Column's on phones)", async () => {
@@ -384,7 +384,7 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
   it("rewrites today's JSX inside expressions (a map, a condition) in place, an element's key kept", async () => {
     const { code } = await migrate(`export const T = ({ items, footer }: { items: string[]; footer: boolean }) => <Email>{items.map((item) => <Row key={item}><Column><Paragraph>{item}</Paragraph></Column></Row>)}{footer && <Row><Column><Divider /></Column></Row>}</Email>;`);
     const flat = squash(code);
-    expect(flat).toContain("{items.map((item)=>(<Sectionkey={item}><Paragraph");
+    expect(flat).toContain("{items.map((item)=>(<Sectionkey={item}><Text");
     expect(flat).toContain('{footer&&(<Section><Dividerstyle={{borderTop:"1pxsolid#BBBBBB",padding:10}}/></Section>)}');
   });
 
@@ -398,7 +398,7 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
     expect(flat).toContain('<Columnstyle={{padding:10,alignItems:"start"}}><Buttonhref={{href:"https://example.com",target:"_blank"}}style={{backgroundColor:"#000000"}}>Go</Button>');
     expect(flat).toContain('icons={[{name:"Facebook",href:"https://facebook.com/x"}]}size={24}');
     expect(flat).toContain('<Linkhref="https://example.com/docs"style={{color:"#123456",textDecoration:"none"}}>Docs</Link>');
-    expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Paragraph>');
+    expect(flat).toContain('style={{flex:"none",padding:[5,15],color:"#999999"}}>{"\\u00a0|"}</Text>');
   });
 
   it("writes a horizontal menu of known links spaced as today's: a space before each link and separator but the first, separators hidden on phones", async () => {
@@ -409,16 +409,16 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
       <Menu items={links} />
     </Column></Row></Email>;`);
     const flat = squash(code);
-    const link = (href: string, text: string) => `<Paragraphstyle={{flex:"none",padding:"4px12px"}}><Linkhref="${href}"style={{color:"#0068A5",textDecoration:"none"}}>${text}</Link></Paragraph>`;
+    const link = (href: string, text: string) => `<Textstyle={{flex:"none",padding:"4px12px"}}><Linkhref="${href}"style={{color:"#0068A5",textDecoration:"none"}}>${text}</Link></Text>`;
     expect(flat).toContain(
       '<RowstackOnMobile={false}style={{flexWrap:"wrap",justifyContent:"start",fontSize:14,lineHeight:1.2}}>' +
         link("/docs", "Docs") +
-        '<Paragraphhidden={{mobile:true}}style={{flex:"none",padding:"4px12px",color:"#444444"}}>{"\\u00a0·"}</Paragraph>' +
+        '<Texthidden={{mobile:true}}style={{flex:"none",padding:"4px12px",color:"#444444"}}>{"\\u00a0·"}</Text>' +
         link("/blog", '{"\\u00a0Blog"}') +
         "</Row>"
     );
     // Without a separator, the space alone; a vertical menu, or links worked out at run time, stay a Menu.
-    expect(flat).toContain('<Paragraphstyle={{flex:"none",padding:[5,15]}}><Linkhref="/blog"style={{color:"#0068A5",textDecoration:"none"}}>{"\\u00a0Blog"}</Link></Paragraph></Row>');
+    expect(flat).toContain('<Textstyle={{flex:"none",padding:[5,15]}}><Linkhref="/blog"style={{color:"#0068A5",textDecoration:"none"}}>{"\\u00a0Blog"}</Link></Text></Row>');
     expect(flat).toContain('layout="vertical"');
     expect(flat).toContain("items={links}");
     expect(errors(code)).toEqual([]);
@@ -454,7 +454,7 @@ export const T = (_: EmailProps & RowProps) => <Email><E.Row><E.Column><E.Paragr
     expect(code).toContain('import type { EmailProps } from "@unlayer/react-elements";');
     expect(code).toContain('import { type RowProps } from "@unlayer/react-elements";');
     expect(code).toContain('import * as E from "@unlayer/react-elements/legacy";');
-    expect(squash(code)).toContain('<Emailwidth={500}style={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Section><Paragraph');
+    expect(squash(code)).toContain('<Emailwidth={500}style={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Section><Text');
     expect(report).toEqual(["line 3: E stays imported from @unlayer/react-elements/legacy for today's API used through it; its components are migrated"]);
     // A namespace used only for components goes.
     const only = await migrateElements(`import * as E from "@unlayer/react-elements";\nexport const T = () => <E.Email><E.Row layout={E.ColumnLayouts.TwoEqual}><E.Column /><E.Column /></E.Row></E.Email>;`);
@@ -474,7 +474,7 @@ export const Other = (Row: () => null) => <Row />;`, TODAYS);
     expect(code).toContain('import { Row } from "@unlayer/react-elements/legacy";');
     expect(code).toContain("const Alias = E.Row;");
     expect(code).toContain("const Plain = Row;");
-    expect(squash(code)).toContain("<Section><Paragraph");
+    expect(squash(code)).toContain("<Section><Text");
     // The module's own E and Row, declared again where they're used, aren't today's.
     expect(code).toContain("<E.Row />");
     expect(code).toContain("export const Other = (Row: () => null) => <Row />;");
@@ -545,8 +545,8 @@ import Link from "next/link";
 function Section({ title }: { title: string }) { return <h2>{title}</h2>; }
 export const T = () => <Email><Row><Column><Paragraph html={'See <a href="https://example.com">the docs</a>'} /></Column></Row></Email>;
 export const Nav = () => <Link href="/">Home</Link>;`);
-    expect(code).toMatch(/import \{\s*Email,\s*Link as ElementsLink,\s*Paragraph,\s*Section as ElementsSection,?\s*\} from "@unlayer\/react-elements";/);
-    expect(squash(code)).toContain('<ElementsSection><Paragraphstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>{"See"}<ElementsLinkhref="https://example.com">thedocs</ElementsLink></Paragraph></ElementsSection>');
+    expect(code).toMatch(/import \{\s*Email,\s*Link as ElementsLink,\s*Section as ElementsSection,\s*Text,?\s*\} from "@unlayer\/react-elements";/);
+    expect(squash(code)).toContain('<ElementsSection><Textstyle={{padding:10,fontSize:14,lineHeight:"140%"}}>{"See"}<ElementsLinkhref="https://example.com">thedocs</ElementsLink></Text></ElementsSection>');
     // The template's own are left as they were.
     expect(code).toContain('<Link href="/">Home</Link>');
     expect(code).toContain("return <h2>{title}</h2>;");
@@ -562,7 +562,7 @@ export const Nav = () => <Link href="/">Home</Link>;`);
     expect(flat).toContain('<Emailwidth={500}dir="rtl"');
     expect(flat).toContain('<Linkhref={{href:"https://example.com/sale",target:"_blank"}}><Imagesrc="https://example.com/a.png"');
     expect(flat).toContain('<Linkhref={{href:"https://example.com/b",target:"_self"}}><Imagesrc="https://example.com/b.png"');
-    expect(flat).toContain('<Paragraphdir="ltr"');
+    expect(flat).toContain('<Textdir="ltr"');
     expect(report).toEqual(["line 5: <Paragraph>'s values isn't migrated: it's left out (the new components have nothing it becomes)"]);
   });
 
@@ -658,7 +658,7 @@ export const T = () => (
     expect(report).toContain("line 5: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
     expect(report).toContain("line 6: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
     // A menu's phone padding is each of its links' (and separators') on phones, as today's.
-    expect(squashed).toContain('<Paragraphstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
+    expect(squashed).toContain('<Textstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
     expect(report.join("\n")).not.toContain("phone padding is left out");
     expect(errors(code)).toEqual([]);
   });
@@ -755,13 +755,13 @@ export const T = ({ rows }: { rows: Row[] }) => <Email>{rows.map((row) => <Row k
 
 describe("migrateElements, on a module importing the package (today's components until 0.3.0, the new ones from it)", () => {
   /** A module written by hand on the new components with only names Elements 0.2 had too, and a style, two Columns and a link object. */
-  const NEW = `import { Email, Row, Column, Heading, Paragraph, Button, Image, Divider } from "@unlayer/react-elements";
+  const NEW = `import { Email, Row, Column, Heading, Button, Image, Divider } from "@unlayer/react-elements";
 export const T = () => (
   <Email width={600} style={{ backgroundColor: "#FFFFFF", fontFamily: "Georgia, serif" }}>
     <Row>
       <Column style={{ padding: 24 }}>
         <Heading level={1} style={{ fontSize: 32 }}>Welcome</Heading>
-        <Paragraph mobile={{ fontSize: 14 }}>Thanks for joining.</Paragraph>
+        <Heading level={2} mobile={{ fontSize: 14 }}>Thanks for joining.</Heading>
       </Column>
       <Column>
         <Image src="https://example.com/logo.png" alt="Logo" />
@@ -784,19 +784,19 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
       expect(result.current, installed).toBe(true);
     }
     // Each thing only the new components have is enough on its own, with 0.2 installed too.
-    const one = (jsx: string) => `import { Email, Row, Column, Paragraph, Button, Image } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
-    for (const jsx of ["<Paragraph hidden={{ mobile: true }}>x</Paragraph>", '<Button hover={{ color: "#111111" }} href="https://example.com">x</Button>', '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Paragraph dir="rtl">x</Paragraph>', '<Image src="https://example.com/a.png" alt="" title="A" />']) {
+    const one = (jsx: string) => `import { Email, Row, Column, Heading, Button, Image } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    for (const jsx of ["<Heading hidden={{ mobile: true }}>x</Heading>", '<Button hover={{ color: "#111111" }} href="https://example.com">x</Button>', '<Button href={{ href: "https://example.com" }}>x</Button>', '<Image src={{ src: "https://example.com/a.png", width: 100 }} alt="" />', '<Heading dir="rtl">x</Heading>', '<Image src="https://example.com/a.png" alt="" title="A" />']) {
       for (const installed of [undefined, "0.2.1"]) expect((await migrateOnce(one(jsx), { installed })).current, jsx).toBe(true);
     }
-    for (const [name, jsx] of [["Text", "<Text>Hi</Paragraph>"], ["Section", "<Section><Paragraph>Hi</Paragraph></Section>"]]) {
-      const source = `import { Email, Paragraph, ${name} } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    for (const [name, jsx] of [["Text", "<Text>Hi</Text>"], ["Section", "<Section><Heading>Hi</Heading></Section>"]]) {
+      const source = `import { Email, Heading, ${name} } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
       expect(await migrateOnce(source, { installed: "0.2.1" })).toEqual({ code: source, report: [], current: true });
     }
   });
 
   it("counts what 0.2's components took too as neither's: a style, an id, an aria-label, and anything on a Row", async () => {
-    const one = (jsx: string) => `import { Email, Row, Column, Paragraph, Button } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
-    const shared = ["<Paragraph style={{ fontSize: 24 }}>Hello</Paragraph>", '<Paragraph id="intro">Hello</Paragraph>', '<Button aria-label="Start" href="https://example.com">Go</Button>', '<Row stackOnMobile={false} dir="rtl" hidden={{ mobile: true }} hover={{ color: "#111111" }}><Column /></Row>'];
+    const one = (jsx: string) => `import { Email, Row, Column, Heading, Button } from "@unlayer/react-elements";\nexport const T = () => <Email>${jsx}</Email>;\n`;
+    const shared = ["<Heading style={{ fontSize: 24 }}>Hello</Heading>", '<Heading id="intro">Hello</Heading>', '<Button aria-label="Start" href="https://example.com">Go</Button>', '<Row stackOnMobile={false} dir="rtl" hidden={{ mobile: true }} hover={{ color: "#111111" }}><Column /></Row>'];
     for (const jsx of shared) {
       // Nothing either way: migrated where 0.2 is installed, left as it is otherwise.
       expect((await migrateOnce(one(jsx), { installed: "0.2.1" })).code, jsx).toContain(MIGRATED_HEADER);
@@ -804,10 +804,10 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
     }
     // Beside one of 0.2's own props, it's 0.2's: migrated, not refused (its style is reported, as before).
     for (const installed of [undefined, "0.2.1", "0.3.0"]) {
-      const verifiers = await migrateOnce(one('<Paragraph style={{ fontSize: 24 }} html="Hello" />'), { installed });
+      const verifiers = await migrateOnce(one('<Heading style={{ fontSize: 24 }} headingType="h2">Hello</Heading>'), { installed });
       expect(verifiers.refused, installed).toBeUndefined();
-      expect(squash(verifiers.code)).toContain(">Hello</Paragraph>");
-      expect(verifiers.report.join("\n")).toContain("<Paragraph>'s style isn't migrated");
+      expect(squash(verifiers.code)).toContain(">Hello</Heading>");
+      expect(verifiers.report.join("\n")).toContain("<Heading>'s style isn't migrated");
       const row = await migrateOnce(one('<Row layout="TwoEqual" stackOnMobile={false}><Column /><Column /></Row>'), { installed });
       expect(row.refused, installed).toBeUndefined();
       expect(row.code).toContain(MIGRATED_HEADER);
@@ -844,12 +844,30 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
     }
   });
 
+  it("leaves an import of ParagraphProps, which the new components keep as an alias of TextProps", async () => {
+    const { code, report } = await migrate(`import type { ParagraphProps } from "@unlayer/react-elements";
+export const T = (_: ParagraphProps) => <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;`);
+    expect(code).toContain('import type { ParagraphProps } from "@unlayer/react-elements";');
+    expect(squash(code)).toContain(">Hi</Text>");
+    expect(report).toEqual([]);
+    expect(errors(code)).toEqual([]);
+  });
+
+  it("takes a module importing Paragraph for one in 0.2's components, whatever is installed: the new ones have none", async () => {
+    const source = `import { Email, Paragraph } from "@unlayer/react-elements";\nexport const T = () => <Email><Paragraph>Hello</Paragraph></Email>;\n`;
+    for (const installed of [undefined, "0.2.1", "0.3.0"]) {
+      const { code } = await migrateOnce(source, { installed });
+      expect(squash(code), installed).toContain(">Hello</Text>");
+      expect(errors(code), installed).toEqual([]);
+    }
+  });
+
   it("marks what it writes on its first line, and leaves a module so marked as it is, whatever is in it", async () => {
     // What it writes of a Document has only a style and names 0.2 had too: the line is all that says it's migrated.
-    const document = `import { Document, Paragraph } from "@unlayer/react-elements";\nexport const T = () => <Document><Paragraph>Hi</Paragraph></Document>;\n`;
+    const document = `import { Document, Heading } from "@unlayer/react-elements";\nexport const T = () => <Document><Heading>Hi</Heading></Document>;\n`;
     const written = await migrateOnce(document, { installed: "0.2.1" });
     expect(written.code.split("\n")[0]).toBe(MIGRATED_HEADER);
-    expect(squash(written.code)).toContain('<Documentstyle={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Paragraphstyle=');
+    expect(squash(written.code)).toContain('<Documentstyle={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Headingstyle=');
     for (const installed of [undefined, "0.2.1", "0.3.0"]) expect(await migrateOnce(written.code, { installed }), installed).toEqual({ code: written.code, report: [], current: true });
     // Without the line, 0.2 installed, it would be taken for 0.2's again.
     const again = await migrateOnce(written.code.slice(MIGRATED_HEADER.length + 1), { installed: "0.2.1" });
@@ -875,10 +893,10 @@ export const T = () => <Email><Button href="https://example.com/confirm">Confirm
   });
 
   it("refuses one with what only each of the two has, naming both, whatever is installed", async () => {
-    const source = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+    const source = `import { Email, Row, Column, Heading } from "@unlayer/react-elements";
 export const T = () => (
   <Email>
-    <Row layout="TwoEqual"><Column /><Column><Paragraph hidden={{ mobile: true }}>x</Paragraph></Column></Row>
+    <Row layout="TwoEqual"><Column /><Column><Heading hidden={{ mobile: true }}>x</Heading></Column></Row>
   </Email>
 );
 `;
@@ -886,7 +904,7 @@ export const T = () => (
       const result = await migrateOnce(source, { installed });
       expect(result.code).toBe(source);
       expect(result.refused).toBe(result.report[0]);
-      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Paragraph hidden> on line 4\)/);
+      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Heading hidden> on line 4\)/);
     }
   });
 
@@ -1098,17 +1116,17 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project(
       {
         "emails/ui.ts": `export { Email, Button } from "@unlayer/react-elements";\n`,
-        "emails/plain.tsx": TEMPLATE,
+        "emails/plain.tsx": TEMPLATE.replace(/Paragraph/g, "Heading"),
         "emails/current.tsx": `import { Email, Button } from "./ui";\nexport default function T() { return <Email><Button href={{ href: "https://example.com" }}>Go</Button></Email>; }\n`,
         "emails/todays.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px">'),
-        "emails/both.tsx": TEMPLATE.replace("<Paragraph>", '<Paragraph containerPadding="4px" hidden={{ mobile: true }}>'),
+        "emails/both.tsx": TEMPLATE.replace(/Paragraph/g, "Heading").replace("<Heading>", '<Heading containerPadding="4px" hidden={{ mobile: true }}>'),
       },
       "0.3.0"
     );
     const sink = io(dir);
     expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
     expect(sink.err).toBe(
-      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Paragraph containerPadding> on line 2) and what only the new ones have (<Paragraph hidden> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
+      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Heading containerPadding> on line 2) and what only the new ones have (<Heading hidden> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
     );
     expect(sink.out).toContain("emails/current.tsx: already uses the new components: left as it is\n");
     expect(sink.out).toContain("emails/plain.tsx: nothing in it is Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n");

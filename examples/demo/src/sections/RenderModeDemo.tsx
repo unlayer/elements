@@ -7,7 +7,7 @@ import {
   Email,
   Heading,
   Page,
-  Paragraph,
+  Text,
   Row,
   Section,
 } from "@unlayer/react-elements";
@@ -31,7 +31,7 @@ function Stat({ label, value, note, noteColor }: { label: string; value: string;
       <Heading level={2} style={{ padding: 10, fontSize: 28, fontWeight: 700, color: "#18181b", lineHeight: 1.2 }}>
         {value}
       </Heading>
-      <Paragraph style={{ padding: 10, fontSize: 12, color: noteColor, lineHeight: 1.4 }}>{note}</Paragraph>
+      <Text style={{ padding: 10, fontSize: 12, color: noteColor, lineHeight: 1.4 }}>{note}</Text>
     </Column>
   );
 }
@@ -60,9 +60,9 @@ function ModePreviewContent() {
         <Heading style={{ padding: 10, fontSize: 22, fontWeight: 700, color: "#18181b", lineHeight: 1.25 }}>
           Your monthly report is ready
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", lineHeight: 1.65 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", lineHeight: 1.65 }}>
           Hi Alex, here's a summary of your workspace activity for February 2026.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Stats — two columns */}
@@ -95,9 +95,9 @@ function ModePreviewContent() {
 
       {/* Footer */}
       <Section style={{ padding: [16, 0, 24, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 11, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 11, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           Acme Inc · San Francisco, CA
-        </Paragraph>
+        </Text>
       </Section>
     </>
   );

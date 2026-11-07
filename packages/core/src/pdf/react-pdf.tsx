@@ -104,6 +104,6 @@ export const reactPdf: Engine = async (document) => {
       )
     )
   );
-  const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Unlayer Elements", creator: "Unlayer Elements" }, pages);
+  const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Hyper Elements", creator: "Hyper Elements" }, pages);
   return new Uint8Array(await renderToBuffer(element as never));
 };

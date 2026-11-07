@@ -7,82 +7,262 @@ import { site } from "../lib/site";
 import before from "../generated/migrate/before.tsx?raw";
 import after from "../generated/migrate/after.tsx?raw";
 
-const checks = [
-  { t: "Every word", d: "In the same order, numbers, currency and percentages included. Nothing lost, nothing added." },
-  { t: "Every link and image", d: "Each href, each image and its alt text, on both sides." },
-  { t: "On phones and wide screens", d: "Again at 375px, and at each wider width where a rule like Tailwind's md: applies." },
-  { t: "In dark mode", d: "Where either side has a prefers-color-scheme rule: a logo or text swapped for dark mode." },
-  { t: "Props flipped", d: "Rendered with your PreviewProps, then with each boolean prop flipped, so conditional content is checked too." },
-  { t: "How it looks", d: "Each word's size, weight, color and place on the page. Differences are listed for you, not hidden." },
+const guide = "/docs/migrate/react-email";
+
+// From the 106-template benchmark in the guide.
+const facts = [
+  { k: "Converted", v: "106 of 106", s: "real React Email templates", href: `${guide}#how-well-it-works` },
+  { k: "Content lost", v: "None", s: "words, links, images and alt text", href: `${guide}#how-well-it-works` },
+  { k: "Editable", v: "98.4%", s: "of their content, on average", href: `${guide}#how-well-it-works` },
+  { k: "Writes", v: "Nothing", s: "until you pass --write", href: `${guide}#safe-writes` },
+];
+
+const content = [
+  "Every word, in order, with numbers, currency and percentages",
+  "Every link, image and alt text, and nothing added",
+  "On phones (375px) and wider screens (md:, lg:)",
+  "In dark mode, where either side has a dark rule",
+  "With each boolean prop flipped",
+  "Every block reaching the visual editor",
+];
+const looks = [
+  "Each word's size, weight, italics, case and color",
+  "The background behind it, and a link's target",
+  "Where each line of text sits across the page",
+  "CSS the check doesn't model: white-space, a transform, a text shadow",
+];
+
+const options = [
+  { flag: "(none)", d: "Converts and checks every template. Writes nothing." },
+  { flag: "--write", d: "Replaces each template. Only files git can restore, so git can undo it." },
+  { flag: "--out <dir>", d: "Writes the migrated templates to another folder instead." },
+  { flag: "--design", d: "Also writes design JSON for Unlayer's visual editor." },
+  { flag: "--strict", d: "Fails a template with any difference at all, and doesn't write it." },
+  { flag: "--report <file>", d: "Writes the report as JSON or Markdown." },
+];
+
+const more = [
+  { t: "From older Elements", d: "A codemod moves templates written with Elements 0.2's components to the new ones.", code: "--from elements", href: "/docs/migrate/elements" },
+  { t: "Check a hand migration", d: "Compare a template you converted yourself with its original, the same way.", code: "compare <original> <migrated>", href: `${guide}#check-a-template-you-migrated-yourself` },
+  { t: "From code", d: "Convert a template from an agent, a build step or a server, and get its HTML and design.", code: "convertReactEmail(Welcome)", href: `${guide}#from-code` },
 ];
 ---
 <Base title="Migrate from React Email" description="Move React Email templates to Hyper Elements in one command. Each template is converted, then checked against the original.">
   <section class="m-hero">
-    <div class="wrap">
-      <p class="eyebrow">Migrate</p>
-      <h1 class="h-page"><span class="grad">Bring your React Email templates.</span><br /><span class="muted">Leave the tables behind.</span></h1>
-      <p class="lede">One command converts every template, keeps its props, loops and conditions, then renders the original and the migration side by side and proves the content survived. Nothing is written until you say so.</p>
+    <div class="wrap m-hero-inner">
+      <h1 class="h-page"><span class="grad">Migrate from React Email</span></h1>
+      <p class="lede">One command converts your templates, keeps their props, loops and conditions, and checks each one against the original. It writes nothing until you ask.</p>
       <div class="m-cta">
         <Cmd text={`${site.migrate} src/emails`} />
-        <a class="btn btn-ghost" href="/docs/migrate/react-email">Read the guide <span class="arrow">→</span></a>
+        <a class="btn btn-ghost" href={guide}>Read the guide <span class="arrow">→</span></a>
       </div>
     </div>
   </section>
 
-  <section class="wrap">
-    <div class="ba">
-      <div class="reveal">
-        <p class="ba-label"><span class="dot old"></span>Before: React Email + Tailwind</p>
-        <CodeBlock code={before.trim()} file="emails/welcome.tsx" />
-      </div>
-      <div class="reveal">
-        <p class="ba-label"><span class="dot new"></span>After: Hyper Elements, written by the migration</p>
-        <CodeBlock code={after.trim()} file="emails/welcome.tsx" />
-      </div>
+  <section class="facts">
+    <div class="wrap facts-row">
+      {facts.map((f) => (
+        <a class="fact" href={f.href}>
+          <span class="fact-k">{f.k}</span>
+          <span class="fact-v">{f.v}</span>
+          <span class="fact-s">{f.s}</span>
+        </a>
+      ))}
     </div>
-    <p class="note">Real output: Tailwind classes became typed styles, margins became padding, the container became the email's width. <code>✓ 100% editable</code></p>
   </section>
 
   <section class="section">
     <div class="wrap">
-      <div class="section-head reveal">
-        <p class="eyebrow">Checked, not hoped</p>
-        <h2 class="h-section">A migration you can trust is one you can verify.</h2>
-        <p class="lede">After converting, the tool renders both versions and compares what a reader gets. Content that differs fails the run with exit code 2. How things look is listed for you to review.</p>
+      <div class="sec-head reveal">
+        <h2 class="h-section">Before and after</h2>
+        <p class="sec-sub">A real template and what the migration wrote. The style objects became typed styles on each block, margins became padding, and the container became the email's width.</p>
       </div>
-      <div class="grid grid-3">
-        {checks.map((c) => (
-          <article class="card reveal"><h3>{c.t}</h3><p>{c.d}</p></article>
+      <div class="ba reveal">
+        <div class="ba-side">
+          <p class="ba-label">React Email</p>
+          <CodeBlock code={before.trim()} file="emails/welcome.tsx" />
+        </div>
+        <div class="ba-side">
+          <p class="ba-label">Hyper Elements</p>
+          <CodeBlock code={after.trim()} file="emails/welcome.tsx" />
+        </div>
+      </div>
+      <div class="term panel reveal">
+        <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span>Terminal</div>
+        <pre><span class="d">$</span> {site.migrate} emails
+<span class="ok">✓</span> emails/welcome.tsx: 100% editable
+
+1 template: 1 migrated and checked. <span class="d">Nothing written: pass --write or --out &lt;dir&gt; to write the migrated templates.</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">What it checks</h2>
+        <p class="sec-sub">Both versions are rendered with your PreviewProps and compared. Content that differs fails the run. How it looks is listed for you to fix in the editor.</p>
+      </div>
+      <div class="checks">
+        <article class="tile reveal">
+          <div class="tile-head">
+            <h3>Content must match</h3>
+            <span class="exit err">exit 2</span>
+          </div>
+          <ul class="ticks">{content.map((c) => <li>{c}</li>)}</ul>
+          <p class="tile-note">Anything the converter can't map is kept as HTML that renders as before, so content that differs is a bug.</p>
+        </article>
+        <article class="tile reveal">
+          <div class="tile-head">
+            <h3>How it looks is listed</h3>
+            <span class="exit ok">exit 0</span>
+          </div>
+          <ul class="ticks">{looks.map((c) => <li>{c}</li>)}</ul>
+          <p class="tile-note">It fails closed: what it can't read on one side is reported with the rule that caused it, not passed.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="opts">
+    <div class="wrap opts-head reveal">
+      <h2>Options</h2>
+      <a href={`${guide}#options`}>All options →</a>
+    </div>
+    {options.map((o) => (
+      <div class="opts-line">
+        <div class="wrap opts-row">
+          <code>{o.flag}</code>
+          <span>{o.d}</span>
+        </div>
+      </div>
+    ))}
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <h2 class="h-section">More ways to migrate</h2>
+      </div>
+      <div class="more">
+        {more.map((m) => (
+          <a class="tile more-card reveal" href={m.href}>
+            <h3>{m.t}</h3>
+            <p>{m.d}</p>
+            <pre class="mini">{m.code}</pre>
+          </a>
         ))}
       </div>
     </div>
   </section>
 
-  <section class="section" style="padding-top:0">
-    <div class="wrap grid grid-2">
-      <div class="card big reveal">
-        <p class="stat"><strong>106 of 106</strong></p>
-        <p>real React Email templates convert with no content lost. 96 are fully editable in the visual editor, and 98.4% of their content is on average.</p>
-      </div>
-      <div class="card big reveal">
-        <p class="stat"><strong>git-safe</strong></p>
-        <p><code>--write</code> refuses files git can't restore unless you pass <code>--allow-dirty</code>, so every migration can be undone. <code>--strict</code> fails on any difference at all.</p>
+  <section class="section final">
+    <div class="wrap final-inner reveal">
+      <h2 class="h-section">Get started</h2>
+      <Cmd text={`${site.migrate} src/emails`} />
+      <div class="m-cta">
+        <a class="btn btn-primary" href={guide}>Read the guide <span class="arrow">→</span></a>
+        <a class="btn btn-ghost" href={site.github}>View on GitHub</a>
       </div>
     </div>
   </section>
 </Base>
 
 <style>
-  .m-hero { padding: 80px 0 48px; position: relative; }
-  .m-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-  .ba { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-  .ba :global(pre) { max-height: 620px; }
-  .ba-label { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 500 13px var(--mono); color: var(--text-2); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; }
-  .dot.old { background: var(--text-3); } .dot.new { background: var(--text); }
-  .note { color: var(--text-3); font-size: 14px; margin: 16px 0 0; }
-  .card.big { padding: 30px; min-width: 0; }
-  .stat { margin: 0 0 8px !important; }
-  .stat strong { font-size: 36px; letter-spacing: -0.04em; color: var(--text); }
-  @media (max-width: 1000px) { .ba { grid-template-columns: minmax(0, 1fr); } }
+  .m-hero { padding: clamp(40px, 6vh, 80px) 0 0; }
+  .m-hero-inner { display: grid; justify-items: center; text-align: center; gap: 12px; }
+  .m-hero .h-page { margin: 0; }
+  .m-hero .lede { margin: 0 auto; max-width: 60ch; }
+  .m-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; margin-top: 16px; }
+  /* The command is one line: it shortens with an ellipsis on a phone instead of widening the page. */
+  .m-hero-inner, .final-inner { grid-template-columns: minmax(0, 1fr); }
+  .m-cta :global(.cmd), .final-inner :global(.cmd) { max-width: 100%; min-width: 0; }
+
+  /* The numbers, ruled like the home page's. */
+  .facts { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 96px; }
+  .facts-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fact { display: grid; gap: 6px; align-content: start; padding: 22px 24px; border-left: 1px solid var(--line); min-width: 0; color: inherit; text-decoration: none; }
+  .fact:first-child { border-left: 0; padding-left: 0; }
+  .fact:last-child { padding-right: 0; }
+  .fact-k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .fact-k::after { content: " →"; opacity: 0; transition: opacity 0.15s; }
+  .fact:hover .fact-k::after, .fact:focus-visible .fact-k::after { opacity: 1; }
+  .fact-v { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.03em; line-height: 1.15; margin-top: 4px; }
+  .fact:hover .fact-v { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .fact-s { font-size: 13.5px; color: var(--text-3); line-height: 1.45; }
+
+  .sec-head { text-align: center; margin: 0 auto 56px; max-width: 680px; }
+  .sec-head .h-section { margin: 0; }
+  .sec-sub { margin: 12px 0 0; color: var(--text-2); font-size: 17px; line-height: 1.55; }
+
+  /* Before and after, then the run that wrote it. */
+  .ba { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .ba-side { min-width: 0; }
+  .ba-side :global(pre) { max-height: 560px; }
+  .ba-label { margin: 0 0 10px; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+  .term { margin-top: 20px; overflow: hidden; background: #0e0e0e; }
+  .term-bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--hover); font: 500 12.5px var(--mono); color: var(--text-3); }
+  .term pre { margin: 0; padding: 18px 20px; overflow-x: auto; font: 400 13.5px/1.7 var(--mono); color: var(--text); white-space: pre; }
+  .term .d { color: var(--text-3); }
+  .term .ok { color: var(--ok); }
+
+  /* Tiles, as on the home page. */
+  .tile { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; padding: 28px; background: var(--bg-1); display: flex; flex-direction: column; gap: 16px; min-width: 0; transition: border-color 0.2s; }
+  .tile:hover { border-color: var(--line-3); }
+  .tile h3 { margin: 0; font-size: 20px; letter-spacing: -0.025em; font-weight: 650; line-height: 1.2; }
+  .tile-note { margin: auto 0 0; font-size: 13.5px; color: var(--text-2); line-height: 1.5; }
+  .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .tile-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .exit { flex: none; height: 24px; padding: 0 10px; display: inline-grid; place-items: center; border: 1px solid var(--line-2); border-radius: 999px; font: 500 11.5px var(--mono); }
+  .exit.err { color: var(--err); }
+  .exit.ok { color: var(--ok); }
+  .ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .ticks li { position: relative; padding-left: 24px; color: var(--text); font-size: 15px; line-height: 1.5; }
+  .ticks li::before { content: "✓"; position: absolute; left: 0; top: 0; font: 500 13px/1.7 var(--mono); color: var(--text-3); }
+
+  /* Options, as ruled rows like the components page's. */
+  .opts { border-bottom: 1px solid var(--line); }
+  .opts-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 20px; }
+  .opts-head h2 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+  .opts-head a { color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .opts-head a:hover { color: var(--text); }
+  .opts-line { border-top: 1px solid var(--line); }
+  .opts-row { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: center; gap: 16px; padding-top: 16px; padding-bottom: 16px; }
+  .opts-row code { font: 500 13.5px var(--mono); color: var(--text); background: none; border: 0; padding: 0; }
+  .opts-row span { color: var(--text-2); font-size: 15px; line-height: 1.5; }
+
+  .more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .more-card { text-decoration: none; color: inherit; gap: 10px; }
+  .more-card h3::after { content: " →"; color: var(--text-3); opacity: 0; transition: opacity 0.15s; }
+  .more-card:hover h3::after, .more-card:focus-visible h3::after { opacity: 1; }
+  .more-card p { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.55; }
+  .mini { margin: auto 0 0; padding-top: 14px; border-top: 1px solid var(--line); font: 400 12.5px/1.65 var(--mono); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .final { text-align: center; }
+  .final-inner { display: grid; justify-items: center; gap: 20px; }
+  .final-inner .h-section { margin: 0; }
+  .final-inner .m-cta { margin-top: 0; }
+
+  @media (max-width: 1000px) {
+    .facts { margin-top: 72px; }
+    .facts-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fact:nth-child(3) { border-left: 0; padding-left: 0; }
+    .fact:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .sec-head { margin-bottom: 44px; }
+    .ba, .checks { grid-template-columns: minmax(0, 1fr); }
+    .more { grid-template-columns: minmax(0, 1fr); }
+    .opts-row { grid-template-columns: 160px minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .facts { margin-top: 56px; }
+    .facts-row { grid-template-columns: minmax(0, 1fr); }
+    .fact, .fact:nth-child(3) { border-left: 0; padding: 16px 0; }
+    .fact + .fact { border-top: 1px solid var(--line); }
+    .sec-head { margin-bottom: 32px; }
+    .tile { padding: 22px; }
+    .opts-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .m-cta { width: 100%; }
+    .m-cta .btn { width: 100%; }
+    .term pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  }
 </style>

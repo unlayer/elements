@@ -8,9 +8,9 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Section,
   Span,
+  Text,
 } from "@unlayer/react-elements";
 import * as React from "react";
 
@@ -76,7 +76,7 @@ export const WelcomeEmail = ({
           >
             Welcome to {productName}
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 15,
@@ -85,8 +85,8 @@ export const WelcomeEmail = ({
             }}
           >
             Hi {firstName},
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -96,8 +96,8 @@ export const WelcomeEmail = ({
           >
             Thanks for signing up! Your workspace is ready and you can start building right away.
             Here are three quick things to try on your first day:
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "16px 0px 0px 0px",
               fontSize: 15,
@@ -106,8 +106,8 @@ export const WelcomeEmail = ({
             }}
           >
             1. Create your first project
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -116,8 +116,8 @@ export const WelcomeEmail = ({
             }}
           >
             2. Invite your teammates
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -126,7 +126,7 @@ export const WelcomeEmail = ({
             }}
           >
             3. Connect your favorite integrations
-          </Paragraph>
+          </Text>
           <Column style={{ padding: "28px 0px 0px 0px", alignItems: "center" }}>
             <Button
               href={{ href: dashboardUrl, target: "_blank" }}
@@ -153,7 +153,7 @@ export const WelcomeEmail = ({
             borderRadius: [0, 0, 8, 8],
           }}
         >
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 15,
@@ -175,9 +175,9 @@ export const WelcomeEmail = ({
               </Span>
             )}
             {" covers everything from quickstarts to advanced guides."}
-          </Paragraph>
+          </Text>
           <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "10px 0px 26px 0px" }} />
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 12,
@@ -193,8 +193,8 @@ export const WelcomeEmail = ({
               {supportEmail}
             </Link>
             . We're always happy to help.
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -203,7 +203,7 @@ export const WelcomeEmail = ({
             }}
           >
             Acme, Inc. · 123 Market Street · San Francisco, CA 94105
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

@@ -1,6 +1,6 @@
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, asEmailAndPage, type Args } from "../../../stories/SideBySide";
-import { Column, Divider, Heading, Link, List, ListItem, MergeTag, Row, Section, Span, Paragraph } from "../../index";
+import { Column, Divider, Heading, Link, List, ListItem, MergeTag, Row, Section, Span, Text } from "../../index";
 import { caption, MONO_FONT } from "./kit-c";
 
 const meta: Meta<Args> = {
@@ -64,7 +64,7 @@ export const ListsAndDividers = story((Root) => (
     <Section style={table} mobile={tableOnPhones}>
       <Column style={card} mobile={cardOnPhones}>
         <Column style={{ gap: 10 }}>
-          <Paragraph style={label}>Lesson three</Paragraph>
+          <Text style={label}>Lesson three</Text>
           <Heading level={2} style={{ ...title, fontSize: 44 }} mobile={{ fontSize: 34 }}>
             A loaf for Sunday
           </Heading>
@@ -96,8 +96,8 @@ export const ListsAndDividers = story((Root) => (
 const day = (name: string, when: string, list: JSX.Element) => (
   <Column style={{ gap: 16, padding: [26, 26, 30], backgroundColor: FLOUR, borderRadius: 3 }}>
     <Column style={{ gap: 2 }}>
-      <Paragraph style={{ ...title, fontSize: 30 }}>{name}</Paragraph>
-      <Paragraph style={{ fontSize: 14, color: QUIET }}>{when}</Paragraph>
+      <Text style={{ ...title, fontSize: 30 }}>{name}</Text>
+      <Text style={{ fontSize: 14, color: QUIET }}>{when}</Text>
     </Column>
     {list}
   </Column>
@@ -128,9 +128,9 @@ export const Numbers = story((Root) => (
           </List>
         )}
       </Row>
-      <Paragraph style={{ ...caption(INK), padding: [0, 2] }} mobile={{ padding: [0, 8] }}>
+      <Text style={{ ...caption(INK), padding: [0, 2] }} mobile={{ padding: [0, 8] }}>
         start: 3, so Saturday's count carries on
-      </Paragraph>
+      </Text>
     </Section>
   </Root>
 ));
@@ -177,7 +177,7 @@ export const Styles = story((Root) => (
             <ListItem>Nobody opens the oven for the first twenty minutes</ListItem>
             <ListItem>Whoever finishes the starter feeds the starter</ListItem>
           </List>
-          <Paragraph style={caption(QUIET)}>gap: 12, indent: 40</Paragraph>
+          <Text style={caption(QUIET)}>gap: 12, indent: 40</Text>
         </Column>
         <Column style={{ gap: 14 }}>
           <Heading level={2} style={{ ...title, fontSize: 32 }} mobile={{ fontSize: 28 }}>
@@ -188,7 +188,7 @@ export const Styles = story((Root) => (
             <ListItem style={{ fontWeight: 700, color: INK }}>A rye with caraway, the last one</ListItem>
             <ListItem style={{ textDecoration: "line-through" }}>Six cinnamon buns, sold out</ListItem>
           </List>
-          <Paragraph style={caption(QUIET)}>A box of its own, one item bold, one struck through</Paragraph>
+          <Text style={caption(QUIET)}>A box of its own, one item bold, one struck through</Text>
         </Column>
       </Column>
     </Section>
@@ -201,7 +201,7 @@ export const RunsInItems = story((Root) => (
     <Section style={table} mobile={tableOnPhones}>
       <Column style={card} mobile={cardOnPhones}>
         <Column style={{ gap: 10 }}>
-          <Paragraph style={label}>Before you come</Paragraph>
+          <Text style={label}>Before you come</Text>
           <Heading level={2} style={{ ...title, fontSize: 40 }} mobile={{ fontSize: 30 }}>
             Three things about Saturday
           </Heading>

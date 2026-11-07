@@ -5,7 +5,7 @@
  * - GUIDE.md, the guide: how a template is written, a whole one, and each component on a line (what it holds,
  *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
  * - REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
- * - skills/unlayer-elements/SKILL.md, at the repository's root: the guide as an agent skill.
+ * - skills/hyper-elements/SKILL.md, at the repository's root: the guide as an agent skill.
  */
 import { describeComponents, type ComponentDescription, type PropertyDescription } from "@unlayer-internal/elements-core";
 
@@ -177,21 +177,21 @@ export function primitivesGuide(example: string, card: string): string {
 
 /** What the skill's frontmatter says, which is how an agent decides to load it. */
 const SKILL_DESCRIPTION =
-  "Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
+  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
 
 /**
- * skills/unlayer-elements/SKILL.md, at the repository's root, which `npx skills add unlayer/elements` installs: the
+ * skills/hyper-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
  * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Elements 0.2's
  * components. An agent given the guide before writing a template gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string, card: string): string {
   return [
     "---",
-    "name: unlayer-elements",
+    "name: hyper-elements",
     `description: ${SKILL_DESCRIPTION}`,
     "---",
     "",
-    "# Unlayer Elements",
+    "# Hyper Elements",
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",
@@ -208,6 +208,22 @@ export function primitivesSkill(example: string, card: string): string {
     guide(example, card),
   ].join("\n");
 }
+
+/** A Canvas written as a PNG, in the guide. */
+const CANVAS_EXAMPLE = `import { readFile } from "node:fs/promises";
+import { Canvas, Heading, Image } from "@unlayer/react-elements";
+import { renderImage } from "@unlayer/react-elements/image";
+
+const { image, diagnostics } = await renderImage(
+  <Canvas width={1200} height={630} style={{ padding: 64, gap: 24, fontFamily: "Inter", textAlign: "center", justifyContent: "center" }}>
+    <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
+    <Heading level={1} style={{ fontSize: 64 }}>Launch week</Heading>
+  </Canvas>,
+  {
+    fonts: [{ family: "Inter", src: await readFile("Inter-Bold.ttf"), weight: 700 }],
+    images: { "https://example.com/logo.png": await readFile("logo.png") },
+  }
+);`;
 
 /** The guide itself, from "How a template is written" on: the same in GUIDE.md and the skill. */
 function guide(example: string, card: string): string {
@@ -226,7 +242,7 @@ function guide(example: string, card: string): string {
     "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
     "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
     "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
-    "- Text is components, not HTML: `Heading level={1}` and `Paragraph` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
+    "- Text is components, not HTML: `Heading level={1}` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
     "- `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.",
     "- Lists: `<List type=\"number\">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.",
     "- Phones: `mobile={{ fontSize: 20 }}` (the styles listed under \"Phones\"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: \"#374151\" }}` (those under \"Hover\").",
@@ -249,12 +265,18 @@ function guide(example: string, card: string): string {
     example.trim(),
     "```",
     "",
+    "## A Canvas as an image",
+    "",
+    "`renderImage(element, options)` (`@unlayer/react-elements/image`) writes a `Canvas` as a PNG (`format: \"svg\"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.",
+    "",
+    "```tsx",
+    CANVAS_EXAMPLE,
+    "```",
+    "",
     "## Social cards",
     "",
-    "`renderImage(element, { fonts, images })` (`@unlayer/react-elements/image`) writes a `Canvas` as PNG or SVG from the font files and image bytes it's given.",
-    "",
     "- An image under the content: a `Layer` (there's no `backgroundImage`), an `Image` first, the rest over it. Its `height` crops the image to cover it; `alignItems: \"end\"` puts the rest at the bottom.",
-    "- A pill or badge as wide as its text: `alignSelf` on a `Paragraph` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.",
+    "- A pill or badge as wide as its text: `alignSelf` on a `Text` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.",
     "- A bar down one edge: `border: { left: \"16px solid #f97316\" }` on the `Canvas`, or on a `Column` (a card).",
     "",
     "```tsx",

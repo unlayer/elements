@@ -7,10 +7,10 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Row,
   Section,
   Span,
+  Text,
 } from "@unlayer/react-elements";
 import * as React from "react";
 
@@ -53,7 +53,7 @@ export const WeeklyDigestEmail = ({
     >
       <Section style={{ padding: [24, 0, 0, 0] }}>
         <Column style={{ padding: "28px 32px 28px 32px", backgroundColor: "#171717" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -64,7 +64,7 @@ export const WeeklyDigestEmail = ({
             }}
           >
             <Span style={{ textTransform: "uppercase" }}>The Weekly Dispatch</Span>
-          </Paragraph>
+          </Text>
           <Heading
             style={{
               padding: "6px 0px 0px 0px",
@@ -76,7 +76,7 @@ export const WeeklyDigestEmail = ({
           >
             Your week in review
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "6px 0px 0px 0px",
               fontSize: 14,
@@ -85,12 +85,12 @@ export const WeeklyDigestEmail = ({
             }}
           >
             Week of {weekOf}
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       <Section>
         <Column style={{ padding: "28px 32px 0px 32px", backgroundColor: "#ffffff" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -100,7 +100,7 @@ export const WeeklyDigestEmail = ({
           >
             Hi {subscriberName}, here are the {articles.length} stories our editors picked for you
             this week.
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
       {articles.map((article, index) => [
@@ -118,7 +118,7 @@ export const WeeklyDigestEmail = ({
               </Column>
             </Column>
             <Column style={{ width: "72.67%", padding: "24px 32px 0px 0px" }}>
-              <Paragraph
+              <Text
                 style={{
                   padding: "0px 0px 0px 0px",
                   fontSize: 11,
@@ -131,8 +131,8 @@ export const WeeklyDigestEmail = ({
                 <Span
                   style={{ textTransform: "uppercase" }}
                 >{`${article.author} · ${article.readTime}`}</Span>
-              </Paragraph>
-              <Paragraph
+              </Text>
+              <Text
                 style={{
                   padding: "0px 0px 0px 0px",
                   fontSize: 14,
@@ -164,8 +164,8 @@ export const WeeklyDigestEmail = ({
                     {article.title}
                   </Span>
                 )}
-              </Paragraph>
-              <Paragraph
+              </Text>
+              <Text
                 style={{
                   padding: "6px 0px 0px 0px",
                   fontSize: 14,
@@ -174,8 +174,8 @@ export const WeeklyDigestEmail = ({
                 }}
               >
                 {article.excerpt}
-              </Paragraph>
-              <Paragraph
+              </Text>
+              <Text
                 style={{
                   padding: "0px 0px 0px 0px",
                   fontSize: 14,
@@ -207,7 +207,7 @@ export const WeeklyDigestEmail = ({
                     Read more
                   </Span>
                 )}
-              </Paragraph>
+              </Text>
             </Column>
           </Row>
         </Section>,
@@ -227,7 +227,7 @@ export const WeeklyDigestEmail = ({
       </Section>
       <Section style={{ padding: [0, 0, 24, 0] }}>
         <Column style={{ padding: "24px 32px 24px 32px", backgroundColor: "#fafafa" }}>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -237,8 +237,8 @@ export const WeeklyDigestEmail = ({
             }}
           >
             You're receiving this because you subscribed to The Weekly Dispatch.
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "8px 0px 0px 0px",
               fontSize: 12,
@@ -272,7 +272,7 @@ export const WeeklyDigestEmail = ({
                 Unsubscribe
               </Span>
             )}
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

@@ -5,7 +5,7 @@
  */
 import type { Meta } from "@storybook/react-vite";
 import { args, argTypes, showing, type Args } from "../../../stories/SideBySide";
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, type EmailProps } from "../../index";
+import { Button, Column, Email, Heading, Image, Link, Text, Row, Section, type EmailProps } from "../../index";
 
 const PLASTER = "#F5EEE2";
 const CARD = "#FFFCF7";
@@ -49,10 +49,10 @@ const serif = (fontSize: number) => ({ fontFamily: SERIF, fontWeight: 400, fontS
 const fact = (name: string, value: string) => (
   <Row stackOnMobile={false} style={{ padding: [10, 0], border: { top: `1px solid ${RULE}` } }}>
     <Column style={{ width: 110 }}>
-      <Paragraph style={{ fontSize: 14, color: QUIET }}>{name}</Paragraph>
+      <Text style={{ fontSize: 14, color: QUIET }}>{name}</Text>
     </Column>
     <Column>
-      <Paragraph style={{ fontSize: 15 }}>{value}</Paragraph>
+      <Text style={{ fontSize: 15 }}>{value}</Text>
     </Column>
   </Row>
 );
@@ -79,7 +79,7 @@ export const Width = showing(
       <Image src={ARCADE} alt="Five horseshoe arches along a courtyard wall, the middle one in pomegranate red." style={{ width: "100%" }} />
       <Column style={{ padding: [28, 32, 32], gap: 16, backgroundColor: CARD }} mobile={{ padding: [24, 20, 24] }}>
         <Column style={{ gap: 8 }}>
-          <Paragraph style={label}>Friday 11 December</Paragraph>
+          <Text style={label}>Friday 11 December</Text>
           <Heading level={1} style={serif(34)}>
             We’ve kept the room over the courtyard.
           </Heading>
@@ -92,7 +92,7 @@ export const Width = showing(
       </Column>
     </Section>
     <Section style={{ padding: [0, 0, 40] }} mobile={{ padding: [0, 16, 24] }}>
-      <Paragraph style={{ ...note, textAlign: "center" }}>width: 420. The default is 600, and the window around it is the Email’s own background.</Paragraph>
+      <Text style={{ ...note, textAlign: "center" }}>width: 420. The default is 600, and the window around it is the Email’s own background.</Text>
     </Section>
   </Email>
 );
@@ -105,12 +105,12 @@ export const InheritedText = showing(
       <Heading level={1} style={{ fontSize: 44, fontWeight: 400, fontStyle: "italic", lineHeight: 1.1 }}>
         Dear Ada,
       </Heading>
-      <Paragraph>The orange trees in the courtyard have just come into blossom, so you’ll smell the house before you see it.</Paragraph>
-      <Paragraph>
+      <Text>The orange trees in the courtyard have just come into blossom, so you’ll smell the house before you see it.</Text>
+      <Text>
         If your train is late, <Link href="mailto:layla@dar-rumman.example" style={{ color: POMEGRANATE }}>send me a word</Link> and I’ll keep the tagine warm.
-      </Paragraph>
-      <Paragraph>Layla</Paragraph>
-      <Paragraph style={{ ...note, padding: [20, 0, 0] }}>Nothing above sets a color, a font or an alignment: they’re all the Email’s. The link sets only its color.</Paragraph>
+      </Text>
+      <Text>Layla</Text>
+      <Text style={{ ...note, padding: [20, 0, 0] }}>Nothing above sets a color, a font or an alignment: they’re all the Email’s. The link sets only its color.</Text>
     </Section>
   </Email>
 );
@@ -118,8 +118,8 @@ export const InheritedText = showing(
 /** A card on the way there: where it applies, and what to do. */
 const before = (name: string, body: string) => (
   <Column style={{ width: 400, padding: [22, 24], gap: 6, backgroundColor: CARD, borderRadius: 4 }} mobile={{ width: 327 }}>
-    <Paragraph style={label}>{name}</Paragraph>
-    <Paragraph style={{ ...serif(21), lineHeight: 1.3, letterSpacing: 0 }}>{body}</Paragraph>
+    <Text style={label}>{name}</Text>
+    <Text style={{ ...serif(21), lineHeight: 1.3, letterSpacing: 0 }}>{body}</Text>
   </Column>
 );
 
@@ -135,9 +135,9 @@ export const GapAndAlignment = showing(
     <Button href={`${SITE}/arrival`} style={{ backgroundColor: POMEGRANATE, fontSize: 15, fontWeight: 600, padding: [15, 30], borderRadius: 3 }} hover={{ backgroundColor: POMEGRANATE_DOWN }}>
       Tell us when you’ll arrive
     </Button>
-    <Paragraph style={{ ...note, padding: [8, 24, 44] }} mobile={{ padding: [8, 24, 32] }}>
+    <Text style={{ ...note, padding: [8, 24, 44] }} mobile={{ padding: [8, 24, 32] }}>
       gap: 16 between each; alignItems: "center" and textAlign: "center" on the Email
-    </Paragraph>
+    </Text>
   </Email>
 );
 
@@ -148,10 +148,10 @@ export const PreviewTextAndTitle = showing(
     <Section style={{ padding: [40, 40, 44], gap: 24 }} mobile={{ padding: [28, 24, 32], gap: 20 }}>
       <Row stackOnMobile={false} style={{ alignItems: "end", padding: [0, 0, 12], border: { bottom: `1px solid ${WALNUT}` } }}>
         <Column style={{ width: 180 }}>
-          <Paragraph style={{ ...serif(25), fontStyle: "italic", lineHeight: "28px" }}>Dar Rumman</Paragraph>
+          <Text style={{ ...serif(25), fontStyle: "italic", lineHeight: "28px" }}>Dar Rumman</Text>
         </Column>
         <Column>
-          <Paragraph style={{ ...label, textAlign: "right" }}>Receipt 0417</Paragraph>
+          <Text style={{ ...label, textAlign: "right" }}>Receipt 0417</Text>
         </Column>
       </Row>
       <Heading level={1} style={serif(38)} mobile={{ fontSize: 32 }}>
@@ -163,8 +163,8 @@ export const PreviewTextAndTitle = showing(
         {fact("Room", "The Pomegranate Room")}
       </Column>
       <Column style={{ gap: 6, padding: [14, 16], backgroundColor: CARD }}>
-        <Paragraph style={note}>previewText: “Your room is held for 11 December, and a note about the train”</Paragraph>
-        <Paragraph style={note}>title and lang describe the document. None of the three shows in the email.</Paragraph>
+        <Text style={note}>previewText: “Your room is held for 11 December, and a note about the train”</Text>
+        <Text style={note}>title and lang describe the document. None of the three shows in the email.</Text>
       </Column>
     </Section>
   </Email>
@@ -174,10 +174,10 @@ export const PreviewTextAndTitle = showing(
 const arabicFact = (name: string, value: string) => (
   <Row stackOnMobile={false} style={{ padding: [10, 0], border: { top: `1px solid ${RULE}` } }}>
     <Column style={{ width: 96 }}>
-      <Paragraph style={{ fontSize: 16, color: QUIET }}>{name}</Paragraph>
+      <Text style={{ fontSize: 16, color: QUIET }}>{name}</Text>
     </Column>
     <Column>
-      <Paragraph style={{ fontSize: 18 }}>{value}</Paragraph>
+      <Text style={{ fontSize: 18 }}>{value}</Text>
     </Column>
   </Row>
 );
@@ -197,7 +197,7 @@ export const RightToLeft = showing(
       <Heading level={1} style={{ fontSize: 36, fontWeight: 500, lineHeight: 1.35 }} mobile={{ fontSize: 30 }}>
         أهلاً بكم في دار الرمّان
       </Heading>
-      <Paragraph>غرفتكم جاهزة، والشاي بالنعناع ينتظركم على السطح.</Paragraph>
+      <Text>غرفتكم جاهزة، والشاي بالنعناع ينتظركم على السطح.</Text>
       <Column>
         {arabicFact("الوصول", "الجمعة ١١ ديسمبر")}
         {arabicFact("المغادرة", "الاثنين ١٤ ديسمبر")}
@@ -205,9 +205,9 @@ export const RightToLeft = showing(
       <Button href={`${SITE}/ar/dinner`} style={{ backgroundColor: POMEGRANATE, fontFamily: ARABIC, fontSize: 18, fontWeight: 600, padding: [12, 30], borderRadius: 3 }} hover={{ backgroundColor: POMEGRANATE_DOWN }}>
         احجزوا عشاءكم
       </Button>
-      <Paragraph dir="ltr" style={{ ...note, textAlign: "right" }}>
+      <Text dir="ltr" style={{ ...note, textAlign: "right" }}>
         dir="rtl" lang="ar"
-      </Paragraph>
+      </Text>
     </Section>
   </Email>
 );

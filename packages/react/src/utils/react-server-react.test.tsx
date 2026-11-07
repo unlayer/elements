@@ -14,14 +14,14 @@ vi.mock("react-dom/server", async (original) => {
 });
 
 import React from "react";
-import { Email, Paragraph, outline, prepare, render, validate } from "../primitives/index";
+import { Email, Text, outline, prepare, render, validate } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 describe("React Server Components' React, which react-dom can't render with", () => {
   it("says to render in the Node.js runtime, with react-dom's error as the cause", async () => {
     const email = (
       <Email>
-        <Paragraph>Hello</Paragraph>
+        <Text>Hello</Text>
       </Email>
     );
     const thrown: unknown[] = [await render(email).catch((error: unknown) => error)];

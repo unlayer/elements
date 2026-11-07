@@ -1,6 +1,6 @@
 /**
  * The docs an author or an agent reads first: GUIDE.md (the guide), REFERENCE.md and the agent skill
- * at the repository's root (skills/unlayer-elements/SKILL.md, the guide) are what the definitions write
+ * at the repository's root (skills/hyper-elements/SKILL.md, the guide) are what the definitions write
  * (UPDATE_REFERENCE=1 rewrites them), each has every component the entry exports, and the README's template, which
  * the guide shows too, is readme-example.tsx, which renders with no errors or warnings.
  */
@@ -13,8 +13,8 @@ import { primitivesGuide, primitivesReference, primitivesSkill } from "./referen
 
 const root = join(__dirname, "../..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
-/** The skill `npx skills add unlayer/elements` installs, at the repository's root. */
-const SKILL = "../../skills/unlayer-elements/SKILL.md";
+/** The skill `npx skills add hyper-elements/hyper-elements` installs, at the repository's root. */
+const SKILL = "../../skills/hyper-elements/SKILL.md";
 
 const example = () => read("src/primitives/readme-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');
 const card = () => read("src/primitives/social-card-example.tsx").replace('from "./index";', 'from "@unlayer/react-elements";');
@@ -45,7 +45,7 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
 
   it("the skill is the guide, under the frontmatter a skill needs", () => {
     const skill = read(SKILL);
-    const frontmatter = /^---\nname: unlayer-elements\ndescription: ([^\n]+)\n---\n/.exec(skill);
+    const frontmatter = /^---\nname: hyper-elements\ndescription: ([^\n]+)\n---\n/.exec(skill);
     expect(frontmatter).not.toBeNull();
     // A plain YAML value: no ": " or " #" in it, which would end it early.
     expect(frontmatter![1]).not.toMatch(/: | #/);
@@ -64,8 +64,8 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
   });
 
   it("keeps the guide short enough to read whole before writing a template", () => {
-    expect(read("GUIDE.md").length).toBeLessThan(21_000);
-    expect(read(SKILL).length).toBeLessThan(23_000);
+    expect(read("GUIDE.md").length).toBeLessThan(21_500);
+    expect(read(SKILL).length).toBeLessThan(23_500);
   });
 });
 

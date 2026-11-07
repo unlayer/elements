@@ -59,7 +59,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const React = (await import("react")).default;
-const {render, Email, Page, Document, Row, Column, Paragraph, Heading, Button, Divider, Image, Layer} = await import("../dist/primitives.js");
+const {render, Email, Page, Document, Row, Column, Text, Heading, Button, Divider, Image, Layer} = await import("../dist/primitives.js");
 const { toDesign } = await import("../dist/builder.js");
 
 /** A template's HTML, as render() writes it. */
@@ -96,15 +96,15 @@ const rootProps = (Root, props) => ({ ...(Root === Document ? {} : { width: 600 
 function tree(Root, props = {}) {
   return h(Root, rootProps(Root, props),
     h(Row, null,
-      h(Column, { id: "col-1" }, h(Paragraph, null, "Col one")),
-      h(Column, { id: "col-2" }, h(Paragraph, null, "Col two")),
-      h(Column, { id: "col-3" }, h(Paragraph, null, "Col three"))
+      h(Column, { id: "col-1" }, h(Text, null, "Col one")),
+      h(Column, { id: "col-2" }, h(Text, null, "Col two")),
+      h(Column, { id: "col-3" }, h(Text, null, "Col three"))
     ),
     h(Row, { id: "row-2" },
       h(Column, null,
         h(Heading, null, "Browser E2E"),
-        h(Paragraph, null, "First paragraph."),
-        h(Paragraph, null, "Second paragraph."),
+        h(Text, null, "First paragraph."),
+        h(Text, null, "Second paragraph."),
         h(Image, { src: IMAGE_SRC, alt: "Product logo", style: { width: IMAGE_DISPLAY_WIDTH } }),
         h(Divider, null),
         h(Button, BUTTON_PROPS, "Call to action")
@@ -215,12 +215,12 @@ async function checkNoStack(page) {
     const html = await renderHtml(
       h(Root, { width: 600 },
         h(Row, { stackOnMobile: false },
-          h(Column, { id: "col-1", style: { width: "25%" } }, h(Paragraph, null, "Quarter")),
-          h(Column, { id: "col-2", style: { width: "75%" } }, h(Paragraph, null, "Three quarters"))
+          h(Column, { id: "col-1", style: { width: "25%" } }, h(Text, null, "Quarter")),
+          h(Column, { id: "col-2", style: { width: "75%" } }, h(Text, null, "Three quarters"))
         ),
         h(Row, null,
-          h(Column, null, h(Paragraph, null, "Stacks")),
-          h(Column, null, h(Paragraph, null, "Below"))
+          h(Column, null, h(Text, null, "Stacks")),
+          h(Column, null, h(Text, null, "Below"))
         )
       )
     );
@@ -430,7 +430,7 @@ async function checkRowSidePadding(page) {
   await page.setViewportSize(window);
   const html = await renderHtml(h(Email, { width: 560, style: { backgroundColor: "#eeeeee" } },
     h(Row, { style: { padding: [36, 48], backgroundColor: "#ffffff" } },
-      h(Column, { id: "padded-column" }, h(Paragraph, null, "A row with side padding")))));
+      h(Column, { id: "padded-column" }, h(Text, null, "A row with side padding")))));
   await page.setContent(html, { waitUntil: "load" });
   const facts = await page.evaluate(() => {
     const column = document.getElementById("padded-column").getBoundingClientRect();
@@ -451,7 +451,7 @@ async function checkRowSidePadding(page) {
  * centered by its margins: in a flex box those shrink it to its words, unless it has a width.
  */
 async function checkLockedBlock(page) {
-  const { design } = toDesign(h(Page, { width: 1000 }, h(Layer, { style: { height: 100 } }, h(Paragraph, null, "Locked"))));
+  const { design } = toDesign(h(Page, { width: 1000 }, h(Layer, { style: { height: 100 } }, h(Text, null, "Locked"))));
   const block = design.body.rows.flatMap((row) => row.columns.flatMap((column) => column.contents)).find((content) => content.type === "html");
   const problems = [];
   for (const display of ["block", "flex", "grid"]) {
@@ -641,10 +641,10 @@ async function checkDeviceOverrides(page) {
     const make = (overrides) => renderHtml(h(Root, { width: 600 },
       h(Row, null, h(Column, { id: "phone-column", style: { padding: 20 }, ...(overrides ? { mobile: { padding: [8, 12] } } : {}) },
         h(Image, { src: { ...IMAGE_SRC, width: 800 }, alt: "", style: { width: 120 }, ...(overrides ? { mobile: { width: "100%" } } : {}) }),
-        h(Paragraph, { id: "desktop-only", ...(overrides ? { hidden: { mobile: true } } : {}) }, "Desktop only"),
-        h(Paragraph, { id: "phone-only", ...(overrides ? { hidden: { desktop: true } } : {}) }, "Phone only")
+        h(Text, { id: "desktop-only", ...(overrides ? { hidden: { mobile: true } } : {}) }, "Desktop only"),
+        h(Text, { id: "phone-only", ...(overrides ? { hidden: { desktop: true } } : {}) }, "Phone only")
       )),
-      h(Row, { id: "hidden-row", ...(overrides ? { hidden: { mobile: true } } : {}) }, h(Column, null, h(Paragraph, null, "Hidden row")))
+      h(Row, { id: "hidden-row", ...(overrides ? { hidden: { mobile: true } } : {}) }, h(Column, null, h(Text, null, "Hidden row")))
     ));
     const read = () => page.evaluate(() => {
       // A column's padding: on the box with the column's id, or the first box in it that has one (an email's

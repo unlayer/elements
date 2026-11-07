@@ -182,7 +182,7 @@ const DEFAULT_TO = ROOT;
 /** Names only the new components' entry exports (0.2's has no Text): a module importing one from the package uses them. */
 const NEW_ONLY = new Set(["Canvas", "Circle", "ElementsError", "Ellipse", "Grid", "Layer", "Line", "LineBreak", "Link", "List", "ListItem", "MergeTag", "PageFooter", "PageHeader", "PageNumber", "Path", "Polygon", "Rect", "Section", "Span", "Svg", "TableCell", "TableRow", "Text", "component", "formatDiagnostics", "outline", "prepare", "prop", "render", "validate"]);
 /** Names only Elements 0.2's entry exported: a module importing one from the package uses today's components. */
-const TODAYS_ONLY = new Set(["Body", "ColumnLayouts", "DEFAULT_CONFIG", "UnlayerProvider", "htmlToTextJson", "registerElementsTool", "registerTool", "renderRowToJson", "renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText", "useUnlayerConfig", "validateColumnLayout"]);
+const TODAYS_ONLY = new Set(["Body", "ColumnLayouts", "DEFAULT_CONFIG", "Paragraph", "UnlayerProvider", "htmlToTextJson", "registerElementsTool", "registerTool", "renderRowToJson", "renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText", "useUnlayerConfig", "validateColumnLayout"]);
 /** What every new component takes besides its own props (and React's key). */
 const NEW_EXTRAS = new Set(["id", "style", "mobile", "hover", "hidden", "children", "key"]);
 /** The new components' own props, by component (the others take none). */
@@ -192,7 +192,6 @@ const NEW_PROPS: Record<string, string[]> = {
   Document: ["size", "orientation", "margin", "title", "lang", "dir", "fonts"],
   Row: ["stackOnMobile", "dir"],
   Heading: ["level", "dir"],
-  Paragraph: ["dir"],
   Text: ["dir"],
   Button: ["href", "title", "aria-label", "attrs"],
   Image: ["src", "alt", "title"],
@@ -211,7 +210,6 @@ const NEW_ONLY_PROPS: Record<string, string[]> = {
   Page: ["dir", "title", "width"],
   Document: ["dir", "title", "margin", "orientation", "size"],
   Heading: ["dir"],
-  Paragraph: ["dir"],
   Text: ["dir"],
   Button: ["title"],
   Image: ["title"],
@@ -1095,7 +1093,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     });
     // In a box with its text's styles, which the markup takes from around it.
     if (kept) return element("Column", [styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], [element("Html", [attr("html", props.get("html"))])]);
-    return element("Paragraph", [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
+    return element("Text", [dir(props), styleAttr(textStyle(props, fontSize, undefined, "140%", node)), textPhone(props, node), hidden(props)], words);
   }
 
   /**
@@ -1499,8 +1497,8 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     const nbsp = (text: string) => `{${JSON.stringify(`\u00a0${text}`).replace(/\u00a0/g, "\\u00a0")}}`;
     const linkColor = color(props, "linkColor") ?? lit("#0068A5");
     const children = links.flatMap((item, index) => [
-      ...(index && separator ? [element("Paragraph", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
-      element("Paragraph", box(), [element("Link", [attr("href", lit(item.href || { href: "" })), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
+      ...(index && separator ? [element("Text", ["hidden={{ mobile: true }}", ...box([["color", color(props, "textColor") ?? lit("#444444")]])], [nbsp(separator)])] : []),
+      element("Text", box(), [element("Link", [attr("href", lit(item.href || { href: "" })), styleAttr([["color", linkColor], ["textDecoration", lit("none")]])], [index ? nbsp(item.text) : plain(item.text)])]),
     ]);
     return element(
       "Row",
@@ -1530,7 +1528,7 @@ export async function migrateElements(source: string, options: MigrateElementsOp
     }
     if (isLiteral(src) && src.code === undefined && !/^https:\/\/([\w-]+\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(String(src.literal))) {
       report.push(`${where(node)}: this Video's link isn't YouTube or Vimeo, which the new Video takes: it's written as a Link`);
-      return wrapped(props, element("Paragraph", [], [element("Link", [attr("href", src)], [plain(String(src.literal))])]), undefined, node);
+      return wrapped(props, element("Text", [], [element("Link", [attr("href", src)], [plain(String(src.literal))])]), undefined, node);
     }
     return wrapped(props, element("Video", [attr("src", src)]), undefined, node);
   }

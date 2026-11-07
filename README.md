@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://unlayer.com/logo_square.png" alt="Unlayer Elements" width="50" />
+  <img src="./apps/website/public/favicon.svg" alt="Hyper Elements" width="50" />
 </p>
 
-<h1 align="center">Unlayer Elements</h1>
+<h1 align="center">Hyper Elements</h1>
 
 <p align="center">
   Write once in React. Render emails, web pages, and PDFs from the same component tree.
@@ -10,26 +10,23 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/v/@unlayer/react-elements.svg" alt="npm version" /></a>
-  <a href="https://github.com/unlayer/elements/actions/workflows/test.yml"><img src="https://github.com/unlayer/elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
-  <a href="https://codecov.io/gh/unlayer/elements"><img src="https://codecov.io/gh/unlayer/elements/branch/main/graph/badge.svg" alt="codecov" /></a>
-  <a href="https://github.com/unlayer/elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
+  <a href="https://github.com/hyper-elements/hyper-elements/actions/workflows/test.yml"><img src="https://github.com/hyper-elements/hyper-elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
+  <a href="https://codecov.io/gh/hyper-elements/hyper-elements"><img src="https://codecov.io/gh/hyper-elements/hyper-elements/branch/main/graph/badge.svg" alt="codecov" /></a>
+  <a href="https://github.com/hyper-elements/hyper-elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/dm/@unlayer/react-elements.svg" alt="downloads" /></a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="./assets/elements-demo.gif" alt="Unlayer Elements: the same JSX rendered as email, web, and document output" width="800" />
-</p>
-
-Unlayer Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
+Hyper Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, PDFs and images. Build content once and render it across three output modes:
 
 - **Email** → Outlook, Gmail, Yahoo, Apple Mail
 - **Web** → Responsive pages and embedded experiences
 - **Document** → Print-ready HTML for PDF generation
+- **Image** → PNG or SVG images
 
 <p align="center">
-  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Unlayer Elements: Architecture" width="1200" />
+  <img width="1672" height="941" alt="hyperelementsflow" src="https://github.com/user-attachments/assets/e3730f39-d183-401e-9bd8-72e197c1bd54" />
 </p>
 
 Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
@@ -52,14 +49,14 @@ npm install @unlayer/react-elements
 ```
 
 ```tsx
-import { Button, Column, Email, Heading, Paragraph, render } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Text, render } from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (
     <Email width={600} style={{ backgroundColor: "#f0f0f0", fontFamily: "Arial, Helvetica, sans-serif" }}>
       <Column style={{ backgroundColor: "#ffffff", padding: 20, gap: 12 }}>
         <Heading level={1} style={{ fontSize: 24 }}>Welcome!</Heading>
-        <Paragraph style={{ fontSize: 14 }}>Thanks for signing up.</Paragraph>
+        <Text style={{ fontSize: 14 }}>Thanks for signing up.</Text>
         <Button href="https://example.com" style={{ backgroundColor: "#0879A1", color: "#ffffff" }}>Get started</Button>
       </Column>
     </Email>
@@ -186,7 +183,7 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Grid>` | Its children in columns of equal width, row after row |
 | `<Layer>` | Its children over each other: an image with words on it |
 | `<Heading>` | A heading, `level` 1 to 6 |
-| `<Paragraph>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
+| `<Text>` | A block of text, with `<Span>`, `<Link>`, `<LineBreak>` and `<MergeTag>` inside it |
 | `<Button>` | A link drawn as a button, with its colors on hover |
 | `<Image>` | An image; `src` has the file's size, `style.width` the size shown |
 | `<Divider>` | A horizontal line |
@@ -295,7 +292,7 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
+Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/hyper-elements/hyper-elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 

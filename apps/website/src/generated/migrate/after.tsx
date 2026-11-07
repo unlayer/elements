@@ -1,12 +1,4 @@
-// Migrated from React Email by @hyper-elements/migrate (codemod mode).
-import {
-  Button,
-  Column,
-  Email,
-  Heading,
-  Section,
-  Text,
-} from "@hyper-elements/react";
+import { Button, Column, Email, Heading, Section, Text } from "@hyper-elements/react";
 
 export default function Welcome({ name = "Ada" }: { name?: string }) {
   return (
@@ -17,7 +9,7 @@ export default function Welcome({ name = "Ada" }: { name?: string }) {
         backgroundColor: "#f3f4f6",
         color: "#000000",
         fontFamily:
-          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
       }}
     >
       <Section style={{ padding: [40, 0, 40, 0] }}>
@@ -30,17 +22,17 @@ export default function Welcome({ name = "Ada" }: { name?: string }) {
               fontSize: 24,
               fontWeight: 700,
               color: "#101828",
-              lineHeight: 1.3333333333333333,
+              lineHeight: "32px",
             }}
           >
             Welcome, {name}
           </Heading>
           <Text
             style={{
-              padding: "16px 0px 16px 0px",
+              padding: "16px 0px 24px 0px",
               fontSize: 16,
               color: "#4a5565",
-              lineHeight: 1.5,
+              lineHeight: "24px",
             }}
           >
             Your workspace is ready.

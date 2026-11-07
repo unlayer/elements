@@ -48,7 +48,7 @@ describe("codemod keeps logic", () => {
     const result = await convertSource(fs.readFileSync(path.join(fixtures, "receipt.tsx"), "utf8"));
     expect(result.code).toContain("{items.map((item) => (");
     expect(result.code).toContain("<Section key={item.name}");
-    expect(result.code).toMatch(/\{item\.description \? \(\s*<Paragraph/);
+    expect(result.code).toMatch(/\{item\.description \? \(\s*<Text/);
     expect(result.code).toContain("ReceiptEmail.PreviewProps");
   });
 
@@ -293,7 +293,7 @@ export default function Template() {
   it("codemod: content a phone rule shows becomes a block hidden on desktop; a box is reported", async () => {
     const result = await convertSource(source);
     expect(result.intermediate).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
-    expect(result.code).toMatch(/<Paragraph[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
+    expect(result.code).toMatch(/<(Elements)?Text[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
     expect(result.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
   });
 
@@ -306,7 +306,7 @@ export default function Template() {
       h(Section, { className: "phone-only", style: { display: "none" } }, h(Text, null, "Phone section"))));
     const conversion = await convertReactEmail(Template);
     expect(JSON.stringify((await convertElement(h(Template))).tree)).toMatch(/"hideOnDesktop":true[^}]*/);
-    expect(conversion.code).toMatch(/<Paragraph[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
+    expect(conversion.code).toMatch(/<(Elements)?Text[^>]*hidden=\{\{ desktop: true \}\}\s*>\s*Phones only/);
     expect(conversion.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
   });
 });
@@ -956,8 +956,8 @@ export default function Shell({ children }: { children?: React.ReactNode }) { re
 import { Shell, Footer } from "../components";
 export default function Welcome() { return <Shell><Text>Welcome aboard</Text><Footer /></Shell>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
     expect(result.report.nativeRatio).toBe(1);
-    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Welcome aboard/);
-    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Sent by Acme/);
+    expect(result.code).toMatch(/<Text[^>]*>\s*Welcome aboard/);
+    expect(result.code).toMatch(/<Text[^>]*>\s*Sent by Acme/);
     expect(result.code).not.toContain("../components");
   });
 });

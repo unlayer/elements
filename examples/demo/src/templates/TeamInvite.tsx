@@ -5,7 +5,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Section,
 } from "@unlayer/react-elements";
 
@@ -36,9 +36,9 @@ export default function TeamInvite(): ReactElement {
         >
           Join Rocket Team on Acme
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.7 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.7 }}>
           Alex Chen (alex@acme.dev) has invited you to collaborate on the Rocket Team workspace.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Avatars */}
@@ -73,19 +73,19 @@ export default function TeamInvite(): ReactElement {
             Accept Invitation
           </Button>
         </Column>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           This link expires in 7 days.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
           This invitation was sent to you@example.com.
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
           If you didn't expect it, you can safely ignore this email.
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

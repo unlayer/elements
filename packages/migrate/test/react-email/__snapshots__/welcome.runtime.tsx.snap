@@ -8,8 +8,8 @@ import {
   Heading,
   Image,
   Link,
-  Paragraph,
   Section,
+  Text,
 } from "@unlayer/react-elements";
 
 export default function Template() {
@@ -60,7 +60,7 @@ export default function Template() {
           >
             {"Welcome to {{productName}}"}
           </Heading>
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 15,
@@ -69,8 +69,8 @@ export default function Template() {
             }}
           >
             {"Hi {{firstName}},"}
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -80,8 +80,8 @@ export default function Template() {
           >
             Thanks for signing up! Your workspace is ready and you can start building right away.
             Here are three quick things to try on your first day:
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "16px 0px 0px 0px",
               fontSize: 15,
@@ -90,8 +90,8 @@ export default function Template() {
             }}
           >
             1. Create your first project
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -100,8 +100,8 @@ export default function Template() {
             }}
           >
             2. Invite your teammates
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 15,
@@ -110,7 +110,7 @@ export default function Template() {
             }}
           >
             3. Connect your favorite integrations
-          </Paragraph>
+          </Text>
           <Column style={{ padding: "28px 0px 0px 0px", alignItems: "center" }}>
             <Button
               href={{ href: "{{dashboardUrl}}", target: "_blank" }}
@@ -137,7 +137,7 @@ export default function Template() {
             borderRadius: [0, 0, 8, 8],
           }}
         >
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 15,
@@ -153,9 +153,9 @@ export default function Template() {
               documentation
             </Link>
             {" covers everything from quickstarts to advanced guides."}
-          </Paragraph>
+          </Text>
           <Divider style={{ borderTop: "1px solid #e5e7eb", padding: "10px 0px 26px 0px" }} />
-          <Paragraph
+          <Text
             style={{
               padding: "0px 0px 16px 0px",
               fontSize: 12,
@@ -171,8 +171,8 @@ export default function Template() {
               {"{{supportEmail}}"}
             </Link>
             . We're always happy to help.
-          </Paragraph>
-          <Paragraph
+          </Text>
+          <Text
             style={{
               padding: "0px 0px 0px 0px",
               fontSize: 12,
@@ -181,7 +181,7 @@ export default function Template() {
             }}
           >
             Acme, Inc. · 123 Market Street · San Francisco, CA 94105
-          </Paragraph>
+          </Text>
         </Column>
       </Section>
     </Email>

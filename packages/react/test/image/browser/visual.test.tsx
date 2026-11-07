@@ -12,14 +12,20 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { chromium } from "playwright";
 import type { ReactElement } from "react";
-import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Paragraph } from "@unlayer/react-elements";
+import { Canvas, Circle, Column, Heading, Rect, render, Row, Svg, Text } from "@unlayer/react-elements";
 import { renderImage } from "../../../src/image";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
 const fonts = [{ family: "Liberation", src: `data:font/ttf;base64,${FONT.toString("base64")}` }];
 
-/** Each image's pixels, Chromium's and the image's, decoded in Chromium; and how many differ. */
-async function compare(template: ReactElement): Promise<{ differ: number; total: number; size: number[] }> {
+/** A line of text in an image: the box its letters' pixels fill, [left, right, top, bottom]. */
+type Line = [number, number, number, number];
+
+/**
+ * Each image's pixels, Chromium's and the image's, decoded in Chromium; how many differ; and each image's lines of
+ * text (rows of pixels unlike the top left one's, one line where they touch).
+ */
+async function compare(template: ReactElement): Promise<{ differ: number; total: number; size: number[]; lines: Line[][] }> {
   const { html } = await render(template);
   const { image, width, height } = await renderImage(template);
   const browser = await chromium.launch({ args: ["--disable-lcd-text", "--font-render-hinting=none"] });
@@ -52,7 +58,25 @@ async function compare(template: ReactElement): Promise<{ differ: number; total:
               }
             if (!near) differ++;
           }
-        return { differ, total: p.width * p.height, size: [q.width, q.height] };
+        const lines = (image: ImageData) => {
+          const found: Line[] = [];
+          const ink = (i: number) => Math.abs(image.data[i] - image.data[0]) + Math.abs(image.data[i + 1] - image.data[1]) + Math.abs(image.data[i + 2] - image.data[2]) > 96;
+          let line: Line | undefined;
+          for (let y = 0; y < image.height; y++) {
+            let left = -1;
+            let right = -1;
+            for (let x = 0; x < image.width; x++)
+              if (ink((y * image.width + x) * 4)) {
+                if (left < 0) left = x;
+                right = x;
+              }
+            if (left < 0) line = undefined;
+            else if (line) line = Object.assign(line, { 0: Math.min(line[0], left), 1: Math.max(line[1], right), 3: y });
+            else found.push((line = [left, right, y, y]));
+          }
+          return found;
+        };
+        return { differ, total: p.width * p.height, size: [q.width, q.height], lines: [lines(p), lines(q)] };
       },
       [shot, Buffer.from(image).toString("base64")]
     );
@@ -87,10 +111,28 @@ describe("an image and the Canvas's HTML in Chromium", () => {
         <Heading level={1} style={{ fontSize: 36, lineHeight: 1.2, fontWeight: 400 }}>
           Launch week
         </Heading>
-        <Paragraph style={{ fontSize: 18, color: "#cbd5e1", lineHeight: 1.4 }}>Five days of new things, one a day.</Paragraph>
+        <Text style={{ fontSize: 18, color: "#cbd5e1", lineHeight: 1.4 }}>Five days of new things, one a day.</Text>
       </Canvas>
     );
     // Letters' edges: the two rasterizers smooth them differently. Moved or missing text is thousands.
     expect(result.differ / result.total, `${result.differ} of ${result.total} pixels differ`).toBeLessThan(0.01);
+  });
+
+  it("align text as Chromium does: centered and right, a line that doesn't wrap and lines that do", async () => {
+    const result = await compare(
+      <Canvas width={480} height={240} fonts={fonts} style={{ backgroundColor: "#0f172a", padding: 24, gap: 12, color: "#ffffff", fontFamily: "Liberation", textAlign: "center" }}>
+        <Heading level={1} style={{ fontSize: 32, lineHeight: 1.2, fontWeight: 400 }}>
+          EPISODE 42
+        </Heading>
+        <Text style={{ fontSize: 18, lineHeight: 1.4 }}>Five days of new things, one a day, every day of the week.</Text>
+        <Text style={{ fontSize: 18, lineHeight: 1.4, textAlign: "right" }}>One line, at the right</Text>
+      </Canvas>
+    );
+    // Each line's letters start and end within a pixel of Chromium's, across. (Centered letters fall between pixels,
+    // which the two rasterizers smooth differently: comparing pixels would count each one.)
+    const [chromium, image] = result.lines;
+    expect(image.length).toBe(4);
+    expect(chromium.length).toBe(image.length);
+    image.forEach(([left, right], i) => expect([left, right].map((edge, k) => Math.abs(edge - chromium[i][k]) <= 1), `line ${i}: ${[left, right]} in the image, ${chromium[i].slice(0, 2)} in Chromium`).toEqual([true, true]));
   });
 });

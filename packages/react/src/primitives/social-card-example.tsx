@@ -1,4 +1,4 @@
-import { Canvas, Column, Heading, Image, Layer, Paragraph } from "./index";
+import { Canvas, Column, Heading, Image, Layer, Text } from "./index";
 
 export default function LaunchCard() {
   return (
@@ -6,9 +6,9 @@ export default function LaunchCard() {
       <Layer style={{ height: 630, alignItems: "end" }}>
         <Image src={{ src: "https://example.com/hero.jpg", width: 1600, height: 900 }} alt="" />
         <Column style={{ padding: 64, gap: 16 }}>
-          <Paragraph style={{ alignSelf: "start", backgroundColor: "#f97316", padding: [6, 16], borderRadius: 999, fontSize: 20 }}>New</Paragraph>
+          <Text style={{ alignSelf: "start", backgroundColor: "#f97316", padding: [6, 16], borderRadius: 999, fontSize: 20 }}>New</Text>
           <Heading style={{ fontSize: 64 }}>Launch week</Heading>
-          <Paragraph style={{ fontSize: 28, color: "#e2e8f0" }}>Five days of new things, one a day.</Paragraph>
+          <Text style={{ fontSize: 28, color: "#e2e8f0" }}>Five days of new things, one a day.</Text>
         </Column>
       </Layer>
     </Canvas>

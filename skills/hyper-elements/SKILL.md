@@ -1,9 +1,9 @@
 ---
-name: unlayer-elements
-description: Write emails, web pages, printed documents, PDFs and images in code with Unlayer Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
+name: hyper-elements
+description: Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@unlayer/react-elements), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.
 ---
 
-# Unlayer Elements
+# Hyper Elements
 
 <!-- Written from the component definitions by packages/react/src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @unlayer/react-elements test reference -->
 
@@ -23,7 +23,7 @@ A project may have templates written for Elements 0.2: they import `Body`, `Colu
 - Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: "#111827" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `"12px 24px"`. A box's text styles are inherited by what it holds.
 - There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.
 - A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.
-- Text is components, not HTML: `Heading level={1}` and `Paragraph` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.
+- Text is components, not HTML: `Heading level={1}` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.
 - `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.
 - Lists: `<List type="number">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.
 - Phones: `mobile={{ fontSize: 20 }}` (the styles listed under "Phones"), `hidden={{ mobile: true }}`. Hover: `hover={{ backgroundColor: "#374151" }}` (those under "Hover").
@@ -43,7 +43,7 @@ Each of these made an agent's first try fail:
 ## A whole template
 
 ```tsx
-import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Paragraph, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
+import { Button, Column, Email, Heading, Image, Link, List, ListItem, MergeTag, Text, Row, Span, Table, TableCell, TableRow } from "@unlayer/react-elements";
 
 export default function Receipt() {
   return (
@@ -53,9 +53,9 @@ export default function Receipt() {
         <Heading level={1} style={{ fontSize: 24 }} mobile={{ fontSize: 20 }}>
           Thanks for your order, <MergeTag name="first_name" />
         </Heading>
-        <Paragraph>
+        <Text>
           Order <Span style={{ fontWeight: 700 }}>#10482</Span> ships tomorrow. <Link href="https://example.com/orders/10482">Track it</Link>.
-        </Paragraph>
+        </Text>
         <Table style={{ cellPadding: [8, 0], rowBorder: "1px solid #e4e4e7" }}>
           <TableRow header>
             <TableCell>Item</TableCell>
@@ -68,11 +68,11 @@ export default function Receipt() {
         </Table>
         <Row style={{ gap: 16 }}>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Shipping to</Paragraph>
-            <Paragraph>Ada Lovelace, London</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Shipping to</Text>
+            <Text>Ada Lovelace, London</Text>
           </Column>
           <Column>
-            <Paragraph style={{ fontWeight: 700 }}>Next steps</Paragraph>
+            <Text style={{ fontWeight: 700 }}>Next steps</Text>
             <List type="number">
               <ListItem>We pack it</ListItem>
               <ListItem>You track it</ListItem>
@@ -83,22 +83,41 @@ export default function Receipt() {
           View your order
         </Button>
       </Column>
-      <Paragraph style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Paragraph>
+      <Text style={{ fontSize: 12, color: "#71717a", textAlign: "center" }}>Acme Inc., 1 Market St, San Francisco</Text>
     </Email>
   );
 }
 ```
 
+## A Canvas as an image
+
+`renderImage(element, options)` (`@unlayer/react-elements/image`) writes a `Canvas` as a PNG (`format: "svg"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise than written: a weight not given, a hover); errors throw an `ElementsError`.
+
+```tsx
+import { readFile } from "node:fs/promises";
+import { Canvas, Heading, Image } from "@unlayer/react-elements";
+import { renderImage } from "@unlayer/react-elements/image";
+
+const { image, diagnostics } = await renderImage(
+  <Canvas width={1200} height={630} style={{ padding: 64, gap: 24, fontFamily: "Inter", textAlign: "center", justifyContent: "center" }}>
+    <Image src={{ src: "https://example.com/logo.png", width: 240, height: 80 }} alt="Acme" style={{ width: 120 }} />
+    <Heading level={1} style={{ fontSize: 64 }}>Launch week</Heading>
+  </Canvas>,
+  {
+    fonts: [{ family: "Inter", src: await readFile("Inter-Bold.ttf"), weight: 700 }],
+    images: { "https://example.com/logo.png": await readFile("logo.png") },
+  }
+);
+```
+
 ## Social cards
 
-`renderImage(element, { fonts, images })` (`@unlayer/react-elements/image`) writes a `Canvas` as PNG or SVG from the font files and image bytes it's given.
-
 - An image under the content: a `Layer` (there's no `backgroundImage`), an `Image` first, the rest over it. Its `height` crops the image to cover it; `alignItems: "end"` puts the rest at the bottom.
-- A pill or badge as wide as its text: `alignSelf` on a `Paragraph` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.
+- A pill or badge as wide as its text: `alignSelf` on a `Text` or `Heading`, with `backgroundColor`, `padding`, `borderRadius: 999`.
 - A bar down one edge: `border: { left: "16px solid #f97316" }` on the `Canvas`, or on a `Column` (a card).
 
 ```tsx
-import { Canvas, Column, Heading, Image, Layer, Paragraph } from "@unlayer/react-elements";
+import { Canvas, Column, Heading, Image, Layer, Text } from "@unlayer/react-elements";
 
 export default function LaunchCard() {
   return (
@@ -106,9 +125,9 @@ export default function LaunchCard() {
       <Layer style={{ height: 630, alignItems: "end" }}>
         <Image src={{ src: "https://example.com/hero.jpg", width: 1600, height: 900 }} alt="" />
         <Column style={{ padding: 64, gap: 16 }}>
-          <Paragraph style={{ alignSelf: "start", backgroundColor: "#f97316", padding: [6, 16], borderRadius: 999, fontSize: 20 }}>New</Paragraph>
+          <Text style={{ alignSelf: "start", backgroundColor: "#f97316", padding: [6, 16], borderRadius: 999, fontSize: 20 }}>New</Text>
           <Heading style={{ fontSize: 64 }}>Launch week</Heading>
-          <Paragraph style={{ fontSize: 28, color: "#e2e8f0" }}>Five days of new things, one a day.</Paragraph>
+          <Text style={{ fontSize: 28, color: "#e2e8f0" }}>Five days of new things, one a day.</Text>
         </Column>
       </Layer>
     </Canvas>
@@ -138,7 +157,7 @@ export default function LaunchCard() {
 ### Blocks
 
 - **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
-- **Paragraph**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), alignSelf (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
+- **Text**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), alignSelf (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto). Style: text, box, textDecoration (none|underline|line-through), alignSelf (start|center|end), flex. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text), attrs (attributes). Style: text, box, textDecoration (none|underline|line-through), boxSizing (border-box|content-box), alignSelf (start|center|end), flex. Hover: color, backgroundColor. Phones: fontSize, lineHeight, letterSpacing, textAlign, width, maxWidth, padding, border, alignSelf.
 - **Image**: An image in the content. Without a width it takes its own size, no wider than its parent. Props: src* (asset), alt (text), title (text). Style: width, maxWidth, height, border, borderRadius, flex, alignSelf (start|center|end), verticalAlign (top|middle). Phones: width, maxWidth, border, alignSelf.

@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -48,13 +48,13 @@ export default function WelcomeEmail(): ReactElement {
         >
           Welcome to Acme
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 15, color: "#52525b", textAlign: "left", lineHeight: 1.7 }}>
+        <Text style={{ padding: 10, fontSize: 15, color: "#52525b", textAlign: "left", lineHeight: 1.7 }}>
           {"Thanks for signing up. "}
           <Span style={{ fontWeight: 700 }}>Acme</Span>
           {
             " gives your team everything it needs to go from idea to production, fast. Here’s what’s waiting for you."
           }
-        </Paragraph>
+        </Text>
         <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
             href="#"
@@ -107,9 +107,9 @@ export default function WelcomeEmail(): ReactElement {
             >
               Instant Deploys
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
               Push to ship. Global CDN and HTTPS out of the box.
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
             <Heading
@@ -138,9 +138,9 @@ export default function WelcomeEmail(): ReactElement {
             >
               Team Workflows
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
               Branch previews, inline comments, and review flows built in.
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -175,9 +175,9 @@ export default function WelcomeEmail(): ReactElement {
             >
               Real-time Analytics
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
               Performance, errors, and usage insights with zero config.
-            </Paragraph>
+            </Text>
           </Column>
           <Column style={{ width: "50%" }}>
             <Heading
@@ -206,9 +206,9 @@ export default function WelcomeEmail(): ReactElement {
             >
               Enterprise Ready
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#71717a", textAlign: "left", lineHeight: 1.5 }}>
               SOC 2, SSO, audit logs, and role-based access from day one.
-            </Paragraph>
+            </Text>
           </Column>
         </Row>
       </Section>
@@ -216,16 +216,16 @@ export default function WelcomeEmail(): ReactElement {
       {/* Help note */}
       <Section style={{ backgroundColor: "#ffffff", padding: [32, 0, 40, 0] }}>
         <Divider style={{ borderTop: "1px solid #e4e4e7", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
           Questions? Just reply to this email — a real person will get back to you within the hour.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ padding: [20, 0, 40, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           Acme Inc · San Francisco, CA
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

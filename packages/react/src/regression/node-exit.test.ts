@@ -27,7 +27,7 @@ const built = () => ["primitives.js", "primitives.cjs", "builder.js", "builder.c
 
 /** A template, its HTML (render() is a promise) and its design worked out in an app's own render, then a hook. */
 const RENDER = `const h = React.createElement;
-const email = h(E.Email, null, h(E.Paragraph, null, "Hi there"));
+const email = h(E.Email, null, h(E.Text, null, "Hi there"));
 // In an app's own render: the design worked out in a component, then a hook.
 const Page = () => { const rows = React.useMemo(() => B.toDesign(email).design.body.rows.length, []); const [open] = React.useState(false); return h("pre", null, rows + " rows, open=" + open); };`;
 
@@ -80,7 +80,7 @@ const B = require("@unlayer/react-elements/builder");
 const atImport = calls;
 const reactDom = [...new Set(Object.keys(require.cache).filter((file) => /react-dom[\\/]/.test(file)).map((file) => file.split(/react-dom[\\/]/).pop()).filter((file) => file.startsWith("server")))];
 const h = React.createElement;
-const email = h(E.Email, null, h(E.Paragraph, null, "Hi there"));
+const email = h(E.Email, null, h(E.Text, null, "Hi there"));
 const rows = B.toDesign(email).design.body.rows.length;
 E.render(email).then(({ html }) => console.log(JSON.stringify({ atImport, reactDom, rendered: calls > 0 && html.includes("Hi there") && rows === 1 })));
 `
@@ -181,7 +181,7 @@ import * as B from "@unlayer/react-elements/builder";
 import React from "react";
 import { renderToString } from "react-dom/server";
 const h = React.createElement;
-const email = h(E.Email, null, h(E.Paragraph, null, "Hi there"));
+const email = h(E.Email, null, h(E.Text, null, "Hi there"));
 // Elements called in components the app's render renders (a preview's layout, a design worked out there).
 const Preview = () => h("pre", null, E.outline(email));
 const Rows = () => h("pre", null, B.toDesign(email).design.body.rows.length + " rows");

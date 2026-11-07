@@ -209,13 +209,13 @@ export default function Welcome() { return <Html><Body><Button>Go</Button></Body
   });
 
   it("are checked with text props that hold markup: a template that escapes them twice fails, though its preview draws the same", async () => {
-    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { Email, Row, Column, Text: ElementsText } = await import("@unlayer/react-elements");
     const { Html, Body, Text } = await import("@react-email/components");
     const React = (await import("react")).default;
     const Original = ({ name }: { name: string }) => React.createElement(Html, null, React.createElement(Body, null, React.createElement(Text, null, name)));
     const twice = (name: string) => name.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    const escaped = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Paragraph, null, twice(name)))));
-    const once = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Paragraph, null, name))));
+    const escaped = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(ElementsText, null, twice(name)))));
+    const once = ({ name }: { name: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(ElementsText, null, name))));
     const props = { name: "Alex" };
     const failed = (check: Awaited<ReturnType<typeof lib.verifyNewComponents>>) => check.variants.map((variant) => variant.change);
     expect(failed(await lib.verifyNewComponents(Original as never, escaped as never, { props }))).toEqual(["text props with markup"]);
@@ -717,7 +717,7 @@ export default function Welcome() { return <Shell><Text>Welcome aboard</Text></S
       // The layout's markup is in the migrated template, which no longer needs the barrel.
       expect(out.out, barrel).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
       const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
-      expect(migrated).toMatch(/<Paragraph[^>]*>\s*Welcome aboard/);
+      expect(migrated).toMatch(/<Text[^>]*>\s*Welcome aboard/);
       expect(migrated).not.toContain("components");
     }
   });
@@ -1003,9 +1003,9 @@ export default function Hi({ name }: { name: string }) {
 Hi.PreviewProps = { name: "Alex" };
 `;
     // The original's look: a white page, and a button that looks like a link on the left (React Email's Button has no colors of its own).
-    const migrated = (text: string, button = 'style={{ backgroundColor: "transparent", color: "#0000ee", fontSize: 16, padding: 0 }}') => `import { Button, Column, Email, Paragraph, Section } from "@unlayer/react-elements";
+    const migrated = (text: string, button = 'style={{ backgroundColor: "transparent", color: "#0000ee", fontSize: 16, padding: 0 }}') => `import { Button, Column, Email, Text, Section } from "@unlayer/react-elements";
 export default function Hi({ name }: { name: string }) {
-  return <Email style={{ backgroundColor: "#ffffff" }}><Section><Column style={{ alignItems: "start" }}><Paragraph>${text}</Paragraph><Button href={{ href: "https://example.com", target: "_blank" }} ${button}>Start</Button></Column></Section></Email>;
+  return <Email style={{ backgroundColor: "#ffffff" }}><Section><Column style={{ alignItems: "start" }}><Text>${text}</Text><Button href={{ href: "https://example.com", target: "_blank" }} ${button}>Start</Button></Column></Section></Email>;
 }
 `;
     const dir = project({ "emails/hi.tsx": original, "migrated/good.tsx": migrated("Hello {name}, welcome aboard."), "migrated/bad.tsx": migrated("Hello {name}, welcome."), "migrated/styled.tsx": migrated("Hello {name}, welcome aboard.", "") });
@@ -1045,7 +1045,7 @@ export default function Hi() { return <Email><Row><Column><Paragraph>Hi</Paragra
     expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], out, lib)).toBe(1);
     expect(out.out).toBe("");
     expect(out.err).toBe(
-      `migrated/old hi.tsx is written in Elements 0.2's components (it imports ColumnLayouts from @unlayer/react-elements), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
+      `migrated/old hi.tsx is written in Elements 0.2's components (it imports ColumnLayouts, Paragraph from @unlayer/react-elements), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
         `  npx @unlayer/migrate --from elements "migrated/old hi.tsx" --write\n` +
         `  npx @unlayer/migrate compare emails/hi.tsx "migrated/old hi.tsx"\n`
     );
@@ -1087,7 +1087,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     const out = io(dir);
     expect(await main(["emails", "--report", "report.txt"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toContain("Report: report.txt (written as Markdown: name it .json for JSON)\n");
-    expect(fs.readFileSync(path.join(dir, "report.txt"), "utf8")).toMatch(/^# React Email → Unlayer Elements migration/);
+    expect(fs.readFileSync(path.join(dir, "report.txt"), "utf8")).toMatch(/^# React Email → Hyper Elements migration/);
     for (const name of ["report.md", "report.json"]) {
       const named = io(dir);
       expect(await main(["emails", "--report", name], named, lib)).toBe(0);
@@ -1133,7 +1133,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     // Run with nothing at all, it says how it's used.
     const bare = io(dir);
     expect(await main([], bare, lib)).toBe(1);
-    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Unlayer Elements\.\n\nUsage:/);
+    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Hyper Elements\.\n\nUsage:/);
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);
     expect(help.out).toContain("npx @unlayer/migrate");
@@ -1220,8 +1220,8 @@ export default function T() { return <Html><Body><Text>Pay $1.00 today</Text></B
   });
 
   it("rejects a changed price in compare", async () => {
-    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
-export default function T() { return <Email><Row><Column><Paragraph>Pay $100 today</Paragraph></Column></Row></Email>; }`;
+    const migrated = `import { Email, Row, Column, Text } from "@unlayer/react-elements";
+export default function T() { return <Email><Row><Column><Text>Pay $100 today</Text></Column></Row></Email>; }`;
     const dir = project({ "emails/t.tsx": source, "wrong.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "emails/t.tsx", "wrong.tsx"], out, lib)).toBe(

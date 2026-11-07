@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Html, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, validate, Video } from "./index";
+import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Html, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, outline, Page, Text, render, Row, Section, Social, Span, Table, TableCell, TableRow, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import * as primitives from "./index";
 
@@ -13,12 +13,12 @@ const welcome = (
       <Image src={{ src: "https://example.com/logo.png", width: 120 }} alt="Logo" />
     </Section>
     <Heading level={2}>Welcome</Heading>
-    <Paragraph style={{ fontSize: 14 }}>
+    <Text style={{ fontSize: 14 }}>
       Hi <MergeTag name="first_name" />, read <Link href="https://example.com/docs">the docs</Link>.
-    </Paragraph>
+    </Text>
     <Row style={{ gap: 20 }}>
       <Column style={{ width: "40%" }}>
-        <Paragraph>Left</Paragraph>
+        <Text>Left</Text>
       </Column>
       <Column>
         <Button id="cta" href="https://example.com" hover={{ backgroundColor: "#000" }}>
@@ -67,7 +67,7 @@ describe("render()", () => {
     const template = (
       <Email {...compat({ css: "body{color:red}", previewHtml: "<script>1</script>" })}>
         <Section {...compat({ background: { url: "https://example.com/x.png" } })}>
-          <Paragraph {...compat({ className: "from-template" })}>Words</Paragraph>
+          <Text {...compat({ className: "from-template" })}>Words</Text>
         </Section>
       </Email>
     );
@@ -77,8 +77,8 @@ describe("render()", () => {
     expect(primitives.validate(template).diagnostics.map((d) => d.code)).toContain("jsx/compat");
     expect(tree(template)?.root).not.toHaveProperty("compat");
     // An id of other characters stays refused.
-    expect(primitives.validate(<Email><Paragraph {...compat({ anyId: true })} id="odd id">Words</Paragraph></Email>).diagnostics.map((d) => d.code)).toContain("id/invalid");
-    const Custom = primitives.component({ type: "acme.Own", label: "Own", props: {}, render: () => <Paragraph {...compat({ className: "from-custom" })}>Custom</Paragraph> });
+    expect(primitives.validate(<Email><Text {...compat({ anyId: true })} id="odd id">Words</Text></Email>).diagnostics.map((d) => d.code)).toContain("id/invalid");
+    const Custom = primitives.component({ type: "acme.Own", label: "Own", props: {}, render: () => <Text {...compat({ className: "from-custom" })}>Custom</Text> });
     await expect(render(<Email><Custom /></Email>)).rejects.toThrow("compat isn't a prop of a template");
   });
 
@@ -124,7 +124,7 @@ describe("render()", () => {
   });
 
   it("renders a Grid in JSX as its children in columns of equal width, in email and on a page", async () => {
-    const cards = ["One", "Two", "Three"].map((word) => <Paragraph key={word} id={`card-${word}`}>{word}</Paragraph>);
+    const cards = ["One", "Two", "Three"].map((word) => <Text key={word} id={`card-${word}`}>{word}</Text>);
     const email = await render(<Email width={600}><Grid columns={2} style={{ gap: 20 }}>{cards}</Grid></Email>);
     // Two Rows: two cells of 290px, then one and an empty cell that keeps its width (not drawn on phones).
     expect(email.html.match(/width="290"/g)?.length).toBeGreaterThanOrEqual(4);
@@ -140,17 +140,17 @@ describe("render()", () => {
     const { html, text } = await render(
       <Document size="A5" title="Report">
         <PageHeader>
-          <Paragraph>Quarterly report</Paragraph>
+          <Text>Quarterly report</Text>
         </PageHeader>
         <Heading>Summary</Heading>
         <PageBreak />
         <Document.Page style={{ backgroundColor: "#fafafa" }}>
-          <Paragraph>Appendix</Paragraph>
+          <Text>Appendix</Text>
         </Document.Page>
         <PageFooter>
-          <Paragraph style={{ textAlign: "right" }}>
+          <Text style={{ textAlign: "right" }}>
             <PageNumber /> / <PageNumber total />
-          </Paragraph>
+          </Text>
         </PageFooter>
       </Document>
     );
@@ -185,8 +185,8 @@ describe("render()", () => {
       <Email previewText="Your order" style={{ gap: 16 }}>
         <Heading>Thanks</Heading>
         <Row style={{ gap: 20 }}>
-          <Column><Paragraph>Left</Paragraph></Column>
-          <Column><Paragraph>Right</Paragraph></Column>
+          <Column><Text>Left</Text></Column>
+          <Column><Text>Right</Text></Column>
         </Row>
         <Button href="https://example.com">Track it</Button>
       </Email>
@@ -250,10 +250,10 @@ describe("outline()", () => {
         "  Section 640px: background #111111",
         "    Image 120px [Logo] https://example.com/logo.png",
         "  Heading h2 640px \"Welcome\"",
-        "  Paragraph 640px \"Hi {{first_name}}, read the docs (https://example.com/docs).\"",
+        "  Text 640px \"Hi {{first_name}}, read the docs (https://example.com/docs).\"",
         "  Row 640px: 2 side by side, stacked on phones",
         "    Column 256px",
-        "      Paragraph 256px \"Left\"",
+        "      Text 256px \"Left\"",
         "    Column 364px",
         "      Button: background #0879a1 \"Get started\" → https://example.com",
         "  Divider 640px",
@@ -264,15 +264,15 @@ describe("outline()", () => {
   it("says which blocks show on one only, and lays a Grid out as its rows, side by side on phones where it says so", () => {
     const lines = outline(
       <Email>
-        <Paragraph hidden={{ mobile: true }}>Wide screens</Paragraph>
+        <Text hidden={{ mobile: true }}>Wide screens</Text>
         <Grid columns={3} stackOnMobile={false}>
-          <Paragraph>a</Paragraph>
-          <Paragraph>b</Paragraph>
-          <Paragraph>c</Paragraph>
+          <Text>a</Text>
+          <Text>b</Text>
+          <Text>c</Text>
         </Grid>
       </Email>
     ).split("\n");
-    expect(lines[1]).toBe('  Paragraph 600px: desktop only "Wide screens"');
+    expect(lines[1]).toBe('  Text 600px: desktop only "Wide screens"');
     expect(lines.slice(2, 4)).toEqual(["  Column 600px", "    Row 600px: 3 side by side"]);
   });
 
@@ -280,7 +280,7 @@ describe("outline()", () => {
     expect(
       outline(
         <Page>
-          <Paragraph hidden={{ desktop: true }}>Phones</Paragraph>
+          <Text hidden={{ desktop: true }}>Phones</Text>
           <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />
           <Menu items={[{ text: "Home", href: "https://x.test/" }, { text: "Blog", href: "https://x.test/blog" }]} />
           <Svg width={20} height={10}>
@@ -291,25 +291,25 @@ describe("outline()", () => {
       ).split("\n")
     ).toEqual([
       "Page 1200px",
-      '  Paragraph 1200px: phones only "Phones"',
+      '  Text 1200px: phones only "Phones"',
       '  Video 1200px "Launch" https://www.youtube.com/watch?v=dQw4w9WgXcQ',
       "  Row 1200px: 2 side by side",
-      '    Paragraph "Home (https://x.test/)"',
-      '    Paragraph "Blog (https://x.test/blog)"',
+      '    Text "Home (https://x.test/)"',
+      '    Text "Blog (https://x.test/blog)"',
       "  Svg 20px (2 shapes)",
     ]);
     expect(
       outline(
         <Document>
           <PageHeader>
-            <Paragraph>Acme</Paragraph>
+            <Text>Acme</Text>
           </PageHeader>
           <Document.Page>
-            <Paragraph>One</Paragraph>
+            <Text>One</Text>
           </Document.Page>
         </Document>
       ).split("\n")
-    ).toEqual(["Document 698px", "  PageHeader 698px", '    Paragraph 698px "Acme"', "  Document.Page 698px", '    Paragraph 698px "One"']);
+    ).toEqual(["Document 698px", "  PageHeader 698px", '    Text 698px "Acme"', "  Document.Page 698px", '    Text 698px "One"']);
   });
 
   it("throws a problem found laying the template out, with what it is", () => {
@@ -334,7 +334,7 @@ describe("outline()", () => {
 describe("validate()", () => {
   it("lists problems with their paths, without throwing", () => {
     // @ts-expect-error a Button needs an href; Text takes no margin
-    const result = validate(<Page><Button>Go</Button><Paragraph style={{ margin: 4 }}>x</Paragraph></Page>);
+    const result = validate(<Page><Button>Go</Button><Text style={{ margin: 4 }}>x</Text></Page>);
     expect(result.valid).toBe(false);
     expect(result.diagnostics.map((d) => [d.code, d.path])).toEqual([
       ["prop/required", "root.children[0].props.href"],
@@ -359,7 +359,7 @@ describe("validate()", () => {
     // @ts-expect-error: no markup at all
     expect(validate(<Email><Html /></Email>).valid).toBe(false);
     // What's in it is markup: a component of a template has nowhere to go in it.
-    expect(validate(<Email><Html><Paragraph>x</Paragraph></Html></Email>).valid).toBe(false);
+    expect(validate(<Email><Html><Text>x</Text></Html></Email>).valid).toBe(false);
   });
 
   it("draws an image at its width on phones, in place of a share of its column on desktop", async () => {
@@ -370,7 +370,7 @@ describe("validate()", () => {
   });
 
   it("holds a box's padding inside its height in an email, as on a page", async () => {
-    const { html } = await render(<Email><Column style={{ height: 80, padding: 12 }}><Paragraph>x</Paragraph></Column></Email>);
+    const { html } = await render(<Email><Column style={{ height: 80, padding: 12 }}><Text>x</Text></Column></Email>);
     expect(html).toMatch(/<td[^>]*height="80"[^>]*style="[^"]*height:56px/);
   });
 
@@ -378,8 +378,8 @@ describe("validate()", () => {
     const { html } = await render(
       <Email>
         <Row stackOnMobile={false}>
-          <Column style={{ width: 64 }}><Paragraph>a</Paragraph></Column>
-          <Column><Paragraph>b</Paragraph></Column>
+          <Column style={{ width: 64 }}><Text>a</Text></Column>
+          <Column><Text>b</Text></Column>
         </Row>
       </Email>
     );
@@ -413,8 +413,8 @@ describe("validate()", () => {
   });
 
   it("reports HTML that isn't a component, and what isn't one root", () => {
-    expect(validate(<Page><Paragraph><b>bold</b></Paragraph></Page>).diagnostics.map((d) => d.code)).toEqual(["jsx/markup"]);
-    expect(validate(<Page><Paragraph><b>bold</b></Paragraph></Page>).diagnostics[0].message).toMatch(/use the primitives .*\. Every component: @unlayer\/react-elements\/GUIDE\.md$/);
+    expect(validate(<Page><Text><b>bold</b></Text></Page>).diagnostics.map((d) => d.code)).toEqual(["jsx/markup"]);
+    expect(validate(<Page><Text><b>bold</b></Text></Page>).diagnostics[0].message).toMatch(/use the primitives .*\. Every component: @unlayer\/react-elements\/GUIDE\.md$/);
     expect(validate(<div />).diagnostics.map((d) => d.code)).toEqual(["jsx/markup", "jsx/root"]);
     expect(validate(<><Page /><Page /></>).diagnostics.map((d) => d.code)).toEqual(["jsx/root"]);
   });
@@ -426,7 +426,7 @@ describe("validate()", () => {
     }) as unknown as React.FC;
     const Pending = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
     // One inside a component of the user's own is called by React, which fails on it.
-    const Later = (async () => <Paragraph>later</Paragraph>) as unknown as React.FC;
+    const Later = (async () => <Text>later</Text>) as unknown as React.FC;
     const Wrapper = () => <Later />;
     const templates = [
       <Email>
@@ -452,8 +452,8 @@ describe("validate()", () => {
     // A Suspense whose content is ready is its content.
     const ready = await render(
       <Email>
-        <Suspense fallback={<Paragraph>loading</Paragraph>}>
-          <Paragraph>ready</Paragraph>
+        <Suspense fallback={<Text>loading</Text>}>
+          <Text>ready</Text>
         </Suspense>
       </Email>
     );
@@ -466,7 +466,7 @@ describe("validate()", () => {
     };
     const thrown = validate(
       <Email>
-        <Suspense fallback={<Paragraph>loading</Paragraph>}>
+        <Suspense fallback={<Text>loading</Text>}>
           <Boom />
         </Suspense>
       </Email>
@@ -491,7 +491,7 @@ describe("validate()", () => {
       throw new Error("down");
     }) as unknown as React.FC;
     const Theme = createContext("light");
-    const Later = (async () => <Paragraph>later</Paragraph>) as unknown as React.FC;
+    const Later = (async () => <Text>later</Text>) as unknown as React.FC;
     const Wrapper = () => <Later />;
     const asyncOnly = [
       <Email>
@@ -565,7 +565,7 @@ describe("the template, as collected (internal)", () => {
     const Rows = forwardRef<unknown, { items: string[] }>(({ items }, _ref) => (
       <>
         {items.map((item) => (
-          <Paragraph key={item}>{item}</Paragraph>
+          <Text key={item}>{item}</Text>
         ))}
       </>
     ));
@@ -582,8 +582,8 @@ describe("the template, as collected (internal)", () => {
       </Theme.Provider>
     );
     expect(document!.root.children).toEqual([
-      { type: "Paragraph", children: ["a"] },
-      { type: "Paragraph", children: ["b"] },
+      { type: "Text", children: ["a"] },
+      { type: "Text", children: ["b"] },
       { type: "Button", props: { href: "https://example.com" }, style: { backgroundColor: "#ff0000" }, children: ["Buy 2"] },
     ]);
   });
@@ -591,15 +591,15 @@ describe("the template, as collected (internal)", () => {
   it("keeps text as written, entities and markup-looking text included", () => {
     const document = tree(
       <Page>
-        <Paragraph>
+        <Text>
           {"a < b & 'c' \"d\" <b>not bold</b>"} {3}
           <LineBreak />
           <Span style={{ fontWeight: "bold" }}>x</Span>
-        </Paragraph>
+        </Text>
       </Page>
     );
     expect(document!.root.children![0]).toEqual({
-      type: "Paragraph",
+      type: "Text",
       children: ["a < b & 'c' \"d\" <b>not bold</b> 3", { type: "LineBreak" }, { type: "Span", style: { fontWeight: 700 }, children: ["x"] }],
     });
   });

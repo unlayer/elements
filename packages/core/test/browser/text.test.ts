@@ -17,9 +17,9 @@ const template = (root: "Page" | "Email") => ({
     type: root,
     props: { width: 600 },
     children: [
-      { type: "Paragraph", id: "plain", children: ["Brand name and words"] },
-      { type: "Paragraph", id: "raised", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " name and words"] },
-      { type: "Paragraph", id: "lowered", children: ["H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O and words"] },
+      { type: "Text", id: "plain", children: ["Brand name and words"] },
+      { type: "Text", id: "raised", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " name and words"] },
+      { type: "Text", id: "lowered", children: ["H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O and words"] },
     ],
   },
 });
@@ -70,7 +70,7 @@ for (const root of ["Page", "Email"] as const) {
         type: root,
         props: { width: 600 },
         children: [
-          { type: "Row", props: { stackOnMobile: false }, children: [{ type: "Column", id: "column", children: [{ type: "Paragraph", id: "text", children: [word] }] }, { type: "Column", children: [{ type: "Paragraph", children: ["Beside it"] }] }] },
+          { type: "Row", props: { stackOnMobile: false }, children: [{ type: "Column", id: "column", children: [{ type: "Text", id: "text", children: [word] }] }, { type: "Column", children: [{ type: "Text", children: ["Beside it"] }] }] },
         ],
       },
     };

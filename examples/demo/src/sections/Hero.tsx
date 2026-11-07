@@ -112,7 +112,7 @@ export default function Hero() {
                 </svg>
               </a>
               <a
-                href="https://github.com/unlayer/elements"
+                href="https://github.com/hyper-elements/hyper-elements"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-xl border border-border hover:border-border-light text-text-secondary hover:text-text-primary font-medium text-sm transition-all duration-200 hover:-translate-y-0.5"

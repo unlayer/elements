@@ -1,4 +1,4 @@
-# CLAUDE.md — Unlayer Elements
+# CLAUDE.md — Hyper Elements
 
 ## What is this project?
 
@@ -37,7 +37,7 @@ Email/Page/Document/Canvas (the root: which output render() writes)
   └─ Section (a band across the window, optional)
       └─ Row (its Columns side by side, stacked on phones)
           └─ Column (its children stacked)
-              └─ Heading/Paragraph/Text/Button/Image/... (text runs inside: Span, Link, LineBreak, MergeTag)
+              └─ Heading/Text/Button/Image/... (text runs inside: Span, Link, LineBreak, MergeTag)
 ```
 
 A root, a `Section` and a `Column` stack what they hold. Styles go in `style` (typed, a number is px), phone styles in
@@ -134,5 +134,5 @@ Not blockers: how a migration looks. A look difference (a style, where words sit
 - Styles go in `style={{ … }}`, never as props, and a number is px; there are no margins (space between blocks is the parent's `gap`)
 - An `Image` takes its file's size: `src={{ src, width, height }}`; `style.width` is the size shown
 - `render()` is async (`await render(element)`); `validate()`, `outline()`, `toDesign()` and `fromDesign()` aren't
-- Text goes in `Heading` or `Paragraph`; markup outside an `Html` block is an error (`jsx/markup`), and so is a component that's async or suspends (`jsx/async`)
+- Text goes in `Heading` or `Text`; markup outside an `Html` block is an error (`jsx/markup`), and so is a component that's async or suspends (`jsx/async`)
 - `packages/core` is private and bundled into react via tsup's `noExternal` — it's never installed separately

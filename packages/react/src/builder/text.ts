@@ -11,7 +11,7 @@ import { color, fontWeight, px } from "./read-values";
 import { textJsonHtml } from "./text-json";
 
 export interface TextPart {
-  /** A Paragraph's runs, or a List. */
+  /** A Text's runs, or a List. */
   node: Node;
   /** Its margins above and below, in px. */
   margin: { top: number; bottom: number };
@@ -176,11 +176,11 @@ export function readText(html: string, { weight = 400, pages = false, links = tr
     return mergeTags(read.children, pages);
   };
   const NONE = { top: 0, bottom: 0 };
-  if (!blocky(html)) return { parts: [{ node: { type: "Paragraph", children: runs(html) }, margin: NONE }], left };
+  if (!blocky(html)) return { parts: [{ node: { type: "Text", children: runs(html) }, margin: NONE }], left };
   const parts: TextPart[] = [];
   let inline = "";
   const flush = () => {
-    if (inline.trim()) parts.push({ node: { type: "Paragraph", children: runs(inline) }, margin: NONE });
+    if (inline.trim()) parts.push({ node: { type: "Text", children: runs(inline) }, margin: NONE });
     inline = "";
   };
   // The top level: `<p>`s, headings and lists as blocks, what's between them as lines.
@@ -248,7 +248,7 @@ function readHeading(level: number, attrs: string, inner: string, runs: (html: s
   return { node: { type: "Heading", props: { level, ...(dir ? { dir } : {}) }, style: css, children: runs(inner, weight ?? 700) }, margin: margin ?? { top: 0, bottom: 0 } };
 }
 
-/** A `<p>` as a Paragraph: its line height, alignment, direction and indent its own, its margins none but its style's. */
+/** A `<p>` as a Text: its line height, alignment, direction and indent its own, its margins none but its style's. */
 function readParagraph(attrs: string, inner: string, runs: (html: string) => Child[], fontSize: number, left: string[]): TextPart | undefined {
   const d = declarations(styleOf(attrs));
   const own: Record<string, Json> = {};
@@ -269,7 +269,7 @@ function readParagraph(attrs: string, inner: string, runs: (html: string) => Chi
   const children = runs(inner);
   // An empty paragraph is nothing; one with only a line break, a line of its height.
   if (!children.length && !/<\s*br\b/i.test(inner)) return undefined;
-  const node: Node = { type: "Paragraph", ...(dir ? { props: { dir } } : {}), ...(Object.keys(own).length ? { style: own } : {}), children: children.length ? children : ["\u200b"] };
+  const node: Node = { type: "Text", ...(dir ? { props: { dir } } : {}), ...(Object.keys(own).length ? { style: own } : {}), children: children.length ? children : ["\u200b"] };
   return { node, margin: margin ?? { top: 0, bottom: 0 }, ...(indent ? { indent } : {}) };
 }
 

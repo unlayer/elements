@@ -6,7 +6,7 @@
 import type { Node } from "@unlayer-internal/elements-core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Paragraph, Row, Section, Video } from "../primitives";
+import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Text, Row, Section, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign } from "./index";
 import { BUILDER_KEYS, BUILDER_PHONE_KEYS, HIDDEN } from "./manifest";
@@ -38,7 +38,7 @@ function items(design: any): Item[] {
 describe("a Row hidden somewhere, in a Section", () => {
   it("keeps its own hiding, and its Section's where the Section is the one hidden", () => {
     const rows = (element: React.ReactElement) => designOf(element).body.rows.map((row: any) => row.values._override ?? {});
-    const cells = [<Column key="a"><Paragraph>A</Paragraph></Column>, <Column key="b"><Paragraph>B</Paragraph></Column>];
+    const cells = [<Column key="a"><Text>A</Text></Column>, <Column key="b"><Text>B</Text></Column>];
     expect(rows(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Row hidden={{ mobile: true }}>{cells}</Row></Section></Email>)).toEqual([{ mobile: { hideMobile: true } }]);
     expect(rows(<Email><Section hidden={{ desktop: true }}><Row>{cells}</Row></Section></Email>)).toEqual([{ desktop: { hideDesktop: true } }]);
     const kept = back(designOf(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Row hidden={{ mobile: true }}>{cells}</Row></Section></Email>), "email");
@@ -50,9 +50,9 @@ describe("a Row hidden somewhere, in a Section", () => {
 const everyHidden = [
   <Email key="email" title="Welcome" lang="en" fonts={[{ family: "Inter", src: "https://fonts.test/inter.woff2", format: "woff2", weight: 400 }]}>
     <Section style={{ backgroundColor: "#eeeeee", border: "1px solid #cccccc" }}>
-      <Paragraph style={{ fontStyle: "italic", textTransform: "uppercase", textDecoration: "underline", backgroundColor: "#ffffff", border: "1px solid #000000", borderRadius: 4, width: 300, maxWidth: 400, padding: 8 }} mobile={{ maxWidth: 200 }}>
+      <Text style={{ fontStyle: "italic", textTransform: "uppercase", textDecoration: "underline", backgroundColor: "#ffffff", border: "1px solid #000000", borderRadius: 4, width: 300, maxWidth: 400, padding: 8 }} mobile={{ maxWidth: 200 }}>
         Boxed
-      </Paragraph>
+      </Text>
       <List style={{ indent: 30, gap: 6 }}>
         <ListItem>One</ListItem>
         <ListItem>Two</ListItem>
@@ -68,18 +68,18 @@ const everyHidden = [
     </Section>
     <Row style={{ borderRadius: 8, width: 500, minWidth: 300, maxWidth: 560, height: 200, overflow: "hidden", justifyContent: "center", flexWrap: "wrap" }}>
       <Column style={{ justifyContent: "end", minWidth: 100, maxWidth: 400, height: 100, overflow: "hidden" }} hidden={{ desktop: true }}>
-        <Paragraph>A</Paragraph>
+        <Text>A</Text>
       </Column>
       <Column hidden={{ mobile: true }}>
-        <Paragraph>B</Paragraph>
+        <Text>B</Text>
       </Column>
     </Row>
   </Email>,
   <Page key="page" description="A page">
-    <Paragraph>Page</Paragraph>
+    <Text>Page</Text>
   </Page>,
   <Document key="document" margin={[10, 20, 30, 40]}>
-    <Paragraph>Document</Paragraph>
+    <Text>Document</Text>
   </Document>,
 ];
 
@@ -152,7 +152,7 @@ describe("hidden properties", () => {
     const design = designOf(
       <Email>
         <Section style={{ backgroundColor: "#eeeeee", padding: 20, gap: 10, color: "#333333", textAlign: "center" }}>
-          <Paragraph style={{ padding: 4 }}>A</Paragraph>
+          <Text style={{ padding: 4 }}>A</Text>
           <Button href="https://x.test" style={{ padding: 12, width: 200 }}>
             B
           </Button>
@@ -199,19 +199,19 @@ describe("hidden properties", () => {
       const from = designOf(heading);
       const into = designOf(
         <Email>
-          <Paragraph>Other</Paragraph>
+          <Text>Other</Text>
         </Email>
       );
       into.body.rows[0].columns[0].contents.push(block(from));
       expect(back(into).children).toEqual([
-        { type: "Paragraph", children: ["Other"] },
+        { type: "Text", children: ["Other"] },
         { type: "Heading", style: { fontStyle: "italic", backgroundColor: "#fde68a", borderRadius: 8 }, children: ["Title"] },
       ]);
     });
 
     const text = (
       <Email>
-        <Paragraph style={{ textTransform: "uppercase", maxWidth: 400, border: { top: "1px solid #000000" } }}>Words</Paragraph>
+        <Text style={{ textTransform: "uppercase", maxWidth: 400, border: { top: "1px solid #000000" } }}>Words</Text>
       </Email>
     );
     const paragraphOf = (html: string, rest = {}) => {
@@ -224,25 +224,25 @@ describe("hidden properties", () => {
       return fromDesign(design);
     };
 
-    it("draw in a Paragraph's own paragraph, which the builder draws, not as values it only keeps", () => {
+    it("draw in a Text's own paragraph, which the builder draws, not as values it only keeps", () => {
       const design = designOf(text);
       const { values } = block(design);
       expect(block(design).type).toBe("paragraph");
       for (const key of ["textTransform", "maxWidth", "border"]) expect(values[key]).toBeUndefined();
       const [paragraph] = JSON.parse(values.textJson).root.children;
       expect(paragraph).toMatchObject({ type: "extended-paragraph", style: "text-transform:uppercase;max-width:400px;border-top:1px solid #000000" });
-      expect(back(design).children).toEqual([{ type: "Paragraph", style: { textTransform: "uppercase", maxWidth: 400, border: { top: { width: 1, style: "solid", color: "#000000" } } }, children: ["Words"] }]);
+      expect(back(design).children).toEqual([{ type: "Text", style: { textTransform: "uppercase", maxWidth: 400, border: { top: { width: 1, style: "solid", color: "#000000" } } }, children: ["Words"] }]);
     });
 
     it("come back as its editor leaves them: its own spacing and colors, and a copy on each paragraph a new line makes", () => {
       const same = { textTransform: "uppercase", maxWidth: 400 };
-      expect(tree(paragraphOf('<p style="margin: 0px; text-transform: uppercase; max-width: 400px; line-height: 150%;">Words</p>').element).children).toEqual([{ type: "Paragraph", style: { ...same, lineHeight: 1.5 }, children: ["Words"] }]);
+      expect(tree(paragraphOf('<p style="margin: 0px; text-transform: uppercase; max-width: 400px; line-height: 150%;">Words</p>').element).children).toEqual([{ type: "Text", style: { ...same, lineHeight: 1.5 }, children: ["Words"] }]);
       expect(tree(paragraphOf('<p style="margin: 0px; text-transform: uppercase; max-width: 400px;">One</p><p style="margin: 0px; text-transform: uppercase; max-width: 400px;">Two</p>').element).children).toEqual([
-        { type: "Paragraph", style: same, children: ["One"] },
-        { type: "Paragraph", style: same, children: ["Two"] },
+        { type: "Text", style: same, children: ["One"] },
+        { type: "Text", style: same, children: ["Two"] },
       ]);
       const painted = tree(paragraphOf('<p style="background-color: rgb(221, 221, 221); border-top: 1px solid rgb(0, 0, 0); border-radius: 4px; padding: 24px 8px 0px;">Words</p>').element).children as Node[];
-      expect(painted).toEqual([{ type: "Paragraph", style: { backgroundColor: "#dddddd", border: { top: { width: 1, style: "solid", color: "#000000" } }, borderRadius: 4, padding: { top: 24, right: 8, bottom: 0, left: 8 } }, children: ["Words"] }]);
+      expect(painted).toEqual([{ type: "Text", style: { backgroundColor: "#dddddd", border: { top: { width: 1, style: "solid", color: "#000000" } }, borderRadius: 4, padding: { top: 24, right: 8, bottom: 0, left: 8 } }, children: ["Words"] }]);
     });
 
     it("are read as markup, and said, where a block's paragraphs don't share them", () => {

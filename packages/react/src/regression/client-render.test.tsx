@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React, { act, useId, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Email, Html, Paragraph, outline, render, type RenderResult } from "../primitives/index";
+import { Email, Html, Text, outline, render, type RenderResult } from "../primitives/index";
 import { toDesign } from "../builder/index";
 
 // Renders run inside act(), as React's testing setup expects.
@@ -43,12 +43,12 @@ describe("components of a template, rendered once", () => {
     function Counter({ label }: { label: string }) {
       const [n, setN] = useState(0);
       if (n < 2) setN(n + 1);
-      return <Paragraph>{`${label} n=${n}`}</Paragraph>;
+      return <Text>{`${label} n=${n}`}</Text>;
     }
     const email = (
       <Email>
         <Counter label="first" />
-        <Paragraph id="after">after</Paragraph>
+        <Text id="after">after</Text>
         <Counter label="last" />
       </Email>
     );
@@ -64,7 +64,7 @@ describe("an app that renders on the client (a live preview)", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       let rendered: Promise<RenderResult> | undefined;
-      const template = <Email><Paragraph>Previewed</Paragraph></Email>;
+      const template = <Email><Text>Previewed</Text></Email>;
       function Preview({ zoom }: { zoom: number }) {
         const { design } = useMemo(() => toDesign(template), []);
         const laidOut = useMemo(() => outline(template), []);

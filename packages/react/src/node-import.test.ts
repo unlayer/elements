@@ -17,15 +17,15 @@ describe("Node environment (no jsdom)", () => {
   it("imports the main entry and /builder without a browser", async () => {
     const main = await import("./primitives/index");
     const builder = await import("./builder/index");
-    for (const name of ["Email", "Page", "Document", "Row", "Column", "Paragraph", "Button", "render", "validate", "outline", "prepare", "component"] as const) expect(main[name], name).toBeTypeOf("function");
+    for (const name of ["Email", "Page", "Document", "Row", "Column", "Text", "Button", "render", "validate", "outline", "prepare", "component"] as const) expect(main[name], name).toBeTypeOf("function");
     expect(builder.toDesign).toBeTypeOf("function");
     expect(builder.fromDesign).toBeTypeOf("function");
     expect(typeof document).toBe("undefined");
   });
 
   it("render() produces HTML and plain text", async () => {
-    const { render, Email, Paragraph } = await import("./primitives/index");
-    const { html, text } = await render(React.createElement(Email, null, React.createElement(Paragraph, null, "Hello from Node")));
+    const { render, Email, Text } = await import("./primitives/index");
+    const { html, text } = await render(React.createElement(Email, null, React.createElement(Text, null, "Hello from Node")));
     expect(html).toMatch(/^<!DOCTYPE html/i);
     expect(html).toContain("Hello from Node");
     expect(text).toBe("Hello from Node");

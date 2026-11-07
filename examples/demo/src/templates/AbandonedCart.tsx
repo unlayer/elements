@@ -6,7 +6,7 @@ import {
   Email,
   Heading,
   Image,
-  Paragraph,
+  Text,
   Row,
   Section,
   Span,
@@ -43,9 +43,9 @@ export default function AbandonedCart(): ReactElement {
         >
           Still thinking it over?
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 15, color: "#71717a", textAlign: "center", lineHeight: 1.6 }}>
+        <Text style={{ padding: 10, fontSize: 15, color: "#71717a", textAlign: "center", lineHeight: 1.6 }}>
           No rush — your cart is waiting. But these items are popular and stock is limited.
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Product 1 */}
@@ -78,9 +78,9 @@ export default function AbandonedCart(): ReactElement {
             >
               Ceramic Desk Lamp
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "left", lineHeight: 1.5 }}>
               Matte White · Medium
-            </Paragraph>
+            </Text>
             <Heading
               level={3}
               style={{
@@ -133,9 +133,9 @@ export default function AbandonedCart(): ReactElement {
             >
               Linen Throw Pillow
             </Heading>
-            <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "left", lineHeight: 1.5 }}>
+            <Text style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "left", lineHeight: 1.5 }}>
               Oatmeal · 20″ × 20″
-            </Paragraph>
+            </Text>
             <Heading
               level={3}
               style={{
@@ -162,9 +162,9 @@ export default function AbandonedCart(): ReactElement {
         >
           Cart Total: $134.00
         </Heading>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#16a34a", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 13, color: "#16a34a", textAlign: "center", lineHeight: 1.5 }}>
           Free shipping on orders over $100 ✔️
-        </Paragraph>
+        </Text>
         <Column style={{ padding: 10, alignItems: "center" }}>
           <Button
             href="#"
@@ -180,32 +180,32 @@ export default function AbandonedCart(): ReactElement {
             Complete Your Order
           </Button>
         </Column>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           Secure checkout · Free returns within 30 days
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Social proof */}
       <Section style={{ backgroundColor: "#ffffff", padding: [32, 0, 40, 0] }}>
         <Divider style={{ borderTop: "1px solid #f4f4f5", padding: 10 }} />
-        <Paragraph style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 14, color: "#71717a", textAlign: "center", lineHeight: 1.5 }}>
           {"★★★★★ "}
           <Span style={{ fontWeight: 700 }}>4.9/5</Span>
           {" from 2,400+ reviews"}
-        </Paragraph>
-        <Paragraph style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
+        </Text>
+        <Text style={{ padding: 10, fontSize: 13, color: "#a1a1aa", textAlign: "center", lineHeight: 1.6 }}>
           <Span style={{ fontStyle: "italic" }}>
             "Beautifully made. The lamp is even better in person."
           </Span>
           {" — Emma R."}
-        </Paragraph>
+        </Text>
       </Section>
 
       {/* Footer */}
       <Section style={{ backgroundColor: "#fafaf9", padding: [24, 0, 24, 0] }}>
-        <Paragraph style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
+        <Text style={{ padding: 10, fontSize: 12, color: "#a1a1aa", textAlign: "center", lineHeight: 1.5 }}>
           Forma Home · Brooklyn, NY
-        </Paragraph>
+        </Text>
       </Section>
     </Email>
   );

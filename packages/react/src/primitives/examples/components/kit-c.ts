@@ -1,4 +1,4 @@
-/** What the Html, Image, Layer, List, Menu, Page and Paragraph stories share: a quiet mono caption, and pictures drawn in code. */
+/** What the Html, Image, Layer, List, Menu, Page and Text stories share: a quiet mono caption, and pictures drawn in code. */
 
 /** Quiet notes on what a story demonstrates are set in this, as the gallery's labels are. */
 export const MONO = "'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace";

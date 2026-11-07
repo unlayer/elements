@@ -14,7 +14,7 @@ export const JUSTIFY: Record<string, string> = { start: "flex-start", center: "c
 
 /**
  * Where a child sits across a stack (root, Section, Column): one that fills
- * the width (a Paragraph, a Row) fills it; one with its own size (a Button, an
+ * the width (a Text, a Row) fills it; one with its own size (a Button, an
  * Image, a box with a width) sits where the stack's `align` says, else where
  * its text alignment says, as in email. `rtl`: the stack's text runs right to left.
  */
@@ -33,7 +33,7 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode, rtl = false)
 }
 
 /**
- * A Layer's child: in its one cell, over the ones before it. One that fills the width (a Column, a Paragraph) fills it, as
+ * A Layer's child: in its one cell, over the ones before it. One that fills the width (a Column, a Text) fills it, as
  * in a stack and in email; the Layer's justifyItems places those with their own size.
  */
 export function layerPlacement(child: ResolvedNode): Declarations {

@@ -1,5 +1,5 @@
 export const reactSample = `import {
-  Email, Column, Paragraph, Heading, Button
+  Email, Column, Text, Heading, Button
 } from "@unlayer/react-elements";
 
 export default function WelcomeEmail() {
@@ -9,9 +9,9 @@ export default function WelcomeEmail() {
         <Heading level={1} style={{ fontSize: 26, fontWeight: 700 }}>
           Welcome to Acme
         </Heading>
-        <Paragraph style={{ fontSize: 15, color: "#3f3f46" }}>
+        <Text style={{ fontSize: 15, color: "#3f3f46" }}>
           Thanks for signing up! We're thrilled to have you on board.
-        </Paragraph>
+        </Text>
         <Button
           href="https://example.com/dashboard"
           style={{

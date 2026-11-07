@@ -2,11 +2,11 @@
 // first build threw when it was imported there ("TextEncoder is not defined"), where 0.1.22 rendered.
 const React = require("react");
 const { renderToString } = require("react-dom/server");
-const { Email, Paragraph, render } = require("@unlayer/react-elements");
+const { Email, Text, render } = require("@unlayer/react-elements");
 const { toDesign } = require("@unlayer/react-elements/builder");
 
 const h = React.createElement;
-const email = h(Email, null, h(Paragraph, null, "Hello jest"));
+const email = h(Email, null, h(Text, null, "Hello jest"));
 
 test("renders an email and its design", async () => {
   expect((await render(email)).html).toContain("Hello jest");
@@ -30,9 +30,9 @@ test("the main entry is the new components, and today's aren't in the package", 
 });
 
 test("renders a template in the new components, and takes it to the builder's design (/builder)", async () => {
-  const {Email, Heading, Paragraph, render} = require("@unlayer/react-elements");
+  const {Email, Heading, Text, render} = require("@unlayer/react-elements");
   const { toDesign } = require("@unlayer/react-elements/builder");
-  const template = h(Email, null, h(Heading, null, "Hello jest"), h(Paragraph, null, "New components"));
+  const template = h(Email, null, h(Heading, null, "Hello jest"), h(Text, null, "New components"));
   const { html, text } = await render(template);
   expect(html).toContain("Hello jest");
   expect(text).toContain("New components");

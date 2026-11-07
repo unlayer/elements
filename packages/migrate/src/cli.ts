@@ -1,5 +1,5 @@
 /**
- * npx @unlayer/migrate — migrate React Email templates to Unlayer Elements.
+ * npx @unlayer/migrate — migrate React Email templates to Hyper Elements.
  *
  * For each template: convert its source (props, loops and conditions stay),
  * then check the result: render the original and the migrated template with
@@ -31,7 +31,7 @@ export interface Io {
   stderr(text: string): void;
 }
 
-export const USAGE = `Migrate React Email templates to Unlayer Elements.
+export const USAGE = `Migrate React Email templates to Hyper Elements.
 
 Usage:
   npx @unlayer/migrate <files or folders...> [options]
@@ -741,7 +741,8 @@ async function whoWrote(path: string, design: boolean): Promise<string> {
 async function isReport(path: string): Promise<boolean> {
   const text = await readFile(path, "utf8").catch(() => undefined);
   if (text === undefined) return true;
-  if (text.startsWith("# React Email → Unlayer Elements migration")) return true;
+  // Reports written before the rename start with "Unlayer Elements".
+  if (/^# React Email → (Hyper|Unlayer) Elements migration/.test(text)) return true;
   try {
     const parsed = JSON.parse(text);
     return Array.isArray(parsed) && parsed.every((r) => r && typeof r.file === "string" && typeof r.status === "string");
@@ -1348,7 +1349,7 @@ function summary(all: FileResult[], options: Options): string {
 }
 
 function markdownReport(results: FileResult[]): string {
-  const lines = ["# React Email → Unlayer Elements migration", ""];
+  const lines = ["# React Email → Hyper Elements migration", ""];
   lines.push("| Template | Result | Editable | Check | Differences |", "|---|---|---|---|---|");
   for (const r of results) {
     const check = r.status === "migrated" ? (r.looks?.length ? "passed, looks different" : "passed") : r.status === "check-failed" ? "failed" : "-";

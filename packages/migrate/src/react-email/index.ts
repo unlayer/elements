@@ -1,5 +1,5 @@
 /**
- * The React Email converter (@unlayer/migrate/react-email): React Email templates in Unlayer Elements' new components.
+ * The React Email converter (@unlayer/migrate/react-email): React Email templates in Hyper Elements' new components.
  *
  * Both modes write a template in Elements 0.2's components first, as source text, and move it to the new ones at once
  * (`toNewComponents`, in ../convert); what's checked, rendered and opened in the editor is the template in the new
