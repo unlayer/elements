@@ -1,13 +1,4 @@
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Preview,
-  Text,
-} from "@react-email/components";
+import { Body, Button, Container, Head, Heading, Html, Preview, Text } from "@react-email/components";
 
 export default function Welcome({ name = "Ada" }: { name?: string }) {
   return (
