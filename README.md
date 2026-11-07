@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://unlayer.com/logo_square.png" alt="Unlayer Elements" width="50" />
+  <img src="./apps/website/public/favicon.svg" alt="Hyper Elements" width="50" />
 </p>
 
-<h1 align="center">Unlayer Elements</h1>
+<h1 align="center">Hyper Elements</h1>
 
 <p align="center">
   Write once in React. Render emails, web pages, and PDFs from the same component tree.
@@ -10,26 +10,26 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/v/@unlayer/react-elements.svg" alt="npm version" /></a>
-  <a href="https://github.com/unlayer/elements/actions/workflows/test.yml"><img src="https://github.com/unlayer/elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
-  <a href="https://codecov.io/gh/unlayer/elements"><img src="https://codecov.io/gh/unlayer/elements/branch/main/graph/badge.svg" alt="codecov" /></a>
-  <a href="https://github.com/unlayer/elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
+  <a href="https://github.com/hyper-elements/hyper-elements/actions/workflows/test.yml"><img src="https://github.com/hyper-elements/hyper-elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
+  <a href="https://codecov.io/gh/hyper-elements/hyper-elements"><img src="https://codecov.io/gh/hyper-elements/hyper-elements/branch/main/graph/badge.svg" alt="codecov" /></a>
+  <a href="https://github.com/hyper-elements/hyper-elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/dm/@unlayer/react-elements.svg" alt="downloads" /></a>
 </p>
 
 ---
 
 <p align="center">
-  <img src="./assets/elements-demo.gif" alt="Unlayer Elements: the same JSX rendered as email, web, and document output" width="800" />
+  <img src="./assets/elements-demo.gif" alt="Hyper Elements: the same JSX rendered as email, web, and document output" width="800" />
 </p>
 
-Unlayer Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
+Hyper Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
 
 - **Email** → Outlook, Gmail, Yahoo, Apple Mail
 - **Web** → Responsive pages and embedded experiences
 - **Document** → Print-ready HTML for PDF generation
 
 <p align="center">
-  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Unlayer Elements: Architecture" width="1200" />
+  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Hyper Elements: Architecture" width="1200" />
 </p>
 
 Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
@@ -295,7 +295,7 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
+Elements writes its HTML with its own open-source writers, in [this repository](./packages/core/src/writers). Their output is locked down by reviewed HTML snapshots, a golden-template test, and browser-level gates (see below), so a change to the HTML they write fails until it's reviewed. Releases follow semantic versioning and each one is published with [release notes](https://github.com/hyper-elements/hyper-elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 

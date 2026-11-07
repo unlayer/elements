@@ -76,7 +76,7 @@ export default function FeatureComparison() {
 
       <div className="relative">
         <SectionHeader
-          badge="Why Unlayer Elements"
+          badge="Why Hyper Elements"
           title="Everything you need, nothing you don't"
           description="Purpose-built for teams that want full control over their email and document templates without fighting HTML tables."
         />

@@ -83,7 +83,7 @@ Upgrading from Elements 0.2? See [Moving from Elements 0.2](#moving-from-element
 
 For Codex, Cursor and other agents, add to `AGENTS.md` (or a rule): "Before writing an Elements template, read node_modules/@unlayer/react-elements/GUIDE.md."
 
-Or install the same guide as an agent skill: `npx skills add unlayer/elements`.
+Or install the same guide as an agent skill: `npx skills add hyper-elements/hyper-elements`.
 
 ## Structure
 
@@ -217,7 +217,7 @@ const page = await render(<Page><Invoice /></Page>);
 const printed = await render(<Document size="A4" margin={48}><Invoice /></Document>);
 ```
 
-`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/unlayer/elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
+`printed.html` is print-ready HTML. For PDF files, [`@unlayer/react-elements/pdf`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-pdf.md) writes a `Document` with no browser, and [`@unlayer/react-elements/image`](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/render-image.md) writes a `Canvas` as PNG or SVG.
 
 ## Phones and hover
 
@@ -340,13 +340,13 @@ The design holds no Elements data. A style or prop a builder tool has no field f
 
 ## Task guides and runnable examples
 
-- [Transactional email in React](https://github.com/unlayer/elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
-- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
-- [One React template to email, web, and PDF](https://github.com/unlayer/elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
-- [React invoice PDF with Playwright](https://github.com/unlayer/elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
-- [React to Unlayer visual editing](https://github.com/unlayer/elements/blob/main/packages/react/docs/visual-editing.md): `toDesign()`, editor loading, export, and what the builder can hold.
+- [Transactional email in React](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
+- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
+- [One React template to email, web, and PDF](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
+- [React invoice PDF with Playwright](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
+- [React to Unlayer visual editing](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/visual-editing.md): `toDesign()`, editor loading, export, and what the builder can hold.
 
-See [when to choose Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/unlayer/elements/tree/main/examples/content-workflows).
+See [when to choose Elements](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/content-workflows).
 
 ## Moving from Elements 0.2
 
@@ -357,7 +357,7 @@ npx @unlayer/migrate src/emails --from elements   # templates written for Elemen
 npx @unlayer/migrate src/emails                   # React Email templates
 ```
 
-It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/unlayer/elements/tree/main/packages/migrate).
+It lists what it would change, and `--write` replaces the files (only those git can restore). What it can't move is listed, and that file is left as it was to rewrite by hand. See the [migration guide](https://github.com/hyper-elements/hyper-elements/blob/main/packages/react/docs/migrating-from-0.2.md) and [`@unlayer/migrate`](https://github.com/hyper-elements/hyper-elements/tree/main/packages/migrate).
 
 ## Development
 
