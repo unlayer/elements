@@ -37,7 +37,6 @@ import {
   validate,
   Video,
 } from "@unlayer/react-elements";
-import { Resvg } from "@resvg/resvg-js";
 import type { ReactElement, ReactNode } from "react";
 import { writeCanvas } from "@unlayer-internal/elements-core/image";
 import { renderImage } from "../../src/image";
@@ -97,33 +96,6 @@ describe("renderImage", () => {
     expect(svg).toMatch(/^<svg width="600" height="315" viewBox="0 0 600 315"/);
     expect(svg).not.toContain("<text");
     expect(svg).toContain("6366f1");
-  });
-
-  it("places a line of text shorter than its block by its textAlign, as the HTML does", async () => {
-    // The space beside the ink, left and right, in the image resvg draws of a Canvas of one block of black text.
-    const margins = async (child: ReactNode, style = {}) => {
-      const canvas = (
-        <Canvas width={600} height={120} style={{ backgroundColor: "#ffffff", color: "#000000", fontFamily: "Liberation Sans", fontSize: 24, padding: 20, ...style }}>
-          {child}
-        </Canvas>
-      );
-      const { width, height, pixels } = new Resvg(Buffer.from((await renderImage(canvas, { fonts, format: "svg" })).image)).render();
-      let [first, last] = [width, -1];
-      for (let i = 0; i < width * height; i++) {
-        if (pixels[i * 4] >= 128) continue;
-        first = Math.min(first, i % width);
-        last = Math.max(last, i % width);
-      }
-      return { left: first, right: width - 1 - last };
-    };
-    const centered = (m: { left: number; right: number }) => Math.abs(m.left - m.right) <= 2;
-    expect(centered(await margins(<Text style={{ textAlign: "center" }}>Hello world</Text>))).toBe(true);
-    expect(centered(await margins(<Heading style={{ textAlign: "center" }}>Launch day</Heading>))).toBe(true);
-    expect(centered(await margins(<Text style={{ textAlign: "center" }}>Hello <Span style={{ fontWeight: 700 }}>bold</Span> world</Text>))).toBe(true);
-    expect(centered(await margins(<Text>Hello world</Text>, { textAlign: "center" }))).toBe(true);
-    // At the right, inside the Canvas's padding; at the left without one.
-    expect((await margins(<Text style={{ textAlign: "right" }}>Hello world</Text>)).right).toBeLessThanOrEqual(24);
-    expect((await margins(<Text>Hello world</Text>)).left).toBeLessThanOrEqual(24);
   });
 
   it("writes the same file for the same template", async () => {
@@ -314,15 +286,15 @@ describe("renderImage", () => {
     const centered = ([left, right]: number[]) => expect(Math.abs((left + right) / 2 - 540)).toBeLessThan(3);
 
     // The Canvas's alignment, a Column's, the block's own.
-    centered(await across(canvas("center", <Paragraph>EPISODE 42</Paragraph>)));
+    centered(await across(canvas("center", <Text>EPISODE 42</Text>)));
     centered(await across(canvas(undefined, <Column style={{ textAlign: "center" }}><Heading>EPISODE 42</Heading></Column>)));
-    centered(await across(canvas(undefined, <Paragraph style={{ textAlign: "center" }}>EPISODE <Span style={{ color: "#ff0000" }}>42</Span></Paragraph>)));
-    const [, right] = await across(canvas("right", <Paragraph>EPISODE 42</Paragraph>));
+    centered(await across(canvas(undefined, <Text style={{ textAlign: "center" }}>EPISODE <Span style={{ color: "#ff0000" }}>42</Span></Text>)));
+    const [, right] = await across(canvas("right", <Text>EPISODE 42</Text>));
     expect(right).toBeGreaterThan(1075);
-    const [left] = await across(canvas("left", <Paragraph>EPISODE 42</Paragraph>));
+    const [left] = await across(canvas("left", <Text>EPISODE 42</Text>));
     expect(left).toBeLessThan(5);
     // Lines that wrap, centered as they were.
-    centered(await across(canvas("center", <Paragraph style={{ fontSize: 48 }}>{"Five days of new things, one a day, all week long. ".repeat(3)}</Paragraph>)));
+    centered(await across(canvas("center", <Text style={{ fontSize: 48 }}>{"Five days of new things, one a day, all week long. ".repeat(3)}</Text>)));
   });
 
   it("writes a Canvas only", async () => {

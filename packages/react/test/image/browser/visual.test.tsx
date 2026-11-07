@@ -124,8 +124,8 @@ describe("an image and the Canvas's HTML in Chromium", () => {
         <Heading level={1} style={{ fontSize: 32, lineHeight: 1.2, fontWeight: 400 }}>
           EPISODE 42
         </Heading>
-        <Paragraph style={{ fontSize: 18, lineHeight: 1.4 }}>Five days of new things, one a day, every day of the week.</Paragraph>
-        <Paragraph style={{ fontSize: 18, lineHeight: 1.4, textAlign: "right" }}>One line, at the right</Paragraph>
+        <Text style={{ fontSize: 18, lineHeight: 1.4 }}>Five days of new things, one a day, every day of the week.</Text>
+        <Text style={{ fontSize: 18, lineHeight: 1.4, textAlign: "right" }}>One line, at the right</Text>
       </Canvas>
     );
     // Each line's letters start and end within a pixel of Chromium's, across. (Centered letters fall between pixels,
