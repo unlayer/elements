@@ -1,5 +1,5 @@
 /**
- * The codemod from today's components to the new ones (`--from elements`): what each of today's components becomes,
+ * The codemod from today's components to the new ones (`--from unlayer-elements`): what each of today's components becomes,
  * and what's reported where the new template may draw differently. The examples, migrated, are in legacy-examples.test.ts.
  */
 import { execFileSync } from "node:child_process";
@@ -267,7 +267,7 @@ export const T = ({ name }: { name: string }) => <Email><Row><Column>
 export const html = () => renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);`);
     expect(code).toContain('import { Email, Section, Text } from "@unlayer/react-elements";');
     expect(code).toContain('import { renderToHtml } from "@unlayer/react-elements";');
-    expect(report.join("\n")).toMatch(/renderToHtml is Elements 0\.2's API, which 0\.3\.0 doesn't have: it stays imported from @unlayer\/react-elements for you to replace/);
+    expect(report.join("\n")).toMatch(/renderToHtml is Unlayer Elements' API, which Hyper Elements doesn't have: it stays imported from @unlayer\/react-elements for you to replace/);
   });
 
   it("writes out the defaults today's components draw that the new ones don't share", async () => {
@@ -313,7 +313,7 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     expect(flat).toContain('Logohere<Spanstyle={{verticalAlign:"super"}}>1</Span>,red</Text>');
     expect(flat).toContain("One<LineBreak/>Two");
     expect(report).toEqual([
-      "line 3: its html's paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out",
+      "line 3: its html's paragraphs (<p>) are lines a blank line apart: the 1em Unlayer Elements draws above and below each is left out",
       "line 4: its html's <font> is left out, its text kept",
     ]);
     expect(errors(code)).toEqual([]);
@@ -339,12 +339,12 @@ export const T = () => <Email contentWidth="600px"><Row><Column><Heading heading
     expect(flat).toContain(">Go&see</Button>");
     expect(code).not.toContain("Not drawn");
     expect(report).toEqual([
-      "line 3: its html isn't drawn by today's Paragraph, which draws its children: it's left out",
-      "line 4: its html isn't drawn by today's Paragraph, which draws its text: it's left out",
-      "line 5: its html is drawn by today's Paragraph only where its children are undefined: it's left out",
-      "line 6: its children aren't drawn by today's Heading, which draws its text: they're left out",
-      "line 6: its html isn't drawn by today's Heading, which draws its text: it's left out",
-      "line 7: its children aren't drawn by today's Button, which draws its text: they're left out",
+      "line 3: its html isn't drawn by Unlayer Elements' Paragraph, which draws its children: it's left out",
+      "line 4: its html isn't drawn by Unlayer Elements' Paragraph, which draws its text: it's left out",
+      "line 5: its html is drawn by Unlayer Elements' Paragraph only where its children are undefined: it's left out",
+      "line 6: its children aren't drawn by Unlayer Elements' Heading, which draws its text: they're left out",
+      "line 6: its html isn't drawn by Unlayer Elements' Heading, which draws its text: it's left out",
+      "line 7: its children aren't drawn by Unlayer Elements' Button, which draws its text: they're left out",
     ]);
     expect(errors(code)).toEqual([]);
   });
@@ -366,7 +366,7 @@ export const T = () => <Email><Row layout={ColumnLayouts.TwoWideNarrow}><Column 
 
   it("reports Columns whose borders or backgrounds today's stretch to the Row's height", async () => {
     const { report } = await migrate(`export const T = () => <Email><Row layout={ColumnLayouts.TwoEqual}><Column backgroundColor="#f0f0f0"><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph><Paragraph>C</Paragraph></Column></Row></Email>;`);
-    expect(report.join("\n")).toMatch(/stretch this Row's Columns to its height/);
+    expect(report.join("\n")).toMatch(/stretches this Row's Columns to its height/);
   });
 
   it("writes an image's px width as the share of its column today's draw it at, and reports it", async () => {
@@ -455,7 +455,7 @@ export const T = (_: EmailProps & RowProps) => <Email><E.Row><E.Column><E.Paragr
     expect(code).toContain('import { type RowProps } from "@unlayer/react-elements";');
     expect(code).toContain('import * as E from "@unlayer/react-elements/legacy";');
     expect(squash(code)).toContain('<Emailwidth={500}style={{color:"#000000",fontFamily:"arial,helvetica,sans-serif"}}><Section><Text');
-    expect(report).toEqual(["line 3: E stays imported from @unlayer/react-elements/legacy for today's API used through it; its components are migrated"]);
+    expect(report).toEqual(["line 3: E stays imported from @unlayer/react-elements/legacy for Unlayer Elements' API used through it; its components are migrated"]);
     // A namespace used only for components goes.
     const only = await migrateElements(`import * as E from "@unlayer/react-elements";\nexport const T = () => <E.Email><E.Row layout={E.ColumnLayouts.TwoEqual}><E.Column /><E.Column /></E.Row></E.Email>;`);
     expect(only.code).not.toContain("import * as E");
@@ -479,7 +479,7 @@ export const Other = (Row: () => null) => <Row />;`, TODAYS);
     expect(code).toContain("<E.Row />");
     expect(code).toContain("export const Other = (Row: () => null) => <Row />;");
     expect(report).toEqual([
-      "line 1: E stays imported from @unlayer/react-elements for today's API used through it; its components are migrated",
+      "line 1: E stays imported from @unlayer/react-elements for Unlayer Elements' API used through it; its components are migrated",
       "line 2: Row stays imported from @unlayer/react-elements/legacy: it's used other than as an element (<Row>), which is all that's migrated",
     ]);
   });
@@ -631,7 +631,7 @@ export const T = () => (
 );`);
     expect(squash(code)).toContain("fontWeight:weight");
     expect(squash(code)).toContain("items={links}");
-    expect(report.filter((line) => !line.includes("today's Menu puts a space"))).toEqual([
+    expect(report.filter((line) => !line.includes("Unlayer Elements' Menu puts a space"))).toEqual([
       'line 4: its fontWeight is computed (weight): it\'s kept as it is, and the new components take a number from 100 to 900 in hundreds, "normal" or "bold", not a string of digits ("700")',
       "line 5: this Menu's items are computed (links): they're kept as they are, and an item's target is part of its link now ({ text, href: { href, target } }), not a field of its own",
     ]);
@@ -655,8 +655,8 @@ export const T = () => (
     expect(squashed.split('<Imagesrc="https://cdn.tools.unlayer.com/image/placeholder.png"/>')).toHaveLength(3);
     expect(squashed).toContain("lineHeight:1.5");
     expect(squashed).toContain("mobile={{lineHeight:2}}");
-    expect(report).toContain("line 5: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
-    expect(report).toContain("line 6: this Image has no src: today's draw their placeholder image, which is written in (give it its own)");
+    expect(report).toContain("line 5: this Image has no src: Unlayer Elements draws its placeholder image, which is written in (give it its own)");
+    expect(report).toContain("line 6: this Image has no src: Unlayer Elements draws its placeholder image, which is written in (give it its own)");
     // A menu's phone padding is each of its links' (and separators') on phones, as today's.
     expect(squashed).toContain('<Textstyle={{flex:"none",padding:[5,15]}}mobile={{padding:4}}>');
     expect(report.join("\n")).not.toContain("phone padding is left out");
@@ -668,7 +668,7 @@ export const T = () => (
     expect(squash(code)).toContain('{avatar||""?<Imagesrc={avatar||""}');
     expect(code.match(/<Image\b/g)).toHaveLength(1);
     expect(report.join("\n")).toMatch(/src comes from code: where that's empty, the Image is left out/);
-    expect(report.filter((line) => /src is empty: today's draw no image/.test(line))).toHaveLength(2);
+    expect(report.filter((line) => /src is empty: Unlayer Elements draws no image/.test(line))).toHaveLength(2);
     // It validates with and without one (the new Image needs a src).
     expect(errors(code, {})).toEqual([]);
     expect(errors(code, { avatar: "https://example.com/a.png" })).toEqual([]);
@@ -904,7 +904,7 @@ export const T = () => (
       const result = await migrateOnce(source, { installed });
       expect(result.code).toBe(source);
       expect(result.refused).toBe(result.report[0]);
-      expect(result.refused).toMatch(/only Elements 0\.2's components have \(<Row layout> on line 4\) and what only the new ones have \(<Heading hidden> on line 4\)/);
+      expect(result.refused).toMatch(/only Unlayer Elements' components have \(<Row layout> on line 4\) and what only the new ones have \(<Heading hidden> on line 4\)/);
     }
   });
 
@@ -962,7 +962,7 @@ describe("inlineHtml", () => {
     // A URL a call works out is written once: the guard would run it again.
     const called = inlineHtml(`<a${hole(0)}>here</a>`, ['htmlAttribute("href", links.shift())']);
     expect(called.jsx).toBe("<Link href={links.shift()}>here</Link>");
-    expect(called.dropped).toEqual(["link's URL is worked out by code, written once (links.shift()): where there's none, the new Link fails validation (today's draw its text alone there). Give it a name (const url = …) and only its text is written there"]);
+    expect(called.dropped).toEqual(["link's URL is worked out by code, written once (links.shift()): where there's none, the new Link fails validation (Unlayer Elements draws its text alone there). Give it a name (const url = …) and only its text is written there"]);
   });
 
   it("starts each block's text on a line of its own, a paragraph's a blank line from its neighbors, with no line before the first", () => {
@@ -995,11 +995,11 @@ function io(cwd: string): Io & { out: string; err: string } {
 }
 const TEMPLATE = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\nexport default function T() { return <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>; }\n`;
 
-describe("unlayer-migrate --from elements", () => {
+describe("unlayer-migrate --from unlayer-elements", () => {
   it("prints one template migrated, writing nothing", async () => {
     const dir = project({ "emails/welcome.tsx": TEMPLATE });
     const sink = io(dir);
-    expect(await main(["emails/welcome.tsx", "--from", "elements"], sink)).toBe(0);
+    expect(await main(["emails/welcome.tsx", "--from", "unlayer-elements"], sink)).toBe(0);
     expect(sink.out).toContain('from "@unlayer/react-elements"');
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(TEMPLATE);
   });
@@ -1007,7 +1007,7 @@ describe("unlayer-migrate --from elements", () => {
   it("writes a .jsx template as JavaScript", async () => {
     const dir = project({ "emails/Card.jsx": `import { Email, Row, Column, Button } from "@unlayer/react-elements";\nexport default function Card({ align }) { return <Email><Row><Column><Button textAlign={align}>Go</Button></Column></Row></Email>; }\n` });
     const sink = io(dir);
-    expect(await main(["emails/Card.jsx", "--from", "elements"], sink)).toBe(0);
+    expect(await main(["emails/Card.jsx", "--from", "unlayer-elements"], sink)).toBe(0);
     expect(sink.out).toContain('from "@unlayer/react-elements"');
     expect(syntaxErrors(sink.out, "Card.jsx")).toEqual([]);
   });
@@ -1015,7 +1015,7 @@ describe("unlayer-migrate --from elements", () => {
   it("replaces templates with --write only where git can restore them", async () => {
     const dir = project({ "emails/welcome.tsx": TEMPLATE, "emails/other.ts": "export const x = 1;\n" });
     const refused = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], refused)).toBe(1);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], refused)).toBe(1);
     expect(refused.err).toMatch(/git couldn't restore these:\n {2}emails\/welcome\.tsx \(not committed\)/);
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(TEMPLATE);
 
@@ -1024,7 +1024,7 @@ describe("unlayer-migrate --from elements", () => {
     git("add", "-A");
     git("commit", "-q", "-m", "templates");
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], sink)).toBe(0);
     expect(sink.out).toContain("emails/welcome.tsx: migrated");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
     expect(fs.readFileSync(path.join(dir, "emails/other.ts"), "utf8")).toBe("export const x = 1;\n");
@@ -1039,7 +1039,7 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project({ "emails/welcome.tsx": TEMPLATE, ...others });
     commit(dir);
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], sink)).toBe(0);
     expect(sink.out).toBe("emails/welcome.tsx: migrated\n");
     for (const [file, text] of Object.entries(others)) expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(text);
   });
@@ -1058,7 +1058,7 @@ describe("unlayer-migrate --from elements", () => {
     });
     commit(dir);
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], sink)).toBe(0);
     expect(sink.out).toBe("emails/digest.tsx: migrated\nemails/welcome.tsx: migrated\n");
     const welcome = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
     expect(welcome).toContain('import { Email, Heading, Section } from "@unlayer/react-elements";');
@@ -1079,7 +1079,7 @@ describe("unlayer-migrate --from elements", () => {
     const dir = project({ ...ui, "emails/welcome.tsx": `import { Email, Row, Column, Paragraph } from "./ui";\nexport default function Welcome() { return <Email><Row><Column><Paragraph /></Column></Row></Email>; }\n` });
     commit(dir);
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], sink)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], sink)).toBe(0);
     const welcome = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
     // The project's own Paragraph stays imported from its module, and as it was written.
     expect(welcome).toMatch(/import \{ Paragraph \} from "\.\/ui";/);
@@ -1091,12 +1091,12 @@ describe("unlayer-migrate --from elements", () => {
     const TEMPLATE = `import { Email, Button } from "@unlayer/react-elements";\nexport default function T() { return <Email><Button href="https://example.com/confirm">Confirm</Button></Email>; }\n`;
     const dir = project({ "emails/welcome.tsx": TEMPLATE });
     commit(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], io(dir))).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], io(dir))).toBe(0);
     const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
     expect(migrated.split("\n")[0]).toBe(MIGRATED_HEADER);
     commit(dir);
     const again = io(dir);
-    expect(await main(["emails", "--from", "elements", "--write"], again)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements", "--write"], again)).toBe(0);
     expect(again.out).toBe("emails/welcome.tsx: already uses the new components: left as it is\n");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
     expect(migrated).toContain('"https://example.com/confirm"');
@@ -1106,7 +1106,7 @@ describe("unlayer-migrate --from elements", () => {
     const template = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\nexport default function T() { return <Email><Row><Column><Paragraph style={{ fontSize: 24 }} html="Hello" /><Paragraph style={{ color: "#111111" }}>Hi</Paragraph></Column></Row></Email>; }\n`;
     const dir = project({ "emails/welcome.tsx": template, "emails/plain.tsx": template.replace(' html="Hello" />', ">Hello</Paragraph>") });
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements"], sink)).toBe(0);
+    expect(await main(["emails", "--from", "unlayer-elements"], sink)).toBe(0);
     expect(sink.err).toBe("");
     expect(sink.out).toContain("emails/welcome.tsx: would be migrated");
     expect(sink.out).toContain("emails/plain.tsx: would be migrated");
@@ -1124,12 +1124,12 @@ describe("unlayer-migrate --from elements", () => {
       "0.3.0"
     );
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
+    expect(await main(["emails", "--from", "unlayer-elements"], sink)).toBe(2);
     expect(sink.err).toBe(
-      "emails/both.tsx: couldn't be migrated: it has what only Elements 0.2's components have (<Heading containerPadding> on line 2) and what only the new ones have (<Heading hidden> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
+      "emails/both.tsx: couldn't be migrated: it has what only Unlayer Elements' components have (<Heading containerPadding> on line 2) and what only the new ones have (<Heading hidden> on line 2), so which it uses can't be told: it's left as it is. Take out what isn't its own, and run this again\n"
     );
     expect(sink.out).toContain("emails/current.tsx: already uses the new components: left as it is\n");
-    expect(sink.out).toContain("emails/plain.tsx: nothing in it is Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n");
+    expect(sink.out).toContain("emails/plain.tsx: nothing in it is Unlayer Elements 0.2's: left as it is (with @unlayer/react-elements 0.2 installed, it would be migrated)\n");
     expect(sink.out).toContain("emails/todays.tsx: would be migrated");
   });
 
@@ -1139,8 +1139,8 @@ describe("unlayer-migrate --from elements", () => {
       "emails/welcome.tsx": `import { E } from "./ui";\nexport default function Welcome() { return <E.Email><E.Row><E.Column><E.Paragraph>Hi</E.Paragraph></E.Column></E.Row></E.Email>; }\n`,
     });
     const sink = io(dir);
-    expect(await main(["emails", "--from", "elements"], sink)).toBe(2);
-    expect(sink.err).toContain("emails/welcome.tsx: couldn't be migrated: it imports today's components as E from ./ui (emails/ui.ts), a namespace of them, which the codemod doesn't follow: import them by name");
+    expect(await main(["emails", "--from", "unlayer-elements"], sink)).toBe(2);
+    expect(sink.err).toContain("emails/welcome.tsx: couldn't be migrated: it imports Unlayer Elements' components as E from ./ui (emails/ui.ts), a namespace of them, which the codemod doesn't follow: import them by name");
   });
 });
 

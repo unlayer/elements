@@ -37,7 +37,7 @@ Usage:
   npx @unlayer/migrate <files or folders...> [options]
   npx @unlayer/migrate compare <original> <migrated>
 
-Each template is converted to Elements' components, with their styles in
+Each template is converted to Hyper Elements' components, with their styles in
 style={{ }} (its props, loops and conditions stay), then checked: the
 original and the migrated template are rendered with the template's
 PreviewProps, every word must be preserved without extra words, and the
@@ -65,16 +65,16 @@ visual editor must get the template. Nothing is written unless you ask:
                    --write, or with --overwrite. Without it, they're
                    refused, so git can always undo a migration.
   --from <source>  What to migrate from: react-email (the default), or
-                   elements, templates written with Elements 0.2's
-                   components, rewritten with 0.3.0's: their props, loops
-                   and helpers stay. One template is printed; with --write,
-                   templates are replaced (only ones git can restore, unless
-                   --allow-dirty). What may draw a little differently is
-                   listed (--report writes it).
+                   unlayer-elements, templates written with Unlayer
+                   Elements, rewritten with Hyper Elements: their props,
+                   loops and helpers stay. One template is printed; with
+                   --write, templates are replaced (only ones git can
+                   restore, unless --allow-dirty). What may draw a little
+                   differently is listed (--report writes it).
   -h, --help       Show this help.
   -v, --version    Show the version.
 
-compare checks a template you migrated yourself to Elements' components against
+compare checks a template you migrated yourself to Hyper Elements' components against
 the original in the same way: rendered with the original's PreviewProps (and
 each true/false prop flipped), every word, link and image must be there, and
 the visual editor must get the template.
@@ -83,7 +83,7 @@ Run it from your project folder: templates load with your project's React,
 React Email and TypeScript paths. Exit code 0 when every template converted
 with the same content (what looks different is listed), 1 for a usage error
 or when no templates were found, 2 when a template failed to convert (or
-couldn't be written in Elements' components), its content differs (with
+couldn't be written in Hyper Elements' components), its content differs (with
 --strict, anything differs), a file couldn't be read, or the run couldn't go
 on.`;
 
@@ -222,11 +222,11 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (args.positional[0] === "compare") return compare(args.positional.slice(1), args, io, library);
   const from = args.option("from") ?? "react-email";
-  if (from !== "react-email" && from !== "elements") {
-    io.stderr(`Unknown --from "${from}". Supported: react-email, elements.\n`);
+  if (from !== "react-email" && from !== "unlayer-elements") {
+    io.stderr(`Unknown --from "${from}". Supported: react-email, unlayer-elements.\n`);
     return 1;
   }
-  if (from === "elements" && args.positional.length) {
+  if (from === "unlayer-elements" && args.positional.length) {
     const { migrateLegacy } = await import("./legacy/command");
     return migrateLegacy(args.positional, args, io, { walk: (dir) => walk(dir), notRestorable, resolver: moduleResolver, installed: installedElements });
   }
@@ -1065,8 +1065,8 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const names = old.filter((name) => !name.startsWith("@"));
     const what = [...(names.length ? [`${names.join(", ")} from @unlayer/react-elements`] : []), ...old.filter((name) => name.startsWith("@"))];
     io.stderr(
-      `${relative(io.cwd, migratedPath)} is written in Elements 0.2's components (it imports ${what.join(", and ")}), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
-        `  npx @unlayer/migrate --from elements ${migrated} --write\n` +
+      `${relative(io.cwd, migratedPath)} is written in Unlayer Elements' components (it imports ${what.join(", and ")}), which Hyper Elements doesn't have. Move it to the new components, then compare:\n` +
+        `  npx @unlayer/migrate --from unlayer-elements ${migrated} --write\n` +
         `  npx @unlayer/migrate compare ${original} ${migrated}\n`
     );
     return 1;

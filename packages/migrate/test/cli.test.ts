@@ -1045,16 +1045,16 @@ export default function Hi() { return <Email><Row><Column><Paragraph>Hi</Paragra
     expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], out, lib)).toBe(1);
     expect(out.out).toBe("");
     expect(out.err).toBe(
-      `migrated/old hi.tsx is written in Elements 0.2's components (it imports ColumnLayouts, Paragraph from @unlayer/react-elements), which 0.3.0 doesn't have. Move it to the new components, then compare:\n` +
-        `  npx @unlayer/migrate --from elements "migrated/old hi.tsx" --write\n` +
+      `migrated/old hi.tsx is written in Unlayer Elements' components (it imports ColumnLayouts, Paragraph from @unlayer/react-elements), which Hyper Elements doesn't have. Move it to the new components, then compare:\n` +
+        `  npx @unlayer/migrate --from unlayer-elements "migrated/old hi.tsx" --write\n` +
         `  npx @unlayer/migrate compare emails/hi.tsx "migrated/old hi.tsx"\n`
     );
     const entry = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/legacy.tsx"], entry, lib)).toBe(1);
-    expect(entry.err).toContain("migrated/legacy.tsx is written in Elements 0.2's components (it imports @unlayer/react-elements/legacy), which 0.3.0 doesn't have.");
+    expect(entry.err).toContain("migrated/legacy.tsx is written in Unlayer Elements' components (it imports @unlayer/react-elements/legacy), which Hyper Elements doesn't have.");
     // The two commands it gives: the template moved, then checked.
     const moved = io(dir);
-    expect(await main(["--from", "elements", "migrated/old hi.tsx", "--write"], moved, lib), moved.out + moved.err).toBe(0);
+    expect(await main(["--from", "unlayer-elements", "migrated/old hi.tsx", "--write"], moved, lib), moved.out + moved.err).toBe(0);
     const checked = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/old hi.tsx"], checked, lib), checked.out + checked.err).toBe(0);
     expect(checked.out).toContain("same words, links and images");
@@ -1118,6 +1118,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       [["nope"], "Not found: nope"],
       [["--bogus"], "Unknown option: --bogus"],
       [["--from", "mjml", "x"], 'Unknown --from "mjml"'],
+      [["--from", "elements", "x"], 'Unknown --from "elements". Supported: react-email, unlayer-elements.'],
     ];
     for (const [argv, message] of mistakes) {
       const out = io(dir);

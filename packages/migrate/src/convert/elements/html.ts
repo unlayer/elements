@@ -277,7 +277,7 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
     let otherwise: Frame["otherwise"];
     if (Object.prototype.hasOwnProperty.call(RUNS, tag)) component = "Span";
     else if (tag === "a" && attrs.href) component = "Link";
-    else if (tag === "p") dropped.add("paragraphs (<p>) are lines a blank line apart: the 1em today's draw above and below each is left out");
+    else if (tag === "p") dropped.add("paragraphs (<p>) are lines a blank line apart: the 1em Unlayer Elements draws above and below each is left out");
     else if (tag === "a") dropped.add("<a> without an href is left out, its text kept");
     else if (!BLOCKS.has(tag)) dropped.add(`<${tag}> is left out, its text kept`);
     else if (look(tag)) dropped.add(look(tag)!);
@@ -296,7 +296,7 @@ export function inlineHtml(html: string, given: string[] = [], name = (component
       // A URL from code may be missing (`<a${htmlAttribute("href", url)}>`): React writes no link then, only its text.
       // That reads the URL twice: code that may do something, or give something else, each time it runs is written once.
       if (fromCode.has("href") && !sourceReadsTwice(expression(attrs.href))) {
-        dropped.add(`link's URL is worked out by code, written once (${expression(attrs.href)}): where there's none, the new Link fails validation (today's draw its text alone there). Give it a name (const url = …) and only its text is written there`);
+        dropped.add(`link's URL is worked out by code, written once (${expression(attrs.href)}): where there's none, the new Link fails validation (Unlayer Elements draws its text alone there). Give it a name (const url = …) and only its text is written there`);
       } else if (fromCode.has("href")) {
         when = `(${expression(attrs.href)})`;
         const styledText = styled([]);

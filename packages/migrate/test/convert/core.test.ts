@@ -112,7 +112,7 @@ describe("the new components", () => {
     expect((error as Error).message).toMatch(/^it can't be written in the new components: line 3: its root is chosen at run time/);
     // One of today's components used other than as an element stays imported from today's: it can't run.
     const used = todays("const parts = [Paragraph];\nexport default function T() {\n  return <Email><Row><Column><Paragraph html=\"Hi\" /></Column></Row></Email>;\n}");
-    await expect(toNewComponents(used)).rejects.toThrow(/it still uses today's Paragraph \(line 1: Paragraph stays imported from/);
+    await expect(toNewComponents(used)).rejects.toThrow(/it still uses Unlayer Elements' Paragraph \(line 1: Paragraph stays imported from/);
   });
 
   it("list Columns written one under another apart, as they move", async () => {

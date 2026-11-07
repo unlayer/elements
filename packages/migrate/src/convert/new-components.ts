@@ -53,7 +53,7 @@ export async function toNewComponents(intermediate: string, options: { typescrip
   if (left.length) {
     // What the codemod said of each (`ColumnLayouts stays imported from …: it's used other than as …`).
     const why = moved.report.filter((line) => left.some((name) => line.includes(` ${name} `)));
-    throw new NewComponentsError(`it still uses today's ${left.join(", ")}${why.length ? ` (${why.join("; ")})` : ""}`, intermediate);
+    throw new NewComponentsError(`it still uses Unlayer Elements' ${left.join(", ")}${why.length ? ` (${why.join("; ")})` : ""}`, intermediate);
   }
   return { code: moved.code, notes: moved.report, stacked: moved.stacked ?? [] };
 }
